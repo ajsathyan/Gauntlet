@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Implementation Notes</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #fffff8;
+      --ink: #111;
+      --muted: #5f625f;
+      --line: #d8d3bd;
+      --accent: #1f6f78;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #151513;
+        --ink: #f4f1e8;
+        --muted: #bbb6a5;
+        --line: #3d3a31;
+        --accent: #7cc7c9;
+      }
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.5 ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+    }
+    main {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+    h1, h2 {
+      font-weight: 500;
+      line-height: 1.1;
+    }
+    h1 {
+      font-size: 2.1rem;
+      margin: 0 0 8px;
+    }
+    h2 {
+      font-size: 1.25rem;
+      margin: 36px 0 12px;
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+    }
+    p, li {
+      max-width: 680px;
+    }
+    .meta {
+      color: var(--muted);
+      margin: 0 0 32px;
+    }
+    .entry {
+      margin: 16px 0;
+      padding-left: 14px;
+      border-left: 2px solid var(--line);
+    }
+    .label {
+      color: var(--muted);
+      font-variant-caps: all-small-caps;
+      letter-spacing: .04em;
+    }
+    table {
+      border-collapse: collapse;
+      margin: 12px 0 24px;
+      min-width: min(100%, 520px);
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 7px 10px 7px 0;
+      text-align: left;
+    }
+    th {
+      font-weight: 600;
+    }
+    .spark {
+      color: var(--accent);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: nowrap;
+    }
+    .note {
+      color: var(--muted);
+      font-size: .95rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Implementation Notes</h1>
+    <p class="meta">Record meaningful decisions, deviations, tradeoffs, open questions, proof, and quantitative impact. Keep this concise.</p>
+
+    <section id="decisions">
+      <h2>Design Decisions</h2>
+      <p class="note">Choices made where the spec was ambiguous.</p>
+    </section>
+
+    <section id="deviations">
+      <h2>Deviations</h2>
+      <p class="note">Intentional departures from the spec and why.</p>
+    </section>
+
+    <section id="tradeoffs">
+      <h2>Tradeoffs</h2>
+      <p class="note">Alternatives considered and why one path was chosen.</p>
+    </section>
+
+    <section id="open-questions">
+      <h2>Open Questions</h2>
+      <p class="note">Questions for user confirmation or future revision.</p>
+    </section>
+
+    <section id="proof">
+      <h2>Proof</h2>
+      <p class="note">Commands, checks, screenshots, logs, and observed before/after behavior.</p>
+    </section>
+
+    <section id="metrics">
+      <h2>Quantitative Impact</h2>
+      <p class="note">Use Tufte-style minimal tables, sparklines, small multiples, or direct-labeled simple charts for quantitative impact.</p>
+      <table aria-label="Quantitative impact">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Before</th>
+            <th>After</th>
+            <th>Delta</th>
+            <th>Trend</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Example</td>
+            <td>-</td>
+            <td>-</td>
+            <td>-</td>
+            <td class="spark">-</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>
