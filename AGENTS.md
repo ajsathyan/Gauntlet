@@ -44,6 +44,8 @@ When spawning subagents, explicitly point each subagent at the relevant skill.
 
 For Tier 2/3 implementation, maintain `implementation-notes.html` in the project root unless the user specifies another location.
 
+Before implementation continues, create the notes file if missing, start a local notes server, and give the user the URL. Prefer `scripts/serve-notes.sh` from Gauntlet when available; otherwise use `python3 -m http.server` from the project root on an available localhost port. The notes page should auto-refresh so the user can watch progress live.
+
 The orchestrator owns the notes file. Subagents report findings; the orchestrator normalizes them.
 
 Record only meaningful entries:

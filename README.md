@@ -63,6 +63,8 @@ For non-trivial work, Gauntlet also maintains `implementation-notes.html` so age
 - Proof of completion
 - Quantitative impact, displayed with Tufte-style minimal visualization when useful
 
+For Tier 2/3 work, the agent should create the notes file, start a local notes server, give you the URL before implementation continues, and keep updating the page as work progresses. The template auto-refreshes in the browser so you can watch the decision log live.
+
 ## Task Tiers
 
 - Tier 0 trivial: edit, verify, summarize.
@@ -79,6 +81,16 @@ From this repo:
 ```
 
 Then restart Codex.
+
+## Live Notes
+
+To start live implementation notes from a project root:
+
+```bash
+path/to/Gauntlet/scripts/serve-notes.sh
+```
+
+The script creates `implementation-notes.html` if needed, serves the project on an available localhost port, and prints the notes URL.
 
 ## Inspiration
 

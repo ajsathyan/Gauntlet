@@ -1,2 +1,5 @@
 .DS_Store
 /implementation-notes.html
+/.gauntlet-notes-server.log
+/.gauntlet-notes-server.pid
+/.gauntlet-notes-server.port

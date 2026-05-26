@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="3">
   <title>Implementation Notes</title>
   <style>
     :root {
@@ -54,6 +55,15 @@
       color: var(--muted);
       margin: 0 0 32px;
     }
+    .live {
+      display: inline-block;
+      margin-left: 8px;
+      color: var(--accent);
+      font: 12px/1.2 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
     .entry {
       margin: 16px 0;
       padding-left: 14px;
@@ -90,7 +100,7 @@
 </head>
 <body>
   <main>
-    <h1>Implementation Notes</h1>
+    <h1>Implementation Notes <span class="live">auto-refresh</span></h1>
     <p class="meta">Record meaningful decisions, deviations, tradeoffs, open questions, proof, and quantitative impact. Keep this concise.</p>
 
     <section id="decisions">
