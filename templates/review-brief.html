@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Review Brief</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #fffff8;
+      --ink: #111;
+      --muted: #62645f;
+      --line: #d8d3bd;
+      --accent: #1f6f78;
+      --warn: #9c4f1f;
+      --good: #286b45;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #151513;
+        --ink: #f4f1e8;
+        --muted: #aaa596;
+        --line: #3d3a31;
+        --accent: #7cc7c9;
+        --warn: #fc8d62;
+        --good: #8bc9a3;
+      }
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.5 ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+    }
+    main {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 48px 24px 88px;
+    }
+    h1, h2, h3 {
+      font-weight: 500;
+      line-height: 1.1;
+    }
+    h1 {
+      font-size: 2.2rem;
+      margin: 0 0 8px;
+    }
+    h2 {
+      border-top: 1px solid var(--line);
+      font-size: 1.3rem;
+      margin: 36px 0 12px;
+      padding-top: 18px;
+    }
+    h3 {
+      font-size: 1.05rem;
+      margin: 24px 0 8px;
+    }
+    p, li {
+      max-width: 720px;
+    }
+    .meta, .note {
+      color: var(--muted);
+    }
+    .status {
+      display: inline-block;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font: 12px/1.2 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: .04em;
+      margin-right: 6px;
+      padding: 4px 8px;
+      text-transform: uppercase;
+    }
+    table {
+      border-collapse: collapse;
+      margin: 12px 0 24px;
+      width: min(100%, 960px);
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px 12px 8px 0;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      font-weight: 600;
+    }
+    td.num, th.num {
+      text-align: right;
+    }
+    .p0 { color: var(--warn); font-weight: 600; }
+    .p1 { color: var(--warn); }
+    .good { color: var(--good); }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .9em;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Review Brief</h1>
+    <p class="meta">One current review surface for this change. Replace template text with evidence from the spec, diff, notes, checks, and reviewer findings.</p>
+
+    <section id="overview">
+      <h2>Overview</h2>
+      <p><span class="status">Status</span> Draft</p>
+      <p><strong>Change:</strong> Summarize the user-visible or system-visible change in one paragraph.</p>
+      <p><strong>Recommended reviewers:</strong> PM, Design, Engineering.</p>
+    </section>
+
+    <section id="pm">
+      <h2>PM Brief</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>Assumption Or Change</th>
+            <th>PM Review Needed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Workflow</td>
+            <td>Describe the behavior or product assumption.</td>
+            <td>Confirm whether this matches product intent.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="design">
+      <h2>Design Brief</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Surface</th>
+            <th>What Changed</th>
+            <th>Design Review Needed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Primary flow</td>
+            <td>Describe screens, states, interactions, responsive behavior, or visual diffs.</td>
+            <td>Confirm hierarchy, states, accessibility, and product cohesion.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="developer">
+      <h2>Developer Brief</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Priority</th>
+            <th>Review Area</th>
+            <th>Files</th>
+            <th>Why It Needs Review</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="p1">P1</td>
+            <td>Primary behavior path</td>
+            <td><code>path/to/file</code></td>
+            <td>Explain the risk, contract, or edge case.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="proof">
+      <h2>Proof</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Proof</th>
+            <th>Result</th>
+            <th>What It Proves</th>
+            <th>What It Does Not Prove</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>command</code></td>
+            <td class="good">Pending</td>
+            <td>Describe coverage.</td>
+            <td>Describe residual risk.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="decisions">
+      <h2>Decisions</h2>
+      <p class="note">Record meaningful decisions, deviations, tradeoffs, and open questions. Do not turn this into a changelog.</p>
+    </section>
+
+    <section id="handoff">
+      <h2>Handoff</h2>
+      <p><strong>How to run:</strong> Add commands or links.</p>
+      <p><strong>Remaining work:</strong> Add unresolved items or say none when verified.</p>
+    </section>
+  </main>
+</body>
+</html>
