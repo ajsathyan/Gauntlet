@@ -10,6 +10,24 @@ PORT_FILE="$ROOT/.gauntlet-notes-server.port"
 LOG_FILE="$ROOT/.gauntlet-notes-server.log"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+url_responds() {
+  local port="$1"
+  PORT="$port" python3 - <<'PY' >/dev/null 2>&1
+import http.client
+import os
+
+conn = http.client.HTTPConnection("127.0.0.1", int(os.environ["PORT"]), timeout=0.4)
+try:
+    conn.request("GET", "/implementation-notes.html")
+    response = conn.getresponse()
+    raise SystemExit(0 if response.status < 500 else 1)
+except Exception:
+    raise SystemExit(1)
+finally:
+    conn.close()
+PY
+}
+
 TEMPLATE="$SCRIPT_DIR/../templates/implementation-notes.html"
 if [ ! -f "$TEMPLATE" ] && [ -f "$HOME/.codex/gauntlet/templates/implementation-notes.html" ]; then
   TEMPLATE="$HOME/.codex/gauntlet/templates/implementation-notes.html"
@@ -23,11 +41,29 @@ if [ ! -f "$NOTES" ]; then
   fi
 fi
 
-if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+if [ -f "$PID_FILE" ] && [ -f "$PORT_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
   PORT="$(cat "$PORT_FILE")"
-  echo "http://127.0.0.1:$PORT/implementation-notes.html"
-  exit 0
+  if url_responds "$PORT"; then
+    echo "http://127.0.0.1:$PORT/implementation-notes.html"
+    exit 0
+  fi
+  rm -f "$PID_FILE" "$PORT_FILE"
 fi
+
+if [ -f "$PORT_FILE" ]; then
+  PORT="$(cat "$PORT_FILE")"
+  if url_responds "$PORT"; then
+    rm -f "$PID_FILE"
+    printf '%s\n' "$PORT" > "$PORT_FILE"
+    echo "http://127.0.0.1:$PORT/implementation-notes.html"
+    exit 0
+  fi
+fi
+
+if [ -f "$PID_FILE" ]; then
+  rm -f "$PID_FILE"
+fi
+rm -f "$PORT_FILE"
 
 PORT="$(START_PORT="$START_PORT" python3 - <<'PY'
 import os
@@ -55,5 +91,11 @@ PID="$!"
 printf '%s\n' "$PID" > "$PID_FILE"
 printf '%s\n' "$PORT" > "$PORT_FILE"
 sleep 0.2
+
+if ! url_responds "$PORT"; then
+  rm -f "$PID_FILE" "$PORT_FILE"
+  echo "failed to start notes server; see $LOG_FILE" >&2
+  exit 1
+fi
 
 echo "http://127.0.0.1:$PORT/implementation-notes.html"
