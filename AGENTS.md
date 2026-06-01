@@ -1,4 +1,4 @@
-# Global Codex Coding Workflow
+# Global Agent Coding Workflow
 
 Gauntlet chooses the lightest mode and depth that can responsibly produce and prove the requested change.
 

@@ -109,7 +109,36 @@ From this repo:
 ./scripts/install.sh
 ```
 
-Then restart Codex.
+By default, the installer writes to this machine's current global agent home. To target another environment, set `AGENT_HOME`:
+
+```bash
+AGENT_HOME="$HOME/path-to-your-agent-config" ./scripts/install.sh
+```
+
+Then restart your coding agent.
+
+### Install With Your Agent
+
+Give this prompt to your AI coding agent from the root of this repo:
+
+```text
+Install Gauntlet as a global workflow harness for my coding agent.
+
+Goal:
+- Make the Gauntlet workflow available across my projects, not just this repo.
+- Preserve the Patch, Deep Patch, Slice, and Release build stages.
+- Preserve the role skills, implementation-notes template, review-brief template, and notes server script.
+- Adapt paths and file names to the global instruction, skill, memory, or workflow mechanism used by this agent environment.
+
+Steps:
+1. Inspect this repo and identify the global configuration location this environment uses for persistent agent instructions, skills, memories, or reusable workflows.
+2. Copy AGENTS.md into that global instruction location, or merge it into the equivalent global instruction file without deleting unrelated user instructions.
+3. Copy skills/ into the environment's global skills or workflows directory, or adapt each SKILL.md into the nearest supported equivalent.
+4. Copy templates/ and scripts/ into a durable global Gauntlet support directory.
+5. If the environment does not support skills, keep the role instructions as separate markdown files and add a global instruction telling the agent when to read each file.
+6. Verify the installed workflow mentions Patch, Deep Patch, Slice, Release, implementation notes, review briefs, and the role skills.
+7. Tell me exactly where you installed each piece and what I need to restart or reload.
+```
 
 ## Live Notes
 
@@ -123,7 +152,7 @@ The script creates `implementation-notes.html` if needed, serves the project on 
 
 ## What Gets Installed
 
-Gauntlet installs a small global `AGENTS.md` router plus Codex skills:
+Gauntlet installs a small global `AGENTS.md` router plus reusable role skills:
 
 - `intake`
 - `product-architect`

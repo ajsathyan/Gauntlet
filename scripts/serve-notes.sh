@@ -9,6 +9,7 @@ PID_FILE="$ROOT/.gauntlet-notes-server.pid"
 PORT_FILE="$ROOT/.gauntlet-notes-server.port"
 LOG_FILE="$ROOT/.gauntlet-notes-server.log"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GAUNTLET_HOME="${GAUNTLET_HOME:-${AGENT_HOME:-$HOME/.codex/gauntlet}}"
 
 url_responds() {
   local port="$1"
@@ -29,8 +30,8 @@ PY
 }
 
 TEMPLATE="$SCRIPT_DIR/../templates/implementation-notes.html"
-if [ ! -f "$TEMPLATE" ] && [ -f "$HOME/.codex/gauntlet/templates/implementation-notes.html" ]; then
-  TEMPLATE="$HOME/.codex/gauntlet/templates/implementation-notes.html"
+if [ ! -f "$TEMPLATE" ] && [ -f "$GAUNTLET_HOME/templates/implementation-notes.html" ]; then
+  TEMPLATE="$GAUNTLET_HOME/templates/implementation-notes.html"
 fi
 
 if [ ! -f "$NOTES" ]; then
