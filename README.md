@@ -81,41 +81,45 @@ The current claim is not "Gauntlet always writes better code." The claim is that
 
 ## ⚡ Install
 
-From this repo:
+Copy this into your AI coding agent:
+
+```text
+Install Gauntlet globally for my coding agent.
+
+Source repo:
+https://github.com/ajsathyan/Gauntlet
+
+Goal:
+Make the Gauntlet workflow available across all my projects, not just one repo.
+
+Use the repo's files as the source of truth:
+- AGENTS.md is the global workflow/router.
+- skills/ contains reusable role skills.
+- templates/ contains the implementation notes and review brief templates.
+- scripts/ contains the installer and live notes server.
+
+Install or adapt those files into whatever persistent global instruction, skill, memory, workflow, or config system this agent environment supports.
+
+Preserve these concepts:
+- Patch, Deep Patch, Slice, and Release build stages
+- Intake before substantial work
+- Live implementation-notes.html for Tier 2/3 work
+- Human review briefs for Slice and Release work
+- Role skills for planning, implementation, triage, adversarial review, black-box testing, experience review, and deep code review
+
+Do not delete or overwrite unrelated existing user instructions. Merge carefully.
+
+After installing, tell me:
+1. What files you installed or adapted
+2. Where you installed them
+3. Whether I need to restart or reload anything
+4. One quick test I can run to confirm Gauntlet is active
+```
+
+Already cloned the repo?
 
 ```sh
 ./scripts/install.sh
-```
-
-By default, the installer writes to this machine's current global agent home. To target another environment, set `AGENT_HOME`:
-
-```sh
-AGENT_HOME="$HOME/path-to-your-agent-config" ./scripts/install.sh
-```
-
-Then restart your coding agent.
-
-### Install With Your Agent
-
-Give this prompt to your AI coding agent from the root of this repo:
-
-```text
-Install Gauntlet as a global workflow harness for my coding agent.
-
-Goal:
-- Make the Gauntlet workflow available across my projects, not just this repo.
-- Preserve the Patch, Deep Patch, Slice, and Release build stages.
-- Preserve the role skills, implementation-notes template, review-brief template, and notes server script.
-- Adapt paths and file names to the global instruction, skill, memory, or workflow mechanism used by this agent environment.
-
-Steps:
-1. Inspect this repo and identify the global configuration location this environment uses for persistent agent instructions, skills, memories, or reusable workflows.
-2. Copy AGENTS.md into that global instruction location, or merge it into the equivalent global instruction file without deleting unrelated user instructions.
-3. Copy skills/ into the environment's global skills or workflows directory, or adapt each SKILL.md into the nearest supported equivalent.
-4. Copy templates/ and scripts/ into a durable global Gauntlet support directory.
-5. If the environment does not support skills, keep the role instructions as separate markdown files and add a global instruction telling the agent when to read each file.
-6. Verify the installed workflow mentions Patch, Deep Patch, Slice, Release, implementation notes, review briefs, and the role skills.
-7. Tell me exactly where you installed each piece and what I need to restart or reload.
 ```
 
 ## 📝 Live Notes
