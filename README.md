@@ -11,15 +11,16 @@ Coding agents can now work for longer stretches, but longer autonomy creates two
 1. They need better upfront structure so they do not stall or wander.
 2. Humans need a clear record of what the agent decided, changed, verified, and left uncertain.
 
-Gauntlet solves those problems with adaptive modes:
+Gauntlet solves those problems with adaptive modes and depth:
 
 ```text
-Patch   -> small, focused, low-risk changes
-Slice   -> coherent user-facing product slices
-Release -> production-bound, deeply verified changes
+Patch      -> small, focused, low-risk changes
+Deep Patch -> small surface, high-upside search and proof
+Slice      -> coherent user-facing product slices
+Release    -> production-bound, deeply verified changes
 ```
 
-Small tasks stay small. User-facing workflows get product architecture. Risky production work gets deeper proof and review.
+Small tasks stay small. Small but high-leverage tasks can spend more effort. User-facing workflows get product architecture. Risky production work gets deeper proof and review.
 
 ## Primary Goal
 
@@ -52,6 +53,12 @@ Gauntlet helps designers preserve UX intent through clearer flows, affected inte
 Patch is for small, clear, low-risk changes.
 
 Use it for copy fixes, localized UI polish, simple config updates, and narrow bug fixes with obvious verification. Patch avoids full-process overhead.
+
+### Deep Patch
+
+Deep Patch is for small code surfaces where the goal is worth deeper search.
+
+Use it for performance improvements, security audits, reliability hardening, data-loss prevention, hot-path correctness, and high-leverage bugs. Deep Patch keeps the patch narrow, but asks the agent to compare plausible approaches, benchmark or test the outcome, and explain why the chosen change is best within the user's appetite.
 
 ### Slice
 
@@ -99,14 +106,18 @@ For Slice and Release work, Gauntlet can also create `review-brief.html`. That b
 
 - Tier 0 trivial: edit, verify, summarize.
 - Tier 1 small: Patch.
+- Tier 1 high-upside: Deep Patch.
 - Tier 2 medium: Slice or focused Release depending on risk.
 - Tier 3 large or risky: Release with role subagents.
 
-The rule is simple:
+The rule has two parts:
 
 ```text
-Choose the lightest mode that can responsibly produce and prove the requested change.
+Choose the lightest mode for the change shape.
+Choose the depth that matches the value of finding the best answer.
 ```
+
+Mode is about scope and risk surface. Depth is about search effort. A performance optimization can be a tiny patch and still deserve Deep Patch if "fastest reasonable result" matters more than minimizing tokens.
 
 ## Install
 

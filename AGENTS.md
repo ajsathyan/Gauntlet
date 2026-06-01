@@ -1,10 +1,10 @@
 # Global Codex Coding Workflow
 
-Gauntlet chooses the lightest mode that can responsibly produce and prove the requested change.
+Gauntlet chooses the lightest mode and depth that can responsibly produce and prove the requested change.
 
 ## Modes
 
-Recommend one mode before non-trivial work. State the recommendation, why, and any escalation triggers. The user can override with "use Patch", "use Slice", or "use Release".
+Recommend one mode before non-trivial work. State the recommendation, why, depth, and any escalation triggers. The user can override with "use Patch", "use Deep Patch", "use Slice", or "use Release".
 
 ### Patch
 
@@ -19,6 +19,22 @@ Default loop:
 5. concise summary
 
 Examples: copy fixes, localized UI polish, simple config changes, narrow bug fixes with obvious tests.
+
+### Deep Patch
+
+Use Deep Patch when the code surface is small but the objective rewards deeper search or stronger proof.
+
+Default loop:
+
+1. intake with appetite check
+2. planner or mini-plan
+3. implementer
+4. compare alternatives when practical
+5. adversarial-reviewer or deep-code-reviewer
+6. benchmark, security check, or targeted proof
+7. concise summary with tradeoff and winner
+
+Examples: performance optimization, security audit findings, reliability hardening, data-loss prevention, hot-path correctness, and high-leverage bug fixes. Deep Patch should still keep the patch narrow, but it may spend more tokens to find the best available small change rather than the first acceptable one.
 
 ### Slice
 
@@ -54,10 +70,22 @@ Default loop:
 
 Escalate Patch or Slice to Release when the work touches auth, permissions, billing, migrations, destructive writes, private data, uploads, concurrency, public API contracts, production deploys, large refactors, or any area where a regression could materially harm users.
 
+## Depth
+
+Mode describes the change shape and risk surface. Depth describes how hard Gauntlet should search before settling.
+
+- Standard depth: use the simplest responsible path and prove it works.
+- Deep depth: compare plausible approaches, measure before/after when relevant, run adversarial review, and document why the chosen approach is best within the appetite.
+
+Choose Deep depth when the user asks for "best", "maximum", "fastest", "most secure", "audit", "harden", "optimize", "benchmark", "regression-proof", or when small code changes could have large performance, security, reliability, or data-integrity impact.
+
+When depth is ambiguous for optimization or security work, ask whether the user wants an acceptable improvement or the best improvement worth searching for. If the cost appetite is unclear and the likely extra cost is meaningful, stop and ask.
+
 ## Task Tiers
 
 - Tier 0 trivial: edit, verify, summarize.
 - Tier 1 small: Patch.
+- Tier 1 high-upside: Deep Patch.
 - Tier 2 medium: Slice or focused Release depending on risk.
 - Tier 3 large or risky: Release with role subagents.
 
@@ -67,7 +95,7 @@ Before substantial implementation, ensure the task has: goal, scope, non-goals, 
 
 Ask only questions that materially affect implementation, product behavior, risk, UX, data, API behavior, verification, or scope. Otherwise make a reasonable assumption, record it, and proceed.
 
-When mode selection depends on missing information, ask the minimum useful questions. For Slice work, prioritize who the user is, the workflow, the first-value moment, acceptance criteria, and any product constraints. For Release work, prioritize rollback, data integrity, security/privacy boundaries, and proof requirements.
+When mode or depth selection depends on missing information, ask the minimum useful questions. For Deep Patch, prioritize objective function, baseline, acceptable vs best target, measurement method, and cost appetite. For Slice work, prioritize who the user is, the workflow, the first-value moment, acceptance criteria, and any product constraints. For Release work, prioritize rollback, data integrity, security/privacy boundaries, and proof requirements.
 
 Treat `/intake` or "use intake" as an explicit request to run the intake skill before planning or implementation. For follow-ups, run delta intake: identify what changed, which assumptions are invalid, which acceptance criteria are new, and what new proof is required.
 
