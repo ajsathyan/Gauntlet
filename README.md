@@ -1,36 +1,38 @@
 # Gauntlet
 
-Gauntlet helps people and agents build in the same structured loop: spec, build, prove, review, and hand off.
+A model-agnostic workflow harness for shaping, running, and reviewing coding-agent work.
 
-It is a single-player and multiplayer product-development harness for Codex. Solo builders can get team-like structure around agent work. Teams can review the same change through PM, design, and engineering lenses without losing the reasoning behind it.
+Gauntlet helps engineers, PMs, and designers spend more time refining specs, scope, acceptance criteria, and review surfaces before the agent runs. Instead of treating every task as "prompt, wait, inspect, prompt again," it gives teams a shared vocabulary for deciding what kind of work is being done and how much proof it deserves.
 
-## Why This Exists
+## Build Stages
 
-Coding agents can now work for longer stretches, but longer autonomy creates two problems:
+| Stage | Best for | What it optimizes |
+|---|---|---|
+| Patch | Small, focused changes | Speed and low overhead |
+| Deep Patch | Small surface, high-upside work | Maximum reasonable performance, security, reliability, or correctness |
+| Slice | High-fidelity product features and workflows | AI-native prototyping and product handoff |
+| Release | Production-bound or risky changes | Deeper verification, review, and regression control |
 
-1. They need better upfront structure so they do not stall or wander.
-2. Humans need a clear record of what the agent decided, changed, verified, and left uncertain.
+## Why Gauntlet Exists
 
-Gauntlet solves those problems with adaptive modes and depth:
+Coding agents make implementation cheaper, but they make specification, orchestration, and review more important.
 
-```text
-Patch      -> small, focused, low-risk changes
-Deep Patch -> small surface, high-upside search and proof
-Slice      -> coherent user-facing product slices
-Release    -> production-bound, deeply verified changes
-```
+Gauntlet is built around a simple bet:
 
-Small tasks stay small. Small but high-leverage tasks can spend more effort. User-facing workflows get product architecture. Risky production work gets deeper proof and review.
+- Better-scoped work produces better agent runs.
+- Different tasks deserve different amounts of process.
+- Humans need live notes and review briefs, not just a final diff.
+- Engineers, PMs, and designers should be able to reason from the same build stages.
 
-## Primary Goal
+## What It Gives You
 
-Gauntlet is designed to let agents keep moving without becoming opaque.
-
-The workflow is based on three principles:
-
-1. Agents do better work from self-contained specs with clear boundaries, acceptance criteria, and proof requirements.
-2. Humans can delegate more safely when assumptions, deviations, tradeoffs, open questions, and verification evidence are captured during implementation.
-3. People should review one current version of the change through the role lens that fits their job.
+| Artifact | Purpose |
+|---|---|
+| Intake | Turns rough intent into scope, boundaries, acceptance criteria, and proof |
+| Planner | Converts accepted specs into ordered implementation slices |
+| Implementation notes | Captures decisions, deviations, tradeoffs, open questions, proof, and quantitative impact while work happens |
+| Review brief | Shows what changed, what needs review, why it matters, and what remains uncertain |
+| Role skills | Adds product architecture, adversarial review, black-box testing, and deep code review when useful |
 
 ## Who It Helps
 
@@ -46,7 +48,7 @@ Gauntlet helps PMs make product intent executable. It makes scope, non-goals, ac
 
 Gauntlet helps designers preserve UX intent through clearer flows, affected interfaces, state inventories, accessibility checks, visual proof, and visible deviations from the original spec.
 
-## Modes
+## How The Stages Work
 
 ### Patch
 
@@ -62,11 +64,9 @@ Use it for performance improvements, security audits, reliability hardening, dat
 
 ### Slice
 
-Slice is for coherent user-facing product work.
+Slice is for high-fidelity product features and workflows.
 
-Use it for onboarding, activation, retention, growth, high-fidelity product experiences, information architecture, new workflows, and design-heavy features. A Slice should look like the real product, not a prototype explanation. Product UI should not contain agent notes or meta commentary.
-
-Slice adds a `product-architect` before implementation and an `experience-reviewer` after implementation.
+Use it for onboarding, activation, retention, growth, information architecture, new workflows, and design-heavy features. Slice is best for AI-native prototyping and product handoff. A Slice should look like the real product, not a prototype explanation. Product UI should not contain agent notes or meta commentary.
 
 ### Release
 
@@ -74,35 +74,7 @@ Release is for production-bound or risky work.
 
 Use it for auth, billing, migrations, data integrity, privacy, uploads, concurrency, public APIs, large refactors, weak-test areas, and deploy-sensitive changes. Release runs the full loop and creates a developer review brief.
 
-## What Gauntlet Adds
-
-Gauntlet installs a small global `AGENTS.md` router plus Codex skills:
-
-- `intake`: turns rough intent into an implementation-ready spec.
-- `product-architect`: turns user-facing intent into a coherent product slice.
-- `planner`: breaks accepted specs into ordered slices.
-- `issue-triager`: turns work and findings into ready tasks.
-- `implementer`: executes scoped code changes.
-- `adversarial-reviewer`: hunts edge cases, trust-boundary issues, and regressions.
-- `black-box-tester`: validates user-visible behavior.
-- `experience-reviewer`: reviews product slices for workflow, IA, states, trust, accessibility, activation, retention, and growth.
-- `deep-code-reviewer`: reviews correctness, maintainability, tests, and regression risk.
-- `review-brief-builder`: creates PM, design, and developer review surfaces.
-
-For non-trivial work, Gauntlet also maintains `implementation-notes.html` so agent decisions stay inspectable:
-
-- Design decisions
-- Intentional deviations
-- Tradeoffs
-- Open questions
-- Proof of completion
-- Quantitative impact, displayed with Tufte-style minimal visualization when useful
-
-For Tier 2/3 work, the agent should create the notes file, start a local notes server, give you the URL before implementation continues, and keep updating the page as work progresses. The template auto-refreshes in the browser so you can watch the decision log live.
-
-For Slice and Release work, Gauntlet can also create `review-brief.html`. That brief is the canonical human review surface: what changed, what needs review, why it matters, what proof exists, and what is still uncertain.
-
-## Task Tiers And Modes
+## Task Tiers And Stages
 
 - Tier 0 trivial: edit, verify, summarize.
 - Tier 1 small: Patch.
@@ -113,11 +85,21 @@ For Slice and Release work, Gauntlet can also create `review-brief.html`. That b
 The rule has two parts:
 
 ```text
-Choose the lightest mode for the change shape.
+Choose the lightest stage for the change shape.
 Choose the depth that matches the value of finding the best answer.
 ```
 
 Mode is about scope and risk surface. Depth is about search effort. A performance optimization can be a tiny patch and still deserve Deep Patch if "fastest reasonable result" matters more than minimizing tokens.
+
+## What The First Evals Show
+
+Early local evals are directional, not benchmark-grade.
+
+In one focused performance task, the lighter Patch path used fewer tokens, but the heavier workflow found a faster optimization. That led to Deep Patch: a small-surface stage for cases where performance, security, reliability, or data integrity justify deeper search.
+
+In one broader product-performance task, Release mode cost more than direct development, but produced stronger review artifacts and caught a real progress-state regression during adversarial review.
+
+The current claim is not "Gauntlet always writes better code." The claim is that Gauntlet makes agent work more structured, reviewable, and measurable, with explicit tradeoffs between speed, cost, rigor, and human handoff.
 
 ## Install
 
@@ -139,17 +121,31 @@ path/to/Gauntlet/scripts/serve-notes.sh
 
 The script creates `implementation-notes.html` if needed, serves the project on an available localhost port, and prints the notes URL.
 
+## What Gets Installed
+
+Gauntlet installs a small global `AGENTS.md` router plus Codex skills:
+
+- `intake`
+- `product-architect`
+- `planner`
+- `issue-triager`
+- `implementer`
+- `adversarial-reviewer`
+- `black-box-tester`
+- `experience-reviewer`
+- `deep-code-reviewer`
+- `review-brief-builder`
+
+It also installs reusable templates for `implementation-notes.html` and `review-brief.html`.
+
 ## Inspiration
 
-Gauntlet was inspired by two agent-workflow patterns:
+Gauntlet is partly inspired by Simon Last's framing of agent work as a higher-throughput software factory: the bottleneck moves from typing code to shaping clear specs, boundaries, and review loops so agents can keep working.
 
-- Simon Last on running coding agents as a higher-throughput software factory: https://x.com/simonlast/status/2057978156183957995
-- trq212 on implementation notes for making autonomous agent decisions reviewable: https://x.com/trq212/status/2056415973125796184
+It is also inspired by trq212's implementation-notes pattern: long agent runs become easier to trust when decisions, deviations, tradeoffs, and open questions are captured while the work happens.
 
-The synthesis:
+Gauntlet combines those ideas into a workflow harness: define the work clearly, choose the right build stage, let the agent keep moving, and give humans a review surface that explains what changed and why.
 
-```text
-Workflow without notes is fast but opaque.
-Notes without workflow are transparent but not rigorous.
-Gauntlet combines both: agents keep moving, while their assumptions, deviations, proof, and risks remain inspectable.
-```
+## License
+
+MIT
