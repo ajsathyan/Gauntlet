@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-06-13T15:00:00Z",
+  "brief": {
+    "title": "Partner lead workflow review",
+    "summary": "Prioritized review for a Slice that changes partner lead claims, security boundaries, and proof coverage.",
+    "status": "Draft",
+    "project": "Example",
+    "mode": "Slice",
+    "artifactPath": "review-brief.html",
+    "sinceLastReview": "2 new, 1 proof added"
+  },
+  "reviewItems": [
+    {
+      "id": "RB-001",
+      "title": "Approve partner claim boundaries",
+      "priority": "P0",
+      "role": "PM",
+      "reviewState": "Needs decision",
+      "workState": "In Review",
+      "proofStatus": "Partial",
+      "confidence": "Needs judgment",
+      "why": "The copy and workflow decide what partner attribution means to the user.",
+      "decisionNeeded": "Confirm whether the product should allow claim handoff before all proof is collected.",
+      "agentNext": "If approved, update the acceptance criteria note and request missing proof. Do not mark done until proof passes.",
+      "links": {
+        "changeUnits": ["CU-001"],
+        "notes": ["N-001"],
+        "proof": ["P-001"]
+      },
+      "lifecycle": {
+        "createdAt": "2026-06-13T14:48:00Z",
+        "updatedAt": "2026-06-13T15:00:00Z",
+        "originRunId": "GAR-184",
+        "basisCommit": "abc1234"
+      }
+    },
+    {
+      "id": "RB-002",
+      "title": "Review partner lead security",
+      "priority": "P0",
+      "role": "Eng",
+      "reviewState": "Needs proof",
+      "workState": "In Review",
+      "proofStatus": "Missing",
+      "confidence": "Proof missing",
+      "why": "The change touches RLS and service-role boundaries.",
+      "decisionNeeded": "Confirm the server-only service-role boundary and anon denial behavior.",
+      "agentNext": "Collect RLS proof and attach it as a new proof handle before marking this item done.",
+      "links": {
+        "changeUnits": ["CU-002"],
+        "notes": ["N-002"],
+        "proof": []
+      },
+      "lifecycle": {
+        "createdAt": "2026-06-13T14:50:00Z",
+        "updatedAt": "2026-06-13T15:00:00Z",
+        "originRunId": "GAR-184",
+        "basisCommit": "abc1234"
+      }
+    },
+    {
+      "id": "RB-003",
+      "title": "Check responsive empty state",
+      "priority": "P1",
+      "role": "Design",
+      "reviewState": "Done",
+      "workState": "Done",
+      "proofStatus": "Passed",
+      "confidence": "High confidence",
+      "why": "The empty state is the first experience for new teams.",
+      "decisionNeeded": "No decision needed unless visual hierarchy changed after the screenshot proof.",
+      "agentNext": "Keep the item closed unless the design changes.",
+      "links": {
+        "changeUnits": ["CU-001"],
+        "notes": [],
+        "proof": ["P-002"]
+      },
+      "lifecycle": {
+        "createdAt": "2026-06-13T14:52:00Z",
+        "updatedAt": "2026-06-13T15:00:00Z",
+        "originRunId": "GAR-184",
+        "basisCommit": "abc1234"
+      }
+    }
+  ],
+  "changeUnits": [
+    {
+      "id": "CU-001",
+      "title": "Partner claim UI and empty state",
+      "reason": "Adds the first-value path and improves the no-data state.",
+      "changedFiles": ["src/app/partners/page.tsx", "src/components/empty-state.tsx"],
+      "linkedReviewItems": ["RB-001", "RB-003"],
+      "commitHash": "abc1234"
+    },
+    {
+      "id": "CU-002",
+      "title": "Partner lead RLS boundary",
+      "reason": "Moves sensitive partner claim checks behind server-only access.",
+      "changedFiles": ["src/server/partner-leads.ts", "supabase/migrations/20260613143000_partner_leads.sql"],
+      "linkedReviewItems": ["RB-002"],
+      "commitHash": "abc1234"
+    }
+  ],
+  "notes": [
+    {
+      "id": "N-001",
+      "kind": "Decision",
+      "text": "The workflow treats claim handoff as a product decision because it affects trust and support expectations.",
+      "links": {
+        "reviewItems": ["RB-001"],
+        "changeUnits": ["CU-001"]
+      }
+    },
+    {
+      "id": "N-002",
+      "kind": "Open question",
+      "text": "Confirm whether anon reads should remain fully denied for unclaimed partner leads.",
+      "links": {
+        "reviewItems": ["RB-002"],
+        "changeUnits": ["CU-002"]
+      }
+    }
+  ],
+  "proof": [
+    {
+      "id": "P-001",
+      "kind": "Manual check",
+      "status": "Partial",
+      "summary": "Primary claim flow was checked manually.",
+      "proves": "The happy path reaches the confirmation state.",
+      "doesNotProve": "Does not prove security boundaries or edge cases.",
+      "links": {
+        "reviewItems": ["RB-001"],
+        "changeUnits": ["CU-001"]
+      }
+    },
+    {
+      "id": "P-002",
+      "kind": "Screenshot",
+      "status": "Passed",
+      "summary": "Responsive empty state screenshot passed visual review.",
+      "proves": "The empty state remains readable at desktop and mobile widths.",
+      "doesNotProve": "Does not prove every authenticated state.",
+      "links": {
+        "reviewItems": ["RB-003"],
+        "changeUnits": ["CU-001"]
+      }
+    }
+  ]
+}

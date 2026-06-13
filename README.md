@@ -30,7 +30,7 @@ Coding agents make implementation cheaper, but they make specification, orchestr
 | Build stages | Routes work through Patch, Deep Patch, Slice, or Release based on scope, risk, and desired rigor. |
 | Role skills | Adds product architecture, planning, triage, implementation, adversarial review, black-box testing, experience review, and deep code review when useful. |
 | Live notes | Creates an auto-refreshing `implementation-notes.html` so decisions, deviations, tradeoffs, open questions, proof, and quantitative impact are visible while work happens. |
-| Review briefs | Gives engineers, PMs, and designers a human review surface that explains what changed, what needs review, why it matters, and what remains uncertain. |
+| Review briefs | Gives engineers, PMs, and designers a Review/Details/Changelog surface that prioritizes human decisions, proof gaps, and compact agent follow-up prompts. |
 | Model portability | Installs as reusable instructions, skills, templates, and scripts that can be adapted to different agent environments. |
 
 ## 🧭 Build Stages
@@ -132,6 +132,33 @@ path/to/Gauntlet/scripts/serve-notes.sh
 
 The script creates `implementation-notes.html` if needed, serves the project on an available localhost port, and prints the notes URL. The page auto-refreshes so you can watch meaningful decisions, deviations, tradeoffs, open questions, proof, and quantitative impact appear while work continues.
 
+## 🔎 Review Briefs
+
+For Slice and Release work, Gauntlet can create a human review surface:
+
+```text
+Review -> Details -> Changelog
+```
+
+The brief is designed for a solo reviewer first: open it, see the top decisions and proof gaps, inspect one item, then copy a compact handle-based prompt for the next agent.
+
+Recommended generated files:
+
+```text
+review-brief.html
+review-brief-data.json
+review-brief-data.schema.json
+review-brief-assets/
+```
+
+To serve a review brief from a project root:
+
+```sh
+path/to/Gauntlet/scripts/serve-review-brief.sh
+```
+
+The review shell treats generated data as untrusted text, uses stable handles like `RB-002` and `CU-001`, and avoids falling back to sample data when real review data is missing.
+
 ## 📦 What Gets Installed
 
 | File Or Directory | Purpose |
@@ -149,8 +176,12 @@ The script creates `implementation-notes.html` if needed, serves the project on 
 | [skills/review-brief-builder/SKILL.md](skills/review-brief-builder/SKILL.md) | Builds human review briefs for Slice and Release work. |
 | [templates/implementation-notes.html](templates/implementation-notes.html) | Live implementation notes template. |
 | [templates/review-brief.html](templates/review-brief.html) | Human review brief template. |
+| [templates/review-brief-data.schema.json](templates/review-brief-data.schema.json) | Data contract for generated review briefs. |
+| [templates/review-brief-data.example.json](templates/review-brief-data.example.json) | Example review brief data for local testing. |
 | [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, templates, and scripts. |
 | [scripts/serve-notes.sh](scripts/serve-notes.sh) | Starts the live notes server from a project root. |
+| [scripts/serve-review-brief.sh](scripts/serve-review-brief.sh) | Starts a localhost server for a generated review brief and sidecar JSON. |
+| [scripts/validate-review-brief-data.py](scripts/validate-review-brief-data.py) | Validates review brief JSON handles, enums, links, and proof state. |
 
 ## 🧠 Inspiration
 
