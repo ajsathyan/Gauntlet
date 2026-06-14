@@ -52,6 +52,7 @@ copy_if_missing "$SCHEMA" "$ROOT/review-brief-data.schema.json"
 
 if [ ! -f "$DATA" ]; then
   echo "review-brief-data.json is missing. Generate real review data before serving the brief." >&2
+  echo "For a new live review surface, run scripts/init-review-brief.sh from the project root." >&2
   echo "For local template testing only, copy templates/review-brief-data.example.json manually." >&2
   exit 1
 fi

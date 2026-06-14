@@ -217,9 +217,9 @@ The Changelog must be filterable by handle. A user should be able to enter `RB-0
 
 Done items remain reopenable with a Copy reopen prompt action.
 
-## Implementation Notes Relationship
+## Notes Relationship
 
-For the review brief artifact, implementation notes should roll into Changelog instead of living as a separate human review page.
+For the review brief artifact, notes live in Changelog instead of a separate human review page.
 
 The raw concepts stay:
 
@@ -230,9 +230,9 @@ The raw concepts stay:
 - Proof of completion.
 - Quantitative impact.
 
-But they are represented as `N-###` and `P-###` records linked to `CU-###` and `RB-###`.
+They are represented as `N-###` and `P-###` records linked to `CU-###` and `RB-###`.
 
-`implementation-notes.html` can still exist as the live during-work log for Tier 2/3 runs. `review-brief.html` is the canonical end-of-run human review surface.
+Do not create `implementation-notes.html` for Gauntlet runs. If the user wants to watch progress live, initialize and serve the review brief surface early, then update `review-brief-data.json` as the work evolves.
 
 ## Generation Architecture
 

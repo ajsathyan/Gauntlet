@@ -18,8 +18,6 @@ Rules:
 - Verify before declaring done.
 - Do not damage unrelated user work in a dirty workspace.
 
-For Tier 2/3 work, update `implementation-notes.html` through the orchestrator with meaningful design decisions, deviations, tradeoffs, open questions, proof, and quantitative impact.
-
 When Slice or Release work will produce a review brief, report implementation facts to the orchestrator in handle-friendly chunks:
 
 - Change units: coherent diff chunks, commits, changed files, and reason for change.

@@ -137,15 +137,22 @@ Experience-reviewer priorities:
 - Check whether progress, completion, and next action are clear.
 - Surface PM/design questions separately from engineering defects.
 
-## Implementation Notes
+## Live Review Surface
 
-For Tier 2/3 implementation, maintain `implementation-notes.html` in the project root unless the user specifies another location.
+Do not create `implementation-notes.html` for Gauntlet work.
 
-Before implementation continues, create the notes file if missing, start a local notes server, and give the user the URL. Prefer `scripts/serve-notes.sh` from Gauntlet when available; otherwise use `python3 -m http.server` from the project root on an available localhost port. The notes page should auto-refresh so the user can watch progress live.
+For Slice and Release work, or any Tier 2/3 task where the user wants to watch progress, maintain the review brief surface instead:
 
-The orchestrator owns the notes file. Subagents report findings; the orchestrator normalizes them.
+- `review-brief.html`
+- `review-brief-data.json`
+- `review-brief-data.schema.json`
+- `review-brief-assets/`
 
-Record only meaningful entries:
+Before implementation continues, create the review brief shell and data file if missing, start a local review brief server, and give the user the URL. Prefer `scripts/init-review-brief.sh` and `scripts/serve-review-brief.sh` from Gauntlet when available; otherwise create the same files from the Gauntlet templates and serve the project root with `python3 -m http.server` on an available localhost port.
+
+The orchestrator owns the review brief data. Subagents report findings; the orchestrator normalizes them into stable `RB`, `CU`, `N`, and `P` records.
+
+Record only meaningful review data:
 
 - Design decisions where the spec was ambiguous
 - Intentional deviations from the spec and why
@@ -154,9 +161,9 @@ Record only meaningful entries:
 - Proof of completion
 - Quantitative impact
 
-Do not turn notes into a changelog or a diary of trivial choices. Do not include secrets or sensitive data.
+Do not turn the Changelog into a diary of trivial choices. Do not include secrets or sensitive data.
 
-When notes include quantitative impact, present it with Tufte-style minimal visualization: compact tables, sparklines, small multiples, or simple charts with direct labels, high data-ink ratio, accessible contrast, and concise annotations. Use the `tufte-data-viz` skill when available.
+When proof includes quantitative impact, present it with Tufte-style minimal visualization: compact tables, sparklines, small multiples, or simple charts with direct labels, high data-ink ratio, accessible contrast, and concise annotations. Use the `tufte-data-viz` skill when available.
 
 ## Review Briefs
 
@@ -168,7 +175,7 @@ Use the Review/Details/Changelog model when practical:
 
 - Review: default current-attention view. Prioritize unresolved P0/P1 decisions, proof blockers, reopened items, and final scans.
 - Details: selected review item inspector inside Review. Separate "Human decision needed" from "Agent can do next."
-- Changelog: traceable reasoning trail with change units, implementation notes, proof, and commit-linked history.
+- Changelog: traceable reasoning trail with change units, notes, proof, and commit-linked history.
 
 Use stable short handles:
 
@@ -208,6 +215,6 @@ Stop and ask before proceeding when:
 
 ## Completion Rule
 
-A coding task is complete only when acceptance criteria are met, relevant checks ran or limitations are stated, implementation notes are updated when required, no blocking review/test/triage findings remain, and the final response includes what changed, what was verified, and remaining risks.
+A coding task is complete only when acceptance criteria are met, relevant checks ran or limitations are stated, review brief data is updated when required, no blocking review/test/triage findings remain, and the final response includes what changed, what was verified, and remaining risks.
 
 For Tier 2/3 work, add one short workflow lesson when useful: whether a recurring failure should update a skill, test, checklist, or this file.

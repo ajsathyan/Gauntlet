@@ -20,7 +20,7 @@ Use available evidence:
 
 - Accepted spec or intake output.
 - Product-architect output.
-- Implementation notes.
+- Existing review brief data, Changelog records, or prior `RB`/`CU`/`N`/`P` handles.
 - Git diff summary, name-status, and changed files.
 - Verification commands and results.
 - Screenshots, benchmarks, visual diffs, logs, or black-box evidence.

@@ -9,6 +9,8 @@ cp "$ROOT/AGENTS.md" "$AGENT_HOME/AGENTS.md"
 cp -R "$ROOT/skills/." "$AGENT_HOME/skills/"
 cp -R "$ROOT/templates" "$AGENT_HOME/gauntlet/"
 cp -R "$ROOT/scripts" "$AGENT_HOME/gauntlet/"
+rm -f "$AGENT_HOME/gauntlet/templates/implementation-notes.html"
+rm -f "$AGENT_HOME/gauntlet/scripts/serve-notes.sh"
 
 echo "Installed Gauntlet to $AGENT_HOME"
 echo "Restart your coding agent to pick up the new workflow."
