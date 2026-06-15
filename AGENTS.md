@@ -113,8 +113,21 @@ Use these skills on demand:
 - experience-reviewer: reviews user-facing slices for workflow clarity, IA, progress feedback, states, accessibility, trust, activation, retention, and growth.
 - deep-code-reviewer: reviews correctness, maintainability, tests, and regression risk.
 - review-brief-builder: creates human review surfaces for engineers, PMs, and designers from the spec, diff, notes, proof, and findings.
+- ian-xiaohei-illustrations: creates English-only Xiaohei explanation illustrations. For Slice or Release work with system-level changes or system-level scope, create a Mermaid diagram when formal structure would help and invoke this skill when an accompanying visual explanation would help reviewers understand architecture, code paths, workflows, process boundaries, trust boundaries, or operational flow.
 
 When spawning subagents, explicitly point each subagent at the relevant skill.
+
+## System-Level Explanation Visuals
+
+For Slice or Release work with system-level changes or system-level scope, create a Mermaid diagram whenever formal structure would make the system, code, workflow, or process easier to understand. Use `ian-xiaohei-illustrations` whenever an explanatory image would make the same scope easier to understand. Treat them as complementary: Mermaid carries precise structure, while Xiaohei carries intuition, risk, boundary, failure mode, or operational flow. If one is created and the other would also help, create both; omit either only when it would be redundant or impossible, and state that rationale briefly in the review brief or final summary.
+
+For Gauntlet review briefs, save Xiaohei assets under `review-brief-assets/`, include the credit in the asset caption or adjacent proof/note text, and record why the visual helps the reviewer.
+
+When a Xiaohei image is generated, credit the author directly under the image with this Markdown line:
+
+```markdown
+Credit: [helloianneo](https://github.com/helloianneo/ian-xiaohei-illustrations)
+```
 
 ## Product Slices
 
