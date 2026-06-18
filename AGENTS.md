@@ -89,6 +89,20 @@ When depth is ambiguous for optimization or security work, ask whether the user 
 - Tier 2 medium: Slice or focused Release depending on risk.
 - Tier 3 large or risky: Release with role subagents.
 
+## Review Brief Startup Gate
+
+For Slice and Release work, the review brief startup gate is mandatory. For other Tier 2/3 work, start the review brief when the task is multi-step, system-level, product-facing, risky, likely to involve meaningful decisions or proof, or when the user wants to watch progress.
+
+The gate happens when real work begins: after enough intake/planning to know the project root, but before implementation or file edits continue. Run one command when available:
+
+```sh
+scripts/start-review-brief.sh "$PROJECT_ROOT"
+```
+
+If that script is unavailable, run `scripts/init-review-brief.sh "$PROJECT_ROOT"` and then `scripts/serve-review-brief.sh "$PROJECT_ROOT"`. Surface the returned URL immediately in a user update, on its own line. When the Browser or in-app browser tool is available, open or navigate it to the URL as well, but still print the URL. Do not continue implementation without either a working URL or a concise blocker/fallback note.
+
+For Patch and Deep Patch, do not start a review brief by default unless the user asks, the work escalates, or a review surface would materially improve safety or handoff.
+
 ## Intake Gate
 
 Before substantial implementation, ensure the task has: goal, scope, non-goals, affected interfaces, acceptance criteria, verification/proof, constraints, and assumptions/open questions.
@@ -161,7 +175,7 @@ For Slice and Release work, or any Tier 2/3 task where the user wants to watch p
 - `review-brief-data.schema.json`
 - `review-brief-assets/`
 
-Before implementation continues, create the review brief shell and data file if missing, start a local review brief server, and give the user the URL. Prefer `scripts/init-review-brief.sh` and `scripts/serve-review-brief.sh` from Gauntlet when available; otherwise create the same files from the Gauntlet templates and serve the project root with `python3 -m http.server` on an available localhost port.
+Before implementation continues, satisfy the Review Brief Startup Gate. Prefer `scripts/start-review-brief.sh` from Gauntlet when available; otherwise create the same files from the Gauntlet templates and serve the project root with `python3 -m http.server` on an available localhost port.
 
 The orchestrator owns the review brief data. Subagents report findings; the orchestrator normalizes them into stable `RB`, `CU`, `N`, and `P` records.
 

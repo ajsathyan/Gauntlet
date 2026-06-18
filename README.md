@@ -153,6 +153,12 @@ To serve a review brief from a project root:
 path/to/Gauntlet/scripts/serve-review-brief.sh
 ```
 
+To initialize and serve in one command:
+
+```sh
+path/to/Gauntlet/scripts/start-review-brief.sh
+```
+
 The review shell treats generated data as untrusted text, uses stable handles like `RB-002` and `CU-001`, and avoids falling back to sample data when real review data is missing.
 
 ## 📦 What Gets Installed
@@ -176,6 +182,7 @@ The review shell treats generated data as untrusted text, uses stable handles li
 | [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, templates, and scripts. |
 | [scripts/init-review-brief.sh](scripts/init-review-brief.sh) | Initializes a live review brief shell, schema, data file, and assets folder. |
 | [scripts/serve-review-brief.sh](scripts/serve-review-brief.sh) | Starts a localhost server for a generated review brief and sidecar JSON. |
+| [scripts/start-review-brief.sh](scripts/start-review-brief.sh) | Initializes and serves the live review brief in one command, then prints the URL. |
 | [scripts/validate-review-brief-data.py](scripts/validate-review-brief-data.py) | Validates review brief JSON handles, enums, links, and proof state. |
 
 ## 🧠 Inspiration

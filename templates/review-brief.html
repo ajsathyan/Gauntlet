@@ -332,6 +332,27 @@
       margin-top: 8px;
     }
 
+    .prompt-preview {
+      background: #111;
+      border-radius: 10px;
+      color: #f2f2f2;
+      margin-top: 14px;
+      padding: 14px;
+    }
+
+    .prompt-preview h3 {
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .prompt-preview p {
+      color: #e4e4e4;
+      font-size: 12px;
+      line-height: 1.55;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
     .list {
       display: flex;
       flex-direction: column;
@@ -522,6 +543,16 @@
         } finally {
           area.remove();
         }
+      }
+
+      function setPromptPreview(payload) {
+        const preview = document.getElementById('prompt-preview-text');
+        if (preview) preview.textContent = payload;
+      }
+
+      function copyWithPreview(payload, label) {
+        setPromptPreview(payload);
+        copyText(payload, label);
       }
 
       function isValidAssetPath(path) {
@@ -771,7 +802,7 @@
         card.append(el('h2', 'card-title', item.title));
         card.append(el('p', 'muted', item.decisionNeeded));
         const actions = el('div', 'card-actions');
-        actions.append(button('Copy next action', 'primary', () => copyText(copyPromptFor(item, 'next'), 'Next action')));
+        actions.append(button('Copy next action', 'primary', () => copyWithPreview(copyPromptFor(item, 'next'), 'Next action')));
         actions.append(button('Copy ID', '', () => copyText(copyPromptFor(item, 'id'), 'ID')));
         card.append(actions);
         return card;
@@ -830,9 +861,15 @@
           ['Copy reopen prompt', 'reopen', ''],
           ['Copy full context', 'full', '']
         ].forEach(([label, mode, className]) => {
-          buttons.append(button(label, className, () => copyText(copyPromptFor(item, mode), label.replace('Copy ', ''))));
+          buttons.append(button(label, className, () => copyWithPreview(copyPromptFor(item, mode), label.replace('Copy ', ''))));
         });
         actions.append(buttons);
+        const preview = el('div', 'prompt-preview');
+        preview.append(el('h3', null, 'Prompt preview'));
+        const previewText = el('p', null, copyPromptFor(item, 'next'));
+        previewText.id = 'prompt-preview-text';
+        preview.append(previewText);
+        actions.append(preview);
         panel.append(actions);
 
         return panel;

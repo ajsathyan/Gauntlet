@@ -14,6 +14,8 @@ Use `templates/review-brief.html` from Gauntlet when available. Prefer the stabl
 - `review-brief-data.schema.json`: data contract copied from Gauntlet when available.
 - `review-brief-assets/`: local proof assets.
 
+For Slice and Release work, surface the review brief before implementation continues. Prefer `scripts/start-review-brief.sh "$PROJECT_ROOT"` when available; otherwise run the init and serve scripts separately. Give the user the returned URL immediately, and open it in the in-app browser when that tool is available.
+
 ## Inputs
 
 Use available evidence:
