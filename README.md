@@ -159,6 +159,20 @@ To initialize and serve in one command:
 path/to/Gauntlet/scripts/start-review-brief.sh
 ```
 
+To satisfy the Review brief startup gate before Slice, Release, or broad Deep Patch work:
+
+```sh
+path/to/Gauntlet/scripts/require-review-brief-started.sh /path/to/project
+```
+
+The required gate starts a healthy review brief, opens it in the default browser, writes `.gauntlet-review-brief-started.json`, and only then prints the URL. Use `GAUNTLET_REVIEW_OPEN=chrome` to prefer Chrome, or `GAUNTLET_REVIEW_OPEN=none` only for explicit headless/test runs.
+
+The start/serve scripts print a URL only after both `review-brief.html` and `review-brief-data.json` load from the same project directory. By default the OS chooses an available localhost port; set `GAUNTLET_REVIEW_PORT` only when you explicitly need a fixed port. Use the returned URL instead of hardcoding a localhost port. The shell also embeds a real JSON snapshot so direct `file://` opening works without sample data. To intentionally refresh an existing project's shell/schema from the latest Gauntlet template while preserving `review-brief-data.json`, run with:
+
+```sh
+GAUNTLET_REVIEW_REFRESH_TEMPLATE=1 path/to/Gauntlet/scripts/start-review-brief.sh /path/to/project
+```
+
 The review shell treats generated data as untrusted text, uses stable handles like `RB-002` and `CU-001`, and avoids falling back to sample data when real review data is missing.
 
 ## 📦 What Gets Installed
@@ -183,7 +197,10 @@ The review shell treats generated data as untrusted text, uses stable handles li
 | [scripts/init-review-brief.sh](scripts/init-review-brief.sh) | Initializes a live review brief shell, schema, data file, and assets folder. |
 | [scripts/serve-review-brief.sh](scripts/serve-review-brief.sh) | Starts a localhost server for a generated review brief and sidecar JSON. |
 | [scripts/start-review-brief.sh](scripts/start-review-brief.sh) | Initializes and serves the live review brief in one command, then prints the URL. |
+| [scripts/require-review-brief-started.sh](scripts/require-review-brief-started.sh) | Enforces the startup gate by proving the brief is healthy, opening it, and recording local proof. |
+| [scripts/embed-review-brief-data.py](scripts/embed-review-brief-data.py) | Embeds real review data into the HTML shell for direct file viewing. |
 | [scripts/validate-review-brief-data.py](scripts/validate-review-brief-data.py) | Validates review brief JSON handles, enums, links, and proof state. |
+| [scripts/check-review-brief.py](scripts/check-review-brief.py) | Runs deterministic checks for embedded snapshots and health-checked serving. |
 
 ## 🧠 Inspiration
 

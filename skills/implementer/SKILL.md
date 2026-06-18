@@ -15,6 +15,7 @@ Rules:
 - Keep interfaces narrow and behavior explicit.
 - Avoid broad rewrites, clever abstractions without need, unrelated cleanup, and silent behavior changes.
 - Add or update tests when behavior changes.
+- After substantial or generated-code-heavy changes, remove dead code and unnecessary abstractions you introduced before final verification. Do not chase unrelated cleanup.
 - Verify before declaring done.
 - Do not damage unrelated user work in a dirty workspace.
 

@@ -62,11 +62,12 @@ Default loop:
 2. planner
 3. issue-triager
 4. implementer
-5. adversarial-reviewer
-6. black-box-tester
-7. issue-triager
-8. deep-code-reviewer
-9. review-brief-builder
+5. architecture hygiene pass
+6. adversarial-reviewer
+7. black-box-tester
+8. issue-triager
+9. deep-code-reviewer
+10. review-brief-builder
 
 Escalate Patch or Slice to Release when the work touches auth, permissions, billing, migrations, destructive writes, private data, uploads, concurrency, public API contracts, production deploys, large refactors, or any area where a regression could materially harm users.
 
@@ -89,19 +90,62 @@ When depth is ambiguous for optimization or security work, ask whether the user 
 - Tier 2 medium: Slice or focused Release depending on risk.
 - Tier 3 large or risky: Release with role subagents.
 
+## Release Panel Guardrails
+
+Use a role panel only for Release, Tier 3, or when the user explicitly asks for multi-role planning. The panel is a decision aid, not the final artifact.
+
+Each panelist gets a tight brief:
+
+- Up to 3 candidate ship blockers from that role's lens
+- Up to 3 explicit deferrals or manual fallbacks
+- 1 meaningful tradeoff or rejected alternative
+- 1 `do not ship if` condition
+- 1 proof requirement that would change confidence
+- A short statement of what their lens changes; if nothing, say so
+
+The engineering lead must turn panel input into one decision table:
+
+- `ship blocker`, `defer`, or `reject`
+- owning role or slice
+- executable proof or a concrete manual proof script
+- rollback, support fallback, or manual fallback where relevant
+- the tradeoff decision when panelists disagree
+
+A `ship blocker` must name likely user harm, data/money/security/legal risk, or release regression and explain why no acceptable manual, support, private-beta, or post-launch fallback exists. If many blockers appear, group them by release capability and draw a launch cut line; do not let every role concern become mandatory by default.
+
+Run the anti-theater test before finalizing the plan: did the panel change scope, ordering, proof, risk priority, the first ready task, or reject a plausible alternative? Include a compact `Panel Changed The Plan` table with `concern -> decision -> plan change -> executable proof or concrete manual proof script`. If the table is empty or weak, collapse to the normal planner output and state that the panel added no unique value. The final plan should be one ordered implementation plan; keep role notes as a compact appendix or review-brief evidence, not persona essays.
+
+## Architecture Hygiene Pass
+
+For Slice, Release, and Tier 2/3 or broad multi-file changes, run one architecture hygiene pass after implementation and before completion. Prefer `deep-code-reviewer`; route broad or follow-up findings through `issue-triager`. If later review fixes change code, refresh only the affected hygiene checks.
+
+Do not run the pass by default for Patch or Deep Patch unless the change touched shared architecture, replaced a path, introduced multiple abstractions, used generated/vibe-coded code, or the user asked for cleanup.
+
+Check for:
+
+- Dead code, unreachable branches, unused exports/components/files/dependencies, stale sample code, and obsolete TODOs introduced, replaced, or made ambiguous by the change
+- Unnecessary abstractions such as one-use wrappers, pass-through helpers, speculative factories/providers, duplicated state layers, or extension points with no current caller
+- Duplicated logic, mismatched tests/fixtures/docs, spec-invisible scope creep, and compatibility shims that no longer have a consumer
+
+Use existing repo tooling first: typecheck, lint, tests, import/dependency scanners already present, and targeted `rg` searches. Do not add new cleanup tools unless the task asks for it or the repo already has that pattern.
+
+Fix only current-change cruft or obviously unused/unreachable code with low blast radius and passing proof. Do not block on taste, hunt unrelated legacy code, or create follow-ups without evidence of risk or meaningful maintenance cost. Limit the pass to one bounded scan unless it finds a P0/P1 issue. Triage everything else as a bounded follow-up or close it as no action so cleanup does not become a rewrite. For Slice and Release work, record meaningful hygiene decisions and proof in the review brief.
+
 ## Review Brief Startup Gate
 
-For Slice and Release work, the review brief startup gate is mandatory. For other Tier 2/3 work, start the review brief when the task is multi-step, system-level, product-facing, risky, likely to involve meaningful decisions or proof, or when the user wants to watch progress.
+For Slice and Release work, the review brief startup gate is mandatory. For Deep Patch work, the gate is mandatory when the task is broad, multi-file, system-level, decision-heavy, likely to run long, or likely to require meaningful tradeoff/proof records. For other Tier 2/3 work, start the review brief when the task is multi-step, product-facing, risky, likely to involve meaningful decisions or proof, or when the user wants to watch progress.
 
-The gate happens when real work begins: after enough intake/planning to know the project root, but before implementation or file edits continue. Run one command when available:
+The gate happens when real work begins: after enough intake to know the project root, but before planner decisions, implementation decisions, file edits, or subagent dispatch continue. Run one command when available:
 
 ```sh
-scripts/start-review-brief.sh "$PROJECT_ROOT"
+scripts/require-review-brief-started.sh "$PROJECT_ROOT"
 ```
 
-If that script is unavailable, run `scripts/init-review-brief.sh "$PROJECT_ROOT"` and then `scripts/serve-review-brief.sh "$PROJECT_ROOT"`. Surface the returned URL immediately in a user update, on its own line. When the Browser or in-app browser tool is available, open or navigate it to the URL as well, but still print the URL. Do not continue implementation without either a working URL or a concise blocker/fallback note.
+If that script is unavailable, run `scripts/start-review-brief.sh "$PROJECT_ROOT"` and open the returned URL in the default browser or Chrome. If the start script is also unavailable, run `scripts/init-review-brief.sh "$PROJECT_ROOT"` and then `scripts/serve-review-brief.sh "$PROJECT_ROOT"`. Surface the returned URL immediately in a user update, on its own line. The required gate opens the URL with `GAUNTLET_REVIEW_OPEN=default` by default; set `GAUNTLET_REVIEW_OPEN=chrome` to prefer Chrome or `GAUNTLET_REVIEW_OPEN=none` only for explicit headless/test runs. When the Browser or in-app browser tool is available, open or navigate it to the URL as well, but still print the URL. Do not continue planning or implementation without either a working opened URL or a concise blocker/fallback note.
 
-For Patch and Deep Patch, do not start a review brief by default unless the user asks, the work escalates, or a review surface would materially improve safety or handoff.
+Use only the URL returned by the review-brief script; do not handcraft or reuse fixed localhost ports. The script must prove both `review-brief.html` and `review-brief-data.json` load from the same project before printing a URL, open the URL or explicitly skip opening via configuration, and write `.gauntlet-review-brief-started.json` as local proof. `review-brief.html` also embeds a real JSON snapshot for direct `file://` viewing; refresh stale shells intentionally with `GAUNTLET_REVIEW_REFRESH_TEMPLATE=1`.
+
+For Patch and narrow Deep Patch, do not start a review brief by default unless the user asks, the work escalates, or a review surface would materially improve safety or handoff.
 
 ## Intake Gate
 
@@ -175,7 +219,7 @@ For Slice and Release work, or any Tier 2/3 task where the user wants to watch p
 - `review-brief-data.schema.json`
 - `review-brief-assets/`
 
-Before implementation continues, satisfy the Review Brief Startup Gate. Prefer `scripts/start-review-brief.sh` from Gauntlet when available; otherwise create the same files from the Gauntlet templates and serve the project root with `python3 -m http.server` on an available localhost port.
+Before planner or implementation decisions continue, satisfy the Review Brief Startup Gate. Prefer `scripts/require-review-brief-started.sh` from Gauntlet when available; otherwise create the same files from the Gauntlet templates and serve the project root with `python3 -m http.server` on an available localhost port.
 
 The orchestrator owns the review brief data. Subagents report findings; the orchestrator normalizes them into stable `RB`, `CU`, `N`, and `P` records.
 
@@ -242,6 +286,6 @@ Stop and ask before proceeding when:
 
 ## Completion Rule
 
-A coding task is complete only when acceptance criteria are met, relevant checks ran or limitations are stated, review brief data is updated when required, no blocking review/test/triage findings remain, and the final response includes what changed, what was verified, and remaining risks.
+A coding task is complete only when acceptance criteria are met, relevant checks ran or limitations are stated, review brief data is updated when required, no blocking review/test/triage findings remain, and the final response includes what changed, what was verified, and remaining risks. For Slice, Release, and applicable Tier 2/3 work, the architecture hygiene pass must be marked not applicable, completed with no blocking findings, or triaged into bounded follow-up work.
 
 For Tier 2/3 work, add one short workflow lesson when useful: whether a recurring failure should update a skill, test, checklist, or this file.

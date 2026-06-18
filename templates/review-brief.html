@@ -981,6 +981,16 @@
         return response.json();
       }
 
+      async function loadReviewData() {
+        const protocol = window.location.protocol;
+        if (protocol === 'file:') {
+          const embedded = loadEmbeddedData();
+          if (!embedded) throw new Error('Embedded review data is missing.');
+          return embedded;
+        }
+        return await loadSidecarData();
+      }
+
       async function init() {
         navReview.addEventListener('click', () => {
           state.view = 'review';
@@ -992,13 +1002,13 @@
         });
 
         try {
-          state.data = loadEmbeddedData() || await loadSidecarData();
+          state.data = await loadReviewData();
         } catch (error) {
           const protocol = window.location.protocol;
           renderError(
             'Review data not loaded',
             'This template requires real review data. It never falls back to sample data for generated briefs.',
-            protocol === 'file:' ? 'Direct file opening may block sidecar JSON. Generate review-brief-data.json, then run scripts/serve-review-brief.sh from the project root.' : `Expected review-brief-data.json next to this file. ${error.message}`
+            protocol === 'file:' ? `Embedded review data is missing or invalid. Run scripts/init-review-brief.sh or scripts/start-review-brief.sh from the project root to refresh the snapshot. ${error.message}` : `Expected review-brief-data.json next to this file. ${error.message}`
           );
           return;
         }

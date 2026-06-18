@@ -27,4 +27,5 @@ Rules:
 - Merge duplicates only when cause or resolution is shared.
 - Split broad findings into implementable tasks.
 - Prioritize items that unblock flow or protect users.
+- For architecture hygiene findings, mark work ready only when evidence, scope, done criteria, and verification are clear; otherwise merge into one deferred cleanup note or close as no action.
 - Define done for each ready item.

@@ -10,11 +10,12 @@ SCHEMA_TARGET="$ROOT/review-brief-data.schema.json"
 ASSETS="$ROOT/review-brief-assets"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GAUNTLET_HOME="${GAUNTLET_HOME:-${AGENT_HOME:-$HOME/.codex/gauntlet}}"
+REFRESH_TEMPLATE="${GAUNTLET_REVIEW_REFRESH_TEMPLATE:-0}"
 
-copy_if_missing() {
+copy_if_missing_or_refresh() {
   local source="$1"
   local target="$2"
-  if [ ! -f "$target" ] && [ -f "$source" ]; then
+  if [ -f "$source" ] && { [ ! -f "$target" ] || [ "$REFRESH_TEMPLATE" = "1" ]; }; then
     cp "$source" "$target"
   fi
 }
@@ -22,6 +23,7 @@ copy_if_missing() {
 TEMPLATE="$SCRIPT_DIR/../templates/review-brief.html"
 SCHEMA="$SCRIPT_DIR/../templates/review-brief-data.schema.json"
 VALIDATOR="$SCRIPT_DIR/validate-review-brief-data.py"
+EMBEDDER="$SCRIPT_DIR/embed-review-brief-data.py"
 
 if [ ! -f "$TEMPLATE" ] && [ -f "$GAUNTLET_HOME/templates/review-brief.html" ]; then
   TEMPLATE="$GAUNTLET_HOME/templates/review-brief.html"
@@ -32,9 +34,12 @@ fi
 if [ ! -f "$VALIDATOR" ] && [ -f "$GAUNTLET_HOME/scripts/validate-review-brief-data.py" ]; then
   VALIDATOR="$GAUNTLET_HOME/scripts/validate-review-brief-data.py"
 fi
+if [ ! -f "$EMBEDDER" ] && [ -f "$GAUNTLET_HOME/scripts/embed-review-brief-data.py" ]; then
+  EMBEDDER="$GAUNTLET_HOME/scripts/embed-review-brief-data.py"
+fi
 
-copy_if_missing "$TEMPLATE" "$BRIEF"
-copy_if_missing "$SCHEMA" "$SCHEMA_TARGET"
+copy_if_missing_or_refresh "$TEMPLATE" "$BRIEF"
+copy_if_missing_or_refresh "$SCHEMA" "$SCHEMA_TARGET"
 mkdir -p "$ASSETS"
 
 if [ ! -f "$DATA" ]; then
@@ -69,6 +74,11 @@ fi
 if [ -f "$VALIDATOR" ]; then
   python3 "$VALIDATOR" "$DATA" >/dev/null
 fi
+if [ ! -f "$EMBEDDER" ]; then
+  echo "missing embed-review-brief-data.py" >&2
+  exit 1
+fi
+python3 "$EMBEDDER" "$ROOT" >/dev/null
 
 echo "Initialized review brief files in $ROOT"
 echo "Serve with: ${SCRIPT_DIR}/serve-review-brief.sh \"$ROOT\""

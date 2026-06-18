@@ -14,7 +14,16 @@ Use `templates/review-brief.html` from Gauntlet when available. Prefer the stabl
 - `review-brief-data.schema.json`: data contract copied from Gauntlet when available.
 - `review-brief-assets/`: local proof assets.
 
-For Slice and Release work, surface the review brief before implementation continues. Prefer `scripts/start-review-brief.sh "$PROJECT_ROOT"` when available; otherwise run the init and serve scripts separately. Give the user the returned URL immediately, and open it in the in-app browser when that tool is available.
+For Slice, Release, and broad/decision-heavy Deep Patch work, surface the review brief before planner decisions or implementation continue. Prefer `scripts/require-review-brief-started.sh "$PROJECT_ROOT"` when available; otherwise run `scripts/start-review-brief.sh "$PROJECT_ROOT"` and open the returned URL in the default browser or Chrome. Give the user the returned URL immediately. Do not invent localhost URLs or reuse old ports; only trust the URL after the script proves both `review-brief.html` and `review-brief-data.json` load from the same project.
+
+Browser opening is controlled by `GAUNTLET_REVIEW_OPEN=default|chrome|none`; use `GAUNTLET_REVIEW_OPEN=chrome` to prefer Chrome, and reserve `none` for explicit headless/test runs. The required gate records `.gauntlet-review-brief-started.json` as local proof that the URL was healthy and the opener path succeeded or was explicitly skipped.
+
+The shell supports two data modes:
+
+- Localhost sidecar mode: served pages load fresh `review-brief-data.json`.
+- Direct file mode: `review-brief.html` embeds a real JSON snapshot for `file://` viewing.
+
+Run the init or serve script after updating `review-brief-data.json` to refresh the embedded snapshot. For an existing project with an old shell, set `GAUNTLET_REVIEW_REFRESH_TEMPLATE=1` when running init/start/serve to replace the shell and schema while preserving project data.
 
 ## Inputs
 
@@ -192,6 +201,7 @@ When practical:
 - Validate `review-brief-data.json` against the schema or the Gauntlet validator.
 - Check duplicate handles, invalid enums, unresolved links, invalid asset paths, and Done items without passed/not-applicable proof.
 - Verify missing-data and invalid-data states are clear.
+- Run `scripts/check-review-brief.py` when changing review brief templates or scripts.
 - Verify copy payloads are compact and do not contain untrusted instructions.
 - Verify Review, Details, Changelog, search/filter, and copy actions in a browser when the shell changes.
 

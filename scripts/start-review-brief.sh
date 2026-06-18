@@ -24,11 +24,49 @@ if [ ! -x "$SERVE" ]; then
   exit 1
 fi
 
+verify_review_url() {
+  local url="$1"
+  URL="$url" ROOT="$ROOT" python3 - <<'PY' >/dev/null 2>&1
+import hashlib
+import json
+import os
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+url = os.environ["URL"]
+root = Path(os.environ["ROOT"])
+parsed = urllib.parse.urlparse(url)
+if parsed.scheme != "http" or parsed.path != "/review-brief.html":
+    raise SystemExit(1)
+
+def fetch(target):
+    with urllib.request.urlopen(target, timeout=2) as response:
+        if response.status != 200:
+            raise SystemExit(1)
+        return response.read()
+
+html = fetch(url)
+data_url = urllib.parse.urlunparse(parsed._replace(path="/review-brief-data.json"))
+data = fetch(data_url)
+if hashlib.sha256(html).digest() != hashlib.sha256((root / "review-brief.html").read_bytes()).digest():
+    raise SystemExit(1)
+if hashlib.sha256(data).digest() != hashlib.sha256((root / "review-brief-data.json").read_bytes()).digest():
+    raise SystemExit(1)
+if json.loads(data).get("schemaVersion") != "1.0":
+    raise SystemExit(1)
+PY
+}
+
 "$INIT" "$ROOT" >/dev/null
 URL="$("$SERVE" "$ROOT")"
 
 if [ -z "$URL" ]; then
   echo "review brief server did not return a URL" >&2
+  exit 1
+fi
+if ! verify_review_url "$URL"; then
+  echo "review brief server returned an unhealthy URL: $URL" >&2
   exit 1
 fi
 
