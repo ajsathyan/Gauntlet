@@ -3,3 +3,7 @@
 /.gauntlet-notes-server.log
 /.gauntlet-notes-server.pid
 /.gauntlet-notes-server.port
+/.gauntlet-review-brief-started.json
+/.gauntlet-review-server.log
+/.gauntlet-review-server.pid
+/.gauntlet-review-server.port

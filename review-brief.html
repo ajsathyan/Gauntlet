@@ -490,7 +490,377 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script id="review-brief-data" type="application/json"></script>
+  <script id="review-brief-data" type="application/json">
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-06-20T00:24:00Z",
+  "brief": {
+    "title": "Gauntlet guarded-panel upgrade review",
+    "summary": "Review surface for executing the guarded-panel upgrade: simplified modes, compact Release panel contract, TypeScript durability gate, and deterministic checks.",
+    "status": "In Progress",
+    "project": "Gauntlet",
+    "mode": "Release",
+    "artifactPath": "review-brief.html",
+    "sinceLastReview": "Added Used Price pressure test, classifier edge-case tightening, naming-decision documentation, and installed-copy verification"
+  },
+  "reviewItems": [
+    {
+      "id": "RB-001",
+      "title": "Confirm simplified mode model",
+      "priority": "P1",
+      "role": "Eng",
+      "reviewState": "Ready for final scan",
+      "workState": "In Review",
+      "proofStatus": "Passed",
+      "confidence": "High confidence",
+      "why": "The plan intentionally collapses the old mode matrix into Patch, Feature, Release plus Standard/Deep depth and triggered gates.",
+      "decisionNeeded": "Confirm that removing Deep Patch and Slice as user-facing modes is acceptable for Gauntlet docs and skills.",
+      "agentNext": "Keep terminology checks passing and avoid reintroducing old mode names except as explicit stale-string guards.",
+      "links": {
+        "changeUnits": [
+          "CU-001"
+        ],
+        "notes": [
+          "N-001"
+        ],
+        "proof": [
+          "P-001",
+          "P-005"
+        ]
+      }
+    },
+    {
+      "id": "RB-002",
+      "title": "Review Release panel blocker bar",
+      "priority": "P1",
+      "role": "Eng",
+      "reviewState": "Ready for final scan",
+      "workState": "In Review",
+      "proofStatus": "Passed",
+      "confidence": "High confidence",
+      "why": "The panel guardrail is meant to reduce panel theater and blocker inflation.",
+      "decisionNeeded": "Confirm the decision table and allowed decision vocabulary are the right contract for Release planning.",
+      "agentNext": "Pressure-test the contract against Used Price planning outputs before considering the Do It worktree flow.",
+      "links": {
+        "changeUnits": [
+          "CU-002"
+        ],
+        "notes": [
+          "N-002"
+        ],
+        "proof": [
+          "P-001",
+          "P-005"
+        ]
+      }
+    },
+    {
+      "id": "RB-003",
+      "title": "Check TypeScript durability gate default",
+      "priority": "P1",
+      "role": "Eng",
+      "reviewState": "Ready for final scan",
+      "workState": "In Review",
+      "proofStatus": "Passed",
+      "confidence": "High confidence",
+      "why": "The TypeScript standards should not slow prototype work unless a concrete durability trigger exists.",
+      "decisionNeeded": "Confirm the first classifier trigger set is broad enough for risky TS work and narrow enough for UI-only prototypes.",
+      "agentNext": "Adjust classifier triggers only with evidence from real projects; do not turn durability into a global profile.",
+      "links": {
+        "changeUnits": [
+          "CU-003"
+        ],
+        "notes": [
+          "N-003"
+        ],
+        "proof": [
+          "P-001",
+          "P-005"
+        ]
+      }
+    },
+    {
+      "id": "RB-004",
+      "title": "Validate Used Price pressure test",
+      "priority": "P1",
+      "role": "Eng",
+      "reviewState": "Ready for final scan",
+      "workState": "In Review",
+      "proofStatus": "Passed",
+      "confidence": "Needs judgment",
+      "why": "The plan requires comparing current and upgraded guarded-panel outputs against a realistic Used Price private-beta release scenario.",
+      "decisionNeeded": "Confirm that the upgraded panel output is meaningfully better despite remaining classification variation on support and observability.",
+      "agentNext": "Use the comparison doc as evidence before starting any Do It/worktree implementation flow.",
+      "links": {
+        "changeUnits": [
+          "CU-005"
+        ],
+        "notes": [
+          "N-004",
+          "N-005"
+        ],
+        "proof": [
+          "P-003",
+          "P-004",
+          "P-005"
+        ]
+      }
+    }
+  ],
+  "changeUnits": [
+    {
+      "id": "CU-001",
+      "title": "Simplified Gauntlet mode model",
+      "reason": "Replaces the old Patch/Deep Patch/Slice/Release user-facing matrix with Patch/Feature/Release modes, Standard/Deep depth, and triggered gates.",
+      "changedFiles": [
+        "AGENTS.md",
+        "README.md",
+        "skills/product-architect/SKILL.md",
+        "skills/experience-reviewer/SKILL.md",
+        "skills/implementer/SKILL.md",
+        "skills/intake/SKILL.md"
+      ],
+      "linkedReviewItems": [
+        "RB-001"
+      ]
+    },
+    {
+      "id": "CU-002",
+      "title": "Guarded Release panel contract",
+      "reason": "Adds the compact decision table, decision vocabulary, high blocker bar, panel delta, collapse rule, repeated-run synthesis, and review/triage preservation guidance.",
+      "changedFiles": [
+        "AGENTS.md",
+        "skills/planner/SKILL.md",
+        "skills/issue-triager/SKILL.md",
+        "skills/deep-code-reviewer/SKILL.md",
+        "skills/review-brief-builder/SKILL.md"
+      ],
+      "linkedReviewItems": [
+        "RB-002"
+      ]
+    },
+    {
+      "id": "CU-003",
+      "title": "TypeScript durability classifier",
+      "reason": "Adds an executable gate that writes .gauntlet-ts-durability.json and defaults durability standards off unless concrete TS triggers exist.",
+      "changedFiles": [
+        "scripts/classify-ts-durability.sh",
+        "scripts/check-gauntlet-workflow.py",
+        "AGENTS.md",
+        "README.md",
+        "skills/planner/SKILL.md"
+      ],
+      "linkedReviewItems": [
+        "RB-003"
+      ]
+    },
+    {
+      "id": "CU-004",
+      "title": "Review brief freshness and data updates",
+      "reason": "Carries forward the live review brief freshness support and updates this run's review data with meaningful records.",
+      "changedFiles": [
+        "templates/review-brief.html",
+        "scripts/check-review-brief.py",
+        "review-brief-data.json"
+      ],
+      "linkedReviewItems": [
+        "RB-001",
+        "RB-002",
+        "RB-003"
+      ]
+    },
+    {
+      "id": "CU-005",
+      "title": "Used Price pressure test and naming decision",
+      "reason": "Documents the Slice-to-Feature naming decision, keeps Release as the high-risk mode name, and records the Used Price planning/classifier pressure test.",
+      "changedFiles": [
+        "docs/guarded-panel-plan-upgrade.md",
+        "docs/review-brief-v1-plan.md",
+        "docs/used-price-guarded-panel-pressure-test.md",
+        "scripts/classify-ts-durability.sh",
+        "scripts/check-gauntlet-workflow.py",
+        "scripts/install.sh",
+        ".gitignore",
+        "review-brief-data.json"
+      ],
+      "linkedReviewItems": [
+        "RB-001",
+        "RB-002",
+        "RB-003",
+        "RB-004"
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "id": "N-001",
+      "kind": "Decision",
+      "text": "Gauntlet now treats Deep as depth, not a mode, and Feature replaces Slice as the user-facing product-work mode.",
+      "links": {
+        "reviewItems": [
+          "RB-001"
+        ],
+        "changeUnits": [
+          "CU-001"
+        ]
+      }
+    },
+    {
+      "id": "N-002",
+      "kind": "Decision",
+      "text": "A Release panel is valid only when it produces a launch cut line, the Concern/Decision/Why Not Defer/Proof/Plan Delta table, and at least one concrete plan delta; otherwise it collapses to normal planner output.",
+      "links": {
+        "reviewItems": [
+          "RB-002"
+        ],
+        "changeUnits": [
+          "CU-002"
+        ]
+      }
+    },
+    {
+      "id": "N-003",
+      "kind": "Tradeoff",
+      "text": "The TS durability gate uses conservative path/config heuristics. It protects prototype velocity, but should be pressure-tested against real project paths before expanding triggers.",
+      "links": {
+        "reviewItems": [
+          "RB-003"
+        ],
+        "changeUnits": [
+          "CU-003"
+        ]
+      }
+    },
+    {
+      "id": "N-004",
+      "kind": "Decision",
+      "text": "Slice is renamed to Feature because it is clearer for user-facing product workflow work; Release stays Release because it names the operational risk posture better than Version.",
+      "links": {
+        "reviewItems": [
+          "RB-001"
+        ],
+        "changeUnits": [
+          "CU-005"
+        ]
+      }
+    },
+    {
+      "id": "N-005",
+      "kind": "Tradeoff",
+      "text": "Existing durable TypeScript patterns trigger durability standards for broad or non-UI durable work, but clearly UI-only changed files stay lightweight even in a repo that uses Zod or Effect elsewhere.",
+      "links": {
+        "reviewItems": [
+          "RB-003",
+          "RB-004"
+        ],
+        "changeUnits": [
+          "CU-003",
+          "CU-005"
+        ]
+      }
+    }
+  ],
+  "proof": [
+    {
+      "id": "P-001",
+      "kind": "Test",
+      "status": "Passed",
+      "summary": "python3 scripts/check-gauntlet-workflow.py passed.",
+      "proves": "The simplified mode model, guarded-panel contract, and TS durability classifier behavior are covered by deterministic checks.",
+      "doesNotProve": "Does not prove Used Price plan quality or all real-world TS trigger edge cases.",
+      "links": {
+        "reviewItems": [
+          "RB-001",
+          "RB-002",
+          "RB-003"
+        ],
+        "changeUnits": [
+          "CU-001",
+          "CU-002",
+          "CU-003"
+        ]
+      }
+    },
+    {
+      "id": "P-002",
+      "kind": "Test",
+      "status": "Passed",
+      "summary": "python3 scripts/check-review-brief.py passed.",
+      "proves": "The review brief startup, sidecar freshness, file snapshot, and workflow instruction checks still pass after the upgrade.",
+      "doesNotProve": "Does not prove browser rendering beyond the existing freshness smoke from the prior pass.",
+      "links": {
+        "reviewItems": [
+          "RB-001",
+          "RB-002",
+          "RB-003"
+        ],
+        "changeUnits": [
+          "CU-004"
+        ]
+      }
+    },
+    {
+      "id": "P-003",
+      "kind": "Manual check",
+      "status": "Passed",
+      "summary": "Used Price pressure test compared one legacy guarded-panel plan with two upgraded guarded-panel runs using the same private-beta paid-launch prompt.",
+      "proves": "The upgraded panel contract produced a launch cut line, decision vocabulary, why-not-defer rationale, proof per row, and concrete panel deltas; it downgraded public-launch and rate-limit concerns instead of inflating every concern into a blocker.",
+      "doesNotProve": "Does not prove Used Price launch readiness or eliminate all nondeterminism; support and observability classification still require engineering-lead judgment.",
+      "links": {
+        "reviewItems": [
+          "RB-002",
+          "RB-004"
+        ],
+        "changeUnits": [
+          "CU-002",
+          "CU-005"
+        ]
+      }
+    },
+    {
+      "id": "P-004",
+      "kind": "Manual check",
+      "status": "Passed",
+      "summary": "Used Price TS durability classifier cases passed: src/components/UsedPriceApp.tsx returned durabilityRequired=false; src/lib/session.ts returned durabilityRequired=true with auth and existing durable-pattern triggers.",
+      "proves": "The classifier differentiates UI/prototype work from auth/backend work in a real TypeScript repo that already uses Zod.",
+      "doesNotProve": "Does not prove every future path heuristic; it covers the current high-value UI and auth edge cases.",
+      "links": {
+        "reviewItems": [
+          "RB-003",
+          "RB-004"
+        ],
+        "changeUnits": [
+          "CU-003",
+          "CU-005"
+        ]
+      }
+    },
+    {
+      "id": "P-005",
+      "kind": "Test",
+      "status": "Passed",
+      "summary": "scripts/install.sh installed Gauntlet to /Users/ajsathyan/.codex; installed /Users/ajsathyan/.codex/gauntlet/scripts/check-gauntlet-workflow.py and check-review-brief.py both passed.",
+      "proves": "The global Codex copy has the upgraded workflow, skills, templates, scripts, and deterministic review-brief checks.",
+      "doesNotProve": "The current running Codex session has reloaded the installed instructions; restart is still needed for a fresh session to pick up global changes.",
+      "links": {
+        "reviewItems": [
+          "RB-001",
+          "RB-002",
+          "RB-003",
+          "RB-004"
+        ],
+        "changeUnits": [
+          "CU-001",
+          "CU-002",
+          "CU-003",
+          "CU-004",
+          "CU-005"
+        ]
+      }
+    }
+  ]
+}
+</script>
   <script>
     (() => {
       const state = {

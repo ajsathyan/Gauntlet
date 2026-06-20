@@ -26,7 +26,9 @@ Create a review surface that is:
 
 ## Mode And Depth
 
-Recommended Gauntlet mode: Slice.
+Recommended Gauntlet mode: Feature.
+
+Compatibility note: this plan was written before the `Slice` mode was renamed to `Feature`; implementation-slice headings below are task chunks, not the current Gauntlet mode.
 
 Depth: Standard, with a focused product/experience polish pass.
 
@@ -197,7 +199,7 @@ Use /path/to/review-brief.html generated 2026-06-13T15:00:00Z. Resolve RB-002 wi
 
 The Changelog should answer: why did the work end up this way, and how can I trace or reverse it?
 
-It replaces standalone implementation notes as the main historical view for Slice and Release review briefs.
+It replaces standalone implementation notes as the main historical view for Feature and Release review briefs.
 
 Each change unit should include:
 
@@ -530,7 +532,7 @@ Acceptance criteria:
 - `review-brief-builder` describes Review/Details/Changelog and the data-first generation model.
 - `review-brief-builder` includes safe rendering, handle stability, copy prompt safety, and schema validation rules.
 - `implementer` knows to report meaningful findings to the orchestrator as notes/proof/change units.
-- `AGENTS.md` says review briefs are canonical for Slice/Release and should use stable shell plus data when available.
+- `AGENTS.md` says review briefs are canonical for Feature/Release and should use stable shell plus data when available.
 - Local global skills and repo skills agree.
 
 ### Slice 5: Install And Local Sync

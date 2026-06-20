@@ -192,11 +192,34 @@ def test_template_uses_embedded_only_for_file_protocol():
         "window.location.protocol",
         "protocol === 'file:'",
         "return await loadSidecarData();",
-        "state.data = await loadReviewData();",
+        "const loaded = await loadReviewData();",
+        "state.data = loaded.data;",
+        "state.dataFingerprint = loaded.fingerprint;",
     ]
     for needle in required:
         if needle not in html:
             raise AssertionError(f"template is missing protocol-aware data loading marker: {needle}")
+
+
+def test_template_polls_for_fresh_sidecar_data_without_reload():
+    html = (TEMPLATES / "review-brief.html").read_text()
+    required = [
+        "function reviewDataFingerprint(",
+        "function renderFreshnessBanner()",
+        "async function pollForFreshReviewData()",
+        "state.pendingFreshData",
+        "state.ignoredFreshnessFingerprint",
+        "window.setInterval(pollForFreshReviewData",
+        "window.location.protocol === 'file:'",
+        "New review data available",
+        "Update view",
+        "Waiting for valid review data update",
+    ]
+    for needle in required:
+        if needle not in html:
+            raise AssertionError(f"template is missing live freshness marker: {needle}")
+    if "window.location.reload" in html or ".reload()" in html:
+        raise AssertionError("freshness flow must update the view without a hard reload")
 
 
 def test_require_review_brief_gate_opens_and_records_sentinel():
@@ -255,6 +278,7 @@ def test_workflow_instructions_require_gate_command():
     required = [
         'scripts/require-review-brief-started.sh "$PROJECT_ROOT"',
         "GAUNTLET_REVIEW_OPEN=chrome",
+        "Feature and Release",
     ]
     combined = "\n".join([agents, skill, readme])
     for needle in required:
@@ -264,6 +288,8 @@ def test_workflow_instructions_require_gate_command():
         raise AssertionError("workflow instructions are missing the review brief startup gate marker")
     if "For Patch and Deep Patch, do not start a review brief by default" in agents:
         raise AssertionError("workflow still tells agents not to start review briefs for all Deep Patch work")
+    if "For Slice and Release work" in agents or "For Slice and Release work" in skill:
+        raise AssertionError("workflow still refers to Slice as the review brief mode")
 
 
 def main():
@@ -274,6 +300,7 @@ def main():
         test_start_prints_only_healthy_project_url,
         test_no_legacy_fixed_review_port,
         test_template_uses_embedded_only_for_file_protocol,
+        test_template_polls_for_fresh_sidecar_data_without_reload,
         test_require_review_brief_gate_opens_and_records_sentinel,
         test_workflow_instructions_require_gate_command,
     ]

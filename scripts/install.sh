@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 mkdir -p "$AGENT_HOME/skills" "$AGENT_HOME/gauntlet"
 cp "$ROOT/AGENTS.md" "$AGENT_HOME/AGENTS.md"
+cp "$ROOT/README.md" "$AGENT_HOME/gauntlet/README.md"
 cp -R "$ROOT/skills/." "$AGENT_HOME/skills/"
 cp -R "$ROOT/templates" "$AGENT_HOME/gauntlet/"
 cp -R "$ROOT/scripts" "$AGENT_HOME/gauntlet/"

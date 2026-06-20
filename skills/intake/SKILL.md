@@ -36,6 +36,6 @@ Output this compact spec:
 - Verification/proof
 - Default assumptions
 - Open questions
-- First implementation slice
+- First implementation step
 
 Stop and ask when a missing answer could cause data loss, security/privacy exposure, billing impact, incompatible product behavior, or work beyond the stated appetite.

@@ -2,22 +2,36 @@
 
 Date: 2026-06-18
 
+## Upstream Dependency
+
+This plan starts after `guarded-panel-plan-upgrade.md` is accepted and implemented.
+
+The guarded-panel upgrade owns:
+
+- The compact decision table.
+- Valid decision values.
+- The blocker bar.
+- Repeated-run synthesis rules.
+- Panel delta rules.
+- Architecture hygiene blocker criteria.
+
+This Do It/worktree plan consumes those upgraded planning outputs. It should not redefine the guarded-panel planning contract except where needed to explain how review cards become implementation scope.
+
 ## Problem
 
 Gauntlet can generate strong plans and review briefs, but implementation scope is still too easy for an agent to expand. Long plans invite over-implementation, and long checklists invite skipped checks. The missing control surface is a human-owned `Do It` column: humans choose which cards enter implementation, and agents implement only those cards.
 
-For risky Release work, repeated planning runs can reveal useful variation, but merging every idea creates scope inflation. Gauntlet needs deterministic rules that convert varied plans into stable review cards, dependencies, proof requirements, and a human-selected implementation queue.
+After the guarded-panel upgrade, Gauntlet will have deterministic planning outputs: decision rows, proof requirements, deltas, deferrals, and rejections. This plan turns those upgraded planning outputs into stable review cards, dependencies, proof requirements, and a human-selected implementation queue.
 
 ## Target Outcome
 
 Add a Gauntlet flow where:
 
-1. A plan generates release concerns, blockers, deferrals, and proof.
-2. For Release/high-risk work, the same planning prompt may run twice to expose blind spots.
-3. A deterministic synthesis step converts plan output into review cards.
-4. Humans drag selected cards into `Do It`.
-5. The agent implements only the human-selected `Do It` cards, ideally in a scoped worktree.
-6. New findings go back to Review or Backlog, never directly into `Do It`.
+1. The upgraded guarded-panel plan generates release concerns, blockers, deferrals, proof, and plan deltas.
+2. A review brief converts accepted decision rows into review cards.
+3. Humans drag selected cards into `Do It`.
+4. The agent implements only the human-selected `Do It` cards, ideally in a scoped worktree.
+5. New findings go back to Review or Backlog, never directly into `Do It`.
 
 The result should preserve planning breadth while making implementation scope explicit and human-controlled.
 
@@ -33,9 +47,8 @@ Escalate to Release if the implementation changes persisted data migration seman
 
 ```text
 Intake
-  -> Plan
-  -> Optional second plan run for Release/high-risk work
-  -> Deterministic synthesis
+  -> Guarded-panel planning upgrade
+  -> Compact decision table
   -> Review brief cards
   -> Human moves cards to Do It
   -> Agent implements only Do It cards in scoped worktree
@@ -45,60 +58,15 @@ Intake
 
 ## Deterministic Planning Rules
 
-A Release panel is valid only if it produces:
+Use the deterministic planning rules from `guarded-panel-plan-upgrade.md` as the source of truth.
 
-- A launch cut line.
-- A compact decision table.
-- Executable proof for blockers.
-- At least one concrete plan delta.
-- Clear deferred and rejected work.
-
-Use exactly this decision table:
-
-| Concern | Decision | Why Not Defer | Proof | Plan Delta |
-| --- | --- | --- | --- | --- |
-
-Allowed `Decision` values:
-
-- `Ship blocker`
-- `Conditional blocker`
-- `Manual fallback`
-- `Private beta gate`
-- `Defer`
-- `Reject`
-
-A concern can be `Ship blocker` only if:
-
-- It names concrete user, data, money, security, legal, or release-regression harm.
-- It explains why fallback, deferral, private beta, or support recovery is not acceptable.
-- It has executable proof or a concrete manual proof script.
-- It changes scope, order, proof, deferral, first task, or rejected alternatives.
-
-If any of those are missing, downgrade the concern.
+This plan only adds the downstream conversion from accepted decision rows to implementation cards. If the guarded-panel upgrade changes the decision vocabulary or blocker bar, update this plan to match instead of creating a competing set of rules.
 
 ## Repeated Plan Run Rule
 
-Default:
+Repeated planning belongs to `guarded-panel-plan-upgrade.md`.
 
-- Run planning once.
-- Generate review cards from deterministic rules.
-
-For Release, security, billing, migrations, auth, permissions, privacy, concurrency, data-integrity, or ambiguous broad work:
-
-- Run the same planning prompt twice.
-- Compare only these differences:
-  - Missing blockers
-  - Dependency order
-  - Proof requirements
-  - First recommended human selections
-  - Deferrals and rejections
-- Merge only cards that pass the decision table.
-- Do not union every idea.
-
-For very high-risk work:
-
-- Run three planning outputs or one planning output plus one release-risk reviewer.
-- Synthesize with the same decision rules.
+The Do It/worktree flow receives the synthesized decision table and review cards after repeated-run synthesis is complete. It must not rerun planning or add additional planning variants during implementation.
 
 ## Card Generation Rules
 
@@ -227,6 +195,19 @@ The review brief should not become a project-management board. It should remain 
 
 ## Ordered Implementation Slices
 
+### Prerequisite: Complete Guarded Panel Plan Upgrade
+
+Finish `guarded-panel-plan-upgrade.md` before this plan begins.
+
+Acceptance criteria:
+
+- `AGENTS.md` and `planner` define the compact decision table.
+- Valid decision values are stable.
+- Blocker bar and panel delta rules are stable.
+- Repeated-run synthesis is documented.
+- Review brief builder preserves decision/proof/delta information.
+- Used Price pressure test confirms the upgraded panel output is better than the prior guarded panel.
+
 ### Slice 1: Document The Do It Contract
 
 Update Gauntlet instructions and relevant skills so the flow is explicit:
@@ -234,12 +215,12 @@ Update Gauntlet instructions and relevant skills so the flow is explicit:
 - Humans own `Do It`.
 - Agents implement only selected `Do It` cards.
 - New findings return to Review or Backlog.
-- Repeated planning runs are optional and only for high-risk work.
+- Guarded-panel planning output is the upstream source of implementation cards.
 
 Acceptance criteria:
 
 - `AGENTS.md` describes the `Do It` contract.
-- `planner` skill includes repeated-run and deterministic synthesis rules.
+- `planner` skill points to the guarded-panel output as the source for review cards.
 - `implementer` skill refuses unselected cards.
 - `review-brief-builder` skill describes `Do It` cards and copy prompts.
 
@@ -286,15 +267,15 @@ Acceptance criteria:
 - Prompt explicitly says not to self-promote new findings into `Do It`.
 - Prompt stays compact enough for practical reuse.
 
-### Slice 5: Add Optional Repeated-Run Synthesis Support
+### Slice 5: Consume Guarded-Panel Synthesis
 
-Support high-risk planning by recording multiple planning outputs and synthesized cards.
+Consume the upgraded guarded-panel synthesis without redefining it.
 
 Acceptance criteria:
 
-- Review brief can note whether one, two, or three planning runs were used.
-- Synthesis records which blocker/proof/dependency differences survived.
-- The output does not union every idea by default.
+- Review brief can display whether one, two, or three planning runs were used upstream.
+- Do It cards link back to the synthesized decision rows.
+- The Do It flow does not union or alter upstream planning ideas by default.
 
 ### Slice 6: Add Worktree Handoff Guidance
 
@@ -322,8 +303,8 @@ Acceptance criteria:
 ## Must-Haves
 
 - Human ownership of `Do It`
-- Deterministic decision table
-- Derived card generation
+- Guarded-panel upgrade completed first
+- Cards derived from upgraded guarded-panel decision rows
 - Dependency-aware `Do It` eligibility
 - Executable proof for blockers
 - No agent self-promotion into `Do It`
@@ -360,13 +341,11 @@ Acceptance criteria:
 
 ## First Ready Task
 
-Update Gauntlet documentation and skills to define the `Do It` contract:
+After `guarded-panel-plan-upgrade.md` is complete, update Gauntlet documentation and skills to define the `Do It` contract:
 
 - `Do It` is human-owned.
 - Agents implement only selected cards.
 - New findings return to Review or Backlog.
-- The compact decision table is the source of review cards.
-- Repeated plan runs are optional for high-risk work and must be synthesized, not unioned.
+- The upgraded guarded-panel decision table is the source of review cards.
 
 Do not change the review brief UI until the written contract is accepted.
-

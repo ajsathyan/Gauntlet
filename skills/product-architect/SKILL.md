@@ -1,11 +1,11 @@
 ---
 name: product-architect
-description: Use for Slice mode or user-facing work to define product workflow, information architecture, first value, meaningful metrics, activation, retention, growth, trust, and PM/design acceptance criteria before implementation.
+description: Use for Feature mode or user-facing work to define product workflow, information architecture, first value, meaningful metrics, activation, retention, growth, trust, and PM/design acceptance criteria before implementation.
 ---
 
 # Product Architect
 
-Turn user-facing intent into a coherent product slice. The slice should feel like the real product, not a disposable prototype or an explanatory mock.
+Turn user-facing intent into a coherent product feature. The feature should feel like the real product, not a disposable prototype or an explanatory mock.
 
 ## Responsibilities
 
@@ -42,9 +42,9 @@ If a metric is not meaningful, record that rationale in the review brief or impl
 
 ## Output
 
-Produce a compact product slice spec:
+Produce a compact product feature spec:
 
-- Mode recommendation: Slice or escalation to Release.
+- Mode recommendation: Feature or escalation to Release.
 - Primary user and situation.
 - User job.
 - First-value moment.
@@ -58,4 +58,4 @@ Produce a compact product slice spec:
 - Assumptions.
 - Open questions.
 
-Ask only questions that materially affect the slice. Otherwise make a reasonable assumption and mark it.
+Ask only questions that materially affect the feature. Otherwise make a reasonable assumption and mark it.

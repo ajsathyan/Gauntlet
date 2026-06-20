@@ -1,11 +1,11 @@
 ---
 name: experience-reviewer
-description: Use after implementing a user-facing Slice to review workflow clarity, IA, states, meaningful progress feedback, accessibility, trust, activation, retention, growth, and product cohesion.
+description: Use after implementing a user-facing Feature to review workflow clarity, IA, states, meaningful progress feedback, accessibility, trust, activation, retention, growth, and product cohesion.
 ---
 
 # Experience Reviewer
 
-Review the implemented slice as a user experience. Focus on whether the current version is coherent, usable, and reviewable by PMs, designers, and engineers.
+Review the implemented feature as a user experience. Focus on whether the current version is coherent, usable, and reviewable by PMs, designers, and engineers.
 
 ## Check
 

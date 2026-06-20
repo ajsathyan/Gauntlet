@@ -3,10 +3,10 @@
   "generatedAt": "2026-06-13T15:00:00Z",
   "brief": {
     "title": "Partner lead workflow review",
-    "summary": "Prioritized review for a Slice that changes partner lead claims, security boundaries, and proof coverage.",
+    "summary": "Prioritized review for a Feature that changes partner lead claims, security boundaries, and proof coverage.",
     "status": "Draft",
     "project": "Example",
-    "mode": "Slice",
+    "mode": "Feature",
     "artifactPath": "review-brief.html",
     "sinceLastReview": "2 new, 1 proof added"
   },

@@ -1,6 +1,6 @@
 ---
 name: review-brief-builder
-description: Use for Slice and Release work to create a human review brief that prioritizes what engineers, PMs, and designers need to inspect and why.
+description: Use for Feature and Release work to create a human review brief that prioritizes what engineers, PMs, and designers need to inspect and why.
 ---
 
 # Review Brief Builder
@@ -14,14 +14,14 @@ Use `templates/review-brief.html` from Gauntlet when available. Prefer the stabl
 - `review-brief-data.schema.json`: data contract copied from Gauntlet when available.
 - `review-brief-assets/`: local proof assets.
 
-For Slice, Release, and broad/decision-heavy Deep Patch work, surface the review brief before planner decisions or implementation continue. Prefer `scripts/require-review-brief-started.sh "$PROJECT_ROOT"` when available; otherwise run `scripts/start-review-brief.sh "$PROJECT_ROOT"` and open the returned URL in the default browser or Chrome. Give the user the returned URL immediately. Do not invent localhost URLs or reuse old ports; only trust the URL after the script proves both `review-brief.html` and `review-brief-data.json` load from the same project.
+For Feature, Release, and broad/decision-heavy Patch work with Deep depth, surface the review brief before planner decisions or implementation continue. Prefer `scripts/require-review-brief-started.sh "$PROJECT_ROOT"` when available; otherwise run `scripts/start-review-brief.sh "$PROJECT_ROOT"` and open the returned URL in the default browser or Chrome. Give the user the returned URL immediately. Do not invent localhost URLs or reuse old ports; only trust the URL after the script proves both `review-brief.html` and `review-brief-data.json` load from the same project.
 
 Browser opening is controlled by `GAUNTLET_REVIEW_OPEN=default|chrome|none`; use `GAUNTLET_REVIEW_OPEN=chrome` to prefer Chrome, and reserve `none` for explicit headless/test runs. The required gate records `.gauntlet-review-brief-started.json` as local proof that the URL was healthy and the opener path succeeded or was explicitly skipped.
 
 The shell supports two data modes:
 
-- Localhost sidecar mode: served pages load fresh `review-brief-data.json`.
-- Direct file mode: `review-brief.html` embeds a real JSON snapshot for `file://` viewing.
+- Localhost sidecar mode: served pages load `review-brief-data.json`, poll for newer valid data, and show a non-destructive "new version available" banner that updates the view without a hard refresh.
+- Direct file mode: `review-brief.html` embeds a real JSON snapshot for `file://` viewing. This mode is reliable but not live; rerun init/start/serve to refresh the embedded snapshot after data changes.
 
 Run the init or serve script after updating `review-brief-data.json` to refresh the embedded snapshot. For an existing project with an old shell, set `GAUNTLET_REVIEW_REFRESH_TEMPLATE=1` when running init/start/serve to replace the shell and schema while preserving project data.
 
@@ -31,6 +31,8 @@ Use available evidence:
 
 - Accepted spec or intake output.
 - Product-architect output.
+- Release launch cut line, guarded-panel decision table, panel delta, deferrals, and rejections when present.
+- `.gauntlet-ts-durability.json` when TypeScript work is in scope.
 - Existing review brief data, Changelog records, or prior `RB`/`CU`/`N`/`P` handles.
 - Git diff summary, name-status, and changed files.
 - Verification commands and results.
@@ -128,6 +130,13 @@ Role is a review lens, not an assignee:
 - Design cards surface affected screens/states, interaction changes, responsive behavior, accessibility, and visual drift.
 - Engineering cards surface files, contracts, trust boundaries, tests, proof gaps, and regression risk.
 - QA cards surface user-visible behavior, reproduction paths, test coverage, and residual risk.
+
+For guarded Release plans, preserve this decision table shape in notes or linked review records. Each row should become or link to stable `RB`, `N`, and `P` handles so reviewers can trace the concern, decision, proof gap, and panel delta without reading the full plan transcript:
+
+| Concern | Decision | Why Not Defer | Proof | Plan Delta |
+| --- | --- | --- | --- | --- |
+
+Allowed decisions are `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, and `Reject`. The review brief should surface the launch cut line, panel delta, deferrals, rejections, proof gaps, and TypeScript durability gate decision when relevant.
 
 ## Details Inspector
 

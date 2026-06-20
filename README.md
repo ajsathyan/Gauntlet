@@ -27,7 +27,7 @@ Coding agents make implementation cheaper, but they make specification, orchestr
 | Capability | What You Get |
 | --- | --- |
 | Intake | Turns rough intent into scope, boundaries, acceptance criteria, assumptions, and proof. |
-| Build stages | Routes work through Patch, Deep Patch, Slice, or Release based on scope, risk, and desired rigor. |
+| Build stages | Routes work through Patch, Feature, or Release based on scope and risk, with Standard or Deep depth chosen separately. |
 | Role skills | Adds product architecture, planning, triage, implementation, adversarial review, black-box testing, experience review, and deep code review when useful. |
 | Review briefs | Gives engineers, PMs, and designers a Review/Details/Changelog surface that prioritizes human decisions, proof gaps, and compact agent follow-up prompts. |
 | Live review surface | Serves `review-brief.html` with `review-brief-data.json` so decisions, deviations, tradeoffs, open questions, proof, and quantitative impact stay visible while work happens. |
@@ -38,8 +38,7 @@ Coding agents make implementation cheaper, but they make specification, orchestr
 | Stage | Best For | What It Optimizes |
 | --- | --- | --- |
 | Patch | Small, focused changes | Speed and low overhead. |
-| Deep Patch | Small surface, high-upside work | Maximum reasonable performance, security, reliability, or correctness. |
-| Slice | High-fidelity product features and workflows | AI-native prototyping and product handoff. |
+| Feature | High-fidelity product features and workflows | AI-native prototyping and product handoff. |
 | Release | Production-bound or risky changes | Deeper verification, review, and regression control. |
 
 ## 🎯 How To Choose A Stage
@@ -47,8 +46,8 @@ Coding agents make implementation cheaper, but they make specification, orchestr
 | Signal | Recommended Stage |
 | --- | --- |
 | Clear copy, config, polish, or narrow bug fix | Patch |
-| Small code surface where the best answer matters | Deep Patch |
-| Product workflow, onboarding, activation, retention, growth, IA, or design-heavy work | Slice |
+| Small code surface where the best answer matters | Patch with Deep depth |
+| Product workflow, onboarding, activation, retention, growth, IA, or design-heavy work | Feature |
 | Auth, billing, migrations, data integrity, privacy, uploads, concurrency, public APIs, large refactors, weak-test areas, or deploy-sensitive work | Release |
 
 The rule has two parts:
@@ -58,7 +57,7 @@ Choose the lightest stage for the change shape.
 Choose the depth that matches the value of finding the best answer.
 ```
 
-Mode is about scope and risk surface. Depth is about search effort. A performance optimization can be a tiny patch and still deserve Deep Patch if "fastest reasonable result" matters more than minimizing tokens.
+Mode is about scope and risk surface. Depth is about search effort. A performance optimization can be a tiny Patch and still deserve Deep depth if "fastest reasonable result" matters more than minimizing tokens.
 
 ## 👥 Who It Helps
 
@@ -74,7 +73,7 @@ Early local evals are directional, not benchmark-grade.
 
 | Finding | What Changed |
 | --- | --- |
-| A lighter Patch path used fewer tokens on one focused performance task, but the heavier workflow found a faster optimization. | Gauntlet added Deep Patch for small-surface work where performance, security, reliability, or data integrity justify deeper search. |
+| A lighter Patch path used fewer tokens on one focused performance task, but the heavier workflow found a faster optimization. | Gauntlet separates Patch mode from Deep depth for small-surface work where performance, security, reliability, or data integrity justify deeper search. |
 | Release mode cost more than direct development on one broader product-performance task, but produced stronger review artifacts and caught a real progress-state regression during adversarial review. | Gauntlet keeps stronger claims tied to measured proof, not blanket promises. |
 
 The current claim is not "Gauntlet always writes better code." The claim is that Gauntlet makes agent work more structured, reviewable, and measurable, with explicit tradeoffs between speed, cost, rigor, and human handoff.
@@ -101,9 +100,10 @@ Use the repo's files as the source of truth:
 Install or adapt those files into whatever persistent global instruction, skill, memory, workflow, or config system this agent environment supports.
 
 Preserve these concepts:
-- Patch, Deep Patch, Slice, and Release build stages
+- Patch, Feature, and Release build stages
+- Standard and Deep depth
 - Intake before substantial work
-- Review/Details/Changelog briefs for Slice and Release work
+- Review/Details/Changelog briefs for Feature and Release work
 - Live review-brief.html plus review-brief-data.json when progress should be visible during Tier 2/3 work
 - Role skills for planning, implementation, triage, adversarial review, black-box testing, experience review, and deep code review
 
@@ -124,7 +124,7 @@ Already cloned the repo?
 
 ## 🔎 Review Briefs
 
-For Slice and Release work, Gauntlet can create a human review surface:
+For Feature and Release work, Gauntlet can create a human review surface:
 
 ```text
 Review -> Details -> Changelog
@@ -159,7 +159,7 @@ To initialize and serve in one command:
 path/to/Gauntlet/scripts/start-review-brief.sh
 ```
 
-To satisfy the Review brief startup gate before Slice, Release, or broad Deep Patch work:
+To satisfy the Review brief startup gate before Feature, Release, or broad Patch work with Deep depth:
 
 ```sh
 path/to/Gauntlet/scripts/require-review-brief-started.sh /path/to/project
@@ -167,7 +167,7 @@ path/to/Gauntlet/scripts/require-review-brief-started.sh /path/to/project
 
 The required gate starts a healthy review brief, opens it in the default browser, writes `.gauntlet-review-brief-started.json`, and only then prints the URL. Use `GAUNTLET_REVIEW_OPEN=chrome` to prefer Chrome, or `GAUNTLET_REVIEW_OPEN=none` only for explicit headless/test runs.
 
-The start/serve scripts print a URL only after both `review-brief.html` and `review-brief-data.json` load from the same project directory. By default the OS chooses an available localhost port; set `GAUNTLET_REVIEW_PORT` only when you explicitly need a fixed port. Use the returned URL instead of hardcoding a localhost port. The shell also embeds a real JSON snapshot so direct `file://` opening works without sample data. To intentionally refresh an existing project's shell/schema from the latest Gauntlet template while preserving `review-brief-data.json`, run with:
+The start/serve scripts print a URL only after both `review-brief.html` and `review-brief-data.json` load from the same project directory. By default the OS chooses an available localhost port; set `GAUNTLET_REVIEW_PORT` only when you explicitly need a fixed port. Use the returned URL instead of hardcoding a localhost port. Served pages poll for newer valid review data and show a "new version available" banner that updates the view without a hard refresh. The shell also embeds a real JSON snapshot so direct `file://` opening works without sample data; direct file mode is a safe snapshot, not a live view. To intentionally refresh an existing project's shell/schema from the latest Gauntlet template while preserving `review-brief-data.json`, run with:
 
 ```sh
 GAUNTLET_REVIEW_REFRESH_TEMPLATE=1 path/to/Gauntlet/scripts/start-review-brief.sh /path/to/project
@@ -181,15 +181,15 @@ The review shell treats generated data as untrusted text, uses stable handles li
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | Global router for task tiers, intake, stage selection, role skills, review briefs, stop conditions, and completion rules. |
 | [skills/intake/SKILL.md](skills/intake/SKILL.md) | Turns rough intent into an implementable spec. |
-| [skills/product-architect/SKILL.md](skills/product-architect/SKILL.md) | Shapes Slice work around workflow, IA, activation, retention, growth, trust, and handoff. |
-| [skills/planner/SKILL.md](skills/planner/SKILL.md) | Converts accepted specs into bounded implementation slices. |
+| [skills/product-architect/SKILL.md](skills/product-architect/SKILL.md) | Shapes Feature work around workflow, IA, activation, retention, growth, trust, and handoff. |
+| [skills/planner/SKILL.md](skills/planner/SKILL.md) | Converts accepted specs into bounded implementation steps. |
 | [skills/issue-triager/SKILL.md](skills/issue-triager/SKILL.md) | Routes plans, findings, test failures, bugs, and open questions into ready tasks. |
 | [skills/implementer/SKILL.md](skills/implementer/SKILL.md) | Executes scoped code changes while preserving repo patterns and collecting proof. |
 | [skills/adversarial-reviewer/SKILL.md](skills/adversarial-reviewer/SKILL.md) | Stress-tests assumptions, edge cases, trust boundaries, and regressions. |
 | [skills/black-box-tester/SKILL.md](skills/black-box-tester/SKILL.md) | Validates behavior externally through user-visible outcomes. |
 | [skills/experience-reviewer/SKILL.md](skills/experience-reviewer/SKILL.md) | Reviews workflow clarity, IA, states, metrics, accessibility, trust, activation, retention, and growth. |
 | [skills/deep-code-reviewer/SKILL.md](skills/deep-code-reviewer/SKILL.md) | Reviews correctness, maintainability, tests, integration risk, and regression risk. |
-| [skills/review-brief-builder/SKILL.md](skills/review-brief-builder/SKILL.md) | Builds human review briefs for Slice and Release work. |
+| [skills/review-brief-builder/SKILL.md](skills/review-brief-builder/SKILL.md) | Builds human review briefs for Feature and Release work. |
 | [templates/review-brief.html](templates/review-brief.html) | Human review brief template. |
 | [templates/review-brief-data.schema.json](templates/review-brief-data.schema.json) | Data contract for generated review briefs. |
 | [templates/review-brief-data.example.json](templates/review-brief-data.example.json) | Example review brief data for local testing. |
@@ -198,6 +198,7 @@ The review shell treats generated data as untrusted text, uses stable handles li
 | [scripts/serve-review-brief.sh](scripts/serve-review-brief.sh) | Starts a localhost server for a generated review brief and sidecar JSON. |
 | [scripts/start-review-brief.sh](scripts/start-review-brief.sh) | Initializes and serves the live review brief in one command, then prints the URL. |
 | [scripts/require-review-brief-started.sh](scripts/require-review-brief-started.sh) | Enforces the startup gate by proving the brief is healthy, opening it, and recording local proof. |
+| [scripts/classify-ts-durability.sh](scripts/classify-ts-durability.sh) | Classifies whether TypeScript durability standards are required for the current work. |
 | [scripts/embed-review-brief-data.py](scripts/embed-review-brief-data.py) | Embeds real review data into the HTML shell for direct file viewing. |
 | [scripts/validate-review-brief-data.py](scripts/validate-review-brief-data.py) | Validates review brief JSON handles, enums, links, and proof state. |
 | [scripts/check-review-brief.py](scripts/check-review-brief.py) | Runs deterministic checks for embedded snapshots and health-checked serving. |

@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ajsathyan/Gauntlet/templates/review-brief-data.schema.json",
+  "title": "Gauntlet Review Brief Data",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "generatedAt", "brief", "reviewItems", "changeUnits", "notes", "proof"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "brief": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["title", "summary", "status"],
+      "properties": {
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "status": { "type": "string" },
+        "project": { "type": "string" },
+        "mode": { "type": "string" },
+        "artifactPath": { "type": "string" },
+        "sinceLastReview": { "type": "string" }
+      }
+    },
+    "reviewItems": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/reviewItem" }
+    },
+    "changeUnits": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/changeUnit" }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/note" }
+    },
+    "proof": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/proof" }
+    }
+  },
+  "$defs": {
+    "handle": {
+      "type": "string",
+      "pattern": "^(RB|CU|N|P)-[0-9]{3,}$"
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "$ref": "#/$defs/handle" },
+          {
+            "type": "array",
+            "items": { "$ref": "#/$defs/handle" }
+          }
+        ]
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "originRunId": { "type": "string" },
+        "basisCommit": { "type": "string" },
+        "supersedes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/handle" }
+        },
+        "replacedBy": { "$ref": "#/$defs/handle" },
+        "reopenedFrom": { "$ref": "#/$defs/handle" }
+      }
+    },
+    "reviewItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "title", "priority", "role", "reviewState", "workState", "proofStatus", "confidence", "why", "decisionNeeded", "agentNext", "links"],
+      "properties": {
+        "id": { "$ref": "#/$defs/handle" },
+        "title": { "type": "string" },
+        "priority": { "enum": ["P0", "P1", "P2", "P3"] },
+        "role": { "enum": ["PM", "Design", "Eng", "QA", "Cross-functional"] },
+        "reviewState": { "enum": ["Needs decision", "Needs proof", "Blocked", "Ready for final scan", "Done", "Tombstoned"] },
+        "workState": { "enum": ["Backlog", "Ready", "In Progress", "In Review", "Blocked", "Done"] },
+        "proofStatus": { "enum": ["Missing", "Partial", "Passed", "Failed", "Not Applicable"] },
+        "confidence": { "enum": ["High confidence", "Needs judgment", "Risk unclear", "Proof missing"] },
+        "why": { "type": "string" },
+        "decisionNeeded": { "type": "string" },
+        "agentNext": { "type": "string" },
+        "links": { "$ref": "#/$defs/links" },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" }
+      }
+    },
+    "changeUnit": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "title", "reason", "changedFiles", "linkedReviewItems"],
+      "properties": {
+        "id": { "$ref": "#/$defs/handle" },
+        "title": { "type": "string" },
+        "reason": { "type": "string" },
+        "changedFiles": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "linkedReviewItems": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/handle" }
+        },
+        "commitHash": { "type": "string" },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" }
+      }
+    },
+    "note": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "kind", "text", "links"],
+      "properties": {
+        "id": { "$ref": "#/$defs/handle" },
+        "kind": { "enum": ["Decision", "Deviation", "Tradeoff", "Open question", "Assumption"] },
+        "text": { "type": "string" },
+        "links": { "$ref": "#/$defs/links" },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" }
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "kind", "status", "summary", "proves", "doesNotProve"],
+      "properties": {
+        "id": { "$ref": "#/$defs/handle" },
+        "kind": { "enum": ["Test", "Screenshot", "Benchmark", "Log", "Manual check", "Static analysis"] },
+        "status": { "enum": ["Missing", "Partial", "Passed", "Failed", "Not Applicable"] },
+        "summary": { "type": "string" },
+        "proves": { "type": "string" },
+        "doesNotProve": { "type": "string" },
+        "assetPath": {
+          "type": "string",
+          "pattern": "^review-brief-assets/[^\\\\]+$"
+        },
+        "links": { "$ref": "#/$defs/links" },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" }
+      }
+    }
+  }
+}
