@@ -67,6 +67,8 @@ def main():
     for key in ["reviewItems", "changeUnits", "notes", "proof"]:
         if not isinstance(data[key], list):
             fail(f"{key} must be an array")
+    if "snapshots" in data and not isinstance(data["snapshots"], list):
+        fail("snapshots must be an array")
 
     records = data["reviewItems"] + data["changeUnits"] + data["notes"] + data["proof"]
     handles = set()
@@ -101,11 +103,31 @@ def main():
         if proof.get("assetPath") and not valid_asset_path(proof["assetPath"]):
             fail(f"{proof['id']} has invalid assetPath")
 
+    for index, snapshot in enumerate(data.get("snapshots", []), start=1):
+        require(snapshot, ["id", "title", "createdAt", "doneSummary"], f"snapshot {index}")
+        if not isinstance(snapshot["id"], str) or not snapshot["id"]:
+            fail(f"snapshot {index} has invalid id")
+        if snapshot.get("sourceId"):
+            check_handle(snapshot["sourceId"], f"snapshot {snapshot['id']} sourceId")
+            if snapshot["sourceId"] not in handles:
+                fail(f"snapshot {snapshot['id']} sourceId links missing handle {snapshot['sourceId']}")
+        if snapshot.get("reviewItemId"):
+            check_handle(snapshot["reviewItemId"], f"snapshot {snapshot['id']} reviewItemId")
+            if snapshot["reviewItemId"] not in handles:
+                fail(f"snapshot {snapshot['id']} reviewItemId links missing handle {snapshot['reviewItemId']}")
+        if snapshot.get("proofStatus") and snapshot["proofStatus"] not in ENUMS["proofStatus"]:
+            fail(f"snapshot {snapshot['id']} has invalid proofStatus: {snapshot['proofStatus']!r}")
+
     for record in records:
         for linked in flatten_links(record):
             check_handle(linked, f"{record['id']} link")
             if linked not in handles:
                 fail(f"{record['id']} links missing handle {linked}")
+    for snapshot in data.get("snapshots", []):
+        for linked in flatten_links(snapshot):
+            check_handle(linked, f"snapshot {snapshot['id']} link")
+            if linked not in handles:
+                fail(f"snapshot {snapshot['id']} links missing handle {linked}")
 
     print(f"review-brief-data valid: {path}")
 

@@ -7,3 +7,5 @@
 /.gauntlet-review-server.log
 /.gauntlet-review-server.pid
 /.gauntlet-review-server.port
+/evals/generated-prompts/
+/evals/results/

@@ -42,7 +42,7 @@ Default loop:
 6. experience-reviewer
 7. review-brief-builder
 
-Product features must look like the real product surface. Do not put meta commentary, prototype labels, agent notes, or "no metric needed" style text inside user-facing UI. Metrics appear in the product only when they help the user understand real progress, quality, confidence, speed, completion, improvement over time, or next action.
+Product features must look like the real product surface. Do not put meta commentary, draft labels, agent notes, or "no metric needed" style text inside user-facing UI. Metrics appear in the product only when they help the user understand real progress, quality, confidence, speed, completion, improvement over time, or next action.
 
 ### Release
 
@@ -143,7 +143,7 @@ The classifier writes `.gauntlet-ts-durability.json` with `durabilityRequired: t
 
 Turn TS durability on only for concrete triggers: auth, permissions, billing, payments, credits, entitlements, migrations, schema changes, persistence adapters, data integrity, public API contracts, SDK surfaces, cross-service protocols, idempotency, retries, durable workflows, queues, concurrency, compensation, security/privacy-sensitive data, shared domain modules, Release mode, production-bound risk, existing durable TS patterns in a broad or non-UI durable surface, or explicit user requests to harden, productionize, audit, secure, or refactor architecture.
 
-Non-triggers include UI-only Feature work, clearly UI-only changed files even when durable patterns exist elsewhere in the repo, visual polish, copy, simple config, local demo code, one-screen prototypes without durable data paths, and tests/docs/build-tool changes that do not touch durability triggers.
+Non-triggers include UI-only Feature work, clearly UI-only changed files even when durable patterns exist elsewhere in the repo, visual polish, copy, simple config, local demo code, one-screen exploratory UIs without durable data paths, and tests/docs/build-tool changes that do not touch durability triggers.
 
 If the classifier cannot name a concrete trigger from task scope, file paths, package/config signals, or existing repo patterns, set `durabilityRequired: false`. Agents may not apply TypeScript durability rules unless the artifact sets `durabilityRequired: true` or the user explicitly asks for them.
 
@@ -189,7 +189,35 @@ Use these skills on demand:
 - review-brief-builder: creates human review surfaces for engineers, PMs, and designers from the spec, diff, notes, proof, and findings.
 - ian-xiaohei-illustrations: creates English-only Xiaohei explanation illustrations. For Feature or Release work with system-level changes or system-level scope, create a Mermaid diagram when formal structure would help and invoke this skill when an accompanying visual explanation would help reviewers understand architecture, code paths, workflows, process boundaries, trust boundaries, or operational flow.
 
-When spawning subagents, explicitly point each subagent at the relevant skill.
+When spawning subagents, explicitly point each subagent at the relevant skill and give it a bounded packet. Prefer parallel subagents only for independent files, state, surfaces, charters, risk lenses, or review lanes with separate proof paths. Do not create one agent per failure mode or split one tightly coupled decision tree across workers.
+
+### Subagent Handoff Packet
+
+Use this compact packet when delegating role work:
+
+- Project root and relevant files or surfaces
+- Skill to use and role objective
+- Accepted spec, task packet, or review handle
+- In scope and out of scope
+- Files/areas to inspect
+- Files/areas to avoid
+- Constraints and non-goals
+- Proof already available
+- Expected return format
+
+### Role Report Contract
+
+Role reports should use shared slots so the orchestrator can normalize them into review brief records:
+
+- Verdict: `Approved`, `Needs fixes`, `Needs proof`, `Needs decision`, `Blocked`, or `Cannot verify`
+- Evidence reviewed
+- Findings by P0/P1/P2/P3 with file/line, surface, command, or repro evidence when possible
+- Cannot verify: missing proof, why it matters, and the next check
+- Residual risk
+- Agent next: one concrete action
+- Suggested handles: `RB` concern, `CU` change unit, `N` note, or `P` proof when useful
+
+The orchestrator owns final `RB`, `CU`, `N`, and `P` numbering. Treat subagent handle suggestions as hints, never as authoritative IDs.
 
 ## System-Level Explanation Visuals
 
@@ -219,7 +247,7 @@ Product-architect priorities:
 
 Experience-reviewer priorities:
 
-- Check whether the feature feels like the real product, not a prototype explanation.
+- Check whether the feature feels like the real product, not a draft explanation.
 - Verify loading, empty, error, success, disabled, and partial-data states when relevant.
 - Check whether progress, completion, and next action are clear.
 - Surface PM/design questions separately from engineering defects.
@@ -248,7 +276,7 @@ Record only meaningful review data:
 - Proof of completion
 - Quantitative impact
 
-Do not turn the Changelog into a diary of trivial choices. Do not include secrets or sensitive data.
+Do not turn the record trail into a diary of trivial choices. Do not include secrets or sensitive data.
 
 When proof includes quantitative impact, present it with Tufte-style minimal visualization: compact tables, sparklines, small multiples, or simple charts with direct labels, high data-ink ratio, accessible contrast, and concise annotations. Use the `tufte-data-viz` skill when available.
 
@@ -258,11 +286,11 @@ For Feature and Release work, create `review-brief.html` in the project root unl
 
 The review brief is the canonical human review surface. It should show one current version of the change, not a diary. It should help a solo reviewer quickly identify the top decisions, understand why they matter, and copy a compact follow-up prompt for an agent.
 
-Use the Review/Details/Changelog model when practical:
+Use the Review Feed / Expanded Record / Record Trail model when practical:
 
-- Review: default current-attention view. Prioritize unresolved P0/P1 decisions, proof blockers, reopened items, and final scans.
-- Details: selected review item inspector inside Review. Separate "Human decision needed" from "Agent can do next."
-- Changelog: traceable reasoning trail with change units, notes, proof, and commit-linked history.
+- Review Feed: default latest-first current-attention view. Show compact snapshots with timestamp, a Done summary, and a Needs you summary only when the human has something to decide or verify.
+- Expanded Record: selected snapshot inspector. Keep `Done` and `Needs you` as the only primary buckets.
+- Record Trail: collapsed linked change units, notes, proof, files, and commit-linked history for reviewers who need depth.
 
 Use stable short handles:
 
@@ -273,10 +301,12 @@ Use stable short handles:
 
 Handles are immutable once emitted. Never renumber or reuse them. Deleted, merged, or replaced records become tombstones with replacement links.
 
+For token-efficient first-screen loading, write compact `snapshots` records when practical. Each snapshot should include `id`, `sourceId` or `reviewItemId`, `project`, `mode`, `createdAt`, `status`, `title`, `doneSummary`, `needsYouSummary`, `proofStatus`, and handle `links`. Keep large proof, files, rationales, diffs, and logs in linked `RB/CU/N/P` records and show them only in the record trail.
+
 Prefer a stable shell plus small data updates:
 
-- `review-brief.html`: layout, styles, Review/Details/Changelog views, filters, copy buttons, and handle lookup.
-- `review-brief-data.json`: review items, change units, notes, proof, links, and lifecycle metadata.
+- `review-brief.html`: layout, styles, review feed, expanded record, record trail, filters, copy buttons, and handle lookup.
+- `review-brief-data.json`: compact snapshots plus review items, change units, notes, proof, links, and lifecycle metadata.
 - `review-brief-data.schema.json`: required fields, enums, invariants, and asset path rules.
 - `review-brief-assets/`: screenshots, visual diffs, benchmark images, and other proof artifacts.
 

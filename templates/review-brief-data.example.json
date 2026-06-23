@@ -10,6 +10,58 @@
     "artifactPath": "review-brief.html",
     "sinceLastReview": "2 new, 1 proof added"
   },
+  "snapshots": [
+    {
+      "id": "SNAP-001",
+      "sourceId": "RB-001",
+      "project": "used-price",
+      "mode": "Release",
+      "createdAt": "2026-06-22T22:45:00Z",
+      "status": "Needs you",
+      "title": "PWA installability finished; launch remains gated.",
+      "doneSummary": "Install metadata, icons, and telemetry were added.",
+      "needsYouSummary": "Attach external launch evidence before calling this ready.",
+      "proofStatus": "Partial",
+      "links": {
+        "reviewItems": ["RB-001"],
+        "changeUnits": ["CU-001"],
+        "proof": ["P-001"]
+      }
+    },
+    {
+      "id": "SNAP-002",
+      "sourceId": "RB-003",
+      "project": "greenlight",
+      "mode": "Feature",
+      "createdAt": "2026-06-22T21:10:00Z",
+      "status": "Needs you",
+      "title": "OCR guardrails got stricter.",
+      "doneSummary": "Tax, names, dates, birthplace, and admission aliases now get deterministic review.",
+      "needsYouSummary": "Use generated PDFs as QA drafts until reviewer verification passes.",
+      "proofStatus": "Passed",
+      "links": {
+        "reviewItems": ["RB-003"],
+        "changeUnits": ["CU-001"],
+        "proof": ["P-002"]
+      }
+    },
+    {
+      "id": "SNAP-003",
+      "sourceId": "RB-002",
+      "project": "greenlight",
+      "mode": "Release",
+      "createdAt": "2026-06-21T19:42:00Z",
+      "status": "Done",
+      "title": "Named-field stamping replaced coordinate stamping.",
+      "doneSummary": "The safer named-field fill path is recorded with proof and previous context.",
+      "needsYouSummary": "",
+      "proofStatus": "Passed",
+      "links": {
+        "reviewItems": ["RB-002"],
+        "changeUnits": ["CU-002"]
+      }
+    }
+  ],
   "reviewItems": [
     {
       "id": "RB-001",

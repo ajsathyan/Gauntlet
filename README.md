@@ -29,7 +29,7 @@ Coding agents make implementation cheaper, but they make specification, orchestr
 | Intake | Turns rough intent into scope, boundaries, acceptance criteria, assumptions, and proof. |
 | Build stages | Routes work through Patch, Feature, or Release based on scope and risk, with Standard or Deep depth chosen separately. |
 | Role skills | Adds product architecture, planning, triage, implementation, adversarial review, black-box testing, experience review, and deep code review when useful. |
-| Review briefs | Gives engineers, PMs, and designers a Review/Details/Changelog surface that prioritizes human decisions, proof gaps, and compact agent follow-up prompts. |
+| Review briefs | Gives engineers, PMs, and designers a compact review feed with expanded records and a handle-backed record trail for proof, decisions, and compact agent follow-up prompts. |
 | Live review surface | Serves `review-brief.html` with `review-brief-data.json` so decisions, deviations, tradeoffs, open questions, proof, and quantitative impact stay visible while work happens. |
 | Model portability | Installs as reusable instructions, skills, templates, and scripts that can be adapted to different agent environments. |
 
@@ -103,7 +103,7 @@ Preserve these concepts:
 - Patch, Feature, and Release build stages
 - Standard and Deep depth
 - Intake before substantial work
-- Review/Details/Changelog briefs for Feature and Release work
+- Review feed / expanded record / record trail briefs for Feature and Release work
 - Live review-brief.html plus review-brief-data.json when progress should be visible during Tier 2/3 work
 - Role skills for planning, implementation, triage, adversarial review, black-box testing, experience review, and deep code review
 
@@ -122,15 +122,21 @@ Already cloned the repo?
 ./scripts/install.sh
 ```
 
+The installer also adds a Gauntlet pre-commit hook in this repo. When staged
+files include `skills/*/SKILL.md` or `skills/*/examples/*`, the hook runs the
+skill evals and skill linter before the commit can proceed. Set
+`GAUNTLET_SKIP_GIT_HOOKS=1` for headless installs that should not touch git
+hooks.
+
 ## 🔎 Review Briefs
 
 For Feature and Release work, Gauntlet can create a human review surface:
 
 ```text
-Review -> Details -> Changelog
+Review feed -> Expanded record -> Record trail
 ```
 
-The brief is designed for a solo reviewer first: open it, see the top decisions and proof gaps, inspect one item, then copy a compact handle-based prompt for the next agent.
+The brief is designed for a solo reviewer first: open it, see the latest meaningful records, notice whether anything needs you, inspect one item, then open the record trail when you want proof, files, or rationale.
 
 Recommended generated files:
 
@@ -173,7 +179,7 @@ The start/serve scripts print a URL only after both `review-brief.html` and `rev
 GAUNTLET_REVIEW_REFRESH_TEMPLATE=1 path/to/Gauntlet/scripts/start-review-brief.sh /path/to/project
 ```
 
-The review shell treats generated data as untrusted text, uses stable handles like `RB-002` and `CU-001`, and avoids falling back to sample data when real review data is missing.
+The review shell treats generated data as untrusted text, uses compact `snapshots` for the first screen, links deeper `RB/CU/N/P` records for the record trail, and avoids falling back to sample data when real review data is missing.
 
 ## 📦 What Gets Installed
 
@@ -202,12 +208,19 @@ The review shell treats generated data as untrusted text, uses stable handles li
 | [scripts/embed-review-brief-data.py](scripts/embed-review-brief-data.py) | Embeds real review data into the HTML shell for direct file viewing. |
 | [scripts/validate-review-brief-data.py](scripts/validate-review-brief-data.py) | Validates review brief JSON handles, enums, links, and proof state. |
 | [scripts/check-review-brief.py](scripts/check-review-brief.py) | Runs deterministic checks for embedded snapshots and health-checked serving. |
+| [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill evals. |
+| [scripts/lint-skills.py](scripts/lint-skills.py) | Lints skill frontmatter, word budget, contract slots, optional examples, and bounded subagent guidance. |
+| [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill evals and linting when staged Gauntlet skill files change. |
+| [scripts/install-git-hooks.sh](scripts/install-git-hooks.sh) | Installs the pre-commit hook that enforces skill-change checks. |
+| [evals/skill-evals.json](evals/skill-evals.json) | Pressure scenarios for skill contract coverage. |
+| [evals/behavior-fixtures.json](evals/behavior-fixtures.json) | Five-rep smoke fixtures for behavioral skill-eval scoring and metrics. |
+| [evals/baselines/current/skills](evals/baselines/current/skills) | Frozen current-skill baseline used by the three-arm evals. |
 
 ## 🧠 Inspiration
 
 Gauntlet is partly inspired by [Simon Last's framing of agent work](https://x.com/simonlast/status/2057978156183957995?s=20) as a higher-throughput software factory: the bottleneck moves from typing code to shaping clear specs, boundaries, and review loops so agents can keep working.
 
-It is also inspired by [trq212's implementation-notes pattern](https://x.com/trq212/status/2056415973125796184?s=20): long agent runs become easier to trust when decisions, deviations, tradeoffs, and open questions are captured while the work happens. Gauntlet adapts that idea into the review brief Changelog rather than a separate implementation notes file.
+It is also inspired by [trq212's implementation-notes pattern](https://x.com/trq212/status/2056415973125796184?s=20): long agent runs become easier to trust when decisions, deviations, tradeoffs, and open questions are captured while the work happens. Gauntlet adapts that idea into the review brief record trail rather than a separate implementation notes file.
 
 Gauntlet combines those ideas into a workflow harness: define the work clearly, choose the right build stage, let the agent keep moving, and give humans a review surface that explains what changed and why.
 

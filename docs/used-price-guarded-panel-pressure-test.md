@@ -45,7 +45,7 @@ The classifier was run against Used Price and the pre-existing Used Price `.gaun
 
 | Case | Input | Result | Why |
 | --- | --- | --- | --- |
-| UI/prototype | `scripts/classify-ts-durability.sh /Users/ajsathyan/Documents/CC/used-price src/components/UsedPriceApp.tsx` | `durabilityRequired: false` | UI-only changed files suppress existing durable pattern triggers when no durable surface is touched. |
+| UI-only | `scripts/classify-ts-durability.sh /Users/ajsathyan/Documents/CC/used-price src/components/UsedPriceApp.tsx` | `durabilityRequired: false` | UI-only changed files suppress existing durable pattern triggers when no durable surface is touched. |
 | Auth/backend | `scripts/classify-ts-durability.sh /Users/ajsathyan/Documents/CC/used-price src/lib/session.ts` | `durabilityRequired: true` | The changed path matches the `auth` trigger and the repo has existing durable patterns via `zod`. |
 
-This supports the intended gate behavior: prototype UI stays light, while auth/session work activates durability standards for concrete reasons.
+This supports the intended gate behavior: lightweight UI stays light, while auth/session work activates durability standards for concrete reasons.

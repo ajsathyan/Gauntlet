@@ -29,7 +29,7 @@ Upgrade guarded-panel planning so every Release panel produces:
 
 The upgraded panel should generate better plans and better review brief cards while remaining lean enough that agents cannot hide behind checklist ceremony.
 
-It should also protect prototype velocity by preventing heavyweight TypeScript durability standards from being applied unless the work has concrete durability triggers.
+It should also protect lightweight iteration speed by preventing heavyweight TypeScript durability standards from being applied unless the work has concrete durability triggers.
 
 ## Appetite
 
@@ -240,7 +240,7 @@ Non-triggers:
 
 - UI-only Feature work.
 - Visual polish, copy, simple config, or local demo code.
-- One-screen prototypes without durable data paths.
+- One-screen exploratory UIs without durable data paths.
 - Tests, docs, or build-tool changes unless they touch a durability trigger.
 - Clearly UI-only changed files, even when the repo has durable patterns elsewhere.
 - Repos with no existing durability patterns when the task does not introduce durable domain behavior.
@@ -313,7 +313,7 @@ Acceptance criteria:
 - The classifier records concrete triggers and files/configs scanned.
 - The default for unclear work is `durabilityRequired: false`.
 - Release/high-risk TS work with auth, billing, migrations, public API, data integrity, security/privacy, concurrency, or existing durable patterns in a broad or non-UI durable surface sets `durabilityRequired: true`.
-- UI-only/prototype TS work sets `durabilityRequired: false`.
+- UI-only/exploratory TS work sets `durabilityRequired: false`.
 
 ### Step 5: Update Review Brief Builder
 
@@ -338,7 +338,7 @@ Acceptance criteria:
 - Run the same upgraded planning prompt twice.
 - Compare blocker count, proof specificity, dependency order, deferrals, rejected alternatives, and first ready task.
 - Confirm the upgraded output is smaller, clearer, and less prone to blocker inflation.
-- Run the TypeScript durability classifier on at least one prototype/UI task and one high-risk/backend-style task, and confirm the gate decision changes for concrete reasons.
+- Run the TypeScript durability classifier on at least one UI-only/exploratory task and one high-risk/backend-style task, and confirm the gate decision changes for concrete reasons.
 
 ## Must-Haves
 
@@ -363,7 +363,7 @@ Acceptance criteria:
 - Automatic implementation scope selection
 - Broad cleanup tooling
 - Applying the full TypeScript standards gist globally
-- Rewriting prototype code into durable domain architecture by default
+- Rewriting exploratory code into durable domain architecture by default
 - Expanding Gauntlet into a matrix of mode/profile combinations
 
 ## Risks And Unknowns

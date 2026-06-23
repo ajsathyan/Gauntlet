@@ -1,13 +1,13 @@
 ---
 name: intake
-description: Use before non-trivial coding work, or when the user invokes /intake or asks for intake, to turn rough intent into a self-contained implementation spec with scope, boundaries, acceptance criteria, proof, assumptions, and open questions.
+description: Use when non-trivial coding work needs bounded scope, acceptance criteria, proof, assumptions, and material questions.
 ---
 
 # Intake
 
-Turn rough intent into a spec another agent can execute with minimal follow-up.
+Turn rough intent into an **Intake Packet** another agent can execute with minimal follow-up. Classify first, then ask only questions that materially change implementation, product behavior, risk, UX, data, API behavior, verification, or scope.
 
-Classify the task first:
+## Tier
 
 - Tier 0 trivial: typo, label, tiny mechanical fix.
 - Tier 1 small: localized change with obvious verification.
@@ -15,27 +15,30 @@ Classify the task first:
 - Tier 2 medium: multi-file or user-visible behavior change.
 - Tier 3 large/risky: cross-system, migration, security/privacy, ambiguous product behavior, or weak test coverage.
 
-Ask up to five questions only when answers materially affect implementation, product behavior, risk, UX, data model, API behavior, verification, or scope. For minor gaps, make a reasonable assumption and record it.
+## Intake Packet
 
-For optimization, security, reliability, or audit work, separate scope from depth. Ask whether the user wants an acceptable improvement or the best improvement worth searching for when that affects cost, benchmarking, or review effort.
+Return fields in this order. Use `None` only when the field truly does not apply.
 
-For follow-ups, run delta intake: what changed, which prior assumptions are invalid, which acceptance criteria are new, and what new proof is required.
-
-Output this compact spec:
+If a field is outside accepted scope, write `Not relevant because...` instead of expanding intake. Optional example: read `examples/intake-packet.md` only when output shape is ambiguous.
 
 - Tier and reason
 - Recommended mode and depth
 - Goal
-- Background
 - In scope
 - Out of scope
 - Affected interfaces
 - User/system flows
 - Acceptance criteria
-- Constraints
 - Verification/proof
-- Default assumptions
+- Constraints
+- Assumptions
 - Open questions
+- Cannot verify: unknowns, why they matter, and the next proof needed
 - First implementation step
 
-Stop and ask when a missing answer could cause data loss, security/privacy exposure, billing impact, incompatible product behavior, or work beyond the stated appetite.
+## Rules
+
+- Ask up to five questions; for minor gaps, make an assumption and record it.
+- For optimization, security, reliability, or audit work, separate scope from depth and clarify whether the user wants an acceptable improvement or the best improvement worth searching for when cost changes.
+- For follow-ups, run delta intake: changed assumptions, new acceptance criteria, and new proof.
+- Stop and ask when a missing answer could cause data loss, security/privacy exposure, billing impact, incompatible product behavior, or work beyond the stated appetite.

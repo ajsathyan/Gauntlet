@@ -177,6 +177,7 @@ def test_installed_layout_supports_workflow_check():
         agent_home = Path(tmp) / "agent-home"
         env = os.environ.copy()
         env["AGENT_HOME"] = str(agent_home)
+        env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
         result = subprocess.run(
             [str(SCRIPTS / "install.sh")],
             cwd=ROOT,
@@ -195,11 +196,143 @@ def test_installed_layout_supports_workflow_check():
         run([str(installed_check)])
 
 
+def test_skill_evals_compare_all_arms():
+    runner = SCRIPTS / "run-skill-evals.py"
+    evals = ROOT / "evals" / "skill-evals.json"
+    current = ROOT / "evals" / "baselines" / "current" / "skills"
+    results = ROOT / "evals" / "results" / "workflow-check.json"
+
+    for path in [runner, evals, current]:
+        if not path.exists():
+            raise AssertionError(f"missing skill eval artifact: {path}")
+
+    run([str(runner), "--results", str(results)])
+    data = json.loads(results.read_text())
+    if data.get("comparisonArms") != ["one_shot", "current_skill", "new_skill"]:
+        raise AssertionError("skill evals must compare one_shot, current_skill, and new_skill")
+    if not data.get("cases"):
+        raise AssertionError("skill evals must include cases")
+    for case in data["cases"]:
+        arms = case.get("arms", {})
+        for arm in data["comparisonArms"]:
+            if arm not in arms:
+                raise AssertionError(f"{case['id']} missing {arm}")
+        if not arms["new_skill"]["passed"]:
+            raise AssertionError(f"{case['id']} new_skill did not pass")
+
+
+def test_skill_evals_include_behavior_and_metrics():
+    runner = SCRIPTS / "run-skill-evals.py"
+    fixture = ROOT / "evals" / "behavior-fixtures.json"
+    results = ROOT / "evals" / "results" / "workflow-behavior-check.json"
+
+    for path in [runner, fixture]:
+        if not path.exists():
+            raise AssertionError(f"missing behavior eval artifact: {path}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        prompts = Path(tmp) / "behavior-prompts"
+        run([
+            str(runner),
+            "--behavior-responses",
+            str(fixture),
+            "--behavior-prompts-dir",
+            str(prompts),
+            "--results",
+            str(results),
+        ])
+        data = json.loads(results.read_text())
+        if data.get("behaviorComparisonArms") != ["no_guidance", "one_shot", "current_skill", "new_skill"]:
+            raise AssertionError("behavior evals must compare no_guidance, one_shot, current_skill, and new_skill")
+        if not data.get("cases"):
+            raise AssertionError("behavior evals must include cases")
+        for case in data["cases"]:
+            behavior = case.get("behavior")
+            if not behavior:
+                raise AssertionError(f"{case['id']} missing behavior results")
+            if behavior.get("minReps", 0) < 5:
+                raise AssertionError(f"{case['id']} must require at least five behavioral reps")
+            if not (prompts / case["id"] / "new_skill.md").exists():
+                raise AssertionError(f"{case['id']} missing generated behavior prompt")
+            new_behavior = behavior["arms"]["new_skill"]
+            if new_behavior["repsFound"] < behavior["minReps"]:
+                raise AssertionError(f"{case['id']} new_skill missing behavior reps")
+            if new_behavior["passRate"] < 1:
+                raise AssertionError(f"{case['id']} new_skill behavior reps should pass")
+            for arm_name, arm in case["arms"].items():
+                if arm.get("promptWordCount", 0) <= 0:
+                    raise AssertionError(f"{case['id']} {arm_name} missing prompt word metric")
+                if arm.get("scoreElapsedMs", -1) < 0:
+                    raise AssertionError(f"{case['id']} {arm_name} missing score speed metric")
+
+
+def test_skill_linter_examples_and_na_defaults():
+    linter = SCRIPTS / "lint-skills.py"
+    evals = ROOT / "evals" / "skill-evals.json"
+    if not linter.exists():
+        raise AssertionError("missing skill linter")
+
+    skill_names = sorted({case["skill"] for case in json.loads(evals.read_text())["cases"]})
+    result = run([
+        str(linter),
+        "--skills-root",
+        str(SKILLS),
+        "--only",
+        ",".join(skill_names),
+        "--json",
+    ])
+    data = json.loads(result.stdout)
+    if data.get("failures"):
+        raise AssertionError(f"skill linter failures: {json.dumps(data['failures'], indent=2)}")
+    if not data.get("skills"):
+        raise AssertionError("skill linter did not scan skills")
+    for skill in data["skills"]:
+        if skill.get("wordCount", 0) > 500:
+            raise AssertionError(f"{skill['name']} exceeds 500 words")
+        if not skill.get("optionalExamples"):
+            raise AssertionError(f"{skill['name']} missing optional examples")
+        if not skill.get("hasNotRelevantDefault"):
+            raise AssertionError(f"{skill['name']} missing Not relevant because default")
+
+
+def test_skill_changes_are_guarded_by_pre_commit():
+    hook_installer = SCRIPTS / "install-git-hooks.sh"
+    skill_check = SCRIPTS / "run-skill-change-checks.sh"
+    for path in [hook_installer, skill_check]:
+        if not path.exists() or not os.access(path, os.X_OK):
+            raise AssertionError(f"missing executable skill-change guard: {path}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        repo.mkdir()
+        run(["git", "init"], cwd=repo)
+        run([str(hook_installer), "--repo", str(repo), "--gauntlet-root", str(ROOT)])
+        hook = repo / ".git" / "hooks" / "pre-commit"
+        if not hook.exists() or not os.access(hook, os.X_OK):
+            raise AssertionError("pre-commit hook was not installed")
+        hook_text = hook.read_text()
+        for marker in ["GAUNTLET SKILL CHECKS", "run-skill-change-checks.sh"]:
+            assert_contains(hook_text, marker, "pre-commit hook")
+
+    for args in [[str(skill_check)], [str(skill_check), "--changed-files", "README.md"]]:
+        result = run(args, cwd=ROOT)
+        if "No Gauntlet skill changes detected" not in result.stdout:
+            raise AssertionError("non-skill changes should skip skill evals")
+
+    result = run([str(skill_check), "--changed-files", "skills/planner/SKILL.md"], cwd=ROOT)
+    for marker in ["Gauntlet skill changes detected", "skill evals:", "skill linter"]:
+        assert_contains(result.stdout, marker, "skill change checks")
+
+
 def main():
     tests = [
         test_simplified_modes_and_depth_are_documented,
         test_guarded_panel_contract_is_uniform,
         test_ts_durability_classifier_behavior,
+        test_skill_evals_compare_all_arms,
+        test_skill_evals_include_behavior_and_metrics,
+        test_skill_linter_examples_and_na_defaults,
+        test_skill_changes_are_guarded_by_pre_commit,
         test_installed_layout_supports_workflow_check,
     ]
     for test in tests:

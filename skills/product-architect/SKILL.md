@@ -1,61 +1,38 @@
 ---
 name: product-architect
-description: Use for Feature mode or user-facing work to define product workflow, information architecture, first value, meaningful metrics, activation, retention, growth, trust, and PM/design acceptance criteria before implementation.
+description: Use when Feature mode or user-facing work needs workflow, IA, first value, meaningful metrics, trust, and PM/design acceptance before implementation.
 ---
 
 # Product Architect
 
-Turn user-facing intent into a coherent product feature. The feature should feel like the real product, not a disposable prototype or an explanatory mock.
+Turn user-facing intent into a **Product Packet**. The feature should feel like the real product, not a disposable draft or explanatory mock.
 
-## Responsibilities
+## Product Packet
 
-- Define the primary user and situation.
-- Define the user's job and first-value moment.
-- Shape the workflow from entry to first value.
-- Define information architecture, navigation, and screen hierarchy.
-- Identify onboarding, activation, retention, growth, trust, and completion moments.
-- Decide which metrics are meaningful and which would be decorative or misleading.
-- Define PM and design acceptance criteria.
-- Record assumptions and open product questions.
+If a field is outside accepted scope, write `Not relevant because...` instead of inventing product work. Optional example: read `examples/product-packet.md` only when output shape is ambiguous.
 
-## Metrics
+- Mode recommendation: Feature or escalation to Release
+- Primary user and situation
+- User job
+- First-value moment
+- Workflow
+- Information architecture
+- Key screens or states
+- Key states not in scope
+- Meaningful metrics, if any, and why they matter
+- Not relevant because: activation, retention, growth, sharing, or handoff items that would stretch scope
+- Trust, privacy, permission, and hesitation points
+- PM acceptance criteria
+- Design acceptance criteria
+- Engineering handoff: affected flows, interfaces, and proof expectations
+- Assumptions: mark as `user-stated`, `repo-inferred`, or `agent-assumed`
+- Open questions
+- Cannot verify: product facts that need human or data proof
 
-Metrics belong in the product only when they help the user understand real progress, quality, confidence, speed, completion, improvement over time, or next action.
+## Rules
 
-Prefer:
-
-- Progress: steps, coverage, completion, remaining work.
-- Quality: confidence, conflicts, validation, readiness.
-- Speed: actual duration or perceived wait reduction.
-- Activation: the action that proves first value.
-- Retention: evidence of repeat value or next session value.
-- Growth: sharing, collaboration, export, referral, or handoff moments.
-
-Avoid:
-
-- Vanity metrics.
-- Decorative dashboards.
-- Fake precision.
-- Product UI that explains the prototype, agent, workflow, or missing metrics.
-
-If a metric is not meaningful, record that rationale in the review brief or implementation notes, not in the product UI.
-
-## Output
-
-Produce a compact product feature spec:
-
-- Mode recommendation: Feature or escalation to Release.
-- Primary user and situation.
-- User job.
-- First-value moment.
-- Workflow and IA.
-- Key screens or states.
-- Meaningful metrics, if any, and why they matter.
-- Onboarding, activation, retention, growth, trust, and completion considerations.
-- PM acceptance criteria.
-- Design acceptance criteria.
-- Engineering handoff notes.
-- Assumptions.
-- Open questions.
-
-Ask only questions that materially affect the feature. Otherwise make a reasonable assumption and mark it.
+- Ask only questions that materially affect the feature; otherwise make a marked assumption.
+- Metrics belong in the product only when they help the user understand real progress, quality, confidence, speed, completion, improvement, or next action.
+- Do not put draft explanations, agent/process notes, or absence-of-metric rationale in product UI; put rationale in the review brief.
+- Consider onboarding, activation, retention, and growth only when tied to accepted scope or a real next action.
+- If screens or flows can be explored independently, name subagent-ready lanes for product review, visual review, and implementation handoff, each with separate proof expectations.

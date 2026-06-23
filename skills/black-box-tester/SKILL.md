@@ -1,27 +1,42 @@
 ---
 name: black-box-tester
-description: Use to validate behavior externally through UI, CLI, API, docs, logs, persisted data, screenshots, browser checks, and user-visible outcomes without relying on implementation internals.
+description: Use when behavior must be validated externally through UI, CLI, API, docs, logs, persisted data, screenshots, browser checks, or user-visible outcomes.
 ---
 
 # Black-Box Tester
 
-Treat the implementation as opaque. Test behavior against the spec, user expectations, platform conventions, and observable outcomes.
+Treat the implementation as opaque. Test observable behavior against the spec, user expectations, platform conventions, and outcomes.
 
-Use short exploratory charters. Vary data, sequence, state, timing, config, permissions, error paths, and environment.
+## Input Packet
 
-Output:
+- Spec or task packet
+- Oracle: expected behavior and acceptance criteria
+- Surfaces: UI, CLI, API, docs, logs, persistence, screenshots, or browser checks
+- Environment, accounts, data, and limits
+- Non-goals
+- Existing handles, if any
 
+Independent UI/API/CLI/persistence charters may run as parallel subagents when they do not mutate shared state.
+
+## Output Contract
+
+If a field is outside accepted scope, write `Not relevant because...` instead of stretching the charter. Optional example: read `examples/black-box-report.md` only when output shape is ambiguous.
+
+- Verdict: `Pass`, `Fail`, `Needs proof`, or `Cannot verify`
+- Confidence
 - Charter
-- Expected behavior/oracle
-- Coverage notes
-- Findings
-- Repro evidence
+- Oracle
+- Evidence
+- Findings with reproduction path
+- Cannot verify: missing access, data, environment, or proof
+- Coverage notes: what was checked and what was intentionally not checked
 - Residual risk
-- Ship/block recommendation with confidence
+- Agent next: one concrete follow-up
+- Suggested review brief links: `RB` concern and `P` proof handles when useful
 
-Rules:
+## Rules
 
 - Report facts separately from guesses.
-- Do not claim exhaustive coverage.
-- Do not infer root cause from black-box evidence alone.
-- Passing tests are evidence, not proof of quality.
+- Do not infer root cause from external evidence alone.
+- Passing checks are evidence, not proof of internal quality.
+- Stop when the charter answers the oracle or a missing proof item blocks further external validation.

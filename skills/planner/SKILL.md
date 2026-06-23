@@ -1,42 +1,55 @@
 ---
 name: planner
-description: Use after intake to shape an accepted spec into bounded, ordered implementation steps with risks, non-goals, proof requirements, and a first ready task.
+description: Use when an accepted spec needs bounded task packets with dependencies, interfaces, proof, risks, deferrals, and a first ready task.
 ---
 
 # Planner
 
-Shape work into user-valuable implementation steps. Define appetite before scope. Keep the whole workflow visible: user/system goal, affected interfaces, acceptance criteria, risks, and verification.
+Shape work into user-valuable implementation steps. Define appetite before scope. Separate mode (`Patch`, `Feature`, `Release`) from depth (`Standard`, `Deep`).
 
-Separate mode from depth. Mode is `Patch`, `Feature`, or `Release`; depth is `Standard` or `Deep`. For Patch with Deep depth, keep the patch narrow while planning alternative probes, benchmark/security proof, and the stopping rule for "best enough."
+## Output
 
-Output:
+If a field is outside accepted scope, write `Not relevant because...` instead of stretching the plan. Optional example: read `examples/task-packet.md` only when output shape is ambiguous.
 
 - Problem
 - Target outcome
 - Appetite
 - Mode and depth
-- Ordered implementation steps
 - Triggered gates
 - Must-haves
 - Non-goals
 - Scope pressure and deferrals
 - Risks/unknowns
 - Verification plan
+- Parallelizable lanes: independent tasks that can go to subagents, or `None`
+- Ordered **Gauntlet Task Packet** list
 - First ready task
 
-Rules:
+## Gauntlet Task Packet
 
-- Start from the user or system workflow.
+Each task gets a packet. Keep tasks end-to-end unless files, state, and proof are independent enough for parallel subagents.
+
+- Task
+- Goal
+- Files/areas to inspect
+- Files/areas to avoid
+- Global Constraints copied verbatim from the spec
+- Consumes: prior outputs, exact names, contracts, state, or handles
+- Produces: outputs, exact names, contracts, state, or handles
+- Steps
+- Proof: command, screenshot, benchmark, manual check, or static scan
+- Cannot verify: cross-task or external proof the implementer cannot check
+- Done when
+- Review target: reviewer skill or review brief handle expected
+
+## Rules
+
 - Prefer end-to-end steps over component piles.
-- Convert uncertainty into probes, checks, or explicit assumptions.
-- For performance, security, reliability, and hot-path work, plan at least one comparison or adversarial check when appetite allows.
-- For Release role panels, produce one launch cut line and one decision table: `| Concern | Decision | Why Not Defer | Proof | Plan Delta |`.
-- Use only these panel decisions: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, and `Reject`.
-- Treat `Ship blocker` as a high bar: concrete user/data/money/security/legal/release harm, no acceptable fallback or deferral, executable proof, and a real panel delta. Downgrade concerns that fail any part of this bar.
-- Run an anti-theater check for panels: keep the panel only if the panel delta changes scope, ordering, proof, risk priority, the first ready task, deferral, fallback, launch cut line, or rejects a plausible alternative. Otherwise collapse to a normal plan and say the panel added no unique value.
-- For Release, auth, billing, migrations, permissions, privacy, concurrency, data integrity, or ambiguous broad work, run the same planning prompt twice when cost is reasonable. Compare missing blockers, dependency order, proof requirements, first ready task, deferrals, and rejections. Merge only items that pass the decision table. Do not union every idea.
-- For Feature, Release, or broad changes, include a scope-discipline note: required new abstractions, likely-obsolete paths, explicit non-goals, and the architecture hygiene proof path. Do not plan speculative generalization.
-- For TypeScript work, include the TS Durability gate decision when relevant. Apply heavyweight TypeScript durability standards only when `.gauntlet-ts-durability.json` has `durabilityRequired: true` or the user explicitly asks for them.
-- Do not over-specify internals before code discovery.
-- Stop planning once the next build step and the first meaningful proof path are obvious.
-- Preserve implementer autonomy while making proof requirements clear.
+- Convert uncertainty into probes, checks, explicit assumptions, or Cannot verify items.
+- For performance, security, reliability, and hot-path work, include a comparison or adversarial check when appetite allows.
+- Use subagents only for independent task packets; do not split tightly coupled state or one decision tree across workers.
+- For Release panels, preserve the launch cut line, panel delta, `| Concern | Decision | Why Not Defer | Proof | Plan Delta |`, and the allowed decisions: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, `Reject`.
+- A `Ship blocker` needs concrete harm, no acceptable fallback/deferral, executable proof, and a real plan delta; otherwise downgrade it.
+- When running duplicate planning prompts for Release risk, compare missing blockers, dependency order, proof requirements, first task, deferrals, and rejections. Do not union every idea.
+- For TypeScript work, include the TS Durability gate only when the classifier says `durabilityRequired: true` or the user explicitly asks.
+- Stop planning once the first build step and first meaningful proof path are obvious.

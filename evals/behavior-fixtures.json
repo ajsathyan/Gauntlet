@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0",
+  "description": "Deterministic smoke fixtures for the behavioral skill-eval scorer. Replace or supplement these with real model response reps when running behavioral pressure tests.",
+  "defaultRepeat": 5,
+  "responses": [
+    {
+      "case": "*",
+      "arm": "no_guidance",
+      "elapsedMs": 650,
+      "text": "I would handle the request directly with a short plan and a brief summary."
+    },
+    {
+      "case": "*",
+      "arm": "one_shot",
+      "elapsedMs": 850,
+      "text": "Here is a useful response with some scope, proof, and next steps, but without the full role contract."
+    },
+    {
+      "case": "*",
+      "arm": "current_skill",
+      "elapsedMs": 1050,
+      "text": "Evidence reviewed: the scenario. I can provide findings and a next step, but this fixture intentionally leaves the contract incomplete."
+    },
+    {
+      "case": "*",
+      "arm": "new_skill",
+      "elapsedMs": 1250,
+      "text": "{requiredPatterns}\nNot relevant because this synthetic fixture only exercises the behavior scorer contract."
+    }
+  ]
+}

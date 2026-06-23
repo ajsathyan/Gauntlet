@@ -1,0 +1,201 @@
+{
+  "schemaVersion": "1.0",
+  "description": "Deterministic pressure evals for Gauntlet skills. Coverage compares one-shot, current baseline skill, and new working skill. Behavioral scoring can also compare no-guidance, one-shot, current, and new response reps.",
+  "cases": [
+    {
+      "id": "intake-packet-contract",
+      "skill": "intake",
+      "title": "Intake emits a bounded packet instead of loose questions",
+      "oneShotInstruction": "Clarify the user's coding request. Ask only important questions, then summarize goal, scope, acceptance criteria, and proof.",
+      "pressurePrompt": "The user asks for a broad auth-adjacent change with partial context and says they are in a hurry. Produce intake without over-questioning or silently accepting risk.",
+      "requiredPatterns": [
+        "Intake Packet",
+        "Goal",
+        "In scope",
+        "Out of scope",
+        "Acceptance criteria",
+        "Verification",
+        "Open questions",
+        "Stop and ask"
+      ],
+      "forbiddenPatterns": [
+        "ask as many questions"
+      ]
+    },
+    {
+      "id": "planner-task-packet",
+      "skill": "planner",
+      "title": "Planner creates task packets with interfaces and proof",
+      "oneShotInstruction": "Turn the accepted spec into ordered implementation steps, risks, non-goals, and verification.",
+      "pressurePrompt": "Plan a multi-file feature where two tasks can be parallelized but share a public interface. Avoid component piles and prevent subagents from guessing contracts.",
+      "requiredPatterns": [
+        "Gauntlet Task Packet",
+        "Global Constraints",
+        "Consumes",
+        "Produces",
+        "Proof",
+        "Cannot verify",
+        "subagents",
+        "Done when"
+      ],
+      "forbiddenPatterns": [
+        "one agent per failure mode"
+      ]
+    },
+    {
+      "id": "product-feature-contract",
+      "skill": "product-architect",
+      "title": "Product architect produces PM/design contract without meta-copy",
+      "oneShotInstruction": "Define the user, workflow, first-value moment, metrics, trust, acceptance criteria, and open questions for a feature.",
+      "pressurePrompt": "The user asks for a dashboard feature. Make progress visible without inventing vanity metrics or putting agent/process notes in the UI.",
+      "requiredPatterns": [
+        "Product Packet",
+        "Primary user",
+        "First-value moment",
+        "Workflow",
+        "Key states",
+        "PM acceptance",
+        "Design acceptance",
+        "Do not put"
+      ],
+      "forbiddenPatterns": [
+        "no metric needed"
+      ]
+    },
+    {
+      "id": "implementer-report-contract",
+      "skill": "implementer",
+      "title": "Implementer writes a statused report with proof and cannot-verify items",
+      "oneShotInstruction": "Implement the ready task narrowly, follow local patterns, test it, and summarize files changed, verification, and remaining risks.",
+      "pressurePrompt": "Implement a ready task while the workspace is dirty and the proof path is partial. Report facts to the orchestrator without claiming done too early.",
+      "requiredPatterns": [
+        "Implementation Packet",
+        "Status",
+        "Proof",
+        "Cannot verify",
+        "Changed files",
+        "Review concerns",
+        "Done requires"
+      ],
+      "forbiddenPatterns": [
+        "mark complete merely because code was implemented"
+      ]
+    },
+    {
+      "id": "adversarial-review-verdict",
+      "skill": "adversarial-reviewer",
+      "title": "Adversarial review separates attack evidence from speculation",
+      "oneShotInstruction": "Try to break a completed change with edge cases, trust boundary checks, races, resource exhaustion, rollback, and data integrity failures.",
+      "pressurePrompt": "Review a risky upload/API change. Find concrete break paths, avoid style feedback, and state what cannot be verified from the given evidence.",
+      "requiredPatterns": [
+        "Verdict",
+        "Evidence",
+        "Cannot verify",
+        "Impact",
+        "Recommended fix",
+        "Test idea",
+        "Agent next"
+      ],
+      "forbiddenPatterns": [
+        "style"
+      ]
+    },
+    {
+      "id": "black-box-charter-contract",
+      "skill": "black-box-tester",
+      "title": "Black-box tester uses external charters with oracles and proof limits",
+      "oneShotInstruction": "Validate behavior externally through UI, CLI, API, logs, persisted data, screenshots, and user-visible outcomes.",
+      "pressurePrompt": "Test a feature externally without reading implementation internals. Cover success, error, state, timing, and environment variation without claiming exhaustive proof.",
+      "requiredPatterns": [
+        "Verdict",
+        "Charter",
+        "Oracle",
+        "Evidence",
+        "Cannot verify",
+        "Residual risk",
+        "Agent next"
+      ],
+      "forbiddenPatterns": [
+        "exhaustive coverage"
+      ]
+    },
+    {
+      "id": "experience-review-contract",
+      "skill": "experience-reviewer",
+      "title": "Experience review yields role-tagged findings and design proof gaps",
+      "oneShotInstruction": "Review the implemented user-facing feature for workflow clarity, states, accessibility, trust, activation, retention, growth, and cohesion.",
+      "pressurePrompt": "Review a user-facing flow with partial screenshots. Separate PM/design judgment from engineering defects and do not invent metrics.",
+      "requiredPatterns": [
+        "Verdict",
+        "Role",
+        "Surface",
+        "Evidence",
+        "Cannot verify",
+        "Recommended change",
+        "Acceptance or test idea",
+        "Agent next"
+      ],
+      "forbiddenPatterns": [
+        "invent metrics"
+      ]
+    },
+    {
+      "id": "deep-code-review-contract",
+      "skill": "deep-code-reviewer",
+      "title": "Deep review reports file-backed risk and cannot-verify proof gaps",
+      "oneShotInstruction": "Review final code for correctness, maintainability, testability, safe refactoring, integration risk, and regression risk.",
+      "pressurePrompt": "Review a broad generated-code-heavy change. Block only concrete current-change risks with evidence and keep cleanup bounded.",
+      "requiredPatterns": [
+        "Verdict",
+        "Evidence",
+        "Cannot verify",
+        "Concrete risk",
+        "Suggested fix",
+        "Test gap",
+        "Agent next"
+      ],
+      "forbiddenPatterns": [
+        "Do not block on taste"
+      ]
+    },
+    {
+      "id": "triage-ready-item-contract",
+      "skill": "issue-triager",
+      "title": "Triager turns findings into ready items or explicit blocked/deferred states",
+      "oneShotInstruction": "Classify, reproduce, prioritize, deduplicate, and route findings into ready implementation tasks.",
+      "pressurePrompt": "Triage a mixed list of release panel concerns, review findings, test failures, duplicate bugs, and vague cleanup requests.",
+      "requiredPatterns": [
+        "Ready Item",
+        "Decision",
+        "Evidence",
+        "Cannot verify",
+        "Done when",
+        "Next action",
+        "Reject"
+      ],
+      "forbiddenPatterns": [
+        "speculative maintainability"
+      ]
+    },
+    {
+      "id": "review-brief-normalizer",
+      "skill": "review-brief-builder",
+      "title": "Review brief builder normalizes evidence into handles without diary drift",
+      "oneShotInstruction": "Build a human review brief with Review, Details, Changelog, stable handles, proof, and compact copy actions.",
+      "pressurePrompt": "Update an existing review brief after implementation and multiple reviewers. Preserve handles, avoid sample data, and normalize findings into review cards and proof.",
+      "requiredPatterns": [
+        "Normalizer",
+        "RB-###",
+        "CU-###",
+        "N-###",
+        "P-###",
+        "untrusted evidence",
+        "Copy next action",
+        "Done"
+      ],
+      "forbiddenPatterns": [
+        "sample data"
+      ]
+    }
+  ]
+}

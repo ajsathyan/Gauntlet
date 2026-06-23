@@ -211,7 +211,7 @@ def test_template_polls_for_fresh_sidecar_data_without_reload():
         "state.ignoredFreshnessFingerprint",
         "window.setInterval(pollForFreshReviewData",
         "window.location.protocol === 'file:'",
-        "New review data available",
+        "New version available",
         "Update view",
         "Waiting for valid review data update",
     ]
@@ -220,6 +220,64 @@ def test_template_polls_for_fresh_sidecar_data_without_reload():
             raise AssertionError(f"template is missing live freshness marker: {needle}")
     if "window.location.reload" in html or ".reload()" in html:
         raise AssertionError("freshness flow must update the view without a hard reload")
+
+
+def test_template_uses_compact_operating_log_model():
+    html = (TEMPLATES / "review-brief.html").read_text()
+    required = [
+        "function snapshotsForReview(",
+        "function normalizedSnapshot(",
+        "function snapshotFromReviewItem(",
+        "formatDateTime(data.generatedAt)",
+        "<link rel=\"icon\" href=\"data:,\">",
+        "Record trail",
+        "Needs you",
+        "filter: 'latest'",
+        "Copy next action",
+    ]
+    for needle in required:
+        if needle not in html:
+            raise AssertionError(f"template is missing compact operating-log marker: {needle}")
+    forbidden = [
+        "id=\"nav-changelog\"",
+        "function renderChangelog(",
+        "P0/P1 unresolved",
+        "Copy board summary",
+    ]
+    for needle in forbidden:
+        if needle in html:
+            raise AssertionError(f"template still contains old review-board marker: {needle}")
+
+
+def test_template_has_accessible_motion_polish():
+    html = (TEMPLATES / "review-brief.html").read_text()
+    required = [
+        "@keyframes detail-in",
+        "@keyframes banner-in",
+        "@keyframes record-flash",
+        "prefers-reduced-motion",
+        "cubic-bezier(.22, 1, .36, 1)",
+    ]
+    for needle in required:
+        if needle not in html:
+            raise AssertionError(f"template is missing motion/accessibility marker: {needle}")
+
+
+def test_schema_and_example_support_snapshots():
+    schema = json.loads((TEMPLATES / "review-brief-data.schema.json").read_text())
+    example = json.loads((TEMPLATES / "review-brief-data.example.json").read_text())
+    if "snapshots" not in schema.get("properties", {}):
+        raise AssertionError("schema is missing optional snapshots property")
+    snapshot_def = schema.get("$defs", {}).get("snapshot", {})
+    for field in ["id", "title", "createdAt", "doneSummary"]:
+        if field not in snapshot_def.get("required", []):
+            raise AssertionError(f"snapshot schema is missing required field: {field}")
+    if not example.get("snapshots"):
+        raise AssertionError("example data should include compact snapshots")
+    for snapshot in example["snapshots"]:
+        for field in ["id", "title", "createdAt", "doneSummary"]:
+            if not snapshot.get(field):
+                raise AssertionError(f"example snapshot missing {field}: {snapshot}")
 
 
 def test_require_review_brief_gate_opens_and_records_sentinel():
@@ -301,6 +359,9 @@ def main():
         test_no_legacy_fixed_review_port,
         test_template_uses_embedded_only_for_file_protocol,
         test_template_polls_for_fresh_sidecar_data_without_reload,
+        test_template_uses_compact_operating_log_model,
+        test_template_has_accessible_motion_polish,
+        test_schema_and_example_support_snapshots,
         test_require_review_brief_gate_opens_and_records_sentinel,
         test_workflow_instructions_require_gate_command,
     ]

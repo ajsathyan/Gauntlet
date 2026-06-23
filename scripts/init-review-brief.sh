@@ -62,6 +62,7 @@ json.dump({
         "artifactPath": "review-brief.html",
         "sinceLastReview": "Initial brief"
     },
+    "snapshots": [],
     "reviewItems": [],
     "changeUnits": [],
     "notes": [],

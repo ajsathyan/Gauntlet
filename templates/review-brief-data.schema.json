@@ -42,6 +42,11 @@
     "proof": {
       "type": "array",
       "items": { "$ref": "#/$defs/proof" }
+    },
+    "snapshots": {
+      "description": "Optional compact feed records for token-efficient first-screen review. If omitted, the shell derives snapshots from reviewItems.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/snapshot" }
     }
   },
   "$defs": {
@@ -144,6 +149,26 @@
           "type": "string",
           "pattern": "^review-brief-assets/[^\\\\]+$"
         },
+        "links": { "$ref": "#/$defs/links" },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "title", "createdAt", "doneSummary"],
+      "properties": {
+        "id": { "type": "string" },
+        "sourceId": { "$ref": "#/$defs/handle" },
+        "reviewItemId": { "$ref": "#/$defs/handle" },
+        "title": { "type": "string" },
+        "project": { "type": "string" },
+        "mode": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "status": { "enum": ["Done", "Needs you", "Blocked", "In progress"] },
+        "doneSummary": { "type": "string" },
+        "needsYouSummary": { "type": "string" },
+        "proofStatus": { "enum": ["Missing", "Partial", "Passed", "Failed", "Not Applicable"] },
         "links": { "$ref": "#/$defs/links" },
         "lifecycle": { "$ref": "#/$defs/lifecycle" }
       }
