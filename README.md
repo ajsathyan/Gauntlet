@@ -1,9 +1,10 @@
 # Gauntlet
 
-A model-agnostic workflow harness for shaping, running, and reviewing coding-agent work.
+A model-agnostic prototyping harness for shaping, running, and reviewing coding-agent work with subagents.
 
 <p>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-3fb950?style=for-the-badge"></a>
+  <a href="https://github.com/ajsathyan/Gauntlet/releases/tag/v2.0.0"><img alt="Version" src="https://img.shields.io/badge/version-v2.0.0-111827?style=for-the-badge"></a>
   <a href="AGENTS.md"><img alt="Workflow" src="https://img.shields.io/badge/workflow-global-0969da?style=for-the-badge"></a>
   <a href="skills"><img alt="Role skills" src="https://img.shields.io/badge/role_skills-10-8957e5?style=for-the-badge"></a>
   <a href="templates/review-brief.html"><img alt="Review brief" src="https://img.shields.io/badge/review_brief-template-f778ba?style=for-the-badge"></a>
@@ -11,6 +12,7 @@ A model-agnostic workflow harness for shaping, running, and reviewing coding-age
 
 <p>
   <a href="#-at-a-glance">At A Glance</a> |
+  <a href="#v200-prototyping-harness">v2.0.0</a> |
   <a href="#-build-stages">Build Stages</a> |
   <a href="#-how-to-choose-a-stage">How To Choose</a> |
   <a href="#-install">Install</a> |
@@ -21,6 +23,12 @@ A model-agnostic workflow harness for shaping, running, and reviewing coding-age
 Gauntlet helps engineers, PMs, and designers spend more time refining specs, scope, acceptance criteria, and review surfaces before an agent runs. Instead of treating every task as "prompt, wait, inspect, prompt again," it gives teams a shared vocabulary for deciding what kind of work is being done and how much proof it deserves.
 
 Coding agents make implementation cheaper, but they make specification, orchestration, and review more important. Gauntlet is built around a simple bet: better-scoped work produces better agent runs, different tasks deserve different amounts of process, and humans need review briefs, not just a final diff.
+
+## v2.0.0: Prototyping Harness
+
+Gauntlet v2.0.0 is a harness for iterating on product ideas with coding agents and subagents. Its goal is to make AI-driven development feel exploratory without becoming loose: agents can plan, implement, test, and review in parallel, while deterministic gates make sure the important practices actually happen for the size and risk of the work.
+
+The v2 workflow is built around Patch, Feature, and Release modes; Standard and Deep depth; review briefs; release panel guardrails; architecture hygiene; TypeScript durability classification; and skill-change evals. The intent is not to add process everywhere. It is to apply just enough structure that long agent runs stay observable, bounded, and easier to trust.
 
 ## ✨ At A Glance
 
