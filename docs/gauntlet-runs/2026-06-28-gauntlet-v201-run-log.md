@@ -17,11 +17,11 @@ Scope: Replace the default review artifact workflow with exceptions-first Markdo
 
 ## Exceptions
 
-- Checks skipped: no global install was run against the user's live agent home.
+- Checks skipped: none for install coverage.
 - Things that went wrong: red workflow check initially failed because `run-log-builder` did not exist; the first linter pass also caught missing proof-bounded subagent guidance in `experience-reviewer`.
-- Cannot verify: whether downstream installed agents still have stale local files until `scripts/install.sh` is run in that environment.
-- Follow-ups: consider a stronger migration notice if stale installed agents keep following old workflow files.
+- Cannot verify: whether other machines or agent homes outside `/Users/ajsathyan/.codex` still have stale files.
+- Follow-ups: none for the local/global Codex install.
 
 ## Coverage Gap Candidates
 
-- GAP-001: pending. Existing global installs can keep stale files until the installer runs.
+- GAP-001: covered. The local repo hook and `/Users/ajsathyan/.codex` global install now use v2.0.1 and no longer include the removed review artifact files.

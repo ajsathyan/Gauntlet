@@ -35,7 +35,7 @@ Needs human:
 
 ## GAP-001: Stale Installed Workflow Copies
 
-Status: pending
+Status: covered
 Surface: Gauntlet install migration
 Seen in:
 - docs/gauntlet-runs/2026-06-28-gauntlet-v201-run-log.md
@@ -46,8 +46,11 @@ Gauntlet v2.0.1 removes the old default artifact from the repo, but existing glo
 Why it matters:
 Future agents running from an old install could follow stale workflow instructions even after the repository has moved on.
 
-Suggested destination:
-Installer cleanup and release notes.
+Covered by:
+- `./scripts/install.sh` installed v2.0.1 to `/Users/ajsathyan/.codex`.
+- `/Users/ajsathyan/.codex/gauntlet/scripts/check-gauntlet-workflow.py` passed from the installed copy.
+- Installed shape check confirmed `run-log-builder`, coverage gaps, and design lint docs exist, while the old review artifact skill, templates, root files, and startup scripts are absent.
+- Local repo pre-commit hook still points at `scripts/run-skill-change-checks.sh`.
 
 Needs human:
-Decide whether a stronger migration notice is needed after v2.0.1 lands.
+Not relevant because the user explicitly approved running the local/global install.
