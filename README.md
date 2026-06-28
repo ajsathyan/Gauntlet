@@ -1,34 +1,33 @@
 # Gauntlet
 
-A model-agnostic prototyping harness for shaping, running, and reviewing coding-agent work with subagents.
+A model-agnostic prototyping harness for shaping, running, reviewing, and remembering coding-agent work with subagents.
 
 <p>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-3fb950?style=for-the-badge"></a>
-  <a href="https://github.com/ajsathyan/Gauntlet/releases/tag/v2.0.0"><img alt="Version" src="https://img.shields.io/badge/version-v2.0.0-111827?style=for-the-badge"></a>
+  <a href="https://github.com/ajsathyan/Gauntlet/releases/tag/v2.0.1"><img alt="Version" src="https://img.shields.io/badge/version-v2.0.1-111827?style=for-the-badge"></a>
   <a href="AGENTS.md"><img alt="Workflow" src="https://img.shields.io/badge/workflow-global-0969da?style=for-the-badge"></a>
   <a href="skills"><img alt="Role skills" src="https://img.shields.io/badge/role_skills-10-8957e5?style=for-the-badge"></a>
-  <a href="templates/review-brief.html"><img alt="Review brief" src="https://img.shields.io/badge/review_brief-template-f778ba?style=for-the-badge"></a>
+  <a href="docs/coverage-gaps.md"><img alt="Coverage gaps" src="https://img.shields.io/badge/coverage_gaps-pending-f778ba?style=for-the-badge"></a>
 </p>
 
 <p>
   <a href="#-at-a-glance">At A Glance</a> |
-  <a href="#v200-prototyping-harness">v2.0.0</a> |
+  <a href="#v201-run-log-harness">v2.0.1</a> |
   <a href="#-build-stages">Build Stages</a> |
-  <a href="#-how-to-choose-a-stage">How To Choose</a> |
-  <a href="#-install">Install</a> |
-  <a href="#-review-briefs">Review Briefs</a> |
-  <a href="#-license">License</a>
+  <a href="#-run-logs">Run Logs</a> |
+  <a href="#-coverage-gaps">Coverage Gaps</a> |
+  <a href="#-install">Install</a>
 </p>
 
-Gauntlet helps engineers, PMs, and designers spend more time refining specs, scope, acceptance criteria, and review surfaces before an agent runs. Instead of treating every task as "prompt, wait, inspect, prompt again," it gives teams a shared vocabulary for deciding what kind of work is being done and how much proof it deserves.
+Gauntlet helps engineers, PMs, and designers spend more time refining specs, scope, acceptance criteria, and reusable repo memory before an agent runs. Instead of treating every task as "prompt, wait, inspect, prompt again," it gives teams a shared vocabulary for deciding what kind of work is being done, how much proof it deserves, and which decisions should survive the chat.
 
-Coding agents make implementation cheaper, but they make specification, orchestration, and review more important. Gauntlet is built around a simple bet: better-scoped work produces better agent runs, different tasks deserve different amounts of process, and humans need review briefs, not just a final diff.
+Coding agents make implementation cheaper, but they make specification, orchestration, and review more important. Gauntlet v2.0.1 keeps the workflow strict where risk demands it and lighter where ceremony got in the way: durable context is now an exceptions-first Markdown run log plus pending coverage gaps, not a separate review product.
 
-## v2.0.0: Prototyping Harness
+## v2.0.1: Run Log Harness
 
-Gauntlet v2.0.0 is a harness for iterating on product ideas with coding agents and subagents. Its goal is to make AI-driven development feel exploratory without becoming loose: agents can plan, implement, test, and review in parallel, while deterministic gates make sure the important practices actually happen for the size and risk of the work.
+Gauntlet v2.0.1 replaces the default review surface with a small **Run Log** and a candidate **Coverage Gap** loop inspired by repo-local product-design guidance patterns.
 
-The v2 workflow is built around Patch, Feature, and Release modes; Standard and Deep depth; review briefs; release panel guardrails; architecture hygiene; TypeScript durability classification; and skill-change evals. The intent is not to add process everywhere. It is to apply just enough structure that long agent runs stay observable, bounded, and easier to trust.
+The workflow is built around Patch, Feature, and Release modes; Standard and Deep depth; run logs; release panel guardrails; architecture hygiene; TypeScript durability classification; skill-change evals; and design lint candidates. The intent is still not to add process everywhere. It is to apply just enough structure that long agent runs stay bounded, verifiable, and easier to pick up later.
 
 ## ✨ At A Glance
 
@@ -37,9 +36,10 @@ The v2 workflow is built around Patch, Feature, and Release modes; Standard and 
 | Intake | Turns rough intent into scope, boundaries, acceptance criteria, assumptions, and proof. |
 | Build stages | Routes work through Patch, Feature, or Release based on scope and risk, with Standard or Deep depth chosen separately. |
 | Role skills | Adds product architecture, planning, triage, implementation, adversarial review, black-box testing, experience review, and deep code review when useful. |
-| Review briefs | Gives engineers, PMs, and designers a compact review feed with expanded records and a handle-backed record trail for proof, decisions, and compact agent follow-up prompts. |
-| Live review surface | Serves `review-brief.html` with `review-brief-data.json` so decisions, deviations, tradeoffs, open questions, proof, and quantitative impact stay visible while work happens. |
-| Model portability | Installs as reusable instructions, skills, templates, and scripts that can be adapted to different agent environments. |
+| Run logs | Writes a tiny exceptions-first Markdown receipt for material Feature/Release work: assumptions, decisions, skipped checks, failures, `Cannot verify`, and follow-ups. |
+| Coverage gaps | Captures pending candidates when missing reusable guidance forced a material assumption or repeated review finding. |
+| Design lint candidates | Documents Vercel-inspired UI lint ideas such as nested modal prevention, accessible names, focus token checks, and static select-to-radio guidance. |
+| Model portability | Installs as reusable instructions, skills, docs, scripts, and evals that can be adapted to different agent environments. |
 
 ## 🧭 Build Stages
 
@@ -71,9 +71,9 @@ Mode is about scope and risk surface. Depth is about search effort. A performanc
 
 | Audience | How Gauntlet Helps |
 | --- | --- |
-| Engineers | Turns broad requests into scoped, verifiable implementation work, adds review loops for risky changes, and produces developer review briefs that prioritize the risky parts of the diff. |
+| Engineers | Turns broad requests into scoped, verifiable implementation work, adds review loops for risky changes, and leaves a small durable trail for future agents. |
 | PMs | Makes product intent executable by clarifying scope, non-goals, acceptance criteria, assumptions, behavior changes, launch risks, and open questions. |
-| Designers | Preserves UX intent through clearer flows, affected interfaces, state inventories, accessibility checks, visual proof, and visible deviations from the original spec. |
+| Designers | Preserves UX intent through clearer flows, affected interfaces, state inventories, accessibility checks, visual proof, and coverage gaps for missing standards. |
 
 ## 📊 What The First Evals Show
 
@@ -83,8 +83,57 @@ Early local evals are directional, not benchmark-grade.
 | --- | --- |
 | A lighter Patch path used fewer tokens on one focused performance task, but the heavier workflow found a faster optimization. | Gauntlet separates Patch mode from Deep depth for small-surface work where performance, security, reliability, or data integrity justify deeper search. |
 | Release mode cost more than direct development on one broader product-performance task, but produced stronger review artifacts and caught a real progress-state regression during adversarial review. | Gauntlet keeps stronger claims tied to measured proof, not blanket promises. |
+| The old review artifact became heavier than the decisions it preserved. | v2.0.1 keeps durable repo memory but makes the default artifact a Markdown receipt. |
 
 The current claim is not "Gauntlet always writes better code." The claim is that Gauntlet makes agent work more structured, reviewable, and measurable, with explicit tradeoffs between speed, cost, rigor, and human handoff.
+
+## 🧾 Run Logs
+
+For Feature and Release work, or any Tier 2/3 task with material decisions or exceptions, Gauntlet writes:
+
+```text
+docs/gauntlet-runs/YYYY-MM-DD-<slug>.md
+```
+
+The run log is exceptions-first. It records only what future agents would regret losing:
+
+- Material assumptions.
+- Non-obvious decisions.
+- Things that went wrong.
+- Checks skipped or proof that could not be completed.
+- `Cannot verify` items and follow-ups.
+- For Release, a compact proof summary or launch cut line when it affects risk.
+
+Routine successful checks stay in the final chat summary. The run log should feel like a receipt, not a project report.
+
+## 🕳 Coverage Gaps
+
+Coverage gaps live in [docs/coverage-gaps.md](docs/coverage-gaps.md). They are pending candidates, not standards.
+
+Agents may add or update a gap when a run exposes missing reusable guidance:
+
+- A material assumption was needed because no rule/reference existed.
+- A reviewer says the same issue keeps coming up.
+- A finding is `Cannot verify` because the expected standard is missing.
+- The same class of issue appears across multiple run logs.
+- A lint/check cannot decide safely without product context.
+- A rule has too many exceptions and should move back to guidance.
+
+A human decides whether a candidate becomes a rule, reference, exemplar, lint, eval, coverage gap, or no change.
+
+## 🧪 Design Lint Candidates
+
+[docs/design-lint-candidates.md](docs/design-lint-candidates.md) captures UI lint ideas that can graduate into project-specific checks. The first set mirrors patterns named in Vercel's product-design post:
+
+- Prevent nested modals.
+- Prefer radio buttons over selects for 2-3 static options.
+- Require accessible names for icon buttons and form controls.
+- Reject custom focus rings that bypass shared focus tokens.
+- Prevent ad hoc visual overrides of design-system components.
+- Require a modal body/content primitive when overflow is possible.
+- Prefer theme-aware shadows and component-owned borders.
+- Flag arbitrary spacing off a 4px grid.
+- Autofix safe deprecated Tailwind utility migrations.
 
 ## ⚡ Install
 
@@ -102,8 +151,9 @@ Make the Gauntlet workflow available across all my projects, not just one repo.
 Use the repo's files as the source of truth:
 - AGENTS.md is the global workflow/router.
 - skills/ contains reusable role skills.
-- templates/ contains the review brief shell, schema, and example data.
-- scripts/ contains the installer, review brief initializer/server, and validator.
+- docs/ contains run-log, coverage-gap, and design-lint guidance.
+- scripts/ contains the installer, durability classifier, skill evals, and skill checks.
+- evals/ contains deterministic skill-eval fixtures and baselines.
 
 Install or adapt those files into whatever persistent global instruction, skill, memory, workflow, or config system this agent environment supports.
 
@@ -111,9 +161,9 @@ Preserve these concepts:
 - Patch, Feature, and Release build stages
 - Standard and Deep depth
 - Intake before substantial work
-- Review feed / expanded record / record trail briefs for Feature and Release work
-- Live review-brief.html plus review-brief-data.json when progress should be visible during Tier 2/3 work
-- Role skills for planning, implementation, triage, adversarial review, black-box testing, experience review, and deep code review
+- Exceptions-first Markdown run logs for Feature/Release work
+- Pending coverage gaps for missing reusable guidance
+- Role skills for planning, implementation, triage, adversarial review, black-box testing, experience review, deep code review, and run-log building
 
 Do not delete or overwrite unrelated existing user instructions. Merge carefully.
 
@@ -130,70 +180,13 @@ Already cloned the repo?
 ./scripts/install.sh
 ```
 
-The installer also adds a Gauntlet pre-commit hook in this repo. When staged
-files include `skills/*/SKILL.md` or `skills/*/examples/*`, the hook runs the
-skill evals and skill linter before the commit can proceed. Set
-`GAUNTLET_SKIP_GIT_HOOKS=1` for headless installs that should not touch git
-hooks.
-
-## 🔎 Review Briefs
-
-For Feature and Release work, Gauntlet can create a human review surface:
-
-```text
-Review feed -> Expanded record -> Record trail
-```
-
-The brief is designed for a solo reviewer first: open it, see the latest meaningful records, notice whether anything needs you, inspect one item, then open the record trail when you want proof, files, or rationale.
-
-Recommended generated files:
-
-```text
-review-brief.html
-review-brief-data.json
-review-brief-data.schema.json
-review-brief-assets/
-```
-
-To initialize a live review brief from a project root:
-
-```sh
-path/to/Gauntlet/scripts/init-review-brief.sh
-```
-
-To serve a review brief from a project root:
-
-```sh
-path/to/Gauntlet/scripts/serve-review-brief.sh
-```
-
-To initialize and serve in one command:
-
-```sh
-path/to/Gauntlet/scripts/start-review-brief.sh
-```
-
-To satisfy the Review brief startup gate before Feature, Release, or broad Patch work with Deep depth:
-
-```sh
-path/to/Gauntlet/scripts/require-review-brief-started.sh /path/to/project
-```
-
-The required gate starts a healthy review brief, opens it in the default browser, writes `.gauntlet-review-brief-started.json`, and only then prints the URL. Use `GAUNTLET_REVIEW_OPEN=chrome` to prefer Chrome, or `GAUNTLET_REVIEW_OPEN=none` only for explicit headless/test runs.
-
-The start/serve scripts print a URL only after both `review-brief.html` and `review-brief-data.json` load from the same project directory. By default the OS chooses an available localhost port; set `GAUNTLET_REVIEW_PORT` only when you explicitly need a fixed port. Use the returned URL instead of hardcoding a localhost port. Served pages poll for newer valid review data and show a "new version available" banner that updates the view without a hard refresh. The shell also embeds a real JSON snapshot so direct `file://` opening works without sample data; direct file mode is a safe snapshot, not a live view. To intentionally refresh an existing project's shell/schema from the latest Gauntlet template while preserving `review-brief-data.json`, run with:
-
-```sh
-GAUNTLET_REVIEW_REFRESH_TEMPLATE=1 path/to/Gauntlet/scripts/start-review-brief.sh /path/to/project
-```
-
-The review shell treats generated data as untrusted text, uses compact `snapshots` for the first screen, links deeper `RB/CU/N/P` records for the record trail, and avoids falling back to sample data when real review data is missing.
+The installer also adds a Gauntlet pre-commit hook in this repo. When staged files include `skills/*/SKILL.md` or `skills/*/examples/*`, the hook runs the skill evals and skill linter before the commit can proceed. Set `GAUNTLET_SKIP_GIT_HOOKS=1` for headless installs that should not touch git hooks.
 
 ## 📦 What Gets Installed
 
 | File Or Directory | Purpose |
 | --- | --- |
-| [AGENTS.md](AGENTS.md) | Global router for task tiers, intake, stage selection, role skills, review briefs, stop conditions, and completion rules. |
+| [AGENTS.md](AGENTS.md) | Global router for task tiers, intake, stage selection, role skills, run logs, stop conditions, and completion rules. |
 | [skills/intake/SKILL.md](skills/intake/SKILL.md) | Turns rough intent into an implementable spec. |
 | [skills/product-architect/SKILL.md](skills/product-architect/SKILL.md) | Shapes Feature work around workflow, IA, activation, retention, growth, trust, and handoff. |
 | [skills/planner/SKILL.md](skills/planner/SKILL.md) | Converts accepted specs into bounded implementation steps. |
@@ -203,19 +196,11 @@ The review shell treats generated data as untrusted text, uses compact `snapshot
 | [skills/black-box-tester/SKILL.md](skills/black-box-tester/SKILL.md) | Validates behavior externally through user-visible outcomes. |
 | [skills/experience-reviewer/SKILL.md](skills/experience-reviewer/SKILL.md) | Reviews workflow clarity, IA, states, metrics, accessibility, trust, activation, retention, and growth. |
 | [skills/deep-code-reviewer/SKILL.md](skills/deep-code-reviewer/SKILL.md) | Reviews correctness, maintainability, tests, integration risk, and regression risk. |
-| [skills/review-brief-builder/SKILL.md](skills/review-brief-builder/SKILL.md) | Builds human review briefs for Feature and Release work. |
-| [templates/review-brief.html](templates/review-brief.html) | Human review brief template. |
-| [templates/review-brief-data.schema.json](templates/review-brief-data.schema.json) | Data contract for generated review briefs. |
-| [templates/review-brief-data.example.json](templates/review-brief-data.example.json) | Example review brief data for local testing. |
-| [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, templates, and scripts. |
-| [scripts/init-review-brief.sh](scripts/init-review-brief.sh) | Initializes a live review brief shell, schema, data file, and assets folder. |
-| [scripts/serve-review-brief.sh](scripts/serve-review-brief.sh) | Starts a localhost server for a generated review brief and sidecar JSON. |
-| [scripts/start-review-brief.sh](scripts/start-review-brief.sh) | Initializes and serves the live review brief in one command, then prints the URL. |
-| [scripts/require-review-brief-started.sh](scripts/require-review-brief-started.sh) | Enforces the startup gate by proving the brief is healthy, opening it, and recording local proof. |
+| [skills/run-log-builder/SKILL.md](skills/run-log-builder/SKILL.md) | Creates exceptions-first run logs and pending coverage-gap candidates. |
+| [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
+| [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | Vercel-inspired lint ideas for project-specific UI checks. |
+| [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals. |
 | [scripts/classify-ts-durability.sh](scripts/classify-ts-durability.sh) | Classifies whether TypeScript durability standards are required for the current work. |
-| [scripts/embed-review-brief-data.py](scripts/embed-review-brief-data.py) | Embeds real review data into the HTML shell for direct file viewing. |
-| [scripts/validate-review-brief-data.py](scripts/validate-review-brief-data.py) | Validates review brief JSON handles, enums, links, and proof state. |
-| [scripts/check-review-brief.py](scripts/check-review-brief.py) | Runs deterministic checks for embedded snapshots and health-checked serving. |
 | [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill evals. |
 | [scripts/lint-skills.py](scripts/lint-skills.py) | Lints skill frontmatter, word budget, contract slots, optional examples, and bounded subagent guidance. |
 | [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill evals and linting when staged Gauntlet skill files change. |
@@ -226,11 +211,11 @@ The review shell treats generated data as untrusted text, uses compact `snapshot
 
 ## 🧠 Inspiration
 
-Gauntlet is partly inspired by [Simon Last's framing of agent work](https://x.com/simonlast/status/2057978156183957995?s=20) as a higher-throughput software factory: the bottleneck moves from typing code to shaping clear specs, boundaries, and review loops so agents can keep working.
+Gauntlet is partly inspired by Simon Last's framing of agent work as a higher-throughput software factory: the bottleneck moves from typing code to shaping clear specs, boundaries, and review loops so agents can keep working.
 
-It is also inspired by [trq212's implementation-notes pattern](https://x.com/trq212/status/2056415973125796184?s=20): long agent runs become easier to trust when decisions, deviations, tradeoffs, and open questions are captured while the work happens. Gauntlet adapts that idea into the review brief record trail rather than a separate implementation notes file.
+It is also influenced by Vercel's product-design guidance pattern: accepted decisions live near the code, repeated mechanical checks graduate into linters, missing standards stay visible as coverage gaps, and humans approve what becomes guidance.
 
-Gauntlet combines those ideas into a workflow harness: define the work clearly, choose the right build stage, let the agent keep moving, and give humans a review surface that explains what changed and why.
+Gauntlet combines those ideas into a workflow harness: define the work clearly, choose the right build stage, let the agent keep moving, and leave small durable repo memory behind.
 
 ## 📚 Repository Files
 
@@ -238,8 +223,9 @@ Gauntlet combines those ideas into a workflow harness: define the work clearly, 
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | Global workflow instructions. |
 | [skills/](skills) | Role-specific reusable instructions. |
-| [templates/](templates) | Review brief shell, schema, and example data. |
-| [scripts/](scripts) | Installer, review brief server, initializer, and validator. |
+| [docs/](docs) | Coverage gaps, design lint candidates, and historical plans. |
+| [scripts/](scripts) | Installer, durability classifier, workflow checks, skill evals, and skill linter. |
+| [evals/](evals) | Skill eval definitions, behavior fixtures, and baselines. |
 | [LICENSE](LICENSE) | MIT license. |
 
 ## 📄 License

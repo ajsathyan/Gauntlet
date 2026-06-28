@@ -5,7 +5,7 @@
 - Files/areas to inspect: invite accept route, invite tests
 - Files/areas to avoid: billing, workspace settings UI
 - Global Constraints: preserve active invite behavior
-- Consumes: accepted intake packet, RB-014
+- Consumes: accepted intake packet, run log or source text
 - Produces: expiry check and regression test
 - Steps: inspect route, add failing test, implement check, verify
 - Proof: targeted invite test plus workflow smoke

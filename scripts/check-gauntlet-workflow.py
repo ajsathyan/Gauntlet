@@ -77,7 +77,7 @@ def test_simplified_modes_and_depth_are_documented():
         "Mode: Patch | Feature | Release",
         "Depth: Standard | Deep",
         "Triggered gates:",
-        "Review Brief",
+        "Run Log",
         "Panel Guard",
         "Hygiene",
         "TS Durability",
@@ -88,13 +88,83 @@ def test_simplified_modes_and_depth_are_documented():
         assert_not_contains(combined, stale, "simplified mode model")
 
 
+def test_v201_run_log_contract_replaces_default_review_brief():
+    agents = read(AGENTS_MD)
+    readme = read(README_MD)
+    run_log = read(SKILLS / "run-log-builder" / "SKILL.md")
+    combined = "\n".join([agents, readme, run_log])
+
+    for marker in [
+        "v2.0.1",
+        "Run Log",
+        "Decision Log Gate",
+        "exceptions-first",
+        "docs/gauntlet-runs/",
+        "Assumptions",
+        "Decisions",
+        "Exceptions",
+        "Things that went wrong",
+        "Cannot verify",
+    ]:
+        assert_contains(combined, marker, "v2.0.1 run-log contract")
+
+    for stale in [
+        "Review Brief Startup Gate",
+        "review brief startup gate is mandatory",
+        "review-brief-builder",
+        "review-brief.html",
+        "review-brief-data.json",
+    ]:
+        assert_not_contains(agents, stale, "default workflow contract")
+
+    assert_contains(run_log, "Do not list successful routine checks", "run-log proof policy")
+    assert_contains(run_log, "Release", "run-log release proof exception")
+
+
+def test_coverage_gap_and_design_lint_guidance_are_documented():
+    agents = read(AGENTS_MD)
+    readme = read(README_MD)
+    coverage = read(ROOT / "docs" / "coverage-gaps.md")
+    design_lints = read(ROOT / "docs" / "design-lint-candidates.md")
+    run_log = read(SKILLS / "run-log-builder" / "SKILL.md")
+    combined = "\n".join([agents, readme, coverage, design_lints, run_log])
+
+    for marker in [
+        "GAP-",
+        "pending",
+        "candidate",
+        "human",
+        "coverage-gaps.md",
+        "same class of issue appears",
+        "Cannot verify",
+        "rule, reference, exemplar, lint, eval, coverage gap, or no change",
+    ]:
+        assert_contains(combined, marker, "coverage gap capture")
+
+    for marker in [
+        "nested modals",
+        "radio buttons",
+        "2-3 static options",
+        "accessible names",
+        "custom focus rings",
+        "design-system component",
+        "Modal.Body",
+        "raw shadows",
+        "4px grid",
+        "deprecated Tailwind",
+    ]:
+        assert_contains(design_lints, marker, "design lint candidates")
+
+    assert_not_contains(coverage, "Status: accepted", "coverage gaps should not auto-promote standards")
+
+
 def test_guarded_panel_contract_is_uniform():
     files = {
         "AGENTS.md": read(AGENTS_MD),
         "planner": read(SKILLS / "planner" / "SKILL.md"),
         "issue-triager": read(SKILLS / "issue-triager" / "SKILL.md"),
         "deep-code-reviewer": read(SKILLS / "deep-code-reviewer" / "SKILL.md"),
-        "review-brief-builder": read(SKILLS / "review-brief-builder" / "SKILL.md"),
+        "run-log-builder": read(SKILLS / "run-log-builder" / "SKILL.md"),
     }
     required = [
         "| Concern | Decision | Why Not Defer | Proof | Plan Delta |",
@@ -327,6 +397,8 @@ def test_skill_changes_are_guarded_by_pre_commit():
 def main():
     tests = [
         test_simplified_modes_and_depth_are_documented,
+        test_v201_run_log_contract_replaces_default_review_brief,
+        test_coverage_gap_and_design_lint_guidance_are_documented,
         test_guarded_panel_contract_is_uniform,
         test_ts_durability_classifier_behavior,
         test_skill_evals_compare_all_arms,

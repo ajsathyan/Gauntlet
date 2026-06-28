@@ -178,22 +178,25 @@
       ]
     },
     {
-      "id": "review-brief-normalizer",
-      "skill": "review-brief-builder",
-      "title": "Review brief builder normalizes evidence into handles without diary drift",
-      "oneShotInstruction": "Build a human review brief with Review, Details, Changelog, stable handles, proof, and compact copy actions.",
-      "pressurePrompt": "Update an existing review brief after implementation and multiple reviewers. Preserve handles, avoid sample data, and normalize findings into review cards and proof.",
+      "id": "run-log-exceptions-contract",
+      "skill": "run-log-builder",
+      "title": "Run log builder captures durable exceptions without proof-dump drift",
+      "oneShotInstruction": "Write a concise Markdown run log with assumptions, decisions, exceptions, skipped checks, cannot-verify items, and follow-ups.",
+      "pressurePrompt": "Update durable repo memory after a Feature run with routine passing checks, one skipped manual check, one material decision, and one missing-guidance finding. Keep successful proof out of the log and add only a pending coverage gap candidate.",
       "requiredPatterns": [
-        "Normalizer",
-        "RB-###",
-        "CU-###",
-        "N-###",
-        "P-###",
-        "untrusted evidence",
-        "Copy next action",
-        "Done"
+        "Run Log",
+        "docs/gauntlet-runs/",
+        "exceptions-first",
+        "Assumptions",
+        "Decisions",
+        "Things that went wrong",
+        "Cannot verify",
+        "Do not list successful routine checks",
+        "GAP-###",
+        "pending"
       ],
       "forbiddenPatterns": [
+        "review-brief",
         "sample data"
       ]
     }

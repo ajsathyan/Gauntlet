@@ -22,12 +22,12 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - User-work note: unrelated dirty files noticed and preserved
 - Next action
 
-For Feature or Release work with a review brief, also report handle-friendly chunks:
+For Feature or Release work, also report run-log-friendly exceptions:
 
-- Change units: coherent diff chunks, commits, changed files, and reason
-- Notes: decisions, deviations, tradeoffs, assumptions, and open questions
-- Proof items: exact command/output summary or asset path
-- Suggested review items for risks that need attention
+- Material assumptions, decisions, deviations, and tradeoffs
+- Failed, skipped, partial, or unavailable proof
+- Things that went wrong and follow-ups
+- Coverage gap candidate when reusable guidance is missing
 
 ## Rules
 

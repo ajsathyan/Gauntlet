@@ -40,7 +40,7 @@ Each task gets a packet. Keep tasks end-to-end unless files, state, and proof ar
 - Proof: command, screenshot, benchmark, manual check, or static scan
 - Cannot verify: cross-task or external proof the implementer cannot check
 - Done when
-- Review target: reviewer skill or review brief handle expected
+- Review target: reviewer skill, run log, or coverage gap expected
 
 ## Rules
 

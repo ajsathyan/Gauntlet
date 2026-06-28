@@ -4,7 +4,7 @@
 - Decision: Ready
 - Priority: P1
 - Status: Ready
-- Source handle or source text: RB-014
+- Source handle or source text: GAP-014
 - Observed vs expected: expired invitation still opens workspace
 - Evidence: reviewer reproduced with invite URL after expiry
 - Repro state: exact repro

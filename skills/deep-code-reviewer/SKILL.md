@@ -13,7 +13,7 @@ Protect behavior while inspecting the changed design.
 - Diff or changed files
 - Proof already run
 - Known non-goals
-- Existing review brief handles, if any
+- Existing run log or coverage gap candidates, if any
 
 For broad changes, parallel subagents may review independent areas such as API contract, persistence, UI state, and test proof. Use one final merge pass to deduplicate by shared fix.
 
@@ -29,7 +29,7 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Current-change hygiene: introduced dead code, unnecessary abstraction, stale shim, or duplicate logic
 - Residual risk
 - Agent next: one concrete follow-up
-- Suggested review brief links: `RB` concern and `P` proof handles when useful
+- Coverage gap candidate: only when reusable guidance is missing
 
 ## Rules
 

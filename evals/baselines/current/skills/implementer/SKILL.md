@@ -19,14 +19,11 @@ Rules:
 - Verify before declaring done.
 - Do not damage unrelated user work in a dirty workspace.
 
-When Feature or Release work will produce a review brief, report implementation facts to the orchestrator in handle-friendly chunks:
+When Feature or Release work needs durable context, report implementation facts to the orchestrator:
 
-- Change units: coherent diff chunks, commits, changed files, and reason for change.
 - Notes: meaningful decisions, deviations, tradeoffs, assumptions, and open questions.
 - Proof: commands, screenshots, benchmarks, logs, manual checks, what they prove, and what they do not prove.
 - Review concerns: anything that needs human judgment, missing proof, or reopened attention.
-
-Do not invent or renumber existing `RB`, `CU`, `N`, or `P` handles. If a concern changes, ask the orchestrator to update, reopen, supersede, or tombstone the existing record.
 
 Do not mark review work complete merely because code was implemented. Done requires required proof to pass or be explicitly Not Applicable with rationale.
 

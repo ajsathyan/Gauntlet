@@ -14,7 +14,7 @@ Treat the implementation as opaque. Test observable behavior against the spec, u
 - Surfaces: UI, CLI, API, docs, logs, persistence, screenshots, or browser checks
 - Environment, accounts, data, and limits
 - Non-goals
-- Existing handles, if any
+- Existing run log or coverage gap candidates, if any
 
 Independent UI/API/CLI/persistence charters may run as parallel subagents when they do not mutate shared state.
 
@@ -32,7 +32,7 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Coverage notes: what was checked and what was intentionally not checked
 - Residual risk
 - Agent next: one concrete follow-up
-- Suggested review brief links: `RB` concern and `P` proof handles when useful
+- Coverage gap candidate: only when reusable guidance is missing
 
 ## Rules
 

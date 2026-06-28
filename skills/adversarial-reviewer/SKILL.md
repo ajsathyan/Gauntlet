@@ -13,7 +13,7 @@ Act as the break-it-before-users-do reviewer. Focus on concrete risk, not aesthe
 - Changed surfaces and trust boundaries
 - Excluded areas
 - Known proof
-- Existing review brief handles, if any
+- Existing run log or coverage gap candidates, if any
 
 For broad Release work, independent risk lenses such as permissions, parsing, concurrency, and rollback may run as parallel subagents. Merge duplicate findings by shared cause or fix.
 
@@ -28,7 +28,7 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Cannot verify: risk, missing evidence, next proof
 - Residual risk
 - Agent next: one concrete follow-up
-- Suggested review brief links: `RB` concern and `P` proof handles when useful
+- Coverage gap candidate: only when reusable guidance is missing
 
 ## Check
 

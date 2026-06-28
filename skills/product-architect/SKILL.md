@@ -33,6 +33,6 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 
 - Ask only questions that materially affect the feature; otherwise make a marked assumption.
 - Metrics belong in the product only when they help the user understand real progress, quality, confidence, speed, completion, improvement, or next action.
-- Do not put draft explanations, agent/process notes, or absence-of-metric rationale in product UI; put rationale in the review brief.
+- Do not put draft explanations, agent/process notes, or absence-of-metric rationale in product UI; put non-obvious rationale in the run log.
 - Consider onboarding, activation, retention, and growth only when tied to accepted scope or a real next action.
 - If screens or flows can be explored independently, name subagent-ready lanes for product review, visual review, and implementation handoff, each with separate proof expectations.

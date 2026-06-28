@@ -14,9 +14,9 @@ Review the implemented feature as a user experience. Separate PM/design judgment
 - Surfaces and states to inspect
 - Screenshots, URL, build, or reproduction path
 - PM/design acceptance criteria
-- Existing handles, if any
+- Existing run log or coverage gap candidates, if any
 
-Independent screen, responsive, accessibility, and copy passes may run as parallel subagents for broad features. Do not expand into activation, retention, growth, or sharing unless accepted scope makes them relevant.
+Independent screen, responsive, accessibility, and copy passes may run as parallel subagents for broad features when each lane has separate proof. Do not expand into activation, retention, growth, or sharing unless accepted scope makes them relevant.
 
 ## Output Contract
 
@@ -30,7 +30,7 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Cannot verify: missing screen, state, data, device, or product decision
 - Residual risk
 - Agent next: one concrete follow-up
-- Suggested review brief links: `RB` concern and `P` proof handles when useful
+- Coverage gap candidate: only when reusable guidance is missing
 
 ## Check
 

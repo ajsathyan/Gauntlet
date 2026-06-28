@@ -38,7 +38,7 @@ Avoid:
 - Fake precision.
 - Product UI that explains the draft, agent, workflow, or missing metrics.
 
-If a metric is not meaningful, record that rationale in the review brief or implementation notes, not in the product UI.
+If a metric is not meaningful, keep that rationale out of the product UI.
 
 ## Output
 
