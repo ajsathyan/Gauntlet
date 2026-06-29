@@ -221,6 +221,8 @@ def test_subagent_parallelism_is_context_efficient():
     for marker in [
         "Parallelism must beat its context cost.",
         "Do not use subagents when each one would need the same large spec",
+        "scripts/check-subagent-plan.py",
+        "subagent-plan-summary.json",
         "expected speedup",
     ]:
         assert_contains(agents, marker, "subagent context-efficiency guard")
@@ -236,6 +238,7 @@ def test_subagent_parallelism_is_context_efficient():
         "Use end-to-end steps unless files, state, and proof are independent enough to split.",
         "planner firm end-to-end rule",
     )
+    assert_contains(planner, ".gauntlet/subagent-plan.json", "planner subagent manifest")
     assert_not_contains(planner, "Prefer end-to-end steps over component piles.", "planner soft end-to-end rule")
 
     assert_contains(
@@ -248,6 +251,66 @@ def test_subagent_parallelism_is_context_efficient():
         "Consider onboarding, activation, retention, and growth only when tied to accepted scope or a real next action.",
         "product-architect soft scope rule",
     )
+
+
+def test_subagent_plan_validator_logs_rejections():
+    validator = SCRIPTS / "check-subagent-plan.py"
+    if not validator.exists() or not os.access(validator, os.X_OK):
+        raise AssertionError("missing executable subagent plan validator")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        project.mkdir()
+        plan = project / "subagent-plan.json"
+        plan.write_text(json.dumps({
+            "schemaVersion": "1.0",
+            "lanes": [
+                {
+                    "id": "ui-review",
+                    "skill": "experience-reviewer",
+                    "scope": "Review checkout UI",
+                    "filesRead": ["src/checkout/**"],
+                    "filesWrite": ["src/checkout/page.tsx"],
+                    "stateScope": "checkout-session",
+                    "stateAccess": "mutates",
+                    "proof": ["npm test"],
+                    "inlineContext": "shared checkout context " * 90,
+                },
+                {
+                    "id": "browser-proof",
+                    "skill": "black-box-tester",
+                    "scope": "Exercise checkout UI",
+                    "filesRead": ["src/checkout/**"],
+                    "filesWrite": ["src/checkout/page.tsx"],
+                    "stateScope": "checkout-session",
+                    "stateAccess": "mutates",
+                    "proof": ["npm test"],
+                    "inlineContext": "shared checkout context " * 90,
+                },
+            ],
+        }))
+
+        result = run([str(validator), str(project), str(plan), "--run-id", "workflow-test"], check=False)
+        if result.returncode == 0:
+            raise AssertionError("invalid subagent plan should fail")
+        for marker in ["Subagent plan rejected", "rejection(s)", ".gauntlet/subagent-plan-log.jsonl"]:
+            assert_contains(result.stdout, marker, "subagent rejection output")
+
+        log_path = project / ".gauntlet" / "subagent-plan-log.jsonl"
+        summary_path = project / ".gauntlet" / "subagent-plan-summary.json"
+        if not log_path.exists():
+            raise AssertionError("subagent rejection log was not written")
+        if not summary_path.exists():
+            raise AssertionError("subagent summary was not written")
+        record = json.loads(log_path.read_text().splitlines()[-1])
+        summary = json.loads(summary_path.read_text())
+        if record["status"] != "rejected" or record["rejectionCount"] < 4:
+            raise AssertionError("subagent rejection record missing expected failures")
+        if summary["runId"] != "workflow-test" or summary["rejectedPlans"] != 1:
+            raise AssertionError("subagent summary should track rejected plans for the run")
+
+        stats = run([str(validator), str(project), "--stats", "--run-id", "workflow-test"])
+        assert_contains(stats.stdout, "Subagent plans: 1 checked, 1 rejected", "subagent stats output")
 
 
 def test_guarded_panel_contract_is_uniform():
@@ -499,6 +562,7 @@ def main():
         test_coverage_gap_and_design_lint_guidance_are_documented,
         test_product_thinking_and_scope_routing_are_documented,
         test_subagent_parallelism_is_context_efficient,
+        test_subagent_plan_validator_logs_rejections,
         test_guarded_panel_contract_is_uniform,
         test_ts_durability_classifier_behavior,
         test_skill_evals_compare_all_arms,

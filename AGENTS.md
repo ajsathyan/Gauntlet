@@ -243,6 +243,8 @@ When spawning subagents, explicitly point each subagent at the relevant skill an
 
 Parallelism must beat its context cost. Do not use subagents when each one would need the same large spec, trace, codebase context, screenshot set, or design rationale and the work is not truly independent. Use one agent with a shared context window when repeated handoff packets would cost more than the expected speedup.
 
+When parallel lanes are proposed, write `.gauntlet/subagent-plan.json` and run `scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --run-id "$RUN_ID"` before dispatch. Do not dispatch rejected lanes. If the validator ran, include `.gauntlet/subagent-plan-summary.json` counts in the final response.
+
 ### Subagent Handoff Packet
 
 - Project root and relevant files or surfaces
