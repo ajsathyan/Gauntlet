@@ -1,6 +1,6 @@
 # Global Agent Coding Workflow
 
-Gauntlet v2.0.1 chooses the lightest mode and depth that can responsibly produce and prove the requested change, then records only the decisions and exceptions future agents should not have to rediscover.
+Gauntlet v2.0.2 is a product-thinking harness for AI coding agents. It chooses the lightest mode, depth, and proof scope that can responsibly turn rough asks into coherent product features, prove the requested change, and record only the decisions and exceptions future agents should not have to rediscover.
 
 ## Modes
 
@@ -9,6 +9,7 @@ Recommend one mode before non-trivial work. State the recommendation, why, depth
 ```text
 Mode: Patch | Feature | Release
 Depth: Standard | Deep
+Proof scope: smoke | delta | full | not relevant
 Triggered gates: Run Log, Panel Guard, Hygiene, TS Durability
 ```
 
@@ -24,7 +25,7 @@ When Patch uses Deep depth, keep the code surface narrow while comparing alterna
 
 Use Feature for user-facing workflows, product concepts, high-fidelity features, onboarding, activation, retention, growth, information architecture, or design-heavy work.
 
-Default loop:
+Default full loop:
 
 1. intake
 2. product-architect
@@ -34,13 +35,15 @@ Default loop:
 6. experience-reviewer
 7. run-log-builder
 
+Feature delta: for a small accepted UI or workflow change, scope product-architect, black-box-tester, and experience-reviewer to affected surfaces only. A combined black-box and experience pass is acceptable when the same evidence answers both behavior and UX questions.
+
 Product features must look like the real product surface. Do not put draft labels, agent notes, process notes, or absence-of-metric rationale inside user-facing UI.
 
 ### Release
 
 Use Release for production-bound, broad, risky, ambiguous, security/privacy-sensitive, billing, migration, auth, data-integrity, upload, concurrency, public API, or weak-test-coverage work.
 
-Default loop:
+Default full loop:
 
 1. intake
 2. planner
@@ -49,7 +52,7 @@ Default loop:
 5. architecture hygiene pass
 6. adversarial-reviewer
 7. black-box-tester
-8. issue-triager
+8. issue-triager, only when reviews or tests produce findings, deferrals, or follow-ups
 9. deep-code-reviewer
 10. run-log-builder
 
@@ -65,6 +68,17 @@ Mode describes the change shape and risk surface. Depth describes how hard Gaunt
 Choose Deep depth when the user asks for "best", "maximum", "fastest", "most secure", "audit", "harden", "optimize", "benchmark", "regression-proof", or when small code changes could have large performance, security, reliability, or data-integrity impact.
 
 When depth is ambiguous for optimization or security work, ask whether the user wants an acceptable improvement or the best improvement worth searching for. If the cost appetite is unclear and the likely extra cost is meaningful, stop and ask.
+
+## Proof Scope
+
+Proof scope describes how wide the verification and review pass should be:
+
+- `smoke`: prove the main changed path and confirm no risk triggers are present.
+- `delta`: inspect changed surfaces, directly affected states, and changed invariants.
+- `full`: run the broader mode loop because product behavior, blast radius, launch risk, weak tests, or durable systems justify it.
+- `not relevant`: skip a role or gate with a short reason.
+
+Full checks are trigger-based, not mode theater. Every non-default ceremony must declare its trigger, cap, artifact, and exit condition. Always prove the changed behavior when possible; audit the whole surface only when risk, ambiguity, repetition, or missing proof earns it.
 
 ## Task Tiers
 
@@ -109,13 +123,15 @@ Use one release-risk reviewer or a compact role panel whose only job is to feed 
 
 ## Architecture Hygiene Pass
 
-For Feature, Release, and Tier 2/3 or broad multi-file changes, run one architecture hygiene pass after implementation and before completion. Prefer `deep-code-reviewer`; route broad or follow-up findings through `issue-triager`. If later review fixes change code, refresh only the affected hygiene checks.
+For Feature, Release, and Tier 2/3 or broad multi-file changes, run one architecture hygiene pass after implementation and before completion. Scope it to smoke, delta, or full based on blast radius. Prefer `deep-code-reviewer`; route broad or follow-up findings through `issue-triager`. If later review fixes change code, refresh only the affected hygiene checks.
 
 Do not run the pass by default for Patch unless the change touched shared architecture, replaced a path, introduced multiple abstractions, used generated code, used Deep depth for broad work, or the user asked for cleanup.
 
 Check for current-change dead code, unreachable branches, unused exports/components/files/dependencies, stale sample code, obsolete TODOs, unnecessary abstractions, duplicated logic, mismatched tests/fixtures/docs, invisible scope creep, and compatibility shims with no consumer.
 
 Use existing repo tooling first: typecheck, lint, tests, import/dependency scanners already present, and targeted `rg` searches. Fix only current-change cruft with low blast radius and passing proof. For Feature and Release work, record meaningful hygiene decisions or exceptions in the run log.
+
+For ordinary narrow Feature changes, use a bounded delta scan. Full hygiene is earned by shared modules, new abstractions, replacement paths, generated code, broad diffs, weak tests, or Release risk.
 
 ## TypeScript Durability Gate
 
@@ -152,6 +168,16 @@ The run log is not a diary and not a proof dump. It captures only:
 
 Do not list successful routine checks in the run log. Put routine passing verification in the final chat summary. Use `run-log-builder` to create or update the file.
 
+## Occasional And Systemic Checks
+
+Some checks are valuable but should not run for every task:
+
+- Skill eval full suite: run before Gauntlet releases, after eval infrastructure changes, or during periodic calibration. For ordinary skill edits, run targeted changed-skill evals plus the skill linter.
+- Global install verification: run after installer changes, global workflow changes, or explicit global install requests. Skip it for local-only docs unless the installed copy is the target.
+- Full responsive, accessibility, visual-regression, motion, and dead-component sweeps: run for major frontend work, demos, releases, or repeated UI findings.
+- Full product-architect and experience reviews: run for new or ambiguous workflows; use delta review for accepted small changes.
+- Second Release issue-triager only when reviews or tests create findings, deferrals, or follow-ups.
+
 ## Coverage Gaps
 
 Autonomously capture candidate gaps when a run exposes missing reusable guidance, but never promote a gap into a standard without human approval.
@@ -173,6 +199,21 @@ Good candidate signals:
 - A rule has too many exceptions and should move back to guidance.
 
 Human review chooses: rule, reference, exemplar, lint, eval, coverage gap, or no change. Accepted changes go into the narrowest relevant file and pass checks before merging.
+
+Use the promotion rule when deciding what to record: if a failure is reliably detectable and has a concrete fix, add or update a `GAP-###` candidate with a suggested destination such as lint, eval, guidance, or no change. If the check depends on product judgment, record the judgment gap instead of pretending it is a linter. At completion, name new or updated `GAP-###` items in the final response; do not list routine passes.
+
+## Frontend Quality Gate
+
+Run this gate only for substantial frontend work: new or materially changed components, user-facing Feature work, design-heavy prototypes, frontend Release work, broad responsive/state changes, or repeated UI findings. Skip it for narrow Patch work, copy-only changes, local config, and non-frontend work unless the user asks.
+
+Use `docs/ui-constitution.md` as the source of truth. Keep the pass bounded:
+
+- Use existing project lint, typecheck, test, browser, and accessibility tooling first.
+- Apply general UI lint candidates from `docs/design-lint-candidates.md` when code can detect the failure.
+- Route browser-visible behavior through `black-box-tester`.
+- Route workflow, state, accessibility, and product feel through `experience-reviewer`.
+- Fix in-scope blockers. For reliable repeated issues without guidance, add a pending coverage gap instead of expanding the checklist.
+- Do not create a design system or speculative local UI convention layer for an early prototype. Use the tiny UI constitution and existing repo conventions only.
 
 ## Intake Gate
 
@@ -199,6 +240,8 @@ Use these skills on demand:
 - ian-xiaohei-illustrations: creates English-only Xiaohei explanation illustrations when a visual explanation would help reviewers understand architecture, code paths, workflows, process boundaries, trust boundaries, or operational flow.
 
 When spawning subagents, explicitly point each subagent at the relevant skill and give it a bounded packet. Prefer parallel subagents only for independent files, state, surfaces, charters, risk lenses, or review lanes with separate proof paths. Do not create one agent per failure mode or split one tightly coupled decision tree across workers.
+
+Parallelism must beat its context cost. Do not use subagents when each one would need the same large spec, trace, codebase context, screenshot set, or design rationale and the work is not truly independent. Use one agent with a shared context window when repeated handoff packets would cost more than the expected speedup.
 
 ### Subagent Handoff Packet
 
@@ -267,7 +310,7 @@ Stop and ask before proceeding when:
 
 ## Completion Rule
 
-A coding task is complete only when acceptance criteria are met, relevant checks ran or limitations are stated, required run logs and coverage-gap candidates are updated, no blocking review/test/triage findings remain, and the final response includes what changed, what was verified, and remaining risks.
+A coding task is complete only when acceptance criteria are met, relevant checks ran or limitations are stated, required run logs and coverage-gap candidates are updated, new or updated `GAP-###` items are named, no blocking review/test/triage findings remain, and the final response includes what changed, what was verified, and remaining risks.
 
 For Feature, Release, and applicable Tier 2/3 work, the architecture hygiene pass must be marked not applicable, completed with no blocking findings, or triaged into bounded follow-up work.
 

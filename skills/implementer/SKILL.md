@@ -36,6 +36,7 @@ For Feature or Release work, also report run-log-friendly exceptions:
 - Implement the smallest correct step.
 - Keep interfaces narrow and behavior explicit.
 - Add or update tests when behavior changes.
+- For independent task packets with disjoint files, state, and proof, use parallel subagents; otherwise implement sequentially. Do not repeat large shared context into subagents unless speed gains justify the tokens.
 - Avoid broad rewrites, speculative abstractions, unrelated cleanup, and silent behavior changes.
 - After substantial or generated-code-heavy changes, remove dead code and unnecessary abstractions you introduced before final verification.
 - Do not damage unrelated user work in a dirty workspace.

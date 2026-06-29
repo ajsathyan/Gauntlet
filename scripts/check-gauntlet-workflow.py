@@ -126,8 +126,11 @@ def test_coverage_gap_and_design_lint_guidance_are_documented():
     readme = read(README_MD)
     coverage = read(ROOT / "docs" / "coverage-gaps.md")
     design_lints = read(ROOT / "docs" / "design-lint-candidates.md")
+    ui_constitution = read(ROOT / "docs" / "ui-constitution.md")
     run_log = read(SKILLS / "run-log-builder" / "SKILL.md")
-    combined = "\n".join([agents, readme, coverage, design_lints, run_log])
+    black_box = read(SKILLS / "black-box-tester" / "SKILL.md")
+    experience = read(SKILLS / "experience-reviewer" / "SKILL.md")
+    combined = "\n".join([agents, readme, coverage, design_lints, ui_constitution, run_log, black_box, experience])
 
     for marker in [
         "GAP-",
@@ -138,6 +141,8 @@ def test_coverage_gap_and_design_lint_guidance_are_documented():
         "same class of issue appears",
         "Cannot verify",
         "rule, reference, exemplar, lint, eval, coverage gap, or no change",
+        "Reliable failure signal",
+        "new or updated gap IDs",
     ]:
         assert_contains(combined, marker, "coverage gap capture")
 
@@ -146,16 +151,103 @@ def test_coverage_gap_and_design_lint_guidance_are_documented():
         "radio buttons",
         "2-3 static options",
         "accessible names",
-        "custom focus rings",
-        "design-system component",
-        "Modal.Body",
-        "raw shadows",
-        "4px grid",
-        "deprecated Tailwind",
+        "semantic button/link usage",
+        "associated input labels",
+        "form semantics",
+        "appropriate input types",
+        "interactive tooltip content",
     ]:
         assert_contains(design_lints, marker, "design lint candidates")
+    for marker in [
+        "Earned Project Rules",
+        "deprecated utility",
+        "elevation tokens",
+        "spacing tokens",
+        "adapter",
+        "component-library conventions",
+    ]:
+        assert_not_contains(design_lints, marker, "design lint candidates should stay general")
+
+    for marker in [
+        "UI Constitution",
+        "substantial frontend work",
+        "does not create one",
+        "Black-Box Checks",
+        "Experience Checks",
+        "Once-In-A-While Checks",
+        "duplicate-submit prevention",
+        "state reachability",
+    ]:
+        assert_contains(combined, marker, "frontend quality gate")
 
     assert_not_contains(coverage, "Status: accepted", "coverage gaps should not auto-promote standards")
+
+
+def test_product_thinking_and_scope_routing_are_documented():
+    agents = read(AGENTS_MD)
+    readme = read(README_MD)
+    black_box = read(SKILLS / "black-box-tester" / "SKILL.md")
+    experience = read(SKILLS / "experience-reviewer" / "SKILL.md")
+    combined = "\n".join([agents, readme, black_box, experience])
+
+    for marker in [
+        "v2.0.2",
+        "product-thinking harness for AI coding agents",
+        "thought-through, consistent features",
+        "coherent product features",
+        "Token efficiency",
+    ]:
+        assert_contains(readme, marker, "product-thinking positioning")
+
+    for marker in [
+        "Proof scope: smoke | delta | full | not relevant",
+        "Every non-default ceremony must declare its trigger, cap, artifact, and exit condition",
+        "Full checks are trigger-based",
+        "Feature delta",
+        "combined black-box and experience pass",
+        "Second Release issue-triager only when",
+        "Global install verification",
+        "Skill eval full suite",
+    ]:
+        assert_contains(combined, marker, "scope routing")
+
+
+def test_subagent_parallelism_is_context_efficient():
+    agents = read(AGENTS_MD)
+    planner = read(SKILLS / "planner" / "SKILL.md")
+    product = read(SKILLS / "product-architect" / "SKILL.md")
+    implementer = read(SKILLS / "implementer" / "SKILL.md")
+
+    for marker in [
+        "Parallelism must beat its context cost.",
+        "Do not use subagents when each one would need the same large spec",
+        "expected speedup",
+    ]:
+        assert_contains(agents, marker, "subagent context-efficiency guard")
+
+    for marker in [
+        "For independent task packets with disjoint files, state, and proof",
+        "Do not repeat large shared context into subagents",
+    ]:
+        assert_contains(implementer, marker, "implementer subagent guidance")
+
+    assert_contains(
+        planner,
+        "Use end-to-end steps unless files, state, and proof are independent enough to split.",
+        "planner firm end-to-end rule",
+    )
+    assert_not_contains(planner, "Prefer end-to-end steps over component piles.", "planner soft end-to-end rule")
+
+    assert_contains(
+        product,
+        "Include onboarding, activation, retention, or growth only when accepted scope or a real next action makes them relevant.",
+        "product-architect firm scope rule",
+    )
+    assert_not_contains(
+        product,
+        "Consider onboarding, activation, retention, and growth only when tied to accepted scope or a real next action.",
+        "product-architect soft scope rule",
+    )
 
 
 def test_guarded_panel_contract_is_uniform():
@@ -290,6 +382,12 @@ def test_skill_evals_compare_all_arms():
         if not arms["new_skill"]["passed"]:
             raise AssertionError(f"{case['id']} new_skill did not pass")
 
+    targeted = ROOT / "evals" / "results" / "workflow-check-planner-only.json"
+    run([str(runner), "--only-skill", "planner", "--results", str(targeted)])
+    targeted_data = json.loads(targeted.read_text())
+    if [case["skill"] for case in targeted_data.get("cases", [])] != ["planner"]:
+        raise AssertionError("skill evals must support targeted --only-skill filtering")
+
 
 def test_skill_evals_include_behavior_and_metrics():
     runner = SCRIPTS / "run-skill-evals.py"
@@ -390,7 +488,7 @@ def test_skill_changes_are_guarded_by_pre_commit():
             raise AssertionError("non-skill changes should skip skill evals")
 
     result = run([str(skill_check), "--changed-files", "skills/planner/SKILL.md"], cwd=ROOT)
-    for marker in ["Gauntlet skill changes detected", "skill evals:", "skill linter"]:
+    for marker in ["Gauntlet skill changes detected", "targeted skill evals: planner", "skill evals:", "skill linter"]:
         assert_contains(result.stdout, marker, "skill change checks")
 
 
@@ -399,6 +497,8 @@ def main():
         test_simplified_modes_and_depth_are_documented,
         test_v201_run_log_contract_replaces_default_review_brief,
         test_coverage_gap_and_design_lint_guidance_are_documented,
+        test_product_thinking_and_scope_routing_are_documented,
+        test_subagent_parallelism_is_context_efficient,
         test_guarded_panel_contract_is_uniform,
         test_ts_durability_classifier_behavior,
         test_skill_evals_compare_all_arms,

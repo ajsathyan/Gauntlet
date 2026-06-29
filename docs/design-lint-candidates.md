@@ -1,6 +1,6 @@
 # Design Lint Candidates
 
-These candidates mirror UI lint ideas called out in Vercel's product-design guidance pattern. They are not universal Gauntlet rules. Copy them into a project only when the design system and component APIs make the check reliable.
+These candidates capture general, framework-independent UI checks that can graduate into linters.
 
 ## Candidate Checks
 
@@ -9,13 +9,15 @@ These candidates mirror UI lint ideas called out in Vercel's product-design guid
 | Prevent nested modals | Component tree exposes nested modal/dialog usage. | Error or warning because nested modals break focus, keyboard navigation, and layering. |
 | Prefer radio buttons for 2-3 static options | A select has exactly 2-3 static options and no dynamic source. | Warn that radio buttons keep every choice visible. |
 | Require accessible names | Icon buttons or form controls lack labels, `aria-label`, or an associated label. | Error with the missing control location. |
-| Reject custom focus rings | Custom classes override shared focus tokens. | Error or autofix to shared focus utilities. |
-| Block ad hoc visual overrides | `className` changes a design-system component color, radius, or shadow. | Reject visual token overrides while allowing layout classes. |
-| Require modal body/content primitive | Modal content can overflow without a dedicated body/container primitive such as `Modal.Body`. | Warn so headers and footers can remain stable while body content scrolls. |
-| Replace raw shadows | Raw shadow utilities bypass theme-aware Material or elevation classes. | Warn or autofix when a direct mapping exists. |
-| Avoid duplicate borders | A border duplicates a design-system Material/component built-in treatment. | Warn when the component already owns the boundary. |
-| Keep spacing on the 4px grid | Arbitrary spacing falls outside the project spacing scale. | Suggest the closest standard utility. |
-| Migrate deprecated Tailwind utilities | Deprecated utility names have direct safe replacements. | Autofix safe migrations. |
+| Require semantic button/link usage | A navigation element is implemented as a button, or a non-navigation action is implemented as a link. | Warn or error because action and navigation semantics affect keyboard behavior, accessibility, and expectations. |
+| Require associated input labels | An input, select, or textarea lacks an associated label or equivalent accessible name. | Error because clicking the label should focus the field and assistive tech needs a name. |
+| Require form semantics for submit flows | A submit button and editable fields appear without a wrapping form or equivalent submit handler. | Warn because Enter-to-submit is a platform expectation. |
+| Require appropriate input types | Known field names such as email, password, tel, url, or number use a generic text input. | Warn with a suggested input type when the field purpose is clear. |
+| Disallow interactive tooltip content | Tooltip/popover content used as a tooltip contains buttons, links, inputs, or other focusable controls. | Error because hover tooltips should not become hidden interaction surfaces. |
+
+## Review Guidance
+
+Use `docs/ui-constitution.md` for frontend checks that need rendered behavior, browser proof, or product judgment.
 
 ## Promotion Rule
 

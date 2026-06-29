@@ -297,20 +297,32 @@ def main():
         default=DEFAULT_BEHAVIOR_RESPONSES if DEFAULT_BEHAVIOR_RESPONSES.exists() else None,
         help="Optional JSON file of behavioral response reps to score.",
     )
+    parser.add_argument(
+        "--only-skill",
+        help="Comma-separated skill names to evaluate. Defaults to every configured case.",
+    )
     args = parser.parse_args()
 
     data = json.loads(read_text(args.evals))
+    requested_skills = set(filter(None, (args.only_skill or "").split(",")))
+    all_cases = data["cases"]
+    cases_to_run = [
+        case for case in all_cases if not requested_skills or case["skill"] in requested_skills
+    ]
+    missing_skills = sorted(requested_skills - {case["skill"] for case in all_cases})
+    if missing_skills:
+        raise SystemExit(f"no eval cases for requested skills: {', '.join(missing_skills)}")
     prompts_dir = args.prompts_dir
     if prompts_dir:
         prompts_dir.mkdir(parents=True, exist_ok=True)
     behavior_prompts_dir = args.behavior_prompts_dir
     if behavior_prompts_dir:
         behavior_prompts_dir.mkdir(parents=True, exist_ok=True)
-    responses_by_case = load_behavior_responses(args.behavior_responses, data["cases"])
+    responses_by_case = load_behavior_responses(args.behavior_responses, cases_to_run)
 
     cases = [
         run_case(case, args.current_root, args.new_root, prompts_dir, behavior_prompts_dir, responses_by_case)
-        for case in data["cases"]
+        for case in cases_to_run
     ]
     results = {
         "schemaVersion": "1.0",
@@ -321,6 +333,7 @@ def main():
         "comparisonArms": COVERAGE_ARMS,
         "behaviorComparisonArms": BEHAVIOR_ARMS,
         "behaviorResponses": str(args.behavior_responses) if args.behavior_responses else None,
+        "onlySkill": sorted(requested_skills),
         "cases": cases,
     }
 

@@ -23,6 +23,7 @@ Independent screen, responsive, accessibility, and copy passes may run as parall
 If a field is outside accepted scope, write `Not relevant because...` instead of stretching into wishlist review. Optional example: read `examples/experience-report.md` only when output shape is ambiguous.
 
 - Verdict: `Approved`, `Needs fixes`, `Needs decision`, or `Cannot verify`
+- Proof scope: `smoke`, `delta`, `full`, or `not relevant`
 - Findings first, grouped by P0/P1/P2/P3
 - For each finding: Role, Surface or flow, User impact, Evidence, Recommended change, Acceptance or test idea
 - Human decision needed
@@ -39,5 +40,7 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Empty, loading, error, success, disabled, and partial-data states
 - Accessibility basics, responsive behavior, trust, permission, and copy clarity
 - Visual hierarchy and design-system consistency
+- For substantial frontend UI, use `docs/ui-constitution.md` to check semantics, labels, states, feedback, disabled explanations, icon-only actions, and agent/process copy.
+- Use delta review for accepted small changes and full review for new or ambiguous workflows.
 
 Do not create metrics or UI requirements just to have findings.

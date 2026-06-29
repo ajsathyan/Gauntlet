@@ -33,6 +33,22 @@ Needs human:
 - The agent asks a human question that repo guidance should eventually answer.
 - A rule has too many exceptions and should move back to guidance.
 
+## Promotion Rule
+
+Use this decision path before adding process:
+
+```text
+Reliable failure signal?
+No -> keep as experience guidance or human judgment.
+Yes -> concrete fix?
+No -> record guidance or an eval idea.
+Yes -> add or update a pending GAP-### candidate with suggested destination.
+```
+
+Suggested destinations are `rule`, `reference`, `exemplar`, `lint`, `eval`, `coverage gap`, or `no change`.
+
+At the end of a run, mention only new or updated gap IDs and why they matter. Do not report routine successful checks as gaps.
+
 ## GAP-001: Stale Installed Workflow Copies
 
 Status: covered

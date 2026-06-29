@@ -1,10 +1,10 @@
 # Gauntlet
 
-A model-agnostic prototyping harness for shaping, running, reviewing, and remembering coding-agent work with subagents.
+A product-thinking harness for AI coding agents.
 
 <p>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-3fb950?style=for-the-badge"></a>
-  <a href="https://github.com/ajsathyan/Gauntlet/releases/tag/v2.0.1"><img alt="Version" src="https://img.shields.io/badge/version-v2.0.1-111827?style=for-the-badge"></a>
+  <a href="https://github.com/ajsathyan/Gauntlet/releases/tag/v2.0.2"><img alt="Version" src="https://img.shields.io/badge/version-v2.0.2-111827?style=for-the-badge"></a>
   <a href="AGENTS.md"><img alt="Workflow" src="https://img.shields.io/badge/workflow-global-0969da?style=for-the-badge"></a>
   <a href="skills"><img alt="Role skills" src="https://img.shields.io/badge/role_skills-10-8957e5?style=for-the-badge"></a>
   <a href="docs/coverage-gaps.md"><img alt="Coverage gaps" src="https://img.shields.io/badge/coverage_gaps-pending-f778ba?style=for-the-badge"></a>
@@ -12,6 +12,7 @@ A model-agnostic prototyping harness for shaping, running, reviewing, and rememb
 
 <p>
   <a href="#-at-a-glance">At A Glance</a> |
+  <a href="#v202-product-thinking-and-proof-scope">v2.0.2</a> |
   <a href="#v201-run-log-harness">v2.0.1</a> |
   <a href="#-build-stages">Build Stages</a> |
   <a href="#-run-logs">Run Logs</a> |
@@ -19,15 +20,27 @@ A model-agnostic prototyping harness for shaping, running, reviewing, and rememb
   <a href="#-install">Install</a>
 </p>
 
-Gauntlet helps engineers, PMs, and designers spend more time refining specs, scope, acceptance criteria, and reusable repo memory before an agent runs. Instead of treating every task as "prompt, wait, inspect, prompt again," it gives teams a shared vocabulary for deciding what kind of work is being done, how much proof it deserves, and which decisions should survive the chat.
+Gauntlet helps AI coding agents turn rough asks into thought-through, consistent features. Instead of treating every task as "prompt, wait, inspect, prompt again," it gives teams a shared vocabulary for deciding what kind of product thinking, implementation proof, review, and durable memory the work deserves.
 
-Coding agents make implementation cheaper, but they make specification, orchestration, and review more important. Gauntlet v2.0.1 keeps the workflow strict where risk demands it and lighter where ceremony got in the way: durable context is now an exceptions-first Markdown run log plus pending coverage gaps, not a separate review product.
+Coding agents make implementation cheaper, but they make product judgment, coherence, and review more important. Gauntlet v2.0.2 keeps the workflow strict where the feature shape or risk demands it and lighter where ceremony gets in the way: durable context is now an exceptions-first Markdown run log plus pending coverage gaps, not a separate review product.
+
+## v2.0.2: Product Thinking And Proof Scope
+
+Gauntlet v2.0.2 sharpens the harness around outcomes:
+
+| Outcome | What Changed |
+| --- | --- |
+| Product coherence | The README and global workflow now position Gauntlet as a product-thinking harness that turns rough asks into coherent features, not just risk-managed prototypes. |
+| Token efficiency | Proof scope now routes work through `smoke`, `delta`, `full`, or `not relevant`; small accepted changes can combine black-box and experience review, skip second triage unless findings exist, and run targeted changed-skill evals instead of the full suite. |
+| UI quality without a design-system tax | The new UI constitution keeps frontend checks bounded to substantial UI work and separates general lint candidates from product-judgment review. |
+| Better durable memory | Coverage gaps stay pending backlog items, and run logs capture exceptions, decisions, skipped proof, and new or updated gap IDs rather than proof dumps. |
+| Less parallelization theater | Planner and implementer guidance now require independent files, state, and proof before using subagents, with an explicit context-cost guard. |
 
 ## v2.0.1: Run Log Harness
 
 Gauntlet v2.0.1 replaces the default review surface with a small **Run Log** and a candidate **Coverage Gap** loop inspired by repo-local product-design guidance patterns.
 
-The workflow is built around Patch, Feature, and Release modes; Standard and Deep depth; run logs; release panel guardrails; architecture hygiene; TypeScript durability classification; skill-change evals; and design lint candidates. The intent is still not to add process everywhere. It is to apply just enough structure that long agent runs stay bounded, verifiable, and easier to pick up later.
+The workflow is built around Patch, Feature, and Release modes; Standard and Deep depth; smoke, delta, and full proof scopes; run logs; release panel guardrails; architecture hygiene; TypeScript durability classification; targeted skill-change evals; and design lint candidates. The intent is still not to add process everywhere. It is to apply just enough structure that agent-built features stay coherent, verifiable, and easier to pick up later.
 
 ## ✨ At A Glance
 
@@ -35,10 +48,11 @@ The workflow is built around Patch, Feature, and Release modes; Standard and Dee
 | --- | --- |
 | Intake | Turns rough intent into scope, boundaries, acceptance criteria, assumptions, and proof. |
 | Build stages | Routes work through Patch, Feature, or Release based on scope and risk, with Standard or Deep depth chosen separately. |
-| Role skills | Adds product architecture, planning, triage, implementation, adversarial review, black-box testing, experience review, and deep code review when useful. |
+| Product-thinking loop | Shapes rough asks into coherent product features before implementation and checks consistency after. |
+| Scoped role skills | Adds product architecture, planning, triage, implementation, black-box testing, experience review, and deep code review only at smoke, delta, or full scope when useful. |
 | Run logs | Writes a tiny exceptions-first Markdown receipt for material Feature/Release work: assumptions, decisions, skipped checks, failures, `Cannot verify`, and follow-ups. |
 | Coverage gaps | Captures pending candidates when missing reusable guidance forced a material assumption or repeated review finding. |
-| Design lint candidates | Documents Vercel-inspired UI lint ideas such as nested modal prevention, accessible names, focus token checks, and static select-to-radio guidance. |
+| UI constitution | Keeps frontend quality checks bounded: general lint candidates, browser checks, experience review guidance, and gap promotion only for substantial UI work. |
 | Model portability | Installs as reusable instructions, skills, docs, scripts, and evals that can be adapted to different agent environments. |
 
 ## 🧭 Build Stages
@@ -46,7 +60,7 @@ The workflow is built around Patch, Feature, and Release modes; Standard and Dee
 | Stage | Best For | What It Optimizes |
 | --- | --- | --- |
 | Patch | Small, focused changes | Speed and low overhead. |
-| Feature | High-fidelity product features and workflows | AI-native prototyping and product handoff. |
+| Feature | High-fidelity product features and workflows | Coherent product thinking, implementation, and consistency checks. |
 | Release | Production-bound or risky changes | Deeper verification, review, and regression control. |
 
 ## 🎯 How To Choose A Stage
@@ -85,7 +99,7 @@ Early local evals are directional, not benchmark-grade.
 | Release mode cost more than direct development on one broader product-performance task, but produced stronger review artifacts and caught a real progress-state regression during adversarial review. | Gauntlet keeps stronger claims tied to measured proof, not blanket promises. |
 | The old review artifact became heavier than the decisions it preserved. | v2.0.1 keeps durable repo memory but makes the default artifact a Markdown receipt. |
 
-The current claim is not "Gauntlet always writes better code." The claim is that Gauntlet makes agent work more structured, reviewable, and measurable, with explicit tradeoffs between speed, cost, rigor, and human handoff.
+The current claim is not "Gauntlet always writes better code." The claim is that Gauntlet helps agents think through features before building them, check that the result hangs together, and escalate proof only when the work earns it.
 
 ## 🧾 Run Logs
 
@@ -121,19 +135,21 @@ Agents may add or update a gap when a run exposes missing reusable guidance:
 
 A human decides whether a candidate becomes a rule, reference, exemplar, lint, eval, coverage gap, or no change.
 
+## 🧭 UI Constitution
+
+[docs/ui-constitution.md](docs/ui-constitution.md) is the lightweight frontend quality gate. It is not a design system. It runs for substantial frontend work, major prototype surfaces, broad responsive/state changes, or repeated UI findings; it stays out of narrow Patch work.
+
+The pass routes reliable code-detectable issues to [docs/design-lint-candidates.md](docs/design-lint-candidates.md), browser-visible behavior to `black-box-tester`, and workflow/state/product feel to `experience-reviewer`. When a reliable failure with a concrete fix has no reusable guidance, the agent adds or updates a pending `GAP-###` and names it in the final response.
+
 ## 🧪 Design Lint Candidates
 
-[docs/design-lint-candidates.md](docs/design-lint-candidates.md) captures UI lint ideas that can graduate into project-specific checks. The first set mirrors patterns named in Vercel's product-design post:
+[docs/design-lint-candidates.md](docs/design-lint-candidates.md) captures general UI lint ideas that can graduate into linters. The active set is intentionally small:
 
 - Prevent nested modals.
 - Prefer radio buttons over selects for 2-3 static options.
 - Require accessible names for icon buttons and form controls.
-- Reject custom focus rings that bypass shared focus tokens.
-- Prevent ad hoc visual overrides of design-system components.
-- Require a modal body/content primitive when overflow is possible.
-- Prefer theme-aware shadows and component-owned borders.
-- Flag arbitrary spacing off a 4px grid.
-- Autofix safe deprecated Tailwind utility migrations.
+- Require semantic button/link usage.
+- Require associated input labels, form semantics for submit flows, appropriate input types, and non-interactive tooltip content.
 
 ## ⚡ Install
 
@@ -160,10 +176,12 @@ Install or adapt those files into whatever persistent global instruction, skill,
 Preserve these concepts:
 - Patch, Feature, and Release build stages
 - Standard and Deep depth
+- Proof scope: smoke | delta | full | not relevant
 - Intake before substantial work
 - Exceptions-first Markdown run logs for Feature/Release work
 - Pending coverage gaps for missing reusable guidance
-- Role skills for planning, implementation, triage, adversarial review, black-box testing, experience review, deep code review, and run-log building
+- Bounded UI constitution checks for substantial frontend work
+- Scoped role skills for planning, implementation, triage, adversarial review, black-box testing, experience review, deep code review, and run-log building
 
 Do not delete or overwrite unrelated existing user instructions. Merge carefully.
 
@@ -198,10 +216,11 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [skills/deep-code-reviewer/SKILL.md](skills/deep-code-reviewer/SKILL.md) | Reviews correctness, maintainability, tests, integration risk, and regression risk. |
 | [skills/run-log-builder/SKILL.md](skills/run-log-builder/SKILL.md) | Creates exceptions-first run logs and pending coverage-gap candidates. |
 | [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
-| [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | Vercel-inspired lint ideas for project-specific UI checks. |
+| [docs/ui-constitution.md](docs/ui-constitution.md) | Bounded frontend quality gate for prototypes and product UI. |
+| [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
 | [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals. |
 | [scripts/classify-ts-durability.sh](scripts/classify-ts-durability.sh) | Classifies whether TypeScript durability standards are required for the current work. |
-| [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill evals. |
+| [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill evals, including targeted changed-skill runs. |
 | [scripts/lint-skills.py](scripts/lint-skills.py) | Lints skill frontmatter, word budget, contract slots, optional examples, and bounded subagent guidance. |
 | [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill evals and linting when staged Gauntlet skill files change. |
 | [scripts/install-git-hooks.sh](scripts/install-git-hooks.sh) | Installs the pre-commit hook that enforces skill-change checks. |
@@ -215,7 +234,7 @@ Gauntlet is partly inspired by Simon Last's framing of agent work as a higher-th
 
 It is also influenced by Vercel's product-design guidance pattern: accepted decisions live near the code, repeated mechanical checks graduate into linters, missing standards stay visible as coverage gaps, and humans approve what becomes guidance.
 
-Gauntlet combines those ideas into a workflow harness: define the work clearly, choose the right build stage, let the agent keep moving, and leave small durable repo memory behind.
+Gauntlet combines those ideas into a product-thinking harness: define the feature clearly, choose the right build stage and proof scope, let the agent keep moving, and leave small durable repo memory behind.
 
 ## 📚 Repository Files
 
@@ -223,7 +242,7 @@ Gauntlet combines those ideas into a workflow harness: define the work clearly, 
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | Global workflow instructions. |
 | [skills/](skills) | Role-specific reusable instructions. |
-| [docs/](docs) | Coverage gaps, design lint candidates, and historical plans. |
+| [docs/](docs) | Coverage gaps, UI constitution, design lint candidates, and historical plans. |
 | [scripts/](scripts) | Installer, durability classifier, workflow checks, skill evals, and skill linter. |
 | [evals/](evals) | Skill eval definitions, behavior fixtures, and baselines. |
 | [LICENSE](LICENSE) | MIT license. |

@@ -20,11 +20,15 @@ else
 fi
 
 skill_change=0
+changed_skill_names=()
 if [ "${#changed_files[@]}" -gt 0 ]; then
   for file in "${changed_files[@]}"; do
     case "$file" in
       skills/*/SKILL.md|skills/*/examples/*)
         skill_change=1
+        skill_name="${file#skills/}"
+        skill_name="${skill_name%%/*}"
+        changed_skill_names+=("$skill_name")
         ;;
     esac
   done
@@ -39,20 +43,16 @@ echo "Gauntlet skill changes detected; running skill evals and linter."
 
 mkdir -p "$ROOT/evals/results"
 
+skill_names="$(
+  printf '%s\n' "${changed_skill_names[@]}" | sort -u | paste -sd, -
+)"
+
+echo "targeted skill evals: $skill_names"
+
 "$ROOT/scripts/run-skill-evals.py" \
+  --only-skill "$skill_names" \
   --behavior-responses "$ROOT/evals/behavior-fixtures.json" \
   --results "$ROOT/evals/results/skill-change-check.json"
-
-skill_names="$(
-  python3 - "$ROOT/evals/skill-evals.json" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-data = json.loads(Path(sys.argv[1]).read_text())
-print(",".join(sorted({case["skill"] for case in data["cases"]})))
-PY
-)"
 
 "$ROOT/scripts/lint-skills.py" \
   --skills-root "$SKILLS_ROOT" \

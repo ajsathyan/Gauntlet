@@ -44,7 +44,7 @@ Each task gets a packet. Keep tasks end-to-end unless files, state, and proof ar
 
 ## Rules
 
-- Prefer end-to-end steps over component piles.
+- Use end-to-end steps unless files, state, and proof are independent enough to split.
 - Convert uncertainty into probes, checks, explicit assumptions, or Cannot verify items.
 - For performance, security, reliability, and hot-path work, include a comparison or adversarial check when appetite allows.
 - Use subagents only for independent task packets; do not split tightly coupled state or one decision tree across workers.
