@@ -38,5 +38,6 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Name the design smell and prove why it is risky or costly now.
 - Taste-only preferences are notes, never blockers.
 - Every blocker needs concrete harm, evidence, and a fix path.
+- When the Production Quality Bar is active, review ownership boundaries, invariants, durable state, state machines, and release proof; otherwise mark `Not relevant because...`.
 - For guarded Release reviews, keep the launch cut line, panel delta, and `| Concern | Decision | Why Not Defer | Proof | Plan Delta |` decision table intact.
 - Allowed Release decisions: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, `Reject`.

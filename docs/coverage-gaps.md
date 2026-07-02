@@ -49,6 +49,12 @@ Suggested destinations are `rule`, `reference`, `exemplar`, `lint`, `eval`, `cov
 
 At the end of a run, mention only new or updated gap IDs and why they matter. Do not report routine successful checks as gaps.
 
+## Promotion Scanner Routing
+
+When `promotion-scanner` finds high-value repeated work, add or update a `GAP-###` only for Gauntlet-general missing guidance. Repo-specific promotion candidates should become repo code, repo test, repo docs/run log, or issue follow-up.
+
+Do not use this file as a backlog for local automation candidates. If the repeated loop has a concrete repo fix, route it to the repo; if it exposes missing reusable agent guidance, record the narrowest coverage gap.
+
 ## GAP-001: Stale Installed Workflow Copies
 
 Status: covered

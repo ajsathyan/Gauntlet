@@ -10,6 +10,7 @@ from pathlib import Path
 LOG_NAME = "subagent-plan-log.jsonl"
 SUMMARY_NAME = "subagent-plan-summary.json"
 VALID_STATE_ACCESS = {"none", "read-only", "mutates"}
+OVERBROAD_PATHS = {"*", "**", "**/*", ".", "./", "/*"}
 REQUIRED_LANE_FIELDS = [
     "id",
     "skill",
@@ -20,6 +21,11 @@ REQUIRED_LANE_FIELDS = [
     "stateAccess",
     "proof",
     "inlineContext",
+]
+SECRET_PATTERNS = [
+    re.compile(r"(?i)\b[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*['\"]?[^\s'\"`]+"),
+    re.compile(r"(?i)\b(sk|pk|rk)-(live|test)-[A-Za-z0-9_-]{8,}"),
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
 ]
 
 
@@ -70,6 +76,15 @@ def add_rejection(rejections, code, message, lane_id=None):
 
 def require_list(value):
     return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def has_secret(text):
+    return any(pattern.search(text or "") for pattern in SECRET_PATTERNS)
+
+
+def is_overbroad_path(pattern):
+    normalized = str(pattern or "").strip()
+    return normalized in OVERBROAD_PATHS
 
 
 def validate_plan(data, max_inline_words, max_total_inline_words):
@@ -123,6 +138,13 @@ def validate_plan(data, max_inline_words, max_total_inline_words):
         inline_words = word_count(lane.get("inlineContext", ""))
         total_inline_words += inline_words
         contexts[lane_id] = lane.get("inlineContext", "")
+        if has_secret(lane.get("inlineContext", "")):
+            add_rejection(
+                rejections,
+                "secret_in_inline_context",
+                "lane inlineContext appears to contain a secret; redact or summarize before dispatch",
+                lane_id,
+            )
         if inline_words > max_inline_words:
             add_rejection(
                 rejections,
@@ -130,6 +152,16 @@ def validate_plan(data, max_inline_words, max_total_inline_words):
                 f"inlineContext has {inline_words} words; max is {max_inline_words}",
                 lane_id,
             )
+
+        for field in ["filesRead", "filesWrite"]:
+            for pattern in lane.get(field, []) if isinstance(lane.get(field), list) else []:
+                if is_overbroad_path(pattern):
+                    add_rejection(
+                        rejections,
+                        "overbroad_scope",
+                        f"{field} contains overbroad path '{pattern}'; name bounded files or directories",
+                        lane_id,
+                    )
 
     if total_inline_words > max_total_inline_words:
         add_rejection(

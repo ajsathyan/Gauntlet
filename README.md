@@ -6,7 +6,7 @@ A product-thinking harness for AI coding agents.
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-3fb950?style=for-the-badge"></a>
   <a href="https://github.com/ajsathyan/Gauntlet/releases/tag/v2.0.2"><img alt="Version" src="https://img.shields.io/badge/version-v2.0.2-111827?style=for-the-badge"></a>
   <a href="AGENTS.md"><img alt="Workflow" src="https://img.shields.io/badge/workflow-global-0969da?style=for-the-badge"></a>
-  <a href="skills"><img alt="Role skills" src="https://img.shields.io/badge/role_skills-10-8957e5?style=for-the-badge"></a>
+  <a href="skills"><img alt="Role skills" src="https://img.shields.io/badge/role_skills-11-8957e5?style=for-the-badge"></a>
   <a href="docs/coverage-gaps.md"><img alt="Coverage gaps" src="https://img.shields.io/badge/coverage_gaps-pending-f778ba?style=for-the-badge"></a>
 </p>
 
@@ -17,6 +17,7 @@ A product-thinking harness for AI coding agents.
   <a href="#-build-stages">Build Stages</a> |
   <a href="#-run-logs">Run Logs</a> |
   <a href="#-coverage-gaps">Coverage Gaps</a> |
+  <a href="#-production-quality-bar">Production Quality Bar</a> |
   <a href="#-install">Install</a>
 </p>
 
@@ -35,12 +36,13 @@ Gauntlet v2.0.2 sharpens the harness around outcomes:
 | UI quality without a design-system tax | The new UI constitution keeps frontend checks bounded to substantial UI work and separates general lint candidates from product-judgment review. |
 | Better durable memory | Coverage gaps stay pending backlog items, and run logs capture exceptions, decisions, skipped proof, and new or updated gap IDs rather than proof dumps. |
 | Less parallelization theater | Planner and implementer guidance now require independent files, state, and proof before using subagents, with an explicit context-cost guard. |
+| Launch-grade quality without default ceremony | The Production Quality Bar applies senior implementation boundaries, release proof, and decision-oriented UI checks only to near-launch, private-beta, production-bound, hardened, or audited work. |
 
 ## v2.0.1: Run Log Harness
 
 Gauntlet v2.0.1 replaces the default review surface with a small **Run Log** and a candidate **Coverage Gap** loop inspired by repo-local product-design guidance patterns.
 
-The workflow is built around Patch, Feature, and Release modes; Standard and Deep depth; smoke, delta, and full proof scopes; run logs; release panel guardrails; architecture hygiene; TypeScript durability classification; targeted skill-change evals; and design lint candidates. The intent is still not to add process everywhere. It is to apply just enough structure that agent-built features stay coherent, verifiable, and easier to pick up later.
+The workflow is built around Patch, Feature, and Release modes; Standard and Deep depth; smoke, delta, and full proof scopes; run logs; release panel guardrails; architecture hygiene; TypeScript durability classification; the Production Quality Bar; targeted skill-change evals; and design lint candidates. The intent is still not to add process everywhere. It is to apply just enough structure that agent-built features stay coherent, verifiable, and easier to pick up later.
 
 ## ✨ At A Glance
 
@@ -52,7 +54,10 @@ The workflow is built around Patch, Feature, and Release modes; Standard and Dee
 | Scoped role skills | Adds product architecture, planning, triage, implementation, black-box testing, experience review, and deep code review only at smoke, delta, or full scope when useful. |
 | Run logs | Writes a tiny exceptions-first Markdown receipt for material Feature/Release work: assumptions, decisions, skipped checks, failures, `Cannot verify`, and follow-ups. |
 | Coverage gaps | Captures pending candidates when missing reusable guidance forced a material assumption or repeated review finding. |
+| Workflow speedup helpers | Classifies changed surfaces, recommends bounded tests, and generates redacted review packets without making every Patch run a heavy quality gate. |
+| Promotion scanner | Produces a Promotion Brief when repeated manual or agent loops should be considered for repo code, repo test, repo docs/run log, Gauntlet skill/tool, coverage gap, or Reject. |
 | UI constitution | Keeps frontend quality checks bounded: general lint candidates, browser checks, experience review guidance, and gap promotion only for substantial UI work. |
+| Production Quality Bar | Raises the bar for near-launch systems with ownership boundaries, invariants, durable state, state machines, threat/redaction review, no-mutation or dry-run proof, automated GitHub release tags, release proof, feedback loops, and decision-oriented UI. |
 | Model portability | Installs as reusable instructions, skills, docs, scripts, and evals that can be adapted to different agent environments. |
 
 ## 🧭 Build Stages
@@ -141,6 +146,12 @@ A human decides whether a candidate becomes a rule, reference, exemplar, lint, e
 
 The pass routes reliable code-detectable issues to [docs/design-lint-candidates.md](docs/design-lint-candidates.md), browser-visible behavior to `black-box-tester`, and workflow/state/product feel to `experience-reviewer`. When a reliable failure with a concrete fix has no reusable guidance, the agent adds or updates a pending `GAP-###` and names it in the final response.
 
+## 🚦 Production Quality Bar
+
+[docs/production-quality-bar.md](docs/production-quality-bar.md) is a near-launch gate for launch-ready, private-beta, production-bound, hardened, or audited work. It checks implementation boundaries, invariants, launch-critical proof, durable state, state machines, operator/user feedback, threat model and redaction policy, release proof, and decision-oriented UI.
+
+It stays out of ordinary Patch work, early prototypes, local demos, copy/config/docs-only tweaks, and UI-only Feature work with no launch intent unless the user asks. Automatable checks belong in CI, local proof scripts, dry-runs, no-mutation tests, release-tag automation, and artifact verification; product and engineering judgment stays with the existing Gauntlet roles.
+
 ## 🧪 Design Lint Candidates
 
 [docs/design-lint-candidates.md](docs/design-lint-candidates.md) captures general UI lint ideas that can graduate into linters. The active set is intentionally small:
@@ -168,7 +179,7 @@ Use the repo's files as the source of truth:
 - AGENTS.md is the global workflow/router.
 - skills/ contains reusable role skills.
 - docs/ contains run-log, coverage-gap, and design-lint guidance.
-- scripts/ contains the installer, durability classifier, skill evals, and skill checks.
+- scripts/ contains the installer, durability classifier, workflow speedup helpers, skill evals, and skill checks.
 - evals/ contains deterministic skill-eval fixtures and baselines.
 
 Install or adapt those files into whatever persistent global instruction, skill, memory, workflow, or config system this agent environment supports.
@@ -180,7 +191,9 @@ Preserve these concepts:
 - Intake before substantial work
 - Exceptions-first Markdown run logs for Feature/Release work
 - Pending coverage gaps for missing reusable guidance
+- Promotion Brief scans for repeated manual or agent loops after Release or live-ops wrap-up, not ordinary Patch
 - Bounded UI constitution checks for substantial frontend work
+- Triggered Production Quality Bar checks for near-launch, private-beta, production-bound, hardened, or audited work
 - Scoped role skills for planning, implementation, triage, adversarial review, black-box testing, experience review, deep code review, and run-log building
 
 Do not delete or overwrite unrelated existing user instructions. Merge carefully.
@@ -215,11 +228,18 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [skills/experience-reviewer/SKILL.md](skills/experience-reviewer/SKILL.md) | Reviews workflow clarity, IA, states, metrics, accessibility, trust, activation, retention, and growth. |
 | [skills/deep-code-reviewer/SKILL.md](skills/deep-code-reviewer/SKILL.md) | Reviews correctness, maintainability, tests, integration risk, and regression risk. |
 | [skills/run-log-builder/SKILL.md](skills/run-log-builder/SKILL.md) | Creates exceptions-first run logs and pending coverage-gap candidates. |
+| [skills/promotion-scanner/SKILL.md](skills/promotion-scanner/SKILL.md) | Produces bounded Promotion Briefs for repeated manual or agent loops without recommending live operational actions. |
 | [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
 | [docs/ui-constitution.md](docs/ui-constitution.md) | Bounded frontend quality gate for prototypes and product UI. |
+| [docs/production-quality-bar.md](docs/production-quality-bar.md) | Near-launch quality gate for boundaries, invariants, durable state, state machines, release proof, threat/redaction, feedback loops, and decision-oriented UI. |
+| [docs/workflow-speedups.md](docs/workflow-speedups.md) | Advisory changed-surface, test-planning, review-packet, and subagent packet guidance. |
+| [docs/promotion-scanner.md](docs/promotion-scanner.md) | Trigger policy and gap-routing guidance for promotion scans. |
 | [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
 | [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals. |
 | [scripts/classify-ts-durability.sh](scripts/classify-ts-durability.sh) | Classifies whether TypeScript durability standards are required for the current work. |
+| [scripts/diff-intel.py](scripts/diff-intel.py) | Writes advisory changed-file, package-root, risk-trigger, dirty-worktree, confidence, and `Cannot verify` intel. |
+| [scripts/test-plan.py](scripts/test-plan.py) | Recommends focused and broader verification commands from diff intel without defaulting to huge suites. |
+| [scripts/review-pack.py](scripts/review-pack.py) | Generates a bounded, redacted review packet from current diff intel. |
 | [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill evals, including targeted changed-skill runs. |
 | [scripts/lint-skills.py](scripts/lint-skills.py) | Lints skill frontmatter, word budget, contract slots, optional examples, and bounded subagent guidance. |
 | [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill evals and linting when staged Gauntlet skill files change. |
@@ -242,8 +262,8 @@ Gauntlet combines those ideas into a product-thinking harness: define the featur
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | Global workflow instructions. |
 | [skills/](skills) | Role-specific reusable instructions. |
-| [docs/](docs) | Coverage gaps, UI constitution, design lint candidates, and historical plans. |
-| [scripts/](scripts) | Installer, durability classifier, workflow checks, skill evals, and skill linter. |
+| [docs/](docs) | Coverage gaps, UI constitution, Production Quality Bar, workflow speedups, promotion scanner, design lint candidates, and historical plans. |
+| [scripts/](scripts) | Installer, durability classifier, workflow speedup helpers, workflow checks, skill evals, and skill linter. |
 | [evals/](evals) | Skill eval definitions, behavior fixtures, and baselines. |
 | [LICENSE](LICENSE) | MIT license. |
 

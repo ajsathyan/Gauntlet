@@ -65,6 +65,22 @@ def read_durability_artifact(root):
     return data
 
 
+def git(args, cwd):
+    return run(["git", *args], cwd=cwd)
+
+
+def init_repo(root):
+    root.mkdir()
+    git(["init"], cwd=root)
+    git(["config", "user.email", "gauntlet@example.test"], cwd=root)
+    git(["config", "user.name", "Gauntlet Test"], cwd=root)
+
+
+def commit_all(root, message):
+    git(["add", "."], cwd=root)
+    git(["commit", "-m", message], cwd=root)
+
+
 def test_simplified_modes_and_depth_are_documented():
     agents = read(AGENTS_MD)
     readme = read(README_MD)
@@ -212,6 +228,93 @@ def test_product_thinking_and_scope_routing_are_documented():
         assert_contains(combined, marker, "scope routing")
 
 
+def test_production_quality_bar_is_launch_gated():
+    agents = read(AGENTS_MD)
+    readme = read(README_MD)
+    quality_bar = read(ROOT / "docs" / "production-quality-bar.md")
+    pr_template_path = ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md"
+    pr_template = read(pr_template_path) if pr_template_path.exists() else ""
+    planner = read(SKILLS / "planner" / "SKILL.md")
+    product = read(SKILLS / "product-architect" / "SKILL.md")
+    deep_review = read(SKILLS / "deep-code-reviewer" / "SKILL.md")
+    adversarial = read(SKILLS / "adversarial-reviewer" / "SKILL.md")
+    black_box = read(SKILLS / "black-box-tester" / "SKILL.md")
+    experience = read(SKILLS / "experience-reviewer" / "SKILL.md")
+    triager = read(SKILLS / "issue-triager" / "SKILL.md")
+    run_log = read(SKILLS / "run-log-builder" / "SKILL.md")
+    combined = "\n".join([
+        agents,
+        readme,
+        quality_bar,
+        planner,
+        product,
+        deep_review,
+        adversarial,
+        black_box,
+        experience,
+        triager,
+        run_log,
+        pr_template,
+    ])
+
+    for marker in [
+        "Production Quality Bar",
+        "near-launch",
+        "launch-ready",
+        "private beta",
+        "production-bound",
+        "explicitly being hardened or audited",
+        "Skip",
+        "ordinary Patch",
+        "early prototype",
+        "local demo",
+        "automated GitHub release tags",
+        "release proof",
+        "no-mutation",
+        "dry-run",
+        "state machines",
+        "redaction",
+        "decision-oriented UI",
+        "Automatable",
+        "Human judgment",
+    ]:
+        assert_contains(combined, marker, "production quality bar launch-gated guidance")
+
+    for marker in [
+        "control plane",
+        "ownership boundaries",
+        "invariants",
+        "durable state",
+        "operator/user feedback loop",
+        "threat model",
+        "confidence",
+        "freshness",
+        "sample size",
+    ]:
+        assert_contains(quality_bar, marker, "production quality bar guardrails")
+
+    for name, text in {
+        "planner": planner,
+        "product-architect": product,
+        "deep-code-reviewer": deep_review,
+        "adversarial-reviewer": adversarial,
+        "black-box-tester": black_box,
+        "experience-reviewer": experience,
+        "issue-triager": triager,
+        "run-log-builder": run_log,
+    }.items():
+        assert_contains(text, "Production Quality Bar", name)
+        assert_contains(text, "Not relevant because", name)
+
+    if pr_template_path.exists():
+        for marker in [
+            "Release Proof (near-launch only)",
+            "automated GitHub release tags",
+            "dry-run/no-mutation",
+        ]:
+            assert_contains(pr_template, marker, "production quality bar PR template")
+
+
 def test_subagent_parallelism_is_context_efficient():
     agents = read(AGENTS_MD)
     planner = read(SKILLS / "planner" / "SKILL.md")
@@ -313,6 +416,52 @@ def test_subagent_plan_validator_logs_rejections():
         assert_contains(stats.stdout, "Subagent plans: 1 checked, 1 rejected", "subagent stats output")
 
 
+def test_subagent_plan_validator_rejects_secret_and_overbroad_scope():
+    validator = SCRIPTS / "check-subagent-plan.py"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        project.mkdir()
+        plan = project / "subagent-plan.json"
+        plan.write_text(json.dumps({
+            "schemaVersion": "1.0",
+            "lanes": [
+                {
+                    "id": "all-repo-review",
+                    "skill": "deep-code-reviewer",
+                    "scope": "Review everything",
+                    "filesRead": ["**/*"],
+                    "filesWrite": [],
+                    "stateScope": "repo",
+                    "stateAccess": "read-only",
+                    "proof": ["manual review"],
+                    "inlineContext": "Use OPENAI_API_KEY=sk-live-secret-value while reviewing.",
+                },
+                {
+                    "id": "docs-review",
+                    "skill": "deep-code-reviewer",
+                    "scope": "Review docs",
+                    "filesRead": ["docs/**"],
+                    "filesWrite": [],
+                    "stateScope": "docs",
+                    "stateAccess": "read-only",
+                    "proof": ["manual docs review"],
+                    "inlineContext": "Short context.",
+                },
+            ],
+        }))
+
+        result = run([str(validator), str(project), str(plan), "--run-id", "secret-test"], check=False)
+        if result.returncode == 0:
+            raise AssertionError("secret-bearing overbroad subagent plan should fail")
+
+        record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
+        codes = {rejection["code"] for rejection in record["rejections"]}
+        for code in ["secret_in_inline_context", "overbroad_scope"]:
+            if code not in codes:
+                raise AssertionError(f"subagent validator missing {code} rejection")
+
+
 def test_guarded_panel_contract_is_uniform():
     files = {
         "AGENTS.md": read(AGENTS_MD),
@@ -394,6 +543,233 @@ def test_ts_durability_classifier_behavior():
             raise AssertionError("Effect dependency should record existing durable patterns")
 
 
+def test_diff_intel_test_plan_and_review_pack_are_bounded():
+    diff_intel = SCRIPTS / "diff-intel.py"
+    test_plan = SCRIPTS / "test-plan.py"
+    review_pack = SCRIPTS / "review-pack.py"
+    for script in [diff_intel, test_plan, review_pack]:
+        if not script.exists() or not os.access(script, os.X_OK):
+            raise AssertionError(f"missing executable workflow helper: {script}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        init_repo(project)
+        (project / "src" / "auth").mkdir(parents=True)
+        (project / "src" / "components").mkdir(parents=True)
+        (project / "generated").mkdir()
+        (project / "docs").mkdir()
+        (project / "package.json").write_text(json.dumps({
+            "scripts": {
+                "test": "vitest run",
+                "lint": "eslint .",
+                "typecheck": "tsc --noEmit",
+            },
+            "devDependencies": {"typescript": "latest", "vitest": "latest"},
+        }) + "\n")
+        (project / "src" / "auth" / "session.ts").write_text("export const session = null;\n")
+        (project / "src" / "auth" / "session.test.ts").write_text("import './session';\n")
+        (project / "src" / "components" / "Dashboard.tsx").write_text("export function Dashboard() { return null; }\n")
+        (project / "generated" / "client.ts").write_text("export const generated = true;\n")
+        (project / "docs" / "guide.md").write_text("# Guide\n")
+        commit_all(project, "baseline")
+
+        (project / "src" / "auth" / "session.ts").write_text(
+            "export const session = { token: 'sk-live-secret-value' };\n"
+        )
+        (project / "src" / "components" / "Dashboard.tsx").write_text(
+            "export function Dashboard() { return <main>Fleet</main>; }\n"
+        )
+        (project / "generated" / "client.ts").write_text("export const generated = false;\n")
+
+        run([str(diff_intel), str(project)])
+        intel_path = project / ".gauntlet" / "diff-intel.json"
+        intel = json.loads(intel_path.read_text())
+        changed_paths = {item["path"] for item in intel["changedFiles"]}
+        for path in ["src/auth/session.ts", "src/components/Dashboard.tsx", "generated/client.ts"]:
+            if path not in changed_paths:
+                raise AssertionError(f"diff intel missing changed path {path}")
+        for trigger in ["auth", "security-privacy", "ui", "generated"]:
+            if trigger not in intel["riskTriggers"]:
+                raise AssertionError(f"diff intel missing risk trigger {trigger}")
+        if intel["confidence"] != "medium":
+            raise AssertionError("mixed risky/generated diff should have medium confidence")
+
+        run([str(test_plan), str(project), "--diff-intel", str(intel_path)])
+        plan = json.loads((project / ".gauntlet" / "test-plan.json").read_text())
+        commands = [item["command"] for item in plan["commands"]]
+        expected_commands = [
+            "npm test -- src/auth/session.test.ts",
+            "npm run lint",
+            "npm run typecheck",
+        ]
+        for command in expected_commands:
+            if command not in commands:
+                raise AssertionError(f"test plan missing command: {command}")
+        if not any(item["tier"] == "broader" and item["command"] == "npm test" for item in plan["commands"]):
+            raise AssertionError("durable/security diffs should recommend broader npm test with rationale")
+
+        run([str(review_pack), str(project), "--diff-intel", str(intel_path)])
+        packet = (project / ".gauntlet" / "review-pack.md").read_text()
+        for marker in [
+            "Changed Files",
+            "Risk Triggers",
+            "src/auth/session.ts",
+            "Expected Return Format",
+            "Cannot verify",
+        ]:
+            assert_contains(packet, marker, "review packet")
+        assert_not_contains(packet, "\n- - ", "review packet list formatting")
+        assert_contains(packet, "[REDACTED_SECRET]", "review packet redaction")
+        assert_not_contains(packet, "sk-live-secret-value", "review packet secret redaction")
+
+
+def test_docs_only_diff_gets_no_runtime_test_commands():
+    diff_intel = SCRIPTS / "diff-intel.py"
+    test_plan = SCRIPTS / "test-plan.py"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        init_repo(project)
+        (project / "docs").mkdir()
+        (project / "package.json").write_text(json.dumps({"scripts": {"test": "vitest run"}}) + "\n")
+        (project / "docs" / "guide.md").write_text("# Guide\n")
+        commit_all(project, "baseline")
+
+        (project / "docs" / "guide.md").write_text("# Guide\n\nUpdate docs only.\n")
+
+        run([str(diff_intel), str(project)])
+        intel = json.loads((project / ".gauntlet" / "diff-intel.json").read_text())
+        if intel["riskTriggers"] != ["docs-only"]:
+            raise AssertionError(f"docs-only diff should only report docs-only trigger: {intel['riskTriggers']}")
+        if intel["confidence"] != "high":
+            raise AssertionError("docs-only diff should have high classification confidence")
+
+        run([str(test_plan), str(project)])
+        plan = json.loads((project / ".gauntlet" / "test-plan.json").read_text())
+        if plan["commands"]:
+            raise AssertionError(f"docs-only diff should not recommend runtime tests: {plan['commands']}")
+        assert_contains("\n".join(plan["cannotVerify"]), "No runtime behavior changed", "docs-only cannot verify note")
+
+
+def test_workflow_helpers_filter_artifacts_and_find_python_tests():
+    diff_intel = SCRIPTS / "diff-intel.py"
+    test_plan = SCRIPTS / "test-plan.py"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        init_repo(project)
+        (project / "src" / "twitter_tg_notifs").mkdir(parents=True)
+        (project / "scripts").mkdir()
+        (project / "tests").mkdir()
+        (project / "docs").mkdir()
+        (project / "pyproject.toml").write_text("[tool.pytest.ini_options]\ntestpaths = ['tests']\n")
+        (project / "src" / "twitter_tg_notifs" / "classifier.py").write_text(
+            "def classify(text):\n    return 'token secret api auth password words in clean content'\n"
+        )
+        (project / "scripts" / "agora_fleet.py").write_text("def fleet():\n    return []\n")
+        (project / "tests" / "test_twitter_notifs_classifier.py").write_text("def test_classifier():\n    assert True\n")
+        (project / "tests" / "test_agora_fleet.py").write_text("def test_fleet():\n    assert True\n")
+        (project / "docs" / "guide.md").write_text("# Guide\n")
+        commit_all(project, "baseline")
+
+        run([
+            str(diff_intel),
+            str(project),
+            "--changed-files",
+            "src/twitter_tg_notifs/classifier.py",
+            "scripts/agora_fleet.py",
+        ])
+        intel_path = project / ".gauntlet" / "diff-intel.json"
+        intel = json.loads(intel_path.read_text())
+        candidates = {
+            item["path"]: item["testCandidates"]
+            for item in intel["changedFiles"]
+        }
+        if candidates["src/twitter_tg_notifs/classifier.py"] != ["tests/test_twitter_notifs_classifier.py"]:
+            raise AssertionError(f"src package Python test mapping missing: {candidates}")
+        if candidates["scripts/agora_fleet.py"] != ["tests/test_agora_fleet.py"]:
+            raise AssertionError(f"scripts Python test mapping missing: {candidates}")
+        if "security-privacy" in intel["riskTriggers"]:
+            raise AssertionError("explicit clean tracked files should not scan full contents for noisy risk triggers")
+
+        run([str(test_plan), str(project), "--diff-intel", str(intel_path)])
+        plan = json.loads((project / ".gauntlet" / "test-plan.json").read_text())
+        commands = [item["command"] for item in plan["commands"]]
+        for command in [
+            "python -m pytest tests/test_twitter_notifs_classifier.py",
+            "python -m pytest tests/test_agora_fleet.py",
+        ]:
+            if command not in commands:
+                raise AssertionError(f"test plan missing Python command: {command}; got {commands}")
+
+        (project / "docs" / "guide.md").write_text("# Guide\n\nChanged docs.\n")
+        (project / ".review-brief-server.log").write_text("local server log\n")
+        (project / ".review-brief-server.pid").write_text("123\n")
+        (project / "implementation-notes.html").write_text("<p>local notes</p>\n")
+        run([str(diff_intel), str(project)])
+        artifact_intel = json.loads((project / ".gauntlet" / "diff-intel.json").read_text())
+        paths = [item["path"] for item in artifact_intel["changedFiles"]]
+        for path in [".review-brief-server.log", ".review-brief-server.pid", "implementation-notes.html"]:
+            if path in paths:
+                raise AssertionError(f"local run artifact should be ignored: {paths}")
+        if artifact_intel["riskTriggers"] != ["docs-only"]:
+            raise AssertionError(f"artifact-filtered docs diff should remain docs-only: {artifact_intel['riskTriggers']}")
+
+
+def test_workflow_speedup_helpers_are_documented_as_advisory():
+    agents = read(AGENTS_MD)
+    readme = read(README_MD)
+    speedups = read(ROOT / "docs" / "workflow-speedups.md")
+    combined = "\n".join([agents, readme, speedups])
+
+    for marker in [
+        "diff-intel.py",
+        "test-plan.py",
+        "review-pack.py",
+        "advisory",
+        "confidence",
+        "Cannot verify",
+        "quality-check --surface",
+        "deferred",
+        "stale",
+        "dirty worktree",
+    ]:
+        assert_contains(combined, marker, "workflow speedup guidance")
+
+
+def test_promotion_scanner_is_release_wrapup_not_patch_gate():
+    agents = read(AGENTS_MD)
+    readme = read(README_MD)
+    promotion_doc = read(ROOT / "docs" / "promotion-scanner.md")
+    promotion_skill = read(SKILLS / "promotion-scanner" / "SKILL.md")
+    coverage = read(ROOT / "docs" / "coverage-gaps.md")
+    evals = json.loads(read(ROOT / "evals" / "skill-evals.json"))
+    combined = "\n".join([agents, readme, promotion_doc, promotion_skill, coverage])
+
+    for marker in [
+        "promotion-scanner",
+        "Promotion Brief",
+        "Release or live-ops wrap-up",
+        "repeated manual verification",
+        "stale vs latest evidence",
+        "repo code",
+        "repo test",
+        "Gauntlet skill/tool",
+        "coverage gap",
+        "Reject",
+        "No live operational actions",
+        "Do not infer",
+        "secrets/redaction",
+        "Do not run for ordinary Patch",
+        "GAP-###",
+        "Gauntlet-general missing guidance",
+    ]:
+        assert_contains(combined, marker, "promotion scanner guidance")
+
+    if not any(case.get("id") == "promotion-scanner-contract" for case in evals.get("cases", [])):
+        raise AssertionError("promotion-scanner eval case is missing")
+
+
 def test_installed_layout_supports_workflow_check():
     if not (ROOT / ".git").exists():
         return
@@ -448,7 +824,8 @@ def test_skill_evals_compare_all_arms():
     targeted = ROOT / "evals" / "results" / "workflow-check-planner-only.json"
     run([str(runner), "--only-skill", "planner", "--results", str(targeted)])
     targeted_data = json.loads(targeted.read_text())
-    if [case["skill"] for case in targeted_data.get("cases", [])] != ["planner"]:
+    targeted_cases = targeted_data.get("cases", [])
+    if not targeted_cases or any(case["skill"] != "planner" for case in targeted_cases):
         raise AssertionError("skill evals must support targeted --only-skill filtering")
 
 
@@ -561,10 +938,17 @@ def main():
         test_v201_run_log_contract_replaces_default_review_brief,
         test_coverage_gap_and_design_lint_guidance_are_documented,
         test_product_thinking_and_scope_routing_are_documented,
+        test_production_quality_bar_is_launch_gated,
         test_subagent_parallelism_is_context_efficient,
         test_subagent_plan_validator_logs_rejections,
+        test_subagent_plan_validator_rejects_secret_and_overbroad_scope,
         test_guarded_panel_contract_is_uniform,
         test_ts_durability_classifier_behavior,
+        test_diff_intel_test_plan_and_review_pack_are_bounded,
+        test_docs_only_diff_gets_no_runtime_test_commands,
+        test_workflow_helpers_filter_artifacts_and_find_python_tests,
+        test_workflow_speedup_helpers_are_documented_as_advisory,
+        test_promotion_scanner_is_release_wrapup_not_patch_gate,
         test_skill_evals_compare_all_arms,
         test_skill_evals_include_behavior_and_metrics,
         test_skill_linter_examples_and_na_defaults,
