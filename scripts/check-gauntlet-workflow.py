@@ -159,6 +159,7 @@ def test_coverage_gap_and_design_lint_guidance_are_documented():
         "rule, reference, exemplar, lint, eval, coverage gap, or no change",
         "Reliable failure signal",
         "new or updated gap IDs",
+        "Added GAP-###: Short name",
     ]:
         assert_contains(combined, marker, "coverage gap capture")
 

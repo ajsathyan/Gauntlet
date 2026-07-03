@@ -224,7 +224,7 @@ Good candidate signals:
 
 Human review chooses: rule, reference, exemplar, lint, eval, coverage gap, or no change. Accepted changes go into the narrowest relevant file and pass checks before merging.
 
-Use the promotion rule when deciding what to record: if a failure is reliably detectable and has a concrete fix, add or update a `GAP-###` candidate with a suggested destination such as lint, eval, guidance, or no change. If the check depends on product judgment, record the judgment gap instead of pretending it is a linter. At completion, name new or updated `GAP-###` items in the final response; do not list routine passes.
+Use the promotion rule when deciding what to record: if a failure is reliably detectable and has a concrete fix, add or update a `GAP-###` candidate with a suggested destination such as lint, eval, guidance, or no change. If the check depends on product judgment, record the judgment gap instead of pretending it is a linter. At the end of the final response, name only gaps added or updated in this run using `Added GAP-###: Short name - why it matters`; do not list routine passes.
 
 ## Frontend Quality Gate
 
@@ -336,7 +336,7 @@ Stop and ask before proceeding when:
 
 ## Completion Rule
 
-A coding task is complete only when acceptance criteria are met, relevant checks ran or limitations are stated, required run logs and coverage-gap candidates are updated, new or updated `GAP-###` items are named, no blocking review/test/triage findings remain, and the final response includes what changed, what was verified, and remaining risks.
+A coding task is complete only when acceptance criteria are met, relevant checks ran or limitations are stated, required run logs and coverage-gap candidates are updated, new or updated `GAP-###` items are named at the end of the final response, no blocking review/test/triage findings remain, and the final response includes what changed, what was verified, and remaining risks.
 
 For Feature, Release, and applicable Tier 2/3 work, the architecture hygiene pass must be marked not applicable, completed with no blocking findings, or triaged into bounded follow-up work.
 

@@ -47,7 +47,13 @@ Yes -> add or update a pending GAP-### candidate with suggested destination.
 
 Suggested destinations are `rule`, `reference`, `exemplar`, `lint`, `eval`, `coverage gap`, or `no change`.
 
-At the end of a run, mention only new or updated gap IDs and why they matter. Do not report routine successful checks as gaps.
+At the end of a run, mention only new or updated gap IDs and why they matter. Put them at the end of the final response using this shape:
+
+```text
+Added GAP-###: Short name - why it matters
+```
+
+For multiple gaps, use one comma-separated sentence or one short bullet per gap. Do not report routine successful checks as gaps.
 
 ## Promotion Scanner Routing
 
