@@ -137,7 +137,7 @@ Use one release-risk reviewer or a compact role panel whose only job is to feed 
 
 ## Production Quality Bar
 
-Run the Production Quality Bar only when an app or project is near-launch, launch-ready, in private beta, production-bound, deploy-sensitive, or explicitly being hardened or audited. Use `docs/production-quality-bar.md` as the source of truth.
+Run the Production Quality Bar only when an app or project is near-launch, launch-ready, in private beta, production-bound, deploy-sensitive, or explicitly being hardened or audited. Use the Gauntlet reference document as the source of truth: `docs/production-quality-bar.md` in the Gauntlet source repo, or `$AGENT_HOME/gauntlet/docs/production-quality-bar.md` in a global install. Do not assume that file exists in the target project unless the project ships Gauntlet docs locally.
 
 Skip it for ordinary Patch work, early prototype work, local demo code, copy/config/docs-only tweaks, narrow visual polish, UI-only Feature work with no launch intent, tests/build-tool changes, and speculative refactors unless the user asks.
 
@@ -230,10 +230,10 @@ Use the promotion rule when deciding what to record: if a failure is reliably de
 
 Run this gate only for substantial frontend work: new or materially changed components, user-facing Feature work, design-heavy prototypes, frontend Release work, broad responsive/state changes, or repeated UI findings. Skip it for narrow Patch work, copy-only changes, local config, and non-frontend work unless the user asks.
 
-Use `docs/ui-constitution.md` as the source of truth. Keep the pass bounded:
+Use the Gauntlet reference document as the source of truth: `docs/ui-constitution.md` in the Gauntlet source repo, or `$AGENT_HOME/gauntlet/docs/ui-constitution.md` in a global install. Do not assume that file exists in the target project unless the project ships Gauntlet docs locally. Keep the pass bounded:
 
 - Use existing project lint, typecheck, test, browser, and accessibility tooling first.
-- Apply general UI lint candidates from `docs/design-lint-candidates.md` when code can detect the failure.
+- Apply general UI lint candidates from the Gauntlet reference document `docs/design-lint-candidates.md` or `$AGENT_HOME/gauntlet/docs/design-lint-candidates.md` when code can detect the failure.
 - Route browser-visible behavior through `black-box-tester`.
 - Route workflow, state, accessibility, and product feel through `experience-reviewer`.
 - Fix in-scope blockers. For reliable repeated issues without guidance, add a pending coverage gap instead of expanding the checklist.

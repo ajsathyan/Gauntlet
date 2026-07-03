@@ -274,6 +274,8 @@ def test_production_quality_bar_is_launch_gated():
         "dry-run",
         "state machines",
         "redaction",
+        "alerting/email",
+        "rollback/restart",
         "decision-oriented UI",
         "Automatable",
         "Human judgment",
@@ -287,6 +289,7 @@ def test_production_quality_bar_is_launch_gated():
         "durable state",
         "operator/user feedback loop",
         "threat model",
+        "destructive action boundaries",
         "confidence",
         "freshness",
         "sample size",
@@ -794,6 +797,17 @@ def test_installed_layout_supports_workflow_check():
         installed_check = agent_home / "gauntlet" / "scripts" / "check-gauntlet-workflow.py"
         if not installed_check.exists():
             raise AssertionError("installed workflow check is missing")
+        installed_agents = read(agent_home / "AGENTS.md")
+        assert_contains(
+            installed_agents,
+            "$AGENT_HOME/gauntlet/docs/production-quality-bar.md",
+            "installed AGENTS production quality bar path",
+        )
+        assert_contains(
+            installed_agents,
+            "$AGENT_HOME/gauntlet/docs/ui-constitution.md",
+            "installed AGENTS frontend quality path",
+        )
         run([str(installed_check)])
 
 

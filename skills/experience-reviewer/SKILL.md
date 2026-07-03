@@ -41,7 +41,7 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Accessibility basics, responsive behavior, trust, permission, and copy clarity
 - Production Quality Bar: decision-oriented UI with confidence, freshness, sample size, blockers, evidence, and next action, or `Not relevant because...`
 - Visual hierarchy and design-system consistency
-- For substantial frontend UI, use `docs/ui-constitution.md` to check semantics, labels, states, feedback, disabled explanations, icon-only actions, and agent/process copy.
+- For substantial frontend UI, use the Gauntlet reference document `docs/ui-constitution.md` in the Gauntlet source repo, or `$AGENT_HOME/gauntlet/docs/ui-constitution.md` in a global install, to check semantics, labels, states, feedback, disabled explanations, icon-only actions, and agent/process copy.
 - Use delta review for accepted small changes and full review for new or ambiguous workflows.
 
 Do not create metrics or UI requirements just to have findings.
