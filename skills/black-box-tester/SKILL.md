@@ -42,6 +42,6 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Passing checks are evidence, not proof of internal quality.
 - Stop when the charter answers the oracle or a missing proof item blocks further external validation.
 - For Production Quality Bar charters, prove observable release proof such as dry-run or no-mutation behavior, persisted state, logs, automated GitHub release tags/artifacts, and recovery paths, or mark `Not relevant because...`.
-- For substantial frontend UI, use `docs/ui-constitution.md` for relevant browser checks: form submit, duplicate-submit prevention, feedback placement, state reachability, and responsive/touch behavior.
+- For substantial frontend UI, use the Gauntlet reference document `docs/ui-constitution.md` in the Gauntlet source repo, or `$AGENT_HOME/gauntlet/docs/ui-constitution.md` in a global install, for relevant browser checks: form submit, duplicate-submit prevention, feedback placement, state reachability, and responsive/touch behavior.
 - Use a combined black-box and experience pass for small UI changes when the same evidence answers both behavior and UX questions.
 - Skip frontend constitution checks for non-frontend or narrow Patch charters with `Not relevant because...`.

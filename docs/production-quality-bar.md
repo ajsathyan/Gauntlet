@@ -24,9 +24,10 @@ Skip the pass for ordinary Patch work, early prototype work, local demo code, co
 | Launch-critical proof | CI or local release proof covers syntax/type checks, unit tests, lint where useful, and at least one no-mutation or dry-run proof for the main workflow. | Automatable |
 | Automated release evidence | Production releases should have automated GitHub release tags or an audited release script, plus proof that required checks, generated artifacts, and release notes match the shipped version. | Automatable |
 | Durable state | Review whether in-process locks or ad hoc JSON writes should become file locks, SQLite, idempotency keys, leases, atomic transitions, append-only logs, or recovery sweeps. | Human judgment |
-| State machines | Provisioning, payment, upload, migration, job execution, auth, notification, and recovery flows expose state machines, terminal states, and impossible transitions in code, tests, or docs. | Guardrail |
-| Operator/user feedback loop | Track action outcomes, false positives, retries, costs, alert usefulness, completion, support recovery, and learning signals so operators or users know what to believe next. | Human judgment |
+| State machines | Provisioning, payment, upload, migration, job execution, auth, live-ops notification, and recovery flows expose state machines, terminal states, impossible transitions, and destructive action boundaries in code, tests, or docs. | Guardrail |
+| Operator/user feedback loop | Track action outcomes, false positives, retries, costs, alert usefulness, alerting/email expectations, completion, support recovery, and learning signals so operators or users know what to believe next. | Human judgment |
 | Threat model and redaction | Define threat model, secret/data classes, trust boundaries, external services, CI/runtime risks, redaction guarantees, and incident/debugging posture. | Guardrail |
+| Rollback and restart | Production-bound automation names rollback/restart expectations, recovery commands, idempotency assumptions, and the proof that interrupted or repeated runs do not perform unsafe duplicate work. | Guardrail |
 | Decision-oriented UI | Launch-ready UI shows confidence, freshness, sample size, blockers, next action, why the system is not acting, and evidence behind recommendations. | Human judgment |
 
 ## Proof Routing
