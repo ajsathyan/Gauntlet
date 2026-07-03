@@ -39,6 +39,7 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - First-value path, progress, completion, and next best action
 - Empty, loading, error, success, disabled, and partial-data states
 - Accessibility basics, responsive behavior, trust, permission, and copy clarity
+- Production Quality Bar: decision-oriented UI with confidence, freshness, sample size, blockers, evidence, and next action, or `Not relevant because...`
 - Visual hierarchy and design-system consistency
 - For substantial frontend UI, use `docs/ui-constitution.md` to check semantics, labels, states, feedback, disabled explanations, icon-only actions, and agent/process copy.
 - Use delta review for accepted small changes and full review for new or ambiguous workflows.

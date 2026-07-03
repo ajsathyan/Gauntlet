@@ -16,6 +16,7 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Appetite
 - Mode and depth
 - Triggered gates
+- Production Quality Bar: triggered near-launch guardrails, release proof, and deferrals, or `Not relevant because...`
 - Must-haves
 - Non-goals
 - Scope pressure and deferrals
@@ -54,4 +55,5 @@ Each task gets a packet. Keep tasks end-to-end unless files, state, and proof ar
 - A `Ship blocker` needs concrete harm, no acceptable fallback/deferral, executable proof, and a real plan delta; otherwise downgrade it.
 - When running duplicate planning prompts for Release risk, compare missing blockers, dependency order, proof requirements, first task, deferrals, and rejections. Do not union every idea.
 - For TypeScript work, include the TS Durability gate only when the classifier says `durabilityRequired: true` or the user explicitly asks.
+- Trigger the Production Quality Bar only for near-launch, private-beta, production-bound, hardened, or audited work; plan release proof such as CI/local checks, no-mutation or dry-run, automated GitHub release tags/artifacts, and rollback/support evidence.
 - Stop planning once the first build step and first meaningful proof path are obvious.

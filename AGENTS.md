@@ -10,7 +10,7 @@ Recommend one mode before non-trivial work. State the recommendation, why, depth
 Mode: Patch | Feature | Release
 Depth: Standard | Deep
 Proof scope: smoke | delta | full | not relevant
-Triggered gates: Run Log, Panel Guard, Hygiene, TS Durability
+Triggered gates: Run Log, Panel Guard, Hygiene, TS Durability, Production Quality Bar
 ```
 
 ### Patch
@@ -80,6 +80,20 @@ Proof scope describes how wide the verification and review pass should be:
 
 Full checks are trigger-based, not mode theater. Every non-default ceremony must declare its trigger, cap, artifact, and exit condition. Always prove the changed behavior when possible; audit the whole surface only when risk, ambiguity, repetition, or missing proof earns it.
 
+## Workflow Speedup Helpers
+
+Use `scripts/diff-intel.py`, `scripts/test-plan.py`, and `scripts/review-pack.py` when changed-surface discovery, test selection, or reviewer packet construction would otherwise require repeated generic `rg`, `git diff`, and shell setup. These tools are advisory: honor their confidence and `Cannot verify` output, preserve unrelated dirty worktree changes, and confirm stale or missing mappings against local repo conventions.
+
+Do not make these helpers a new gate for every Patch. `quality-check --surface ...` is deferred because named surfaces are usually repo-specific and a single quality runner risks false confidence.
+
+## Promotion Scanner
+
+Use `promotion-scanner` to produce a Promotion Brief when explicit artifacts show repeated manual or agent work that may deserve promotion into repo code, repo test, repo docs/run log, Gauntlet skill/tool, coverage gap, or Reject.
+
+Trigger it on explicit user request, Release or live-ops wrap-up with repeated manual verification, repeated `Cannot verify`, or repeated run-log evidence. Do not run for ordinary Patch. No live operational actions: never recommend immediate destructive, billing, deploy, security, or production mutations.
+
+Separate stale vs latest evidence, redact secrets/redaction-sensitive details, and include Do not infer warnings. Add or update a `GAP-###` only for Gauntlet-general missing guidance; route repo-specific candidates to repo code, repo test, repo docs/run log, or issue follow-up.
+
 ## Task Tiers
 
 - Tier 0 trivial: edit, verify, summarize.
@@ -120,6 +134,16 @@ The panel delta must name what changed because the panel ran: first ready task, 
 For Release, auth, billing, migrations, permissions, privacy, concurrency, data integrity, or ambiguous broad work, run the same planning prompt twice when cost is reasonable. Compare only missing blockers, dependency order, proof requirements, first ready task, deferrals, and rejections. Merge only items that pass the decision table. Do not union every idea.
 
 Use one release-risk reviewer or a compact role panel whose only job is to feed the decision table. If the decision table has no meaningful panel delta, collapse to the normal planner output and state that the panel added no unique value.
+
+## Production Quality Bar
+
+Run the Production Quality Bar only when an app or project is near-launch, launch-ready, in private beta, production-bound, deploy-sensitive, or explicitly being hardened or audited. Use `docs/production-quality-bar.md` as the source of truth.
+
+Skip it for ordinary Patch work, early prototype work, local demo code, copy/config/docs-only tweaks, narrow visual polish, UI-only Feature work with no launch intent, tests/build-tool changes, and speculative refactors unless the user asks.
+
+When active, keep the pass bounded: identify the trigger, cap, artifact, and exit condition; route automatable checks to existing CI/local commands; route product/engineering judgment to the relevant role; and record only material decisions, release proof, skipped proof, `Cannot verify`, launch cut lines, or gap candidates. Near-launch release proof may include automated GitHub release tags, generated artifacts, release notes, required checks, no-mutation or dry-run evidence, and rollback/support proof.
+
+Use the bar to inspect control plane or core workflow ownership boundaries, invariants, launch-critical proof, durable state, state machines, operator/user feedback loops, threat model and redaction policy, and decision-oriented UI. Do not turn these into blockers unless there is concrete launch harm, proof, and a fix or deferral path.
 
 ## Architecture Hygiene Pass
 

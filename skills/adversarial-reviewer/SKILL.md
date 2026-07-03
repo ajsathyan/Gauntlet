@@ -37,6 +37,7 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Parsing, serialization, injection, and unsafe sinks
 - Race conditions, repeated actions, and resource exhaustion
 - Error paths, rollback, and data integrity
+- Production Quality Bar: threat model, redaction, trust boundaries, destructive actions, retries, and recovery, or `Not relevant because...`
 - Regressions against the spec and existing behavior
 
 Do not provide exploit detail beyond what is needed to reproduce and fix.
