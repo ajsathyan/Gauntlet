@@ -35,6 +35,7 @@ Gauntlet v2.0.2 sharpens the harness around outcomes:
 | Token efficiency | Proof scope now routes work through `smoke`, `delta`, `full`, or `not relevant`; small accepted changes can combine black-box and experience review, skip second triage unless findings exist, and run targeted changed-skill evals instead of the full suite. |
 | UI quality without a design-system tax | The new UI constitution keeps frontend checks bounded to substantial UI work and separates general lint candidates from product-judgment review. |
 | Better durable memory | Coverage gaps stay pending backlog items, and run logs capture exceptions, decisions, skipped proof, and new or updated gap IDs rather than proof dumps. |
+| Clearer gap closeout | Final responses now list only newly added or updated gaps at the end using `Added GAP-###: Short name - why it matters`, while the full backlog remains in `docs/coverage-gaps.md`. |
 | Less parallelization theater | Planner and implementer guidance now require independent files, state, and proof before using subagents, with an explicit context-cost guard. |
 | Launch-grade quality without default ceremony | The Production Quality Bar applies senior implementation boundaries, release proof, and decision-oriented UI checks only to near-launch, private-beta, production-bound, hardened, or audited work. |
 
