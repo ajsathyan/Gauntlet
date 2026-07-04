@@ -741,6 +741,327 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         assert_contains(combined, marker, "workflow speedup guidance")
 
 
+def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions():
+    checker = SCRIPTS / "check-workflow-etiquette.py"
+    if not checker.exists() or not os.access(checker, os.X_OK):
+        raise AssertionError(f"missing executable workflow etiquette checker: {checker}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        content = Path(tmp) / "kickoff.md"
+        content.write_text(
+            "\n".join([
+                "Mode: Feature",
+                "Depth: Standard",
+                "Verification Scope: delta",
+                "Execution Mode: autonomous",
+                "Suggested thread label: p2-auto: fix archive closeout",
+                "",
+                "Assumptions Made:",
+                "- Assumptions made: local fixtures cover archive examples.",
+                "- Ambiguity handled: no real archive action is taken.",
+                "- Verification: checker fixtures pass.",
+                "",
+            ])
+        )
+        result = run([
+            str(checker),
+            "--title",
+            "p2-auto: fix archive closeout",
+            "--content",
+            str(content),
+            "--require-kickoff",
+            "--json",
+        ])
+        data = json.loads(result.stdout)
+        if data["status"] != "pass":
+            raise AssertionError(f"valid autonomous kickoff should pass: {data}")
+        if data["parsedTitle"]["executionMode"] != "autonomous":
+            raise AssertionError("auto title should parse as autonomous")
+        if data["effectiveExecutionMode"] != "autonomous":
+            raise AssertionError("auto kickoff should report effective execution mode")
+
+        legacy = run([str(checker), "--title", "p2 - fix archive closeout", "--json"])
+        legacy_data = json.loads(legacy.stdout)
+        if legacy_data["status"] != "warn":
+            raise AssertionError(f"legacy title should warn, not fail: {legacy_data}")
+        if not any(finding["code"] == "legacy_title_format" for finding in legacy_data["findings"]):
+            raise AssertionError(f"legacy title warning missing: {legacy_data}")
+
+        decision_gate = Path(tmp) / "decision-gate.md"
+        decision_gate.write_text(
+            "\n".join([
+                "Mode: Feature",
+                "Depth: Standard",
+                "Verification Scope: delta",
+                "Execution Mode: autonomous",
+                "Decision Gate: before unsafe archive action",
+                "Suggested thread label: p1-auto: formalize workflow etiquette checks",
+                "",
+            ])
+        )
+        decision_gate_result = run([
+            str(checker),
+            "--title",
+            "p1-auto: formalize workflow etiquette checks",
+            "--content",
+            str(decision_gate),
+            "--require-kickoff",
+            "--json",
+        ])
+        decision_gate_data = json.loads(decision_gate_result.stdout)
+        if decision_gate_data["effectiveExecutionMode"] != "autonomous":
+            raise AssertionError(f"decision-gated autonomous kickoff should report effective mode: {decision_gate_data}")
+        if decision_gate_data["decisionGate"] != "before unsafe archive action":
+            raise AssertionError(f"decision gate should be reported: {decision_gate_data}")
+
+        legacy_review = Path(tmp) / "legacy-review.md"
+        legacy_review.write_text(
+            "\n".join([
+                "Mode: Patch",
+                "Depth: Standard",
+                "Verification Scope: smoke",
+                "Execution Mode: reviewed",
+                "Suggested thread label: p3: fix archive closeout",
+                "",
+            ])
+        )
+        legacy_review_result = run([
+            str(checker),
+            "--title",
+            "p3: fix archive closeout",
+            "--content",
+            str(legacy_review),
+            "--require-kickoff",
+            "--json",
+        ])
+        legacy_review_data = json.loads(legacy_review_result.stdout)
+        if legacy_review_data["effectiveExecutionMode"] != "review":
+            raise AssertionError(f"legacy reviewed mode should normalize to review: {legacy_review_data}")
+        if not any(finding["code"] == "legacy_reviewed_execution_mode" for finding in legacy_review_data["findings"]):
+            raise AssertionError(f"legacy reviewed mode warning missing: {legacy_review_data}")
+
+        malformed = run([str(checker), "--title", "priority two archive thing", "--json"], check=False)
+        if malformed.returncode != 1:
+            raise AssertionError(f"malformed title should fail with exit 1: {malformed.stdout}")
+        if not any(finding["code"] == "malformed_title" for finding in json.loads(malformed.stdout)["findings"]):
+            raise AssertionError(f"malformed title finding missing: {malformed.stdout}")
+
+        missing_auto = Path(tmp) / "missing-auto.md"
+        missing_auto.write_text(
+            "\n".join([
+                "Mode: Patch",
+                "Depth: Standard",
+                "Verification Scope: smoke",
+                "Execution Mode: autonomous",
+                "Suggested thread label: p3-auto: fix archive closeout",
+                "",
+            ])
+        )
+        auto_result = run([
+            str(checker),
+            "--title",
+            "p3-auto: fix archive closeout",
+            "--content",
+            str(missing_auto),
+            "--require-kickoff",
+            "--require-assumptions",
+            "--json",
+        ], check=False)
+        if auto_result.returncode != 1:
+            raise AssertionError(f"auto without assumptions should fail: {auto_result.stdout}")
+        if not any(finding["code"] == "missing_assumptions_made" for finding in json.loads(auto_result.stdout)["findings"]):
+            raise AssertionError(f"missing assumptions finding missing: {auto_result.stdout}")
+
+
+def test_workflow_etiquette_checker_pauses_archive_on_followups_and_git_state():
+    checker = SCRIPTS / "check-workflow-etiquette.py"
+    if not checker.exists() or not os.access(checker, os.X_OK):
+        raise AssertionError(f"missing executable workflow etiquette checker: {checker}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        strong = Path(tmp) / "strong.md"
+        strong.write_text(
+            "\n".join([
+                "Follow-up captured:",
+                "- Topic: Gauntlet CLI speedups",
+                "- Strength: strong follow-up",
+                "- Why it matters: deterministic helpers can reduce chat overhead.",
+                "",
+            ])
+        )
+        strong_result = run([str(checker), "--content", str(strong), "--archive", "--json"], check=False)
+        if strong_result.returncode != 2:
+            raise AssertionError(f"strong follow-up should pause archive with exit 2: {strong_result.stdout}")
+        strong_data = json.loads(strong_result.stdout)
+        if strong_data["status"] != "review":
+            raise AssertionError(f"strong follow-up should require review: {strong_data}")
+        if not any(finding["code"] == "strong_followup_open" for finding in strong_data["findings"]):
+            raise AssertionError(f"strong follow-up finding missing: {strong_data}")
+
+        later = Path(tmp) / "later.md"
+        later.write_text(
+            "\n".join([
+                "Follow-up captured:",
+                "- Topic: Mermaid rendering polish",
+                "- Strength: follow-up for later",
+                "",
+            ])
+        )
+        later_result = run([str(checker), "--content", str(later), "--archive", "--json"])
+        later_data = json.loads(later_result.stdout)
+        if later_data["status"] != "pass":
+            raise AssertionError(f"later follow-up should not pause archive: {later_data}")
+
+        repo = Path(tmp) / "repo"
+        init_repo(repo)
+        (repo / "README.md").write_text("# Repo\n")
+        commit_all(repo, "baseline")
+        clean = run([str(checker), "--git-root", str(repo), "--archive", "--json"])
+        if json.loads(clean.stdout)["status"] != "pass":
+            raise AssertionError(f"clean archive git state should pass: {clean.stdout}")
+
+        remote = Path(tmp) / "remote.git"
+        git(["init", "--bare", str(remote)], cwd=tmp)
+        git(["remote", "add", "origin", str(remote)], cwd=repo)
+        git(["push", "-u", "origin", "HEAD"], cwd=repo)
+        (repo / "README.md").write_text("# Repo\n\nLocal change.\n")
+        commit_all(repo, "local change")
+        ahead = run([str(checker), "--git-root", str(repo), "--archive", "--json"])
+        ahead_data = json.loads(ahead.stdout)
+        if ahead_data["status"] != "pass":
+            raise AssertionError(f"clean ahead branch should plan push without review: {ahead_data}")
+        push_actions = [
+            action for action in ahead_data["archivePlan"]["actions"]
+            if action.get("type") == "git_push"
+        ]
+        if not push_actions or push_actions[0].get("ahead") != 1 or not push_actions[0].get("upstream", "").startswith("origin/"):
+            raise AssertionError(f"ahead branch should plan git push before archive: {ahead_data}")
+        git(["push"], cwd=repo)
+
+        missing_root = run([
+            str(checker),
+            "--git-root",
+            str(Path(tmp) / "missing-repo"),
+            "--archive",
+            "--json",
+        ], check=False)
+        if missing_root.returncode != 2:
+            raise AssertionError(f"missing git root should require review: {missing_root.stdout}")
+        if not any(finding["code"] == "git_root_missing" for finding in json.loads(missing_root.stdout)["findings"]):
+            raise AssertionError(f"missing git root finding missing: {missing_root.stdout}")
+
+        (repo / "dirty.txt").write_text("dirty\n")
+        (repo / "dirty-2.txt").write_text("dirty\n")
+        (repo / "dirty-3.txt").write_text("dirty\n")
+        (repo / "dirty-4.txt").write_text("dirty\n")
+        dirty = run([str(checker), "--git-root", str(repo), "--archive", "--json"], check=False)
+        if dirty.returncode != 2:
+            raise AssertionError(f"dirty git state should require review: {dirty.stdout}")
+        dirty_data = json.loads(dirty.stdout)
+        if not any(finding["code"] == "dirty_worktree" for finding in dirty_data["findings"]):
+            raise AssertionError(f"dirty worktree finding missing: {dirty.stdout}")
+        if not any("and 1 more" in finding["message"] for finding in dirty_data["findings"]):
+            raise AssertionError(f"dirty worktree finding should disclose abbreviated files: {dirty.stdout}")
+
+
+def test_workflow_etiquette_checker_builds_archive_action_plan():
+    checker = SCRIPTS / "check-workflow-etiquette.py"
+    if not checker.exists() or not os.access(checker, os.X_OK):
+        raise AssertionError(f"missing executable workflow etiquette checker: {checker}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        init_repo(repo)
+        (repo / "README.md").write_text("# Repo\n")
+        commit_all(repo, "baseline")
+
+        result = run([
+            str(checker),
+            "--title",
+            "Indexed implementation context docs",
+            "--suggested-title",
+            "p1-auto: formalize workflow etiquette checks",
+            "--git-root",
+            str(repo),
+            "--archive",
+            "--json",
+        ])
+        data = json.loads(result.stdout)
+        plan = data.get("archivePlan", {})
+        if data["status"] != "warn":
+            raise AssertionError(f"archive rename plan should be warning-only: {data}")
+        if not plan.get("canArchive"):
+            raise AssertionError(f"archive plan should be executable: {data}")
+        actions = plan.get("actions", [])
+        expected = [
+            {"type": "set_thread_title", "title": "p1-auto: formalize workflow etiquette checks"},
+            {"type": "archive_thread"},
+        ]
+        if actions != expected:
+            raise AssertionError(f"archive action plan mismatch: {actions}")
+        if not any(finding["code"] == "title_requires_rename" for finding in data["findings"]):
+            raise AssertionError(f"title rename warning missing: {data}")
+
+        malformed_suggestion = run([
+            str(checker),
+            "--title",
+            "Indexed implementation context docs",
+            "--suggested-title",
+            "priority one etiquette checks",
+            "--archive",
+            "--json",
+        ], check=False)
+        if malformed_suggestion.returncode != 1:
+            raise AssertionError(f"malformed suggested title should fail: {malformed_suggestion.stdout}")
+        if json.loads(malformed_suggestion.stdout).get("archivePlan", {}).get("canArchive"):
+            raise AssertionError(f"malformed suggestion must not be executable: {malformed_suggestion.stdout}")
+
+        strong = Path(tmp) / "strong.md"
+        strong.write_text(
+            "\n".join([
+                "Follow-up captured:",
+                "- Topic: Gauntlet CLI speedups",
+                "- Strength: strong follow-up",
+                "- Why it matters: deterministic helpers can reduce chat overhead.",
+                "",
+            ])
+        )
+        anyway = run([
+            str(checker),
+            "--title",
+            "p1-auto: formalize workflow etiquette checks",
+            "--content",
+            str(strong),
+            "--archive",
+            "--archive-anyway",
+            "--json",
+        ])
+        anyway_data = json.loads(anyway.stdout)
+        if anyway_data["status"] != "warn":
+            raise AssertionError(f"archive anyway should warn, not review: {anyway_data}")
+        if anyway_data.get("archivePlan", {}).get("actions") != [{"type": "archive_thread"}]:
+            raise AssertionError(f"archive anyway should still plan archive: {anyway_data}")
+        if not any(finding["code"] == "strong_followup_archived_anyway" for finding in anyway_data["findings"]):
+            raise AssertionError(f"archive anyway warning missing: {anyway_data}")
+
+
+def test_workflow_etiquette_is_in_global_workflow():
+    agents = read(AGENTS_MD)
+    etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
+    combined = "\n".join([agents, etiquette])
+
+    for marker in [
+        "Workflow Etiquette",
+        "Execution Mode: review | autonomous",
+        "Decision Gate",
+        "Archival Etiquette",
+        "scripts/check-workflow-etiquette.py",
+        "set_thread_title",
+        "set_thread_archived",
+    ]:
+        assert_contains(combined, marker, "workflow etiquette global guidance")
+
+
 def test_promotion_scanner_is_release_wrapup_not_patch_gate():
     agents = read(AGENTS_MD)
     readme = read(README_MD)
@@ -963,6 +1284,10 @@ def main():
         test_docs_only_diff_gets_no_runtime_test_commands,
         test_workflow_helpers_filter_artifacts_and_find_python_tests,
         test_workflow_speedup_helpers_are_documented_as_advisory,
+        test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions,
+        test_workflow_etiquette_checker_pauses_archive_on_followups_and_git_state,
+        test_workflow_etiquette_checker_builds_archive_action_plan,
+        test_workflow_etiquette_is_in_global_workflow,
         test_promotion_scanner_is_release_wrapup_not_patch_gate,
         test_skill_evals_compare_all_arms,
         test_skill_evals_include_behavior_and_metrics,

@@ -80,6 +80,30 @@ Proof scope describes how wide the verification and review pass should be:
 
 Full checks are trigger-based, not mode theater. Every non-default ceremony must declare its trigger, cap, artifact, and exit condition. Always prove the changed behavior when possible; audit the whole surface only when risk, ambiguity, repetition, or missing proof earns it.
 
+## Workflow Etiquette
+
+Use `docs/workflow-etiquette.md` for the full draft reference. Keep the active workflow lightweight:
+
+```text
+Execution Mode: review | autonomous
+Decision Gate: none | before blocked archive | before unsafe side effect | before merge | before production change | custom
+```
+
+- Use `review` only when goals, requirements, domain relationships, or acceptable defaults need human clarification before autonomous work would be responsible.
+- Use `autonomous` when the agent can work without the user watching. Agent self-review, fixture review, code review, and QA do not require `review`.
+- Use a `Decision Gate` only for a major unresolved decision, safety failure, or new material assumption. Do not re-ask for behavior the user already requested.
+- For p0, p1, and p2 kickoff labels, ask the user to confirm or change the priority/title before implementation. If the user responds affirmatively or continues without objecting, treat the label as accepted and apply it.
+- For p3 and p4 kickoff labels, do not block on naming; say `I'll use this.`
+
+When the user asks to archive a Codex thread:
+
+1. If the thread title already starts with `/^p[0-4](-auto)?:/`, skip naming.
+2. Otherwise suggest a `p#:` or `p#-auto:` four-word-goal title and pass it to `scripts/check-workflow-etiquette.py --suggested-title ...`.
+3. Run `scripts/check-workflow-etiquette.py --archive --title "$THREAD_TITLE" --git-root "$PROJECT_ROOT" --json`, adding `--content` when a follow-up/closeout artifact is available.
+4. If the helper returns pass or warn, execute its `archivePlan.actions` in order: run `git push` for `git_push`, call `set_thread_title` for `set_thread_title`, then call `set_thread_archived` for `archive_thread`.
+5. If the helper returns review or fail, pause only for a major unresolved decision, safety failure, or new material assumption. `archive anyway` is acceptable for unresolved strong follow-ups.
+6. Do not pause merely because rename/archive/push/merge is durable when the user already requested that behavior and deterministic safety checks pass.
+
 ## Workflow Speedup Helpers
 
 Use `scripts/diff-intel.py`, `scripts/test-plan.py`, and `scripts/review-pack.py` when changed-surface discovery, test selection, or reviewer packet construction would otherwise require repeated generic `rg`, `git diff`, and shell setup. These tools are advisory: honor their confidence and `Cannot verify` output, preserve unrelated dirty worktree changes, and confirm stale or missing mappings against local repo conventions.
