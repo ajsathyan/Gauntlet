@@ -1095,42 +1095,96 @@ def test_promotion_scanner_is_release_wrapup_not_patch_gate():
         raise AssertionError("promotion-scanner eval case is missing")
 
 
-def test_installed_layout_supports_workflow_check():
+def run_install(agent_home, target="codex"):
+    env = os.environ.copy()
+    env["AGENT_HOME"] = str(agent_home)
+    env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
+    result = subprocess.run(
+        [str(SCRIPTS / "install.sh"), "--target", target],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        raise AssertionError(
+            f"install.sh failed with {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+    return result
+
+
+def assert_installed_gauntlet_layout(agent_home):
+    installed_check = agent_home / "gauntlet" / "scripts" / "check-gauntlet-workflow.py"
+    if not installed_check.exists():
+        raise AssertionError("installed workflow check is missing")
+    installed_agents = read(agent_home / "gauntlet" / "AGENTS.md")
+    assert_contains(
+        installed_agents,
+        "$AGENT_HOME/gauntlet/docs/production-quality-bar.md",
+        "installed AGENTS production quality bar path",
+    )
+    assert_contains(
+        installed_agents,
+        "$AGENT_HOME/gauntlet/docs/ui-constitution.md",
+        "installed AGENTS frontend quality path",
+    )
+    run([str(installed_check)])
+
+
+def test_codex_install_layout_supports_workflow_check():
     if not (ROOT / ".git").exists():
         return
 
     with tempfile.TemporaryDirectory() as tmp:
         agent_home = Path(tmp) / "agent-home"
-        env = os.environ.copy()
-        env["AGENT_HOME"] = str(agent_home)
-        env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
-        result = subprocess.run(
-            [str(SCRIPTS / "install.sh")],
-            cwd=ROOT,
-            env=env,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        if result.returncode != 0:
-            raise AssertionError(
-                f"install.sh failed with {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-            )
-        installed_check = agent_home / "gauntlet" / "scripts" / "check-gauntlet-workflow.py"
-        if not installed_check.exists():
-            raise AssertionError("installed workflow check is missing")
+        run_install(agent_home, target="codex")
+        assert_installed_gauntlet_layout(agent_home)
         installed_agents = read(agent_home / "AGENTS.md")
-        assert_contains(
-            installed_agents,
-            "$AGENT_HOME/gauntlet/docs/production-quality-bar.md",
-            "installed AGENTS production quality bar path",
-        )
-        assert_contains(
-            installed_agents,
-            "$AGENT_HOME/gauntlet/docs/ui-constitution.md",
-            "installed AGENTS frontend quality path",
-        )
-        run([str(installed_check)])
+        assert_contains(installed_agents, "Global Agent Coding Workflow", "Codex AGENTS install")
+        if (agent_home / "CLAUDE.md").exists():
+            raise AssertionError("Codex install should not create CLAUDE.md")
+
+
+def test_claude_install_layout_adapts_agents_without_overwriting_user_memory():
+    if not (ROOT / ".git").exists():
+        return
+
+    with tempfile.TemporaryDirectory() as tmp:
+        agent_home = Path(tmp) / "agent-home"
+        agent_home.mkdir()
+        claude_md = agent_home / "CLAUDE.md"
+        claude_md.write_text("# My Existing Claude Memory\n\nKeep this personal note.\n")
+
+        run_install(agent_home, target="claude")
+        assert_installed_gauntlet_layout(agent_home)
+
+        installed_claude = read(claude_md)
+        assert_contains(installed_claude, "Keep this personal note.", "Claude user memory preservation")
+        assert_contains(installed_claude, "BEGIN GAUNTLET MANAGED BLOCK", "Claude Gauntlet managed block")
+        assert_contains(installed_claude, f"@{agent_home}/gauntlet/AGENTS.md", "Claude AGENTS import")
+        assert_contains(installed_claude, "Gauntlet Adapter For Claude Code", "Claude adapter guidance")
+        if (agent_home / "AGENTS.md").exists():
+            raise AssertionError("Claude install should not write root AGENTS.md")
+
+        run_install(agent_home, target="claude")
+        reinstalled_claude = read(claude_md)
+        if reinstalled_claude.count("BEGIN GAUNTLET MANAGED BLOCK") != 1:
+            raise AssertionError("Claude reinstall should replace, not duplicate, the managed block")
+
+
+def test_install_docs_explain_codex_and_claude_targets():
+    readme = read(README_MD)
+    for marker in [
+        "./scripts/install.sh --target codex",
+        "./scripts/install.sh --target claude",
+        "GAUNTLET_INSTALL_TARGET=claude",
+        "Claude Code",
+        "CLAUDE.md",
+        "managed import block",
+        "does not overwrite unrelated existing Claude instructions",
+    ]:
+        assert_contains(readme, marker, "install target docs")
 
 
 def test_skill_evals_compare_all_arms():
@@ -1293,7 +1347,9 @@ def main():
         test_skill_evals_include_behavior_and_metrics,
         test_skill_linter_examples_and_na_defaults,
         test_skill_changes_are_guarded_by_pre_commit,
-        test_installed_layout_supports_workflow_check,
+        test_codex_install_layout_supports_workflow_check,
+        test_claude_install_layout_adapts_agents_without_overwriting_user_memory,
+        test_install_docs_explain_codex_and_claude_targets,
     ]
     for test in tests:
         test()
