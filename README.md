@@ -209,8 +209,18 @@ After installing, tell me:
 Already cloned the repo?
 
 ```sh
-./scripts/install.sh
+# Codex
+./scripts/install.sh --target codex
+
+# Claude Code
+./scripts/install.sh --target claude
 ```
+
+`./scripts/install.sh` defaults to `--target codex`, which installs Gauntlet into `$HOME/.codex` unless `AGENT_HOME` or `GAUNTLET_AGENT_HOME` is set. For Claude Code, use `./scripts/install.sh --target claude` or `GAUNTLET_INSTALL_TARGET=claude ./scripts/install.sh`; this installs into `$HOME/.claude` by default.
+
+The Codex target writes `AGENTS.md` at the agent home. The Claude Code target writes or updates `CLAUDE.md` with a Gauntlet managed import block pointing at the installed Gauntlet `AGENTS.md`, because Claude Code reads `CLAUDE.md` rather than `AGENTS.md`. The Claude target preserves existing content and does not overwrite unrelated existing Claude instructions.
+
+Both targets install only the Gauntlet files that live in this repository: the global workflow, Gauntlet role skills, docs, scripts, and eval fixtures. They do not import personal skills or instructions from elsewhere on your machine.
 
 The installer also adds a Gauntlet pre-commit hook in this repo. When staged files include `skills/*/SKILL.md` or `skills/*/examples/*`, the hook runs the skill evals and skill linter before the commit can proceed. Set `GAUNTLET_SKIP_GIT_HOOKS=1` for headless installs that should not touch git hooks.
 
@@ -218,7 +228,8 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 
 | File Or Directory | Purpose |
 | --- | --- |
-| [AGENTS.md](AGENTS.md) | Global router for task tiers, intake, stage selection, role skills, run logs, stop conditions, and completion rules. |
+| [AGENTS.md](AGENTS.md) | Global router for task tiers, intake, stage selection, role skills, run logs, stop conditions, and completion rules. Installed as root `AGENTS.md` for Codex and as `gauntlet/AGENTS.md` for all targets. |
+| `CLAUDE.md` | Claude Code adapter created by `--target claude`; imports the installed Gauntlet `AGENTS.md` through a managed block while preserving existing Claude instructions. |
 | [skills/intake/SKILL.md](skills/intake/SKILL.md) | Turns rough intent into an implementable spec. |
 | [skills/product-architect/SKILL.md](skills/product-architect/SKILL.md) | Shapes Feature work around workflow, IA, activation, retention, growth, trust, and handoff. |
 | [skills/planner/SKILL.md](skills/planner/SKILL.md) | Converts accepted specs into bounded implementation steps. |
