@@ -9,7 +9,7 @@ Purpose: compact retrieval artifact for the Gauntlet changes shipped from this t
 | --- | --- | --- | --- |
 | [#5](https://github.com/ajsathyan/Gauntlet/pull/5) | Merged | Added Workflow Etiquette guidance, priority/thread labels, review/autonomous execution mode, archive checks, and the saved workflow diagram. | `docs/workflow-etiquette.md`, `docs/gauntlet-runs/2026-07-04-workflow-etiquette-checker.md`, `scripts/check-workflow-etiquette.py`, `AGENTS.md` |
 | [#6](https://github.com/ajsathyan/Gauntlet/pull/6) | Merged | Added target-aware install support for Codex and Claude Code, preserving existing Claude memory through a managed `CLAUDE.md` block. | `README.md`, `docs/gauntlet-runs/2026-07-04-claude-install-target.md`, `scripts/install.sh` |
-| Current branch | In progress | Adds the `gauntlet.py` CLI for deterministic archive planning/execution, install verification, follow-up note formatting, and saved diagram lookup. | `scripts/gauntlet.py`, `docs/gauntlet-runs/2026-07-04-archive-execution-cli.md`, `docs/workflow-etiquette.md` |
+| [#7](https://github.com/ajsathyan/Gauntlet/pull/7) | In progress | Adds the `gauntlet.py` CLI for deterministic archive planning/execution, install verification, follow-up note formatting, and saved diagram lookup. | `scripts/gauntlet.py`, `docs/gauntlet-runs/2026-07-04-archive-execution-cli.md`, `docs/workflow-etiquette.md` |
 
 ## Follow-Ups
 
