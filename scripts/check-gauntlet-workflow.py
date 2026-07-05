@@ -1045,6 +1045,242 @@ def test_workflow_etiquette_checker_builds_archive_action_plan():
             raise AssertionError(f"archive anyway warning missing: {anyway_data}")
 
 
+def test_gauntlet_cli_archive_plans_and_executes_github_merge():
+    cli = SCRIPTS / "gauntlet.py"
+    if not cli.exists() or not os.access(cli, os.X_OK):
+        raise AssertionError(f"missing executable Gauntlet CLI: {cli}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        remote = Path(tmp) / "remote.git"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / "README.md").write_text("# Repo\n")
+        commit_all(repo, "baseline")
+        git(["init", "--bare", str(remote)], cwd=tmp)
+        git(["remote", "add", "origin", str(remote)], cwd=repo)
+        git(["push", "-u", "origin", "main"], cwd=repo)
+
+        git(["checkout", "-b", "codex/archive-flow"], cwd=repo)
+        (repo / "feature.txt").write_text("archive flow\n")
+        commit_all(repo, "feature")
+        git(["push", "-u", "origin", "HEAD"], cwd=repo)
+
+        gh_log = Path(tmp) / "gh.log"
+        fake_gh = Path(tmp) / "gh"
+        fake_gh.write_text(
+            "\n".join([
+                "#!/usr/bin/env bash",
+                "set -euo pipefail",
+                "printf '%s\\n' \"$*\" >> \"$GH_LOG\"",
+                "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then",
+                "  cat <<'JSON'",
+                '{"number":7,"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","mergedAt":null,"statusCheckRollup":[{"__typename":"CheckRun","name":"gauntlet","status":"COMPLETED","conclusion":"SUCCESS"}],"url":"https://example.test/pr/7","baseRefName":"main","headRefName":"codex/archive-flow","reviewDecision":""}',
+                "JSON",
+                "  exit 0",
+                "fi",
+                "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"merge\" ]; then",
+                "  exit 0",
+                "fi",
+                "echo unexpected gh args: \"$*\" >&2",
+                "exit 2",
+                "",
+            ])
+        )
+        fake_gh.chmod(0o755)
+        old_gh = os.environ.get("GAUNTLET_GH")
+        old_gh_log = os.environ.get("GH_LOG")
+        os.environ["GAUNTLET_GH"] = str(fake_gh)
+        os.environ["GH_LOG"] = str(gh_log)
+        try:
+            plan = run([
+                str(cli),
+                "archive",
+                "plan",
+                "--title",
+                "p2-auto: fix archive closeout",
+                "--git-root",
+                str(repo),
+                "--json",
+            ], cwd=repo)
+            plan_data = json.loads(plan.stdout)
+            if plan_data["status"] != "pass":
+                raise AssertionError(f"green PR archive plan should pass: {plan_data}")
+            action_types = [action["type"] for action in plan_data["archivePlan"]["actions"]]
+            if action_types != ["gh_pr_merge", "archive_thread"]:
+                raise AssertionError(f"green PR should plan merge then archive: {plan_data}")
+            merge_action = plan_data["archivePlan"]["actions"][0]
+            if merge_action.get("mergeMethod") != "merge" or merge_action.get("prNumber") != 7:
+                raise AssertionError(f"merge action should use merge commit for PR 7: {plan_data}")
+
+            execute = run([
+                str(cli),
+                "archive",
+                "execute",
+                "--title",
+                "p2-auto: fix archive closeout",
+                "--git-root",
+                str(repo),
+                "--json",
+            ], cwd=repo)
+            execute_data = json.loads(execute.stdout)
+            if execute_data["status"] != "pass":
+                raise AssertionError(f"archive execute should pass with fake gh: {execute_data}")
+            if execute_data.get("remainingAppActions") != [{"type": "archive_thread"}]:
+                raise AssertionError(f"execute should leave app archive action for agent: {execute_data}")
+            if "pr merge 7 --merge --delete-branch" not in gh_log.read_text():
+                raise AssertionError(f"execute should merge PR through gh: {gh_log.read_text()}")
+        finally:
+            if old_gh is None:
+                os.environ.pop("GAUNTLET_GH", None)
+            else:
+                os.environ["GAUNTLET_GH"] = old_gh
+            if old_gh_log is None:
+                os.environ.pop("GH_LOG", None)
+            else:
+                os.environ["GH_LOG"] = old_gh_log
+
+
+def test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk():
+    cli = SCRIPTS / "gauntlet.py"
+    if not cli.exists() or not os.access(cli, os.X_OK):
+        raise AssertionError(f"missing executable Gauntlet CLI: {cli}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / "README.md").write_text("# Repo\n")
+        commit_all(repo, "baseline")
+        (repo / "scratch.md").write_text("next feature\n")
+
+        archive_anyway = run([
+            str(cli),
+            "archive",
+            "plan",
+            "--title",
+            "p3: tidy archive flow",
+            "--git-root",
+            str(repo),
+            "--archive-anyway",
+            "--json",
+        ], cwd=repo, check=False)
+        if archive_anyway.returncode != 2:
+            raise AssertionError(f"archive-anyway must not override dirty git risk: {archive_anyway.stdout}")
+        archive_anyway_data = json.loads(archive_anyway.stdout)
+        if not any(finding["code"] == "git_risk_confirmation_required" for finding in archive_anyway_data["findings"]):
+            raise AssertionError(f"git risk confirmation finding missing: {archive_anyway_data}")
+        if archive_anyway_data["archivePlan"].get("canArchive"):
+            raise AssertionError(f"git risk should block archive until explicitly confirmed: {archive_anyway_data}")
+
+        confirmed = run([
+            str(cli),
+            "archive",
+            "plan",
+            "--title",
+            "p3: tidy archive flow",
+            "--git-root",
+            str(repo),
+            "--confirm-git-risk",
+            "--json",
+        ], cwd=repo)
+        confirmed_data = json.loads(confirmed.stdout)
+        if confirmed_data["status"] != "warn":
+            raise AssertionError(f"confirmed git risk should warn, not block: {confirmed_data}")
+        if confirmed_data["archivePlan"].get("actions") != [{"type": "archive_thread"}]:
+            raise AssertionError(f"confirmed git risk should archive without git actions: {confirmed_data}")
+
+        allowlisted = run([
+            str(cli),
+            "archive",
+            "plan",
+            "--title",
+            "p3: tidy archive flow",
+            "--git-root",
+            str(repo),
+            "--allow-dirty",
+            "scratch.md",
+            "--json",
+        ], cwd=repo)
+        allowlisted_data = json.loads(allowlisted.stdout)
+        if allowlisted_data["status"] != "warn":
+            raise AssertionError(f"allowlisted dirty file should warn only: {allowlisted_data}")
+        if not any(finding["code"] == "dirty_worktree_allowlisted" for finding in allowlisted_data["findings"]):
+            raise AssertionError(f"allowlisted dirty finding missing: {allowlisted_data}")
+        if allowlisted_data["archivePlan"].get("actions") != [{"type": "archive_thread"}]:
+            raise AssertionError(f"allowlisted dirty file should still archive: {allowlisted_data}")
+
+
+def test_gauntlet_cli_small_helper_commands():
+    cli = SCRIPTS / "gauntlet.py"
+    if not cli.exists() or not os.access(cli, os.X_OK):
+        raise AssertionError(f"missing executable Gauntlet CLI: {cli}")
+
+    followup = run([
+        str(cli),
+        "followup",
+        "note",
+        "--topic",
+        "Gauntlet CLI speedups",
+        "--strength",
+        "strong follow-up",
+        "--why",
+        "deterministic helpers reduce chat overhead",
+        "--context",
+        "archive planning now emits actions",
+        "--opener",
+        "Review which Gauntlet flows should become CLI commands.",
+    ])
+    for marker in [
+        "Follow-up captured:",
+        "- Topic: Gauntlet CLI speedups",
+        "- Strength: strong follow-up",
+        "- Why it matters: deterministic helpers reduce chat overhead",
+        "- Context already known: archive planning now emits actions",
+        "- Suggested opener: Review which Gauntlet flows should become CLI commands.",
+    ]:
+        assert_contains(followup.stdout, marker, "follow-up note")
+
+    diagram = run([str(cli), "diagram", "find", "--query", "workflow-etiquette", "--json"])
+    diagram_data = json.loads(diagram.stdout)
+    if not diagram_data.get("matches"):
+        raise AssertionError(f"diagram find should locate saved workflow etiquette diagram: {diagram_data}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        agent_home = Path(tmp) / "agent-home"
+        run_install(agent_home, target="claude")
+        verify = run([
+            str(cli),
+            "install",
+            "verify",
+            "--target",
+            "claude",
+            "--agent-home",
+            str(agent_home),
+            "--json",
+        ])
+        verify_data = json.loads(verify.stdout)
+        if verify_data["status"] != "pass":
+            raise AssertionError(f"install verify should pass for Claude install: {verify_data}")
+
+
+def test_thread_changelog_captures_pr_history_and_followups():
+    changelog = read(ROOT / "docs" / "gauntlet-runs" / "2026-07-04-thread-changelog.md")
+    for marker in [
+        "#5",
+        "#6",
+        "scripts/gauntlet.py",
+        "docs/workflow-etiquette.md",
+        "docs/gauntlet-runs/2026-07-04-claude-install-target.md",
+        "docs/gauntlet-runs/2026-07-04-archive-execution-cli.md",
+        "Follow-up captured:",
+        "GitHub discipline and strategy",
+        "House voice workflow",
+        "Remaining Gauntlet CLI speedups",
+    ]:
+        assert_contains(changelog, marker, "thread changelog")
+
+
 def test_workflow_etiquette_is_in_global_workflow():
     agents = read(AGENTS_MD)
     etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
@@ -1056,6 +1292,8 @@ def test_workflow_etiquette_is_in_global_workflow():
         "Decision Gate",
         "Archival Etiquette",
         "scripts/check-workflow-etiquette.py",
+        "scripts/gauntlet.py",
+        "confirm-git-risk",
         "set_thread_title",
         "set_thread_archived",
     ]:
@@ -1118,6 +1356,9 @@ def assert_installed_gauntlet_layout(agent_home):
     installed_check = agent_home / "gauntlet" / "scripts" / "check-gauntlet-workflow.py"
     if not installed_check.exists():
         raise AssertionError("installed workflow check is missing")
+    installed_cli = agent_home / "gauntlet" / "scripts" / "gauntlet.py"
+    if not installed_cli.exists() or not os.access(installed_cli, os.X_OK):
+        raise AssertionError("installed Gauntlet CLI is missing or not executable")
     installed_agents = read(agent_home / "gauntlet" / "AGENTS.md")
     assert_contains(
         installed_agents,
@@ -1181,6 +1422,7 @@ def test_install_docs_explain_codex_and_claude_targets():
         "GAUNTLET_INSTALL_TARGET=claude",
         "Claude Code",
         "CLAUDE.md",
+        "scripts/gauntlet.py",
         "managed import block",
         "does not overwrite unrelated existing Claude instructions",
     ]:
@@ -1341,6 +1583,10 @@ def main():
         test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions,
         test_workflow_etiquette_checker_pauses_archive_on_followups_and_git_state,
         test_workflow_etiquette_checker_builds_archive_action_plan,
+        test_gauntlet_cli_archive_plans_and_executes_github_merge,
+        test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk,
+        test_gauntlet_cli_small_helper_commands,
+        test_thread_changelog_captures_pr_history_and_followups,
         test_workflow_etiquette_is_in_global_workflow,
         test_promotion_scanner_is_release_wrapup_not_patch_gate,
         test_skill_evals_compare_all_arms,

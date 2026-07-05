@@ -98,11 +98,12 @@ Decision Gate: none | before blocked archive | before unsafe side effect | befor
 When the user asks to archive a Codex thread:
 
 1. If the thread title already starts with `/^p[0-4](-auto)?:/`, skip naming.
-2. Otherwise suggest a `p#:` or `p#-auto:` four-word-goal title and pass it to `scripts/check-workflow-etiquette.py --suggested-title ...`.
-3. Run `scripts/check-workflow-etiquette.py --archive --title "$THREAD_TITLE" --git-root "$PROJECT_ROOT" --json`, adding `--content` when a follow-up/closeout artifact is available.
-4. If the helper returns pass or warn, execute its `archivePlan.actions` in order: run `git push` for `git_push`, call `set_thread_title` for `set_thread_title`, then call `set_thread_archived` for `archive_thread`.
-5. If the helper returns review or fail, pause only for a major unresolved decision, safety failure, or new material assumption. `archive anyway` is acceptable for unresolved strong follow-ups.
-6. Do not pause merely because rename/archive/push/merge is durable when the user already requested that behavior and deterministic safety checks pass.
+2. Otherwise suggest a `p#:` or `p#-auto:` four-word-goal title and pass it as `--suggested-title`.
+3. Run `scripts/gauntlet.py archive plan --title "$THREAD_TITLE" --git-root "$PROJECT_ROOT" --json`, adding `--content` when a follow-up/closeout artifact is available.
+4. If the plan returns pass or warn, run `scripts/gauntlet.py archive execute ... --json`. Execute any returned app actions in order: call `set_thread_title` for `set_thread_title`, then call `set_thread_archived` for `archive_thread`.
+5. The CLI may push clean branches or merge an open GitHub PR with `--merge` when checks pass, the PR is mergeable, and no review blocker remains. Do not squash or rebase unless the user asks.
+6. If the helper returns review or fail, pause only for a major unresolved decision, safety failure, new material assumption, or git preservation risk. `archive anyway` is acceptable for unresolved strong follow-ups only. For unmerged, unpushed, or dirty code, ask the user to confirm before continuing with `--confirm-git-risk`.
+7. Do not pause merely because rename/archive/push/merge is durable when the user already requested that behavior and deterministic safety checks pass.
 
 ## Workflow Speedup Helpers
 
