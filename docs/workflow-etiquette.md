@@ -306,15 +306,9 @@ Rules:
 - If the user wants a new chat, create it in the same repo and send the captured context plus an opener that asks the new chat to suggest its own priority and title before continuing.
 - If the user does not want a new chat, leave the follow-up as captured context and archive normally.
 
-Current captured follow-up:
+Current follow-up retrieval:
 
-```text
-Topic: Gauntlet CLI speedups
-Strength: strong follow-up
-Why it matters: repeated chat narration and packet generation can be slower and more token-heavy than deterministic helper commands.
-Context already known: likely candidates include context extraction, lane packet generation, git/archive state classification, verification summaries, run-log deltas, saved Mermaid lookup/rendering, and follow-up thread seeding.
-Suggested opener: Review where Gauntlet should use CLI execution to reduce chat narration and token usage; suggest priority/title first.
-```
+- Use `docs/gauntlet-runs/2026-07-04-thread-changelog.md` for follow-ups captured from the Workflow Etiquette implementation thread, including GitHub discipline and strategy, House voice workflow, and remaining Gauntlet CLI speedups.
 
 ### Saved Diagram Etiquette
 
@@ -389,6 +383,7 @@ LLM-owned decisions:
 Code-owned checks:
 
 - Current helper: `scripts/check-workflow-etiquette.py`.
+- Current CLI: `scripts/gauntlet.py`.
 - JSON output includes `effectiveExecutionMode` and `decisionGate`.
 - Title parser: accept `p#:` and `p#-auto:`, warn on legacy `p# -`, fail malformed titles.
 - Kickoff completeness checker: warn when Mode, Depth, Verification Scope, Execution Mode, or Suggested thread label is missing before substantial work.
@@ -396,19 +391,21 @@ Code-owned checks:
 - Archive follow-up checker: pause archive when an unresolved `strong follow-up` remains.
 - Archive action planner: emit `set_thread_title`, `git_push`, and `archive_thread` actions when checks pass or only warnings remain.
 - Local git/archive state classifier: pause archive on dirty worktrees or branches behind upstream; emit `git_push` for clean branches that are only ahead of upstream.
+- Archive execution CLI: `gauntlet.py archive plan|execute` layers GitHub PR state onto the etiquette check, merges open PRs with merge commits when checks pass, leaves thread app actions for Codex tools, and requires explicit `--confirm-git-risk` before archiving over dirty, unpushed, or unmerged code.
+- Install verification CLI: `gauntlet.py install verify` checks Codex and Claude Code installed layouts.
 - Implementation Memory linter: required headings, Scan Index presence, source-of-truth files, edge cases/invariants, verification, non-goals, stale-context and redaction notes.
 - Review packet integration: include the Implementation Memory path and Scan Index excerpt, not the whole body.
 - Token-shape checks: flag Foresight/Debrief/Planning receipts that exceed their compact default format.
-- Follow-up thread seeding from captured context.
-- Saved Mermaid lookup/rendering by feature, thread title, tags, or artifact id.
+- Follow-up note formatting: `gauntlet.py followup note`.
+- Saved Mermaid lookup: `gauntlet.py diagram find`.
 
 Not yet automated by the local helper:
 
-- GitHub PR merge-state checks, CI checks, direct-push policy, and multi-repo attribution.
 - Follow-up thread creation.
 - Token-shape enforcement.
 - Implementation Memory linting and review-pack integration.
-- Saved Mermaid rendering or lookup.
+- Saved Mermaid rendering.
+- Multi-repo attribution.
 
 Mastra or another durable workflow runtime may be useful later for stateful archive orchestration, cross-thread triggers, scheduled follow-ups, or deterministic multi-step workflows. It is probably overkill for the first version of etiquette because the hardest parts are judgment-heavy and still being calibrated. Start with docs, templates, and small helper checks; promote to a workflow runtime only after repeated runs show that Codex is doing the same mechanical sequence reliably enough to automate.
 

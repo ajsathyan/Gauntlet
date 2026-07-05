@@ -5,6 +5,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET="${GAUNTLET_INSTALL_TARGET:-codex}"
 AGENT_HOME="${AGENT_HOME:-${GAUNTLET_AGENT_HOME:-}}"
 SKIP_GIT_HOOKS="${GAUNTLET_SKIP_GIT_HOOKS:-0}"
+SKILLS_SRC="$ROOT/skills"
+if [ ! -d "$SKILLS_SRC" ] && [ -d "$ROOT/../skills" ]; then
+  SKILLS_SRC="$ROOT/../skills"
+fi
 
 usage() {
   cat <<'USAGE'
@@ -155,7 +159,7 @@ mkdir -p "$AGENT_HOME/skills" "$AGENT_HOME/gauntlet"
 cp "$ROOT/README.md" "$AGENT_HOME/gauntlet/README.md"
 cp "$ROOT/AGENTS.md" "$AGENT_HOME/gauntlet/AGENTS.md"
 rm -rf "$AGENT_HOME/skills/review-brief-builder"
-cp -R "$ROOT/skills/." "$AGENT_HOME/skills/"
+cp -R "$SKILLS_SRC/." "$AGENT_HOME/skills/"
 rm -rf "$AGENT_HOME/gauntlet/docs"
 cp -R "$ROOT/docs" "$AGENT_HOME/gauntlet/"
 cp -R "$ROOT/scripts" "$AGENT_HOME/gauntlet/"
