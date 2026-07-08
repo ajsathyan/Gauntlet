@@ -51,6 +51,9 @@ Suggested thread label: p#: four word goal
 
 My read: <one sentence>
 Signals: <short evidence list>
+Edge Cases From This Ask:
+- Need user decision: <none or exact question>
+- Safe defaults I will apply: <bounded defaults>
 ```
 
 Priority mapping:
@@ -66,6 +69,10 @@ Blocking rule:
 - `p0`, `p1`, `p2`: ask the user to confirm or change the priority/title before implementation.
 - `p3`, `p4`: non-blocking. End with `I'll use this.`
 - If the user responds affirmatively or continues without objecting to a suggested priority/title, treat the label as accepted and apply it. Do not require a separate explicit "yes".
+- After selecting a kickoff label, call `set_thread_title` immediately; the label is an app action, not just planning text.
+- If the user supplies an alternate priority/title, call `set_thread_title` with the user's version and continue from that label.
+- Before implementation, include `Edge Cases From This Ask` for p0-p2 work and p3 work with side effects, state changes, user-facing behavior, or a repeated prior miss.
+- Split edge cases into `Need user decision` and `Safe defaults I will apply`; ask only for edge cases that change product behavior, data/money/privacy/security risk, or acceptance criteria.
 
 Execution Mode rule:
 
@@ -91,7 +98,9 @@ Default shape:
 
 ```text
 Foresight:
-- Edge Cases: <2-4 cases that change implementation or verification>
+- Edge Cases From This Ask: <2-4 cases that change implementation or verification>
+- Need user decision: <none or exact question>
+- Safe defaults I will apply: <bounded defaults>
 - Verification Focus: <smallest check that covers them>
 ```
 
@@ -135,6 +144,7 @@ Delegation:
 - Implementation Memory: <path or not needed>
 - Lane Index: <lane ids or read-first sections>
 - Use rule: cite exact sections; do not inline the whole doc
+- Child ledger: [C1][Status] lane - dependency/worktree note
 ```
 
 Trigger rules:
@@ -154,6 +164,48 @@ Implementation Memory contents:
 - Edge cases and invariants to preserve.
 - Verification required, `Cannot verify`, and known deferrals.
 - Token-efficient usage instructions, such as "rg these terms, read these sections, then check Edge Cases and Verification."
+
+Child chat orchestration:
+
+- The main chat is the orchestrator. It owns the user-facing ledger, user questions, merge decisions, and final synthesis.
+- Child chats are bounded execution lanes. They receive a task packet, do the work, return a compact report, and do not ask the user directly.
+- If a child lane needs product clarification, credentials, risky scope expansion, or an unsafe side effect, it reports `Needs decision` to the main chat.
+- Child chat titles keep the normal Gauntlet priority prefix and add lane/status tags: `p#-auto: [C1][In Progress] Backend policy layer`.
+- Use lane ids as stable handles: `[C1]`, `[C2]`, `[C3]`. Reuse the same lane id when resuming or unarchiving a lane.
+- Use only these statuses: `To Do`, `In Progress`, `Blocked`, `In Review`, `Done`, and `Canceled`.
+- Use `Blocked` only for a concrete blocker such as a missing interface, user decision, credential, merge conflict, failed proof, or external state. Work that has not started should stay `To Do` with a dependency note, such as `depends on C1/C2`.
+- Keep a compact main-chat ledger:
+
+```text
+Child lanes:
+[C1][In Progress] Backend policy layer - worktree: ../project-C1-policy; owns policy API/tests
+[C2][Blocked] Dashboard Policy UI - needs C1 interface
+[C3][To Do] Proof regression tests - depends on C1/C2 changed surfaces
+```
+
+Worktree defaults:
+
+- Create a separate git worktree by default for write-heavy child chats: implementation, broad refactors, multi-file edits, uncertain file ownership, or more than a tiny patch.
+- A read-only review, exploration, summarization, or log-analysis child lane does not need a worktree by default.
+- A tiny implementation lane with clearly disjoint files may share the current worktree, but the task packet must name owned and avoided files.
+- The child task packet should name the worktree path, branch, owned files, avoided files, dependencies, proof, and report format.
+- The main chat integrates or merges child work only after proof and ownership checks pass.
+- Archive the child chat after its report is integrated into the main-chat ledger. If the lane is needed later, unarchive it or create a focused follow-up thread with the prior lane id and a fresh packet.
+
+Child task packet shape:
+
+```text
+Lane: [C1] Backend policy layer
+Status: To Do
+Thread title: p1-auto: [C1][To Do] Backend policy layer
+Worktree: ../project-C1-policy
+Owns: backend policy files and backend tests
+Avoids: dashboard UI, unrelated docs, unrelated dirty files
+Depends on: none
+Consumes: Implementation Memory sections <exact names>
+Produces: compact report with changed files, proof, blockers, and next action
+Ask-user policy: do not ask user directly; return Needs decision to the main chat
+```
 
 Boundaries:
 
@@ -382,28 +434,16 @@ LLM-owned decisions:
 
 Code-owned checks:
 
-- Current helper: `scripts/check-workflow-etiquette.py`.
-- Current CLI: `scripts/gauntlet.py`.
-- JSON output includes `effectiveExecutionMode` and `decisionGate`.
-- Title parser: accept `p#:` and `p#-auto:`, warn on legacy `p# -`, fail malformed titles.
-- Kickoff completeness checker: warn when Mode, Depth, Verification Scope, Execution Mode, or Suggested thread label is missing before substantial work.
-- Autonomous assumptions checker: when assumptions are required for closeout, adoption, or archive, fail autonomous runs that lack `Assumptions Made`, `Assumptions made`, `Ambiguity handled`, or `Verification`.
-- Archive follow-up checker: pause archive when an unresolved `strong follow-up` remains.
-- Archive action planner: emit `set_thread_title`, `git_push`, and `archive_thread` actions when checks pass or only warnings remain.
-- Local git/archive state classifier: pause archive on dirty worktrees or branches behind upstream; emit `git_push` for clean branches that are only ahead of upstream.
-- Archive execution CLI: `gauntlet.py archive plan|execute` layers GitHub PR state onto the etiquette check, merges open PRs with merge commits when checks pass, leaves thread app actions for Codex tools, and requires explicit `--confirm-git-risk` before archiving over dirty, unpushed, or unmerged code.
-- Install verification CLI: `gauntlet.py install verify` checks Codex and Claude Code installed layouts.
-- Implementation Memory linter: required headings, Scan Index presence, source-of-truth files, edge cases/invariants, verification, non-goals, stale-context and redaction notes.
-- Review packet integration: include the Implementation Memory path and Scan Index excerpt, not the whole body.
-- Token-shape checks: flag Foresight/Debrief/Planning receipts that exceed their compact default format.
-- Follow-up note formatting: `gauntlet.py followup note`.
-- Saved Mermaid lookup: `gauntlet.py diagram find`.
+- Use `scripts/check-workflow-etiquette.py` for kickoff/archive etiquette validation.
+- Use `scripts/gauntlet.py archive plan|execute` for archive checks, safe git actions, and app-action packets.
+- Use `scripts/gauntlet.py install verify` after install/global workflow changes.
+- Use the command table in `docs/workflow-speedups.md` for diff/test/review packets, Implementation Memory linting, PR/changelog drafts, follow-up notes, and follow-up thread packets.
+- Use `scripts/gauntlet.py diagram find` for saved Mermaid lookup.
 
 Not yet automated by the local helper:
 
-- Follow-up thread creation.
 - Token-shape enforcement.
-- Implementation Memory linting and review-pack integration.
+- Direct follow-up thread creation from the shell.
 - Saved Mermaid rendering.
 - Multi-repo attribution.
 
@@ -505,6 +545,6 @@ Do not infer:
 - Whether autonomous work with a Decision Gate should always use `p#-auto:` or whether future evidence earns a separate title shorthand.
 - Whether Archival Etiquette should auto-merge only GitHub PRs or also direct-push branches when the branch is clearly safe.
 - Whether `Delegation Etiquette` and `Implementation Memory` are the final names for indexed implementation context docs.
-- Whether Implementation Memory promotion should add only a template first or also a `review-pack.py --implementation-memory` helper.
+- Whether Implementation Memory promotion should add a template beyond the linter.
 - Whether Mastra or another workflow runtime should be revisited after helper checks prove the mechanical archive/context flows are stable.
 - Whether future evidence should become a pending `GAP-###` or stay inside this reference until the rule earns promotion.
