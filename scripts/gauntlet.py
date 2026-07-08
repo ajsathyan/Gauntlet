@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -14,6 +15,24 @@ EXIT_CODES = {"pass": 0, "warn": 0, "review": 2, "fail": 1}
 APP_ACTIONS = {"set_thread_title", "archive_thread", "create_thread"}
 PASSING_CHECK_CONCLUSIONS = {"SUCCESS", "SKIPPED", "NEUTRAL"}
 PASSING_STATUS_STATES = {"SUCCESS", "SKIPPED", "NEUTRAL"}
+TITLE_PATTERN = re.compile(r"^p[0-4](?:-auto)?: .+")
+SECTION_REQUIRED = [
+    ("goal", ["goal"]),
+    ("scope", ["scope"]),
+    ("non_goals", ["non-goals", "non goals", "non-goal", "non goal"]),
+    ("scan_index", ["scan index"]),
+    ("source_of_truth_files", ["source-of-truth files", "source of truth files", "source files", "read first"]),
+    ("edge_cases_and_invariants", ["edge cases and invariants", "edge cases", "invariants"]),
+    ("verification", ["verification", "proof"]),
+    ("follow_ups", ["follow-ups", "follow ups", "followup", "followups"]),
+    ("stale_context_warning", ["stale context warning", "stale-context warning", "stale context"]),
+    ("redaction_notes", ["redaction notes", "redaction", "secrets"]),
+]
+SECRET_PATTERNS = [
+    re.compile(r"(?i)\b[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*['\"]?[^\s'\"`]+"),
+    re.compile(r"(?i)\b(sk|pk|rk)-(live|test)-[A-Za-z0-9_-]{8,}"),
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+]
 
 
 def run_cmd(args, cwd=None, env=None, check=False):
@@ -42,6 +61,109 @@ def gh(args, cwd):
     return run_cmd([gh_binary(), *args], cwd=cwd, env=os.environ.copy())
 
 
+def read_text(path):
+    return Path(path).read_text(encoding="utf-8", errors="ignore")
+
+
+def redact_secrets(text):
+    redacted = text or ""
+    for pattern in SECRET_PATTERNS:
+        redacted = pattern.sub("[REDACTED_SECRET]", redacted)
+    return redacted
+
+
+def has_secret(text):
+    return any(pattern.search(text or "") for pattern in SECRET_PATTERNS)
+
+
+def display_path(root, path):
+    path = Path(path)
+    try:
+        return str(path.resolve().relative_to(root.resolve()))
+    except ValueError:
+        return str(path)
+
+
+def heading_key(line):
+    stripped = line.strip()
+    if not stripped.startswith("#"):
+        return None
+    hashes, _, title = stripped.partition(" ")
+    if not title or not set(hashes) <= {"#"}:
+        return None
+    key = re.sub(r"[^a-z0-9]+", " ", title.strip().rstrip("#").lower()).strip()
+    return len(hashes), key
+
+
+def markdown_sections(text):
+    sections = {}
+    current = None
+    for line in text.splitlines():
+        parsed = heading_key(line)
+        if parsed:
+            _, current = parsed
+            sections.setdefault(current, [])
+            continue
+        if current is not None:
+            sections[current].append(line)
+    return {key: "\n".join(lines).strip() for key, lines in sections.items()}
+
+
+def find_section(sections, aliases):
+    normalized = {re.sub(r"[^a-z0-9]+", " ", alias.lower()).strip() for alias in aliases}
+    for key, value in sections.items():
+        if key in normalized:
+            return value
+    return None
+
+
+def first_nonempty_line(text, fallback="None supplied."):
+    for line in (text or "").splitlines():
+        clean = line.strip().lstrip("-").strip()
+        if clean:
+            return clean
+    return fallback
+
+
+def section_bullets(text):
+    items = []
+    for line in (text or "").splitlines():
+        clean = line.strip()
+        if clean.startswith("- "):
+            items.append(clean[2:].strip())
+    if items:
+        return items
+    return [first_nonempty_line(text)] if (text or "").strip() else []
+
+
+def parse_followups(text):
+    followups = []
+    lines = (text or "").splitlines()
+    index = 0
+    while index < len(lines):
+        if lines[index].strip().lower() != "follow-up captured:":
+            index += 1
+            continue
+        block = {}
+        index += 1
+        while index < len(lines):
+            line = lines[index].strip()
+            if not line:
+                break
+            if line.lower() == "follow-up captured:":
+                index -= 1
+                break
+            match = re.match(r"-\s*([^:]+):\s*(.*)", line)
+            if match:
+                key = re.sub(r"[^a-z0-9]+", "_", match.group(1).lower()).strip("_")
+                block[key] = match.group(2).strip()
+            index += 1
+        if block:
+            followups.append(block)
+        index += 1
+    return followups
+
+
 def add_finding(payload, code, severity, message):
     payload.setdefault("findings", []).append({
         "code": code,
@@ -57,6 +179,143 @@ def status_for(payload):
         if STATUS_ORDER[severity] > STATUS_ORDER[status]:
             status = severity
     return status
+
+
+def memory_lint_payload(path):
+    root = Path.cwd().resolve()
+    path = Path(path)
+    payload = {
+        "schemaVersion": "1.0",
+        "status": "pass",
+        "path": str(path),
+        "findings": [],
+        "sections": {},
+    }
+    if not path.exists():
+        add_finding(payload, "missing_memory_file", "fail", f"Implementation Memory file does not exist: {path}")
+        payload["status"] = status_for(payload)
+        return payload
+
+    text = read_text(path)
+    sections = markdown_sections(text)
+    found = {}
+    for code, aliases in SECTION_REQUIRED:
+        value = find_section(sections, aliases)
+        found[code] = bool(value)
+        if not value:
+            add_finding(
+                payload,
+                "missing_memory_section",
+                "fail",
+                f"Implementation Memory is missing required section: {aliases[0]}.",
+            )
+    if has_secret(text):
+        add_finding(
+            payload,
+            "secret_like_memory_content",
+            "fail",
+            "Implementation Memory contains secret-like content; redact it before using workflow helpers.",
+        )
+    payload["sections"] = found
+    payload["path"] = display_path(root, path)
+    payload["status"] = status_for(payload)
+    return payload
+
+
+def pr_for_changelog(repo):
+    result = gh([
+        "pr",
+        "view",
+        "--json",
+        "number,state,mergedAt,url,title,baseRefName,headRefName,statusCheckRollup",
+    ], cwd=repo)
+    if result.returncode != 0:
+        return None, result.stderr.strip() or result.stdout.strip()
+    return json.loads(result.stdout), None
+
+
+def markdown_list(items, empty="- None."):
+    if not items:
+        return empty
+    return "\n".join(f"- {item}" for item in items)
+
+
+def build_changelog_markdown(source_path, sections, pr, followups, findings):
+    goal = find_section(sections, ["goal"]) or ""
+    scope = find_section(sections, ["scope"]) or ""
+    source_files = section_bullets(find_section(sections, [
+        "source-of-truth files",
+        "source of truth files",
+        "source files",
+    ]) or "")
+    verification = section_bullets(find_section(sections, ["verification", "proof"]) or "")
+    stale = find_section(sections, [
+        "stale context warning",
+        "stale-context warning",
+        "stale context",
+    ]) or "GitHub, branch, and thread state can change after generation."
+
+    if pr:
+        number = pr.get("number")
+        url = pr.get("url") or ""
+        label = f"[#{number}]({url})" if number and url else f"#{number or 'unknown'}"
+        pr_rows = [f"| {label} | {pr.get('state', 'UNKNOWN')} | {redact_secrets(pr.get('title') or 'Untitled PR')} |"]
+    else:
+        pr_rows = ["| Cannot verify | Unknown | No current PR metadata available. |"]
+
+    followup_lines = []
+    for followup in followups:
+        topic = redact_secrets(followup.get("topic", "Untitled follow-up"))
+        strength = redact_secrets(followup.get("strength", "unknown strength"))
+        why = redact_secrets(followup.get("why_it_matters", "No rationale supplied."))
+        opener = redact_secrets(followup.get("suggested_opener", "No opener supplied."))
+        followup_lines.append(f"- {topic} (`{strength}`): {why} Suggested opener: {opener}")
+
+    cannot_verify = [
+        finding["message"]
+        for finding in findings
+        if finding.get("severity") in {"warn", "review", "fail"}
+    ]
+    return "\n".join([
+        "# PR Changelog",
+        "",
+        f"Source: `{source_path}`",
+        "",
+        "## Implementation Summary",
+        "",
+        first_nonempty_line(redact_secrets(goal)),
+        "",
+        "## Scope",
+        "",
+        redact_secrets(scope or "None supplied."),
+        "",
+        "## PRs",
+        "",
+        "| PR | State | Title |",
+        "| --- | --- | --- |",
+        *pr_rows,
+        "",
+        "## Source Files",
+        "",
+        markdown_list([redact_secrets(item) for item in source_files]),
+        "",
+        "## Verification Expected",
+        "",
+        markdown_list([redact_secrets(item) for item in verification]),
+        "",
+        "## Follow-Ups",
+        "",
+        markdown_list(followup_lines),
+        "",
+        "## Stale Context Warning",
+        "",
+        redact_secrets(stale.strip()),
+        "",
+        "## Cannot Verify",
+        "",
+        markdown_list(cannot_verify),
+        "",
+    ])
 
 
 def dirty_paths(repo):
@@ -417,6 +676,154 @@ def command_followup_note(args):
     return 0
 
 
+def command_memory_lint(args):
+    payload = memory_lint_payload(args.path)
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"Implementation Memory lint: {payload['status']}")
+        for finding in payload.get("findings", []):
+            print(f"- [{finding['severity']}] {finding['code']}: {finding['message']}")
+    return EXIT_CODES[payload["status"]]
+
+
+def command_changelog_pr(args):
+    payload = {
+        "schemaVersion": "1.0",
+        "status": "pass",
+        "source": str(args.implementation_memory),
+        "findings": [],
+        "pr": None,
+        "markdown": "",
+    }
+    memory_path = Path(args.implementation_memory)
+    if not memory_path.exists():
+        add_finding(payload, "missing_memory_file", "fail", f"Implementation Memory file does not exist: {memory_path}")
+        payload["status"] = status_for(payload)
+        payload["markdown"] = build_changelog_markdown(str(memory_path), {}, None, [], payload["findings"])
+        if args.json:
+            print(json.dumps(payload, indent=2))
+        else:
+            print(payload["markdown"])
+        return EXIT_CODES[payload["status"]]
+
+    text = read_text(memory_path)
+    sections = markdown_sections(text)
+    followups = parse_followups(text)
+    lint = memory_lint_payload(memory_path)
+    for finding in lint.get("findings", []):
+        add_finding(payload, finding["code"], finding["severity"], finding["message"])
+
+    repo = Path(args.git_root).resolve()
+    inside = git(["rev-parse", "--is-inside-work-tree"], repo)
+    pr = None
+    if inside.returncode != 0:
+        add_finding(payload, "git_root_not_repo", "warn", f"Cannot verify PR metadata because {repo} is not a git repo.")
+    else:
+        pr, error = pr_for_changelog(repo)
+        if pr:
+            payload["pr"] = {
+                "number": pr.get("number"),
+                "state": pr.get("state"),
+                "url": pr.get("url"),
+                "title": pr.get("title"),
+                "baseRefName": pr.get("baseRefName"),
+                "headRefName": pr.get("headRefName"),
+                "mergedAt": pr.get("mergedAt"),
+            }
+        else:
+            add_finding(payload, "cannot_verify_pr_metadata", "warn", f"Could not verify current PR metadata: {error or 'unknown gh error'}.")
+
+    payload["status"] = status_for(payload)
+    payload["markdown"] = build_changelog_markdown(display_path(Path.cwd().resolve(), memory_path), sections, pr, followups, payload["findings"])
+    if args.output:
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(payload["markdown"], encoding="utf-8")
+        payload["output"] = str(output)
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(payload["markdown"])
+    return EXIT_CODES[payload["status"]]
+
+
+def followup_from_args(args):
+    if args.content:
+        if not args.content.exists():
+            return {}, [{"code": "missing_followup_file", "severity": "fail", "message": f"Follow-up content file does not exist: {args.content}."}]
+        followups = parse_followups(read_text(args.content))
+        if followups:
+            return followups[0], []
+        return {}, [{"code": "missing_followup_block", "severity": "fail", "message": f"No follow-up block found in {args.content}."}]
+    required = {
+        "topic": args.topic,
+        "strength": args.strength,
+        "why_it_matters": args.why,
+        "context_already_known": args.context,
+        "suggested_opener": args.opener,
+    }
+    missing = [key for key, value in required.items() if not value]
+    if missing:
+        return {}, [{"code": "missing_followup_fields", "severity": "fail", "message": "Missing follow-up fields: " + ", ".join(missing) + "."}]
+    return required, []
+
+
+def command_followup_thread(args):
+    payload = {
+        "schemaVersion": "1.0",
+        "status": "pass",
+        "findings": [],
+        "actions": [],
+    }
+    if not TITLE_PATTERN.match(args.title):
+        add_finding(payload, "malformed_thread_title", "fail", "Thread title must start with p0-p4 or p#-auto, followed by a colon.")
+
+    followup, findings = followup_from_args(args)
+    for finding in findings:
+        add_finding(payload, finding["code"], finding["severity"], finding["message"])
+    if followup and has_secret("\n".join(followup.values())):
+        add_finding(
+            payload,
+            "secret_like_followup_content",
+            "fail",
+            "Follow-up content contains secret-like text; redact it before creating a thread packet.",
+        )
+
+    if payload["findings"]:
+        payload["status"] = status_for(payload)
+    else:
+        source_line = f"Source thread: {args.source_thread}" if args.source_thread else "Source thread: not supplied"
+        message = "\n".join([
+            followup.get("suggested_opener", ""),
+            "",
+            "Follow-up captured:",
+            f"- Topic: {followup.get('topic', '')}",
+            f"- Strength: {followup.get('strength', '')}",
+            f"- Why it matters: {followup.get('why_it_matters', '')}",
+            f"- Context already known: {followup.get('context_already_known', '')}",
+            f"- Suggested opener: {followup.get('suggested_opener', '')}",
+            f"- {source_line}",
+        ]).strip()
+        payload["actions"].append({
+            "type": "create_thread",
+            "title": args.title,
+            "cwd": str(Path(args.cwd).resolve()) if args.cwd else str(Path.cwd().resolve()),
+            "message": message,
+        })
+        payload["status"] = status_for(payload)
+
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"Follow-up thread packet: {payload['status']}")
+        for action in payload.get("actions", []):
+            print(f"- action: {action['type']} title={action['title']}")
+        for finding in payload.get("findings", []):
+            print(f"- [{finding['severity']}] {finding['code']}: {finding['message']}")
+    return EXIT_CODES[payload["status"]]
+
+
 def command_diagram_find(args):
     index = ROOT / "docs" / "gauntlet-diagrams" / "index.md"
     matches = []
@@ -524,6 +931,34 @@ def build_parser():
     followup_note.add_argument("--context", required=True)
     followup_note.add_argument("--opener", required=True)
     followup_note.set_defaults(func=command_followup_note)
+    followup_thread = followup_subcommands.add_parser("thread")
+    followup_thread.add_argument("--content", type=Path, default=None)
+    followup_thread.add_argument("--topic", default=None)
+    followup_thread.add_argument("--strength", choices=["strong follow-up", "follow-up for later"], default=None)
+    followup_thread.add_argument("--why", default=None)
+    followup_thread.add_argument("--context", default=None)
+    followup_thread.add_argument("--opener", default=None)
+    followup_thread.add_argument("--title", required=True)
+    followup_thread.add_argument("--cwd", type=Path, default=None)
+    followup_thread.add_argument("--source-thread", default=None)
+    followup_thread.add_argument("--json", action="store_true")
+    followup_thread.set_defaults(func=command_followup_thread)
+
+    memory = subcommands.add_parser("memory", help="Implementation Memory helpers.")
+    memory_subcommands = memory.add_subparsers(dest="memory_command", required=True)
+    memory_lint = memory_subcommands.add_parser("lint")
+    memory_lint.add_argument("--path", type=Path, required=True)
+    memory_lint.add_argument("--json", action="store_true")
+    memory_lint.set_defaults(func=command_memory_lint)
+
+    changelog = subcommands.add_parser("changelog", help="Changelog generation helpers.")
+    changelog_subcommands = changelog.add_subparsers(dest="changelog_command", required=True)
+    changelog_pr = changelog_subcommands.add_parser("pr")
+    changelog_pr.add_argument("--implementation-memory", type=Path, required=True)
+    changelog_pr.add_argument("--git-root", type=Path, default=Path.cwd())
+    changelog_pr.add_argument("--output", type=Path, default=None)
+    changelog_pr.add_argument("--json", action="store_true")
+    changelog_pr.set_defaults(func=command_changelog_pr)
 
     diagram = subcommands.add_parser("diagram", help="Saved diagram helpers.")
     diagram_subcommands = diagram.add_subparsers(dest="diagram_command", required=True)

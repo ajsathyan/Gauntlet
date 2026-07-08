@@ -612,16 +612,51 @@ def test_diff_intel_test_plan_and_review_pack_are_bounded():
         if not any(item["tier"] == "broader" and item["command"] == "npm test" for item in plan["commands"]):
             raise AssertionError("durable/security diffs should recommend broader npm test with rationale")
 
-        run([str(review_pack), str(project), "--diff-intel", str(intel_path)])
+        implementation_memory = project / "docs" / "implementation-memory.md"
+        implementation_memory.write_text(
+            "\n".join([
+                "# Implementation Memory",
+                "",
+                "## Goal",
+                "",
+                "Build a safer session path.",
+                "",
+                "## Scan Index",
+                "",
+                "- Search: `rg session-token src/auth`",
+                "- Read first: `src/auth/session.ts`",
+                "",
+                "## Private Raw Notes",
+                "",
+                "This section should not be copied into the review pack.",
+                "",
+            ]),
+            encoding="utf-8",
+        )
+
+        run([
+            str(review_pack),
+            str(project),
+            "--diff-intel",
+            str(intel_path),
+            "--implementation-memory",
+            "docs/implementation-memory.md",
+        ])
         packet = (project / ".gauntlet" / "review-pack.md").read_text()
         for marker in [
             "Changed Files",
             "Risk Triggers",
             "src/auth/session.ts",
+            "Test Plan Summary",
+            "npm run typecheck",
+            "Implementation Memory",
+            "docs/implementation-memory.md",
+            "rg session-token src/auth",
             "Expected Return Format",
             "Cannot verify",
         ]:
             assert_contains(packet, marker, "review packet")
+        assert_not_contains(packet, "This section should not be copied", "review packet implementation memory excerpt")
         assert_not_contains(packet, "\n- - ", "review packet list formatting")
         assert_contains(packet, "[REDACTED_SECRET]", "review packet redaction")
         assert_not_contains(packet, "sk-live-secret-value", "review packet secret redaction")
@@ -730,6 +765,11 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         "diff-intel.py",
         "test-plan.py",
         "review-pack.py",
+        "gauntlet.py memory lint",
+        "gauntlet.py changelog pr",
+        "gauntlet.py followup thread",
+        "Implementation Memory remains the source",
+        "create_thread",
         "advisory",
         "confidence",
         "Cannot verify",
@@ -739,6 +779,43 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         "dirty worktree",
     ]:
         assert_contains(combined, marker, "workflow speedup guidance")
+
+    for marker in [
+        "p#-auto: [C1][In Progress]",
+        "main chat is the orchestrator",
+        "do not ask the user directly",
+        "Needs decision",
+        "`To Do`, `In Progress`, `Blocked`, `In Review`, `Done`, and `Canceled`",
+        "Use `Blocked` only for a concrete blocker",
+        "Create a separate git worktree by default for write-heavy child chats",
+        "Archive the child chat after its report is integrated",
+        "Child task packet shape",
+    ]:
+        assert_contains(read(ROOT / "docs" / "workflow-etiquette.md"), marker, "delegation etiquette child lane guidance")
+
+    for marker in [
+        "separate git worktrees by default",
+        "p1-auto: [C1][In Progress]",
+        "main chat owns the child-lane ledger",
+        "archive after their reports are integrated",
+    ]:
+        assert_contains(speedups, marker, "workflow speedup child lane guidance")
+
+    for marker in [
+        "scripts/gauntlet.py memory lint",
+        "scripts/gauntlet.py changelog pr",
+        "scripts/gauntlet.py followup thread",
+        "Edge Cases From This Ask",
+        "Need user decision",
+        "Safe defaults I will apply",
+        "before implementation",
+        "emit app-action packets",
+        "p#-auto: [C1][In Progress]",
+        "main chat as orchestrator",
+        "create a separate git worktree by default",
+        "Child lane id, title, status, dependency note, and worktree path",
+    ]:
+        assert_contains(agents, marker, "active AGENTS workflow speedup routing")
 
 
 def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions():
@@ -1264,6 +1341,338 @@ def test_gauntlet_cli_small_helper_commands():
             raise AssertionError(f"install verify should pass for Claude install: {verify_data}")
 
 
+def test_gauntlet_cli_changelog_memory_and_followup_helpers():
+    cli = SCRIPTS / "gauntlet.py"
+    if not cli.exists() or not os.access(cli, os.X_OK):
+        raise AssertionError(f"missing executable Gauntlet CLI: {cli}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / "README.md").write_text("# Repo\n")
+        commit_all(repo, "baseline")
+        git(["checkout", "-b", "codex/changelog"], cwd=repo)
+        (repo / "feature.txt").write_text("helper\n")
+        commit_all(repo, "feature")
+
+        memory = repo / "docs" / "implementation-memory.md"
+        memory.parent.mkdir()
+        memory.write_text(
+            "\n".join([
+                "# Implementation Memory",
+                "",
+                "## Goal",
+                "",
+                "Build changelog and follow-up helpers for Gauntlet.",
+                "",
+                "## Scope",
+                "",
+                "- Add non-mutating CLI helpers.",
+                "",
+                "## Non-goals",
+                "",
+                "- Do not create threads from the shell.",
+                "",
+                "## Scan Index",
+                "",
+                "- `scripts/gauntlet.py`",
+                "- `docs/workflow-speedups.md`",
+                "",
+                "## Source-of-truth files",
+                "",
+                "- `scripts/gauntlet.py`",
+                "- `scripts/check-gauntlet-workflow.py`",
+                "",
+                "## Edge cases and invariants",
+                "",
+                "- GitHub metadata verifies PR facts but does not replace the implementation summary.",
+                "- Missing external state becomes Cannot verify.",
+                "",
+                "## Verification",
+                "",
+                "- `python3 scripts/check-gauntlet-workflow.py`",
+                "",
+                "## Follow-ups",
+                "",
+                "Follow-up captured:",
+                "- Topic: Follow-up thread shortcut",
+                "- Strength: strong follow-up",
+                "- Why it matters: handoff context gets lost.",
+                "- Context already known: follow-up note format exists.",
+                "- Suggested opener: Build a shortcut that emits a create-thread action packet.",
+                "",
+                "## Stale context warning",
+                "",
+                "GitHub PR state can change after generation.",
+                "",
+                "## Redaction notes",
+                "",
+                "No secrets or private operational data included.",
+                "",
+            ]),
+            encoding="utf-8",
+        )
+
+        lint = run([
+            str(cli),
+            "memory",
+            "lint",
+            "--path",
+            str(memory),
+            "--json",
+        ], cwd=repo)
+        lint_data = json.loads(lint.stdout)
+        if lint_data["status"] != "pass":
+            raise AssertionError(f"complete implementation memory should pass lint: {lint_data}")
+
+        bad_memory = repo / "docs" / "bad-memory.md"
+        bad_memory.write_text("# Implementation Memory\n\n## Goal\n\nToo thin.\n", encoding="utf-8")
+        bad_lint = run([
+            str(cli),
+            "memory",
+            "lint",
+            "--path",
+            str(bad_memory),
+            "--json",
+        ], cwd=repo, check=False)
+        if bad_lint.returncode != 1:
+            raise AssertionError(f"incomplete implementation memory should fail lint: {bad_lint.stdout}")
+        bad_lint_data = json.loads(bad_lint.stdout)
+        if not any(finding["code"] == "missing_memory_section" for finding in bad_lint_data["findings"]):
+            raise AssertionError(f"memory lint should report missing sections: {bad_lint_data}")
+        secret_memory = repo / "docs" / "secret-memory.md"
+        secret_memory.write_text(memory.read_text() + "\nAPI_TOKEN=sk-live-secret-value\n", encoding="utf-8")
+        secret_lint = run([
+            str(cli),
+            "memory",
+            "lint",
+            "--path",
+            str(secret_memory),
+            "--json",
+        ], cwd=repo, check=False)
+        if secret_lint.returncode != 1:
+            raise AssertionError(f"secret-like implementation memory should fail lint: {secret_lint.stdout}")
+        secret_data = json.loads(secret_lint.stdout)
+        if not any(finding["code"] == "secret_like_memory_content" for finding in secret_data["findings"]):
+            raise AssertionError(f"secret-like memory finding missing: {secret_data}")
+
+        gh_log = Path(tmp) / "gh.log"
+        fake_gh = Path(tmp) / "gh"
+        fake_gh.write_text(
+            "\n".join([
+                "#!/usr/bin/env bash",
+                "set -euo pipefail",
+                "printf '%s\\n' \"$*\" >> \"$GH_LOG\"",
+                "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then",
+                "  cat <<'JSON'",
+                '{"number":12,"state":"MERGED","isDraft":false,"mergeable":"MERGEABLE","mergedAt":"2026-07-08T12:00:00Z","statusCheckRollup":[{"__typename":"CheckRun","name":"gauntlet","status":"COMPLETED","conclusion":"SUCCESS"}],"url":"https://example.test/pr/12","baseRefName":"main","headRefName":"codex/changelog","reviewDecision":"APPROVED","title":"Build changelog helpers","body":"PR body from GitHub should verify facts, not replace memory."}',
+                "JSON",
+                "  exit 0",
+                "fi",
+                "echo unexpected gh args: \"$*\" >&2",
+                "exit 2",
+                "",
+            ]),
+            encoding="utf-8",
+        )
+        fake_gh.chmod(0o755)
+        old_gh = os.environ.get("GAUNTLET_GH")
+        old_gh_log = os.environ.get("GH_LOG")
+        os.environ["GAUNTLET_GH"] = str(fake_gh)
+        os.environ["GH_LOG"] = str(gh_log)
+        try:
+            changelog = run([
+                str(cli),
+                "changelog",
+                "pr",
+                "--implementation-memory",
+                str(memory),
+                "--git-root",
+                str(repo),
+                "--json",
+            ], cwd=repo)
+        finally:
+            if old_gh is None:
+                os.environ.pop("GAUNTLET_GH", None)
+            else:
+                os.environ["GAUNTLET_GH"] = old_gh
+            if old_gh_log is None:
+                os.environ.pop("GH_LOG", None)
+            else:
+                os.environ["GH_LOG"] = old_gh_log
+        changelog_data = json.loads(changelog.stdout)
+        if changelog_data["status"] != "pass":
+            raise AssertionError(f"verified changelog should pass: {changelog_data}")
+        for marker in [
+            "Build changelog and follow-up helpers for Gauntlet.",
+            "| [#12](https://example.test/pr/12) | MERGED | Build changelog helpers |",
+            "Follow-up thread shortcut",
+            "GitHub PR state can change after generation.",
+        ]:
+            assert_contains(changelog_data["markdown"], marker, "PR changelog markdown")
+        assert_not_contains(changelog_data["markdown"], "PR body from GitHub should verify facts", "PR changelog source precedence")
+
+        failing_gh = Path(tmp) / "failing-gh"
+        failing_gh.write_text(
+            "\n".join([
+                "#!/usr/bin/env bash",
+                "echo gh unavailable >&2",
+                "exit 2",
+                "",
+            ]),
+            encoding="utf-8",
+        )
+        failing_gh.chmod(0o755)
+        old_gh = os.environ.get("GAUNTLET_GH")
+        os.environ["GAUNTLET_GH"] = str(failing_gh)
+        try:
+            unverified = run([
+                str(cli),
+                "changelog",
+                "pr",
+                "--implementation-memory",
+                str(memory),
+                "--git-root",
+                str(repo),
+                "--json",
+            ], cwd=repo)
+        finally:
+            if old_gh is None:
+                os.environ.pop("GAUNTLET_GH", None)
+            else:
+                os.environ["GAUNTLET_GH"] = old_gh
+        unverified_data = json.loads(unverified.stdout)
+        if unverified_data["status"] != "warn":
+            raise AssertionError(f"missing gh should warn while producing markdown: {unverified_data}")
+        if not any(finding["code"] == "cannot_verify_pr_metadata" for finding in unverified_data["findings"]):
+            raise AssertionError(f"missing gh should produce Cannot verify finding: {unverified_data}")
+        assert_contains(unverified_data["markdown"], "Cannot verify", "unverified PR changelog")
+
+        followup_content = repo / "followup.md"
+        followup_content.write_text(
+            "\n".join([
+                "Follow-up captured:",
+                "- Topic: Follow-up thread shortcut",
+                "- Strength: strong follow-up",
+                "- Why it matters: handoff context gets lost.",
+                "- Context already known: follow-up note format exists.",
+                "- Suggested opener: Build a shortcut that emits a create-thread action packet.",
+                "",
+            ]),
+            encoding="utf-8",
+        )
+        thread = run([
+            str(cli),
+            "followup",
+            "thread",
+            "--content",
+            str(followup_content),
+            "--title",
+            "p2-auto: build followup shortcut",
+            "--cwd",
+            str(repo),
+            "--source-thread",
+            "thread-123",
+            "--json",
+        ], cwd=repo)
+        thread_data = json.loads(thread.stdout)
+        if thread_data["status"] != "pass":
+            raise AssertionError(f"follow-up thread packet should pass: {thread_data}")
+        actions = thread_data.get("actions", [])
+        if len(actions) != 1 or actions[0].get("type") != "create_thread":
+            raise AssertionError(f"follow-up helper should emit one create_thread action: {thread_data}")
+        if actions[0].get("title") != "p2-auto: build followup shortcut":
+            raise AssertionError(f"follow-up helper should preserve selected title: {thread_data}")
+        assert_contains(actions[0].get("message", ""), "Build a shortcut", "follow-up thread message")
+        assert_contains(actions[0].get("message", ""), "Source thread: thread-123", "follow-up thread source")
+
+        malformed_thread = run([
+            str(cli),
+            "followup",
+            "thread",
+            "--content",
+            str(followup_content),
+            "--title",
+            "build followup shortcut",
+            "--json",
+        ], cwd=repo, check=False)
+        if malformed_thread.returncode != 1:
+            raise AssertionError(f"malformed follow-up thread title should fail: {malformed_thread.stdout}")
+        malformed_data = json.loads(malformed_thread.stdout)
+        if malformed_data.get("actions"):
+            raise AssertionError(f"malformed follow-up thread title should not emit actions: {malformed_data}")
+        if not any(finding["code"] == "malformed_thread_title" for finding in malformed_data["findings"]):
+            raise AssertionError(f"malformed follow-up title finding missing: {malformed_data}")
+
+        no_followup = repo / "no-followup.md"
+        no_followup.write_text("No follow-up block here.\n", encoding="utf-8")
+        missing_followup = run([
+            str(cli),
+            "followup",
+            "thread",
+            "--content",
+            str(no_followup),
+            "--title",
+            "p2-auto: build followup shortcut",
+            "--json",
+        ], cwd=repo, check=False)
+        if missing_followup.returncode != 1:
+            raise AssertionError(f"missing follow-up block should fail: {missing_followup.stdout}")
+        missing_followup_data = json.loads(missing_followup.stdout)
+        if missing_followup_data.get("actions"):
+            raise AssertionError(f"missing follow-up block should not emit actions: {missing_followup_data}")
+        if not any(finding["code"] == "missing_followup_block" for finding in missing_followup_data["findings"]):
+            raise AssertionError(f"missing follow-up block finding missing: {missing_followup_data}")
+
+        missing_followup_file = run([
+            str(cli),
+            "followup",
+            "thread",
+            "--content",
+            str(repo / "missing-followup.md"),
+            "--title",
+            "p2-auto: build followup shortcut",
+            "--json",
+        ], cwd=repo, check=False)
+        if missing_followup_file.returncode != 1:
+            raise AssertionError(f"missing follow-up file should fail: {missing_followup_file.stdout}")
+        missing_file_data = json.loads(missing_followup_file.stdout)
+        if not any(finding["code"] == "missing_followup_file" for finding in missing_file_data["findings"]):
+            raise AssertionError(f"missing follow-up file finding missing: {missing_file_data}")
+
+        secret_followup = repo / "secret-followup.md"
+        secret_followup.write_text(
+            "\n".join([
+                "Follow-up captured:",
+                "- Topic: Secret follow-up",
+                "- Strength: strong follow-up",
+                "- Why it matters: API_TOKEN=sk-live-secret-value",
+                "- Context already known: secret should not be copied.",
+                "- Suggested opener: Do not emit this.",
+                "",
+            ]),
+            encoding="utf-8",
+        )
+        secret_followup_result = run([
+            str(cli),
+            "followup",
+            "thread",
+            "--content",
+            str(secret_followup),
+            "--title",
+            "p2-auto: build followup shortcut",
+            "--json",
+        ], cwd=repo, check=False)
+        if secret_followup_result.returncode != 1:
+            raise AssertionError(f"secret-like follow-up should fail: {secret_followup_result.stdout}")
+        secret_followup_data = json.loads(secret_followup_result.stdout)
+        if secret_followup_data.get("actions"):
+            raise AssertionError(f"secret-like follow-up should not emit actions: {secret_followup_data}")
+        if not any(finding["code"] == "secret_like_followup_content" for finding in secret_followup_data["findings"]):
+            raise AssertionError(f"secret-like follow-up finding missing: {secret_followup_data}")
+
+
 def test_thread_changelog_captures_pr_history_and_followups():
     changelog = read(ROOT / "docs" / "gauntlet-runs" / "2026-07-04-thread-changelog.md")
     for marker in [
@@ -1294,6 +1703,8 @@ def test_workflow_etiquette_is_in_global_workflow():
         "scripts/check-workflow-etiquette.py",
         "scripts/gauntlet.py",
         "confirm-git-risk",
+        "After selecting a kickoff label, call `set_thread_title` immediately",
+        "If the user supplies an alternate priority/title, call `set_thread_title` with the user's version",
         "set_thread_title",
         "set_thread_archived",
     ]:
@@ -1586,6 +1997,7 @@ def main():
         test_gauntlet_cli_archive_plans_and_executes_github_merge,
         test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk,
         test_gauntlet_cli_small_helper_commands,
+        test_gauntlet_cli_changelog_memory_and_followup_helpers,
         test_thread_changelog_captures_pr_history_and_followups,
         test_workflow_etiquette_is_in_global_workflow,
         test_promotion_scanner_is_release_wrapup_not_patch_gate,

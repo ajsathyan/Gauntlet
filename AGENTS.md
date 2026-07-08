@@ -94,6 +94,9 @@ Decision Gate: none | before blocked archive | before unsafe side effect | befor
 - Use a `Decision Gate` only for a major unresolved decision, safety failure, or new material assumption. Do not re-ask for behavior the user already requested.
 - For p0, p1, and p2 kickoff labels, ask the user to confirm or change the priority/title before implementation. If the user responds affirmatively or continues without objecting, treat the label as accepted and apply it.
 - For p3 and p4 kickoff labels, do not block on naming; say `I'll use this.`
+- After selecting a kickoff label, call `set_thread_title` immediately; the label is an app action, not just planning text.
+- If the user supplies an alternate priority/title, call `set_thread_title` with the user's version and continue from that label.
+- Before implementation, include `Edge Cases From This Ask` for p0-p2 work and p3 work with side effects, state changes, user-facing behavior, or a repeated prior miss. Split it into `Need user decision` and `Safe defaults I will apply`; ask only for edge cases that change product behavior, data/money/privacy/security risk, or acceptance criteria.
 
 When the user asks to archive a Codex thread:
 
@@ -107,9 +110,14 @@ When the user asks to archive a Codex thread:
 
 ## Workflow Speedup Helpers
 
-Use `scripts/diff-intel.py`, `scripts/test-plan.py`, and `scripts/review-pack.py` when changed-surface discovery, test selection, or reviewer packet construction would otherwise require repeated generic `rg`, `git diff`, and shell setup. These tools are advisory: honor their confidence and `Cannot verify` output, preserve unrelated dirty worktree changes, and confirm stale or missing mappings against local repo conventions.
+Use CLI helpers at the point where the manual loop would otherwise happen:
 
-Do not make these helpers a new gate for every Patch. `quality-check --surface ...` is deferred because named surfaces are usually repo-specific and a single quality runner risks false confidence.
+- Changed-surface, test, or review setup: `scripts/diff-intel.py "$PROJECT_ROOT"`, `scripts/test-plan.py "$PROJECT_ROOT"`, then `scripts/review-pack.py "$PROJECT_ROOT"`.
+- Implementation Memory exists or will drive handoff/changelog work: `scripts/gauntlet.py memory lint --path "$MEMORY_PATH"` and pass it to `scripts/review-pack.py "$PROJECT_ROOT" --implementation-memory "$MEMORY_PATH"`.
+- PR/changelog closeout: `scripts/gauntlet.py changelog pr --implementation-memory "$MEMORY_PATH" --git-root "$PROJECT_ROOT"`.
+- Follow-up capture or thread handoff: `scripts/gauntlet.py followup note ...` or `scripts/gauntlet.py followup thread --content "$FOLLOWUP_FILE" --title "$THREAD_TITLE" --json`.
+
+These helpers are advisory unless the command explicitly performs an accepted action, such as archive execution. Honor confidence and `Cannot verify`, preserve unrelated dirty worktree changes, and remember that thread helpers emit app-action packets; execute those with Codex app tools only after checking the packet.
 
 ## Promotion Scanner
 
@@ -292,11 +300,28 @@ When spawning subagents, explicitly point each subagent at the relevant skill an
 
 Parallelism must beat its context cost. Do not use subagents when each one would need the same large spec, trace, codebase context, screenshot set, or design rationale and the work is not truly independent. Use one agent with a shared context window when repeated handoff packets would cost more than the expected speedup.
 
+For child Codex chats or long-running delegated lanes, keep the main chat as orchestrator. The main chat owns the user-facing ledger, user questions, merge decisions, and final synthesis. A child chat does bounded work from a task packet, returns a compact report, and does not ask the user directly; it reports `Needs decision` to the main chat instead.
+
+Title child chats with the normal priority prefix plus lane/status tags:
+
+```text
+p#-auto: [C1][In Progress] Backend policy layer
+p#-auto: [C2][Blocked] Dashboard Policy UI
+p#-auto: [C3][To Do] Proof regression tests
+```
+
+Use only these child-lane statuses: `To Do`, `In Progress`, `Blocked`, `In Review`, `Done`, and `Canceled`. Use `Blocked` only for a concrete blocker such as a missing interface, user decision, credential, merge conflict, failed proof, or external state. Otherwise keep future work as `To Do` with a dependency note.
+
+For write-heavy child chats, create a separate git worktree by default unless the lane is a tiny clearly disjoint patch. Read-only review, exploration, and log-analysis lanes do not need worktrees by default. Name the worktree in the ledger and packet, preserve unrelated dirty work, and keep file ownership explicit.
+
+Archive a child chat after its report is integrated into the main-chat ledger. If the same lane is needed later, unarchive it or create a focused follow-up thread with the prior lane id and a fresh packet.
+
 When parallel lanes are proposed, write `.gauntlet/subagent-plan.json` and run `scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --run-id "$RUN_ID"` before dispatch. Do not dispatch rejected lanes. If the validator ran, include `.gauntlet/subagent-plan-summary.json` counts in the final response.
 
 ### Subagent Handoff Packet
 
 - Project root and relevant files or surfaces
+- Child lane id, title, status, dependency note, and worktree path when write-heavy
 - Skill to use and role objective
 - Accepted spec, task packet, or review source
 - In scope and out of scope

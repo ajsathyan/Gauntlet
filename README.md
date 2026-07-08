@@ -247,12 +247,12 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [docs/workflow-speedups.md](docs/workflow-speedups.md) | Advisory changed-surface, test-planning, review-packet, and subagent packet guidance. |
 | [docs/promotion-scanner.md](docs/promotion-scanner.md) | Trigger policy and gap-routing guidance for promotion scans. |
 | [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
-| [scripts/gauntlet.py](scripts/gauntlet.py) | Small deterministic CLI for archive planning/execution, install verification, follow-up note formatting, and saved diagram lookup. |
+| [scripts/gauntlet.py](scripts/gauntlet.py) | Small deterministic CLI for archive planning/execution, install verification, follow-up note/thread packets, Implementation Memory linting, PR/changelog generation, and saved diagram lookup. |
 | [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals. |
 | [scripts/classify-ts-durability.sh](scripts/classify-ts-durability.sh) | Classifies whether TypeScript durability standards are required for the current work. |
 | [scripts/diff-intel.py](scripts/diff-intel.py) | Writes advisory changed-file, package-root, risk-trigger, dirty-worktree, confidence, and `Cannot verify` intel. |
 | [scripts/test-plan.py](scripts/test-plan.py) | Recommends focused and broader verification commands from diff intel without defaulting to huge suites. |
-| [scripts/review-pack.py](scripts/review-pack.py) | Generates a bounded, redacted review packet from current diff intel. |
+| [scripts/review-pack.py](scripts/review-pack.py) | Generates a bounded, redacted review packet from current diff intel, optional Implementation Memory Scan Index context, and existing test-plan summaries. |
 | [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill evals, including targeted changed-skill runs. |
 | [scripts/lint-skills.py](scripts/lint-skills.py) | Lints skill frontmatter, word budget, contract slots, optional examples, and bounded subagent guidance. |
 | [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill evals and linting when staged Gauntlet skill files change. |
