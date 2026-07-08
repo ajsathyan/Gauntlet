@@ -389,7 +389,7 @@ Flow:
 
 1. If the thread title already starts with `/^p[0-4](-auto)?:/`, skip naming.
 2. If not, generate a `p#:` or `p#-auto:` four-word-goal title.
-3. Check git state.
+3. Generate or reuse the PR changelog or closeout content and pass it to `scripts/gauntlet.py archive plan --content` so the Archive Summary is visible before any archive decision; use `--content -` to pipe the content without creating another file.
 4. If straightforward, rename, push/merge if needed and safe, then archive.
 5. Resolve blockers, warnings, or user decisions.
 6. Run the final Follow-Up Etiquette check.
@@ -436,6 +436,7 @@ Code-owned checks:
 
 - Use `scripts/check-workflow-etiquette.py` for kickoff/archive etiquette validation.
 - Use `scripts/gauntlet.py archive plan|execute` for archive checks, safe git actions, and app-action packets.
+- Pass the PR changelog or closeout content to `scripts/gauntlet.py archive plan --content` whenever available; the helper prints the Archive Summary even when archive is blocked.
 - Use `scripts/gauntlet.py install verify` after install/global workflow changes.
 - Use the command table in `docs/workflow-speedups.md` for diff/test/review packets, Implementation Memory linting, PR/changelog drafts, follow-up notes, and follow-up thread packets.
 - Use `scripts/gauntlet.py diagram find` for saved Mermaid lookup.

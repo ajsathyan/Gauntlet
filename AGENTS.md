@@ -102,7 +102,7 @@ When the user asks to archive a Codex thread:
 
 1. If the thread title already starts with `/^p[0-4](-auto)?:/`, skip naming.
 2. Otherwise suggest a `p#:` or `p#-auto:` four-word-goal title and pass it as `--suggested-title`.
-3. Run `scripts/gauntlet.py archive plan --title "$THREAD_TITLE" --git-root "$PROJECT_ROOT" --json`, adding `--content` when a follow-up/closeout artifact is available.
+3. Run `scripts/gauntlet.py archive plan --title "$THREAD_TITLE" --git-root "$PROJECT_ROOT" --json`. Pass the PR changelog or closeout content to `scripts/gauntlet.py archive plan --content` so the Archive Summary is printed whether or not archive is currently allowed; use `--content -` when piping a PR body or generated closeout instead of saving another file.
 4. If the plan returns pass or warn, run `scripts/gauntlet.py archive execute ... --json`. Execute any returned app actions in order: call `set_thread_title` for `set_thread_title`, then call `set_thread_archived` for `archive_thread`.
 5. The CLI may push clean branches or merge an open GitHub PR with `--merge` when checks pass, the PR is mergeable, and no review blocker remains. Do not squash or rebase unless the user asks.
 6. If the helper returns review or fail, pause only for a major unresolved decision, safety failure, new material assumption, or git preservation risk. `archive anyway` is acceptable for unresolved strong follow-ups only. For unmerged, unpushed, or dirty code, ask the user to confirm before continuing with `--confirm-git-risk`.
@@ -115,6 +115,7 @@ Use CLI helpers at the point where the manual loop would otherwise happen:
 - Changed-surface, test, or review setup: `scripts/diff-intel.py "$PROJECT_ROOT"`, `scripts/test-plan.py "$PROJECT_ROOT"`, then `scripts/review-pack.py "$PROJECT_ROOT"`.
 - Implementation Memory exists or will drive handoff/changelog work: `scripts/gauntlet.py memory lint --path "$MEMORY_PATH"` and pass it to `scripts/review-pack.py "$PROJECT_ROOT" --implementation-memory "$MEMORY_PATH"`.
 - PR/changelog closeout: `scripts/gauntlet.py changelog pr --implementation-memory "$MEMORY_PATH" --git-root "$PROJECT_ROOT"`.
+- Archive closeout: reuse the PR changelog or closeout content with `scripts/gauntlet.py archive plan --content "$CHANGELOG_OR_CLOSEOUT" ...`.
 - Follow-up capture or thread handoff: `scripts/gauntlet.py followup note ...` or `scripts/gauntlet.py followup thread --content "$FOLLOWUP_FILE" --title "$THREAD_TITLE" --json`.
 
 These helpers are advisory unless the command explicitly performs an accepted action, such as archive execution. Honor confidence and `Cannot verify`, preserve unrelated dirty worktree changes, and remember that thread helpers emit app-action packets; execute those with Codex app tools only after checking the packet.
@@ -386,7 +387,7 @@ Stop and ask before proceeding when:
 
 ## Completion Rule
 
-A coding task is complete only when acceptance criteria are met, relevant checks ran or limitations are stated, required run logs and coverage-gap candidates are updated, new or updated `GAP-###` items are named at the end of the final response, no blocking review/test/triage findings remain, and the final response includes what changed, what was verified, and remaining risks.
+A coding task is complete only when acceptance criteria are met, relevant checks ran or limitations are stated, required run logs and coverage-gap candidates are updated, new or updated `GAP-###` items are named at the end of the final response, no blocking review/test/triage findings remain, and the final response includes what changed, what was verified, and remaining risks. Every Gauntlet implementation closeout should print the Archive Summary when archiving or preparing to archive.
 
 For Feature, Release, and applicable Tier 2/3 work, the architecture hygiene pass must be marked not applicable, completed with no blocking findings, or triaged into bounded follow-up work.
 

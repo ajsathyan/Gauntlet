@@ -4,6 +4,8 @@ import json
 import os
 import re
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 
@@ -33,6 +35,7 @@ SECRET_PATTERNS = [
     re.compile(r"(?i)\b(sk|pk|rk)-(live|test)-[A-Za-z0-9_-]{8,}"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
 ]
+ARCHIVE_SUMMARY_ALIASES = ["archive summary", "what changed", "change summary"]
 
 
 def run_cmd(args, cwd=None, env=None, check=False):
@@ -134,6 +137,40 @@ def section_bullets(text):
     if items:
         return items
     return [first_nonempty_line(text)] if (text or "").strip() else []
+
+
+def archive_summary_from_sections(sections):
+    explicit = find_section(sections, ARCHIVE_SUMMARY_ALIASES)
+    if explicit:
+        return [redact_secrets(item) for item in section_bullets(explicit)[:10]]
+
+    bullets = []
+    goal = first_nonempty_line(find_section(sections, ["goal"]) or "", "")
+    if goal:
+        bullets.append(redact_secrets(goal))
+    scope = section_bullets(find_section(sections, ["scope"]) or "")
+    bullets.extend(redact_secrets(item) for item in scope[:4])
+    verification = section_bullets(find_section(sections, ["verification", "proof"]) or "")
+    if verification:
+        bullets.append("Verification expected: " + "; ".join(redact_secrets(item) for item in verification[:2]))
+    return bullets[:10]
+
+
+def archive_summary_from_content(path):
+    if not path:
+        return None, []
+    path = Path(path)
+    if not path.exists():
+        return None, [{"code": "missing_archive_summary_content", "severity": "warn", "message": f"Archive summary content file does not exist: {path}."}]
+    text = read_text(path)
+    sections = markdown_sections(text)
+    raw_summary = find_section(sections, ARCHIVE_SUMMARY_ALIASES)
+    if not raw_summary:
+        return None, [{"code": "missing_archive_summary", "severity": "warn", "message": f"No Archive Summary section found in {path}."}]
+    if has_secret(raw_summary):
+        return None, [{"code": "secret_like_archive_summary", "severity": "fail", "message": "Archive Summary contains secret-like content; redact it before archive."}]
+    bullets = [redact_secrets(item) for item in section_bullets(raw_summary)[:10]]
+    return {"source": "content", "path": str(path), "bullets": bullets}, []
 
 
 def parse_followups(text):
@@ -243,6 +280,7 @@ def markdown_list(items, empty="- None."):
 def build_changelog_markdown(source_path, sections, pr, followups, findings):
     goal = find_section(sections, ["goal"]) or ""
     scope = find_section(sections, ["scope"]) or ""
+    archive_summary = archive_summary_from_sections(sections)
     source_files = section_bullets(find_section(sections, [
         "source-of-truth files",
         "source of truth files",
@@ -284,6 +322,10 @@ def build_changelog_markdown(source_path, sections, pr, followups, findings):
         "## Implementation Summary",
         "",
         first_nonempty_line(redact_secrets(goal)),
+        "",
+        "## Archive Summary",
+        "",
+        markdown_list(archive_summary, empty="- Cannot verify chat-level changes from CLI metadata alone. Supply an agent-authored Archive Summary in the PR changelog or closeout content."),
         "",
         "## Scope",
         "",
@@ -433,8 +475,7 @@ def github_archive_actions(repo, payload, args):
                 "warn",
                 "Dirty files are explicitly allowlisted for this archive: " + ", ".join(dirty[:4]) + ".",
             )
-            return actions
-        if getattr(args, "confirm_git_risk", False):
+        elif getattr(args, "confirm_git_risk", False):
             add_finding(
                 payload,
                 "git_risk_confirmed",
@@ -443,20 +484,20 @@ def github_archive_actions(repo, payload, args):
                 + ", ".join(unexpected_dirty[:4])
                 + ".",
             )
+        else:
+            add_finding(
+                payload,
+                "dirty_worktree",
+                "review",
+                "Worktree has uncommitted or untracked files: " + ", ".join(unexpected_dirty[:4]) + ".",
+            )
+            add_finding(
+                payload,
+                "git_risk_confirmation_required",
+                "review",
+                "Ask the user to confirm whether this unpreserved work should be left out of git before archiving.",
+            )
             return actions
-        add_finding(
-            payload,
-            "dirty_worktree",
-            "review",
-            "Worktree has uncommitted or untracked files: " + ", ".join(unexpected_dirty[:4]) + ".",
-        )
-        add_finding(
-            payload,
-            "git_risk_confirmation_required",
-            "review",
-            "Ask the user to confirm whether this unpreserved work should be left out of git before archiving.",
-        )
-        return actions
 
     branch = branch_name(repo)
     counts = upstream_counts(repo)
@@ -601,9 +642,31 @@ def rebuild_archive_plan(payload, git_actions):
 
 
 def build_archive_payload(args):
-    payload = run_checker(args)
-    git_actions = github_archive_actions(args.git_root, payload, args)
-    return rebuild_archive_plan(payload, git_actions)
+    original_content = getattr(args, "content", None)
+    temporary_content = None
+    if original_content and str(original_content) == "-":
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as handle:
+            handle.write(sys.stdin.read())
+            temporary_content = Path(handle.name)
+        args.content = temporary_content
+
+    try:
+        payload = run_checker(args)
+        summary, findings = archive_summary_from_content(getattr(args, "content", None))
+        for finding in findings:
+            add_finding(payload, finding["code"], finding["severity"], finding["message"])
+        payload["archiveSummary"] = summary or {
+            "source": "fallback",
+            "bullets": [
+                "Cannot verify chat-level changes from CLI metadata alone. Supply the PR changelog or closeout content with an Archive Summary.",
+            ],
+        }
+        git_actions = github_archive_actions(args.git_root, payload, args)
+        return rebuild_archive_plan(payload, git_actions)
+    finally:
+        args.content = original_content
+        if temporary_content:
+            temporary_content.unlink(missing_ok=True)
 
 
 def execute_archive_actions(payload, git_root):
@@ -639,6 +702,13 @@ def execute_archive_actions(payload, git_root):
 def print_payload(payload, as_json):
     if as_json:
         print(json.dumps(payload, indent=2))
+        return
+    summary = payload.get("archiveSummary") or {}
+    bullets = summary.get("bullets") or []
+    if bullets:
+        print("Archive Summary")
+        for bullet in bullets:
+            print(f"- {bullet}")
         return
     print(f"Gauntlet: {payload['status']}")
     for finding in payload.get("findings", []):

@@ -18,11 +18,12 @@ def read(path):
     return path.read_text()
 
 
-def run(args, cwd=None, check=True):
+def run(args, cwd=None, check=True, input_text=None):
     result = subprocess.run(
         args,
         cwd=cwd,
         text=True,
+        input=input_text,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -1142,6 +1143,7 @@ def test_gauntlet_cli_archive_plans_and_executes_github_merge():
         (repo / "feature.txt").write_text("archive flow\n")
         commit_all(repo, "feature")
         git(["push", "-u", "origin", "HEAD"], cwd=repo)
+        (repo / "allowed-dirty.txt").write_text("unrelated local note\n")
 
         gh_log = Path(tmp) / "gh.log"
         fake_gh = Path(tmp) / "gh"
@@ -1178,10 +1180,12 @@ def test_gauntlet_cli_archive_plans_and_executes_github_merge():
                 "p2-auto: fix archive closeout",
                 "--git-root",
                 str(repo),
+                "--allow-dirty",
+                "allowed-dirty.txt",
                 "--json",
             ], cwd=repo)
             plan_data = json.loads(plan.stdout)
-            if plan_data["status"] != "pass":
+            if plan_data["status"] != "warn":
                 raise AssertionError(f"green PR archive plan should pass: {plan_data}")
             action_types = [action["type"] for action in plan_data["archivePlan"]["actions"]]
             if action_types != ["gh_pr_merge", "archive_thread"]:
@@ -1198,10 +1202,12 @@ def test_gauntlet_cli_archive_plans_and_executes_github_merge():
                 "p2-auto: fix archive closeout",
                 "--git-root",
                 str(repo),
+                "--allow-dirty",
+                "allowed-dirty.txt",
                 "--json",
             ], cwd=repo)
             execute_data = json.loads(execute.stdout)
-            if execute_data["status"] != "pass":
+            if execute_data["status"] != "warn":
                 raise AssertionError(f"archive execute should pass with fake gh: {execute_data}")
             if execute_data.get("remainingAppActions") != [{"type": "archive_thread"}]:
                 raise AssertionError(f"execute should leave app archive action for agent: {execute_data}")
@@ -1393,6 +1399,12 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
                 "",
                 "- `python3 scripts/check-gauntlet-workflow.py`",
                 "",
+                "## Archive Summary",
+                "",
+                "- Added agent-authored archive summaries to the PR changelog helper.",
+                "- Reused the same summary block in archive planning output.",
+                "- Kept summary output compact so archive review does not require status plumbing.",
+                "",
                 "## Follow-ups",
                 "",
                 "Follow-up captured:",
@@ -1506,12 +1518,80 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
             raise AssertionError(f"verified changelog should pass: {changelog_data}")
         for marker in [
             "Build changelog and follow-up helpers for Gauntlet.",
+            "## Archive Summary",
+            "- Added agent-authored archive summaries to the PR changelog helper.",
+            "- Reused the same summary block in archive planning output.",
             "| [#12](https://example.test/pr/12) | MERGED | Build changelog helpers |",
             "Follow-up thread shortcut",
             "GitHub PR state can change after generation.",
         ]:
             assert_contains(changelog_data["markdown"], marker, "PR changelog markdown")
         assert_not_contains(changelog_data["markdown"], "PR body from GitHub should verify facts", "PR changelog source precedence")
+
+        changelog_output = repo / "docs" / "pr-changelog.md"
+        changelog_output.write_text(changelog_data["markdown"], encoding="utf-8")
+        archive = run([
+            str(cli),
+            "archive",
+            "plan",
+            "--title",
+            "p2-auto: build changelog helpers",
+            "--content",
+            str(changelog_output),
+            "--git-root",
+            str(repo),
+            "--confirm-git-risk",
+            "--json",
+        ], cwd=repo)
+        archive_data = json.loads(archive.stdout)
+        if archive_data["archiveSummary"]["bullets"] != [
+            "Added agent-authored archive summaries to the PR changelog helper.",
+            "Reused the same summary block in archive planning output.",
+            "Kept summary output compact so archive review does not require status plumbing.",
+        ]:
+            raise AssertionError(f"archive plan should reuse changelog Archive Summary: {archive_data}")
+        if archive_data["archiveSummary"]["source"] != "content":
+            raise AssertionError(f"archive summary should report content source: {archive_data}")
+
+        archive_text = run([
+            str(cli),
+            "archive",
+            "plan",
+            "--title",
+            "p2-auto: build changelog helpers",
+            "--content",
+            str(changelog_output),
+            "--git-root",
+            str(repo),
+            "--confirm-git-risk",
+        ], cwd=repo)
+        assert_contains(archive_text.stdout, "Archive Summary", "archive summary output")
+        assert_contains(
+            archive_text.stdout,
+            "- Reused the same summary block in archive planning output.",
+            "archive summary output",
+        )
+        assert_not_contains(archive_text.stdout, "Gauntlet:", "archive summary output should avoid status plumbing")
+        assert_not_contains(archive_text.stdout, "canArchive", "archive summary output should avoid JSON plumbing")
+
+        archive_stdin = run([
+            str(cli),
+            "archive",
+            "plan",
+            "--title",
+            "p2-auto: build changelog helpers",
+            "--content",
+            "-",
+            "--git-root",
+            str(repo),
+            "--confirm-git-risk",
+            "--json",
+        ], cwd=repo, input_text=changelog_data["markdown"])
+        archive_stdin_data = json.loads(archive_stdin.stdout)
+        if archive_stdin_data["archiveSummary"]["source"] != "content":
+            raise AssertionError(f"stdin archive summary should be treated as content: {archive_stdin_data}")
+        if archive_stdin_data["archiveSummary"]["bullets"][0] != "Added agent-authored archive summaries to the PR changelog helper.":
+            raise AssertionError(f"stdin archive summary should reuse changelog bullets: {archive_stdin_data}")
 
         failing_gh = Path(tmp) / "failing-gh"
         failing_gh.write_text(
@@ -1707,6 +1787,9 @@ def test_workflow_etiquette_is_in_global_workflow():
         "If the user supplies an alternate priority/title, call `set_thread_title` with the user's version",
         "set_thread_title",
         "set_thread_archived",
+        "Archive Summary",
+        "Pass the PR changelog or closeout content to `scripts/gauntlet.py archive plan --content`",
+        "Every Gauntlet implementation closeout should print the Archive Summary",
     ]:
         assert_contains(combined, marker, "workflow etiquette global guidance")
 
