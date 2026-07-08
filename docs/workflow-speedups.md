@@ -12,6 +12,7 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 | Review packet with Implementation Memory | `scripts/review-pack.py "$PROJECT_ROOT" --implementation-memory "$MEMORY_PATH"` |
 | Implementation Memory structure check | `scripts/gauntlet.py memory lint --path "$MEMORY_PATH"` |
 | PR/changelog draft | `scripts/gauntlet.py changelog pr --implementation-memory "$MEMORY_PATH" --git-root "$PROJECT_ROOT"` |
+| Archive Summary display | `scripts/gauntlet.py archive plan --content "$CHANGELOG_OR_CLOSEOUT" --title "$THREAD_TITLE" --git-root "$PROJECT_ROOT"` |
 | Follow-up note | `scripts/gauntlet.py followup note ...` |
 | Follow-up thread packet | `scripts/gauntlet.py followup thread --content "$FOLLOWUP_FILE" --title "$THREAD_TITLE" --json` |
 
@@ -20,6 +21,7 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 - Honor confidence and `Cannot verify`; helper output is not proof.
 - Preserve unrelated dirty worktree changes.
 - Implementation Memory remains the source for intent, scope, edge cases, verification expectations, and follow-ups.
+- PR/changelog output should carry the agent-authored Archive Summary; archive planning reuses that short block instead of replaying the transcript.
 - GitHub metadata verifies objective PR facts only.
 - Follow-up thread helpers emit `create_thread` app-action packets; create the actual Codex thread with app tools after checking the packet.
 - Child implementation lanes should use separate git worktrees by default when they write code, edit multiple files, or have uncertain ownership. Read-only review, exploration, summarization, and log-analysis lanes do not need worktrees by default.
