@@ -31,6 +31,14 @@ Priority/execution delta: none.
 Packetization delta: not relevant for this implementation; required for future multi-lane implementations under the new contract.
 Need user decision: none.
 
+Scope addition: preserve user-owned personal house voice during Codex reinstall
+New edge cases: the active global `AGENTS.md` contains a personal block absent from the portable Gauntlet source; direct installer copy would delete it; repeated installs could duplicate a preserved block.
+Invalidated assumptions: refreshing the global workflow with `cp` is not safe when the installed file contains user-owned guidance.
+Acceptance/proof delta: prepopulate a temporary Codex `AGENTS.md`, prove the current installer loses the block, then preserve exactly one block across repeated installs.
+Priority/execution delta: none.
+Packetization delta: none.
+Need user decision: none; the global instructions explicitly require preserving this block across reinstalls.
+
 ---
 
 ### Task 1: Add Failing Workflow-Contract Checks

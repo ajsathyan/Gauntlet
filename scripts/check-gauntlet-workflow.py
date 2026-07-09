@@ -2415,10 +2415,22 @@ def test_codex_install_layout_supports_workflow_check():
 
     with tempfile.TemporaryDirectory() as tmp:
         agent_home = Path(tmp) / "agent-home"
+        agent_home.mkdir()
+        personal_block = """<!-- BEGIN PERSONAL HOUSE VOICE -->
+## Personal Test Voice
+
+Keep this user-owned instruction across Gauntlet reinstalls.
+<!-- END PERSONAL HOUSE VOICE -->"""
+        (agent_home / "AGENTS.md").write_text(
+            "# Global Agent Coding Workflow\n\n"
+            f"{personal_block}\n\n"
+            "Stale Gauntlet workflow content.\n"
+        )
         run_install(agent_home, target="codex")
         assert_installed_gauntlet_layout(agent_home)
         installed_agents = read(agent_home / "AGENTS.md")
         assert_contains(installed_agents, "Global Agent Coding Workflow", "Codex AGENTS install")
+        assert_contains(installed_agents, personal_block, "Codex personal house voice preservation")
         for marker in [
             "no later than the third user-assistant exchange",
             "Research is never assigned `p4` merely because it is research",
@@ -2428,6 +2440,11 @@ def test_codex_install_layout_supports_workflow_check():
             assert_contains(installed_agents, marker, "Codex root implementation-transition guidance")
         if (agent_home / "CLAUDE.md").exists():
             raise AssertionError("Codex install should not create CLAUDE.md")
+
+        run_install(agent_home, target="codex")
+        reinstalled_agents = read(agent_home / "AGENTS.md")
+        if reinstalled_agents.count("BEGIN PERSONAL HOUSE VOICE") != 1:
+            raise AssertionError("Codex reinstall should preserve one personal house voice block")
 
 
 def test_claude_install_layout_adapts_agents_without_overwriting_user_memory():
