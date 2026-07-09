@@ -14,6 +14,22 @@ Make priority and task naming decisions visible and actionable in every Codex ta
 - Once accepted, apply the label with `set_thread_title`; do not leave it as chat-only advice.
 - Re-evaluate the `-auto` suffix when execution mode materially changes, without reopening an already settled priority unless scope or risk changes.
 
+## Priority Reassessment
+
+Silently re-assess priority at these checkpoints:
+
+1. When the work transitions from research, design, or planning into implementation.
+2. When an implementation update materially changes scope, affected systems, external side effects, risk, proof burden, or reversibility.
+
+Ordinary progress, a plan-status update, or a small code edit does not trigger a reassessment. If the priority is unchanged, say nothing about it. If the priority changes:
+
+- State the old and new priority once.
+- Name the concrete scope or risk change that caused it.
+- Apply the updated `p#:` or `p#-auto:` title with `set_thread_title`.
+- Follow the existing review gate if the new priority or newly discovered risk requires a user decision; otherwise continue without adding a ceremonial pause.
+
+Re-assess execution mode at the same checkpoints. Call it out only when the suffix changes between review and `-auto`, and update the title accordingly.
+
 ## Research Priority Semantics
 
 Research is never assigned `p4` merely because it is research. Classify it by the consequence and durable decision it supports:
@@ -40,8 +56,8 @@ Out of scope:
 
 ## Implementation Design
 
-1. Add the third-exchange deadline, first-substantive-response preference, and impact-based research mapping to `AGENTS.md` and `docs/workflow-etiquette.md`.
-2. Add a focused workflow test that fails until both source surfaces contain the deadline, accepted-label action, valid-title exception, and rule that research is not automatically `p4`.
+1. Add the third-exchange deadline, first-substantive-response preference, impact-based research mapping, and silent reassessment checkpoints to `AGENTS.md` and `docs/workflow-etiquette.md`.
+2. Add a focused workflow test that fails until both source surfaces contain the deadline, accepted-label action, valid-title exception, research rule, and change-only reassessment announcement.
 3. Extend install verification so the installed global `AGENTS.md` is checked for the same invariant, preventing a source/install drift recurrence.
 4. Run targeted workflow checks, then the full Gauntlet workflow check.
 5. Reinstall Gauntlet for Codex and verify the installed global guidance contains the invariant.
@@ -69,6 +85,8 @@ The guidance remains the enforcement mechanism because Codex task behavior is pr
 - Existing valid labels are not reopened.
 - Accepted labels are applied with `set_thread_title`.
 - Research is classified by downstream consequence and defaults to `p3` when bounded but otherwise uncertain; it is never automatically `p4`.
+- Priority is silently re-assessed at implementation start and after material implementation changes.
+- Unchanged priority produces no chat message; changed priority produces one reasoned callout and an updated task title.
 - Automated checks fail if the deadline disappears from source or installed guidance.
 - The live eval task is titled `p0-auto: build harness eval suite`.
 - This task is titled `p2-auto: enforce third-turn priority labels`.
