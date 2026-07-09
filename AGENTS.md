@@ -104,6 +104,17 @@ Decision Gate: none | before blocked archive | before unsafe side effect | befor
 - Run scope-addition delta foresight before implementing every genuine scope addition. Check the added scope and its boundary with accepted work for new edge cases, invalidated assumptions, acceptance/proof changes, priority/execution changes, and packetization changes. A clean check records only `Scope delta checked: no material change.` in the plan/task packet and stays silent in chat. Material findings update the plan and are called out.
 - At implementation transition, record `Subagent packetization: required` or `Subagent packetization: not relevant because...`. It is required when the user asks for subagents, the accepted plan proposes parallel lanes, or multiple agent/child-chat lanes will implement the work. Required lane packets and the accepted current-run manifest must validate before implementation, not merely before dispatch.
 
+## Git Discipline
+
+Use `docs/github-discipline.md` for the beginner-friendly reference. Keep the active default simple: branch from `main`, commit coherent checkpoints, open a PR, verify, merge with a merge commit, and delete the branch.
+
+- Use a branch for any persisted repo change. Use a separate worktree when the current workspace is dirty, work is p0-p2, work is broad, or child implementation lanes need isolation.
+- Treat PRs as memory and proof bundles, even for solo builders: changed files, checks, review context, run logs, and merge rationale should be recoverable from the PR.
+- Preserve useful checkpoint commits by default. Use merge commits for automated PR merges; do not squash, rebase, or direct-push to `main` unless the user or repo explicitly asks.
+- Main chats own the final branch, child-lane ledger, PR, user decisions, and merge decision. Child implementation chats may work in isolated branches or worktrees, but they return reports and do not direct-push to `main`.
+- Direct push to `main` is an explicit shortcut for tiny, low-risk solo changes, not the default taught workflow.
+- When dirty files are present, identify whether they belong to the current task. Preserve unrelated dirty work; isolate new work or ask before including, overwriting, abandoning, or archiving over it.
+
 When the user asks to archive a Codex thread:
 
 1. If the thread title already starts with `/^p[0-4](-auto)?:/`, skip naming.

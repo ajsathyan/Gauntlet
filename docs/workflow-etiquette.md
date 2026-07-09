@@ -374,7 +374,7 @@ Rules:
 
 Current follow-up retrieval:
 
-- Use `docs/gauntlet-runs/2026-07-04-thread-changelog.md` for follow-ups captured from the Workflow Etiquette implementation thread, including GitHub discipline and strategy, House voice workflow, and remaining Gauntlet CLI speedups.
+- Use `docs/gauntlet-runs/2026-07-04-thread-changelog.md` for follow-ups captured from the Workflow Etiquette implementation thread. GitHub discipline is resolved in `docs/github-discipline.md`; House voice workflow and remaining Gauntlet CLI speedups remain separate follow-up lanes.
 
 ### Saved Diagram Etiquette
 
@@ -432,6 +432,21 @@ Delegation and Continuity interaction:
 - For p0 or broad p1 work, archive may check whether Implementation Memory, a run log, or a Pause Work Packet already exists when future resume cost would be high.
 - Do not pause archive solely because no Implementation Memory or Pause Work Packet exists. Pause only if missing context would make the current git/archive action unsafe, the user explicitly asked to preserve it, or a strong follow-up should be handled before closeout.
 - If repeated manual work or repeated `Cannot verify` is visible during closeout, surface it as a Debrief/Promotion candidate, but do not run a heavy promotion scan for ordinary archive.
+
+### Git Discipline Etiquette
+
+Use `docs/github-discipline.md` for the full GitHub strategy. The active default is intentionally teachable for people who are new to Git: branch from `main`, commit coherent checkpoints, open a PR, verify, merge with a merge commit, and delete the branch.
+
+Default behavior:
+
+- Use a branch for persisted code, docs, or policy changes.
+- Use a separate worktree when the workspace is dirty, the task is p0-p2, the work is broad, or child implementation lanes need isolated writes.
+- Use PRs as memory and proof bundles, even for solo builders.
+- Preserve useful checkpoint commits with merge commits. Squash, rebase, or direct-push to `main` only when the user or repo explicitly asks.
+- Let the main chat own the final branch, PR, user questions, child-lane ledger, and merge decision.
+- Let child chats return reports; child implementation lanes may use isolated branches or worktrees, but should not direct-push to `main`.
+
+Code-owned checks should stay objective: dirty state, upstream state, default-branch detection, PR presence, PR checks, review state, mergeability, and accepted merge command shape. Repo-culture choices and history preferences stay conversational unless the repo has explicit rules.
 
 ## Implementation Stance
 
@@ -558,7 +573,7 @@ Do not infer:
 - Whether `Debrief Etiquette` is the final name for the post-work lane.
 - Whether the priority-title format should require exactly four words or allow four-ish words when grammar suffers.
 - Whether autonomous work with a Decision Gate should always use `p#-auto:` or whether future evidence earns a separate title shorthand.
-- Whether Archival Etiquette should auto-merge only GitHub PRs or also direct-push branches when the branch is clearly safe.
+- Whether a future `git plan` helper should generalize the archive-time Git checks before push, PR creation, and merge decisions.
 - Whether `Delegation Etiquette` and `Implementation Memory` are the final names for indexed implementation context docs.
 - Whether Implementation Memory promotion should add a template beyond the linter.
 - Whether Mastra or another workflow runtime should be revisited after helper checks prove the mechanical archive/context flows are stable.
