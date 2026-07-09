@@ -555,6 +555,83 @@ def test_subagent_plan_validator_rejects_secret_and_overbroad_scope():
                 raise AssertionError(f"subagent validator missing {code} rejection")
 
 
+def test_subagent_plan_validator_requires_complete_lane_packets():
+    validator = SCRIPTS / "check-subagent-plan.py"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        project.mkdir()
+        plan = project / "subagent-plan.json"
+        incomplete_lanes = []
+        for lane_id in ["C1", "C2"]:
+            incomplete_lanes.append({
+                "id": lane_id,
+                "skill": "implementer",
+                "scope": f"Implement {lane_id}",
+                "filesRead": [f"src/{lane_id}/**"],
+                "filesWrite": [f"src/{lane_id}/**"],
+                "stateScope": lane_id,
+                "stateAccess": "mutates",
+                "proof": [f"test-{lane_id}"],
+                "inlineContext": f"Short context for {lane_id}.",
+            })
+        plan.write_text(json.dumps({"schemaVersion": "1.1", "lanes": incomplete_lanes}))
+
+        incomplete = run([str(validator), str(project), str(plan), "--run-id", "packet-fields"], check=False)
+        if incomplete.returncode == 0:
+            raise AssertionError("incomplete lane packets should fail before implementation")
+        record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
+        if "missing_field" not in {rejection["code"] for rejection in record["rejections"]}:
+            raise AssertionError("incomplete lane packets should report missing_field")
+
+        complete_lanes = []
+        for lane_id in ["C1", "C2"]:
+            complete_lanes.append({
+                "id": lane_id,
+                "status": "To Do",
+                "title": f"p2-auto: [{lane_id}][To Do] Implement lane",
+                "skill": "implementer",
+                "objective": f"Implement bounded lane {lane_id}",
+                "projectRoot": ".",
+                "worktreePath": ".",
+                "acceptedSource": "docs/accepted-spec.md",
+                "scope": f"Implement {lane_id}",
+                "inScope": [f"src/{lane_id}/**"],
+                "outOfScope": ["src/shared/**"],
+                "filesRead": [f"src/{lane_id}/**"],
+                "filesWrite": [f"src/{lane_id}/**"],
+                "filesAvoid": ["src/shared/**"],
+                "stateScope": lane_id,
+                "stateAccess": "mutates",
+                "dependencies": [],
+                "consumes": ["accepted spec"],
+                "produces": [f"{lane_id} patch"],
+                "constraints": ["preserve unrelated work"],
+                "proof": [f"test-{lane_id}"],
+                "inlineContext": f"Short context for {lane_id}.",
+                "taskPacketRef": f".gauntlet/packets/{lane_id}.md",
+                "expectedReturn": "Compact implementation report",
+                "askUserPolicy": "Return Needs decision to the orchestrator.",
+            })
+        plan.write_text(json.dumps({"schemaVersion": "1.1", "lanes": complete_lanes}))
+
+        missing_packet = run([str(validator), str(project), str(plan), "--run-id", "packet-files"], check=False)
+        if missing_packet.returncode == 0:
+            raise AssertionError("missing task packet references should fail before implementation")
+        record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
+        if "task_packet_missing" not in {rejection["code"] for rejection in record["rejections"]}:
+            raise AssertionError("missing task packets should report task_packet_missing")
+
+        packet_dir = project / ".gauntlet" / "packets"
+        packet_dir.mkdir(parents=True)
+        for lane_id in ["C1", "C2"]:
+            (packet_dir / f"{lane_id}.md").write_text(f"# {lane_id} Task Packet\n")
+
+        accepted = run([str(validator), str(project), str(plan), "--run-id", "packet-accepted"], check=False)
+        if accepted.returncode != 0:
+            raise AssertionError(f"complete lane packets should pass:\n{accepted.stdout}\n{accepted.stderr}")
+
+
 def test_guarded_panel_contract_is_uniform():
     files = {
         "AGENTS.md": read(AGENTS_MD),
@@ -2541,6 +2618,7 @@ def main():
         test_kickoff_and_implementation_transition_gates_are_documented,
         test_subagent_plan_validator_logs_rejections,
         test_subagent_plan_validator_rejects_secret_and_overbroad_scope,
+        test_subagent_plan_validator_requires_complete_lane_packets,
         test_guarded_panel_contract_is_uniform,
         test_ts_durability_classifier_behavior,
         test_diff_intel_test_plan_and_review_pack_are_bounded,
