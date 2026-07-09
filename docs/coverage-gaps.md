@@ -55,6 +55,19 @@ Added GAP-###: Short name - why it matters
 
 For multiple gaps, use one comma-separated sentence or one short bullet per gap. Do not report routine successful checks as gaps.
 
+## Resolved Gap Cleanup
+
+Remove a `GAP-###` entry from this file when the accepted destination exists and is covered by proof. Do not keep resolved gaps here as historical archive; the run log and git history are the archive.
+
+Before removing a gap, confirm:
+
+- The destination named by the gap exists, such as a rule, reference, exemplar, lint, eval, or explicit no-change decision.
+- The destination is discoverable from the relevant workflow, role skill, doc, or checker.
+- A local check, targeted search, review, or run log proves the destination was added.
+- The run log records that the gap was resolved or removed.
+
+If a gap is only partially addressed, keep it pending and narrow its wording to the remaining missing guidance.
+
 ## Promotion Scanner Routing
 
 When `promotion-scanner` finds high-value repeated work, add or update a `GAP-###` only for Gauntlet-general missing guidance. Repo-specific promotion candidates should become repo code, repo test, repo docs/run log, or issue follow-up.

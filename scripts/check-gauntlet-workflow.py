@@ -159,6 +159,9 @@ def test_coverage_gap_and_design_lint_guidance_are_documented():
         "Cannot verify",
         "rule, reference, exemplar, lint, eval, coverage gap, or no change",
         "Reliable failure signal",
+        "Resolved Gap Cleanup",
+        "remove it from `docs/coverage-gaps.md`",
+        "run log and git history are the archive",
         "new or updated gap IDs",
         "Added GAP-###: Short name",
     ]:
@@ -199,6 +202,7 @@ def test_coverage_gap_and_design_lint_guidance_are_documented():
         assert_contains(combined, marker, "frontend quality gate")
 
     assert_not_contains(coverage, "Status: accepted", "coverage gaps should not auto-promote standards")
+    assert_not_contains(coverage, "GAP-008: Skill Quality Bar", "resolved skill-quality gap should not remain pending")
 
 
 def test_product_thinking_and_scope_routing_are_documented():
@@ -359,6 +363,59 @@ def test_subagent_parallelism_is_context_efficient():
         "Consider onboarding, activation, retention, and growth only when tied to accepted scope or a real next action.",
         "product-architect soft scope rule",
     )
+
+
+def test_skill_quality_bar_is_trigger_bounded():
+    agents = read(AGENTS_MD)
+    readme = read(README_MD)
+    quality_bar = read(ROOT / "docs" / "skill-quality-bar.md")
+    coverage = read(ROOT / "docs" / "coverage-gaps.md")
+    plan = read(ROOT / "docs" / "skill-quality-implementation-plan.md")
+    combined = "\n".join([agents, readme, quality_bar, coverage, plan])
+
+    for marker in [
+        "Skill Quality Bar",
+        "docs/skill-quality-bar.md",
+        "Baseline Bar",
+        "Escalation Bar",
+        "behavior delta",
+        "trigger clarity",
+        "completion criterion",
+        "output contract",
+        "positive steering",
+        "no-op pruning",
+        "progressive disclosure",
+        "bounded attempt memory",
+        "writing-great-skills",
+        "Matt Pocock",
+    ]:
+        assert_contains(combined, marker, "skill quality bar guidance")
+
+    for marker in [
+        "ordinary Patch",
+        "copy edits",
+        "local-only docs",
+        "narrow accepted tweaks",
+        "trigger, cap, artifact, and exit condition",
+    ]:
+        assert_contains(agents, marker, "skill quality bar trigger bounds")
+
+    for marker in [
+        "local analytics direction",
+        ".gauntlet/analytics/",
+        "analytics emit",
+        "analytics summarize",
+        "calendar_planning_span",
+        "human_review_latency",
+        "bounded attempt memory",
+        "Local Closeout Facts",
+        "do not auto-commit",
+        "do not auto-archive",
+        "git diff --numstat",
+        "scc",
+        "cloc",
+    ]:
+        assert_contains(plan, marker, "skill quality analytics plan")
 
 
 def test_subagent_plan_validator_logs_rejections():
@@ -1753,6 +1810,376 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
             raise AssertionError(f"secret-like follow-up finding missing: {secret_followup_data}")
 
 
+def test_gauntlet_cli_local_analytics_and_closeout_facts():
+    cli = SCRIPTS / "gauntlet.py"
+    if not cli.exists() or not os.access(cli, os.X_OK):
+        raise AssertionError(f"missing executable Gauntlet CLI: {cli}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / ".gitignore").write_text("/.gauntlet/\n")
+        (repo / "README.md").write_text("# Repo\n")
+        commit_all(repo, "baseline")
+
+        event_payload = {
+            "repo_name": "private-project-name",
+            "branch_name": "feature/private-branch",
+            "command": "npm test -- --token sk-live-secret-value",
+            "command_label": "npm test",
+            "mode": "Feature",
+            "depth": "Deep",
+            "proof_scope": "delta",
+            "task_type": "feature",
+            "cohort": "v2.0.2",
+        }
+        emitted = run([
+            str(cli),
+            "analytics",
+            "emit",
+            "--project-root",
+            str(repo),
+            "--run-id",
+            "run-analytics",
+            "--event-type",
+            "run_started",
+            "--gauntlet-version",
+            "2.0.2",
+            "--payload-json",
+            json.dumps(event_payload),
+            "--json",
+        ], cwd=repo)
+        emitted_data = json.loads(emitted.stdout)
+        if emitted_data["status"] != "pass":
+            raise AssertionError(f"analytics emit should pass: {emitted_data}")
+        event = emitted_data["event"]
+        if event["schema_version"] != "gauntlet.analytics.v1":
+            raise AssertionError(f"analytics event should carry schema version: {event}")
+        if event["payload"].get("command_label") != "npm test":
+            raise AssertionError(f"safe coarse command label should be preserved: {event}")
+        if "command_hash" not in event["payload"]:
+            raise AssertionError(f"raw command should be replaced by hash: {event}")
+
+        analytics_file = repo / ".gauntlet" / "analytics" / "events.ndjson"
+        if not analytics_file.exists():
+            raise AssertionError("analytics emit should create local events.ndjson")
+        stored = analytics_file.read_text()
+        for secret_text in [
+            "private-project-name",
+            "feature/private-branch",
+            "sk-live-secret-value",
+            "npm test -- --token",
+        ]:
+            assert_not_contains(stored, secret_text, "analytics event storage privacy")
+
+        closeout = run([
+            str(cli),
+            "analytics",
+            "closeout",
+            "--project-root",
+            str(repo),
+            "--run-id",
+            "run-analytics",
+            "--file-changed",
+            "scripts/gauntlet.py",
+            "--file-changed",
+            "docs/workflow-speedups.md",
+            "--proof",
+            "python3 scripts/check-gauntlet-workflow.py",
+            "--risk",
+            "Cannot verify adoption impact until more local runs exist.",
+            "--json",
+        ], cwd=repo)
+        closeout_data = json.loads(closeout.stdout)
+        if closeout_data["status"] != "pass":
+            raise AssertionError(f"analytics closeout should pass: {closeout_data}")
+        summary = closeout_data["summary"]
+        if summary["filesChangedCount"] != 2:
+            raise AssertionError(f"closeout should count changed files: {summary}")
+        if summary["proofCompleted"] != ["python3 scripts/check-gauntlet-workflow.py"]:
+            raise AssertionError(f"closeout should preserve proof facts: {summary}")
+        if summary["unresolvedRisks"] != ["Cannot verify adoption impact until more local runs exist."]:
+            raise AssertionError(f"closeout should preserve unresolved risk facts: {summary}")
+        if closeout_data.get("actions") != []:
+            raise AssertionError(f"closeout must not plan commit/changelog/push/archive actions: {closeout_data}")
+        if closeout_data["event"]["payload"].get("files_changed_count") != 2:
+            raise AssertionError(f"closeout analytics should preserve safe numeric counts: {closeout_data}")
+
+        stored_after_closeout = analytics_file.read_text()
+        assert_contains(stored_after_closeout, "closeout_completed", "closeout analytics event")
+        for raw_file in ["scripts/gauntlet.py", "docs/workflow-speedups.md"]:
+            assert_not_contains(stored_after_closeout, raw_file, "analytics closeout should hash file names")
+        for forbidden_action in ["commit_created", "changelog_updated", "archive_thread", "git_push"]:
+            assert_not_contains(stored_after_closeout, forbidden_action, "closeout should not emit abandoned automation events")
+
+        missing_labels = run([
+            str(cli),
+            "analytics",
+            "summarize",
+            "--project-root",
+            str(repo),
+            "--json",
+        ], cwd=repo, check=False)
+        if missing_labels.returncode != 2:
+            raise AssertionError(f"missing release labels should return review exit code: {missing_labels.stdout}")
+        missing_data = json.loads(missing_labels.stdout)
+        if missing_data["status"] != "review":
+            raise AssertionError(f"missing labels should produce review status: {missing_data}")
+        if not any(finding["code"] == "missing_baseline_or_candidate" for finding in missing_data["findings"]):
+            raise AssertionError(f"summarize should ask for baseline and candidate: {missing_data}")
+
+        for cohort, verified in [("v2.0.1", True), ("v2.0.3-rc1", False)]:
+            run([
+                str(cli),
+                "analytics",
+                "emit",
+                "--project-root",
+                str(repo),
+                "--run-id",
+                f"run-{cohort}",
+                "--event-type",
+                "run_completed",
+                "--gauntlet-version",
+                cohort,
+                "--payload-json",
+                json.dumps({
+                    "cohort": cohort,
+                    "mode": "Feature",
+                    "depth": "Standard",
+                    "proof_scope": "delta",
+                    "task_type": "feature",
+                    "verified": verified,
+                }),
+                "--json",
+            ], cwd=repo)
+
+        timing_events = [
+            ("run_started", "2026-07-01T09:00:00Z", {}),
+            ("mode_selected", "2026-07-01T09:02:00Z", {"active_agent_seconds": 60}),
+            ("plan_created", "2026-07-01T09:05:00Z", {"active_agent_seconds": 120}),
+            ("human_review_requested", "2026-07-01T10:00:00Z", {}),
+            ("human_review_completed", "2026-07-03T10:00:00Z", {}),
+            ("annotation_added", "2026-07-03T10:04:00Z", {"autonomous_eligible": True}),
+            ("implementation_started", "2026-07-03T10:05:00Z", {}),
+            ("run_completed", "2026-07-03T10:35:00Z", {"autonomous_completed": True, "verified": True}),
+        ]
+        for event_type, created_at, extra_payload in timing_events:
+            payload = {
+                "cohort": "v2.0.3-rc1",
+                "mode": "Feature",
+                "depth": "Standard",
+                "proof_scope": "delta",
+                "task_type": "feature",
+                **extra_payload,
+            }
+            run([
+                str(cli),
+                "analytics",
+                "emit",
+                "--project-root",
+                str(repo),
+                "--run-id",
+                "run-timing",
+                "--event-type",
+                event_type,
+                "--created-at",
+                created_at,
+                "--gauntlet-version",
+                "v2.0.3-rc1",
+                "--payload-json",
+                json.dumps(payload),
+                "--json",
+            ], cwd=repo)
+
+        summary_result = run([
+            str(cli),
+            "analytics",
+            "summarize",
+            "--project-root",
+            str(repo),
+            "--baseline",
+            "v2.0.1",
+            "--candidate",
+            "v2.0.3-rc1",
+            "--json",
+        ], cwd=repo)
+        summary_data = json.loads(summary_result.stdout)
+        if summary_data["status"] != "pass":
+            raise AssertionError(f"release-candidate summary should pass with labels: {summary_data}")
+        if summary_data["localPrivate"] is not True:
+            raise AssertionError(f"release-candidate summary should be local/private: {summary_data}")
+        if summary_data["confidence"] != "anecdotal":
+            raise AssertionError(f"tiny cohorts should be labeled anecdotal: {summary_data}")
+        if summary_data["baseline"]["label"] != "v2.0.1" or summary_data["candidate"]["label"] != "v2.0.3-rc1":
+            raise AssertionError(f"summary should preserve explicit baseline/candidate labels: {summary_data}")
+        if not summary_data["segments"]:
+            raise AssertionError(f"summary should segment mode/depth/proof/task facts: {summary_data}")
+        timing = summary_data["candidate"]["timing"]
+        if timing["calendarPlanningSpanSeconds"]["total"] != 176700:
+            raise AssertionError(f"calendar planning span should include async elapsed time: {timing}")
+        if timing["activeAgentPlanningSeconds"]["total"] != 180:
+            raise AssertionError(f"active agent planning should sum explicit planning work: {timing}")
+        if timing["humanReviewLatencySeconds"]["total"] != 172800:
+            raise AssertionError(f"human review latency should be measured separately: {timing}")
+        if timing["humanReviewLongGapCount"] != 1:
+            raise AssertionError(f"long human review gaps should be bucketed: {timing}")
+        if timing["autonomousEligibleRuns"] != 1 or timing["autonomousCompletedRuns"] != 1:
+            raise AssertionError(f"autonomy should be annotation-based, not title-based: {timing}")
+
+
+def test_gauntlet_cli_bounded_attempt_memory():
+    cli = SCRIPTS / "gauntlet.py"
+    if not cli.exists() or not os.access(cli, os.X_OK):
+        raise AssertionError(f"missing executable Gauntlet CLI: {cli}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / ".gitignore").write_text("/.gauntlet/\n")
+        (repo / "README.md").write_text("# Repo\n")
+        commit_all(repo, "baseline")
+
+        for _ in range(2):
+            added = run([
+                str(cli),
+                "attempt-memory",
+                "add",
+                "--project-root",
+                str(repo),
+                "--run-id",
+                "run-memory",
+                "--kind",
+                "proof_failure",
+                "--fingerprint",
+                "pytest failed in private/path/test_secret.py",
+                "--summary",
+                "pytest failed because the fixture was missing",
+                "--max-active",
+                "5",
+                "--json",
+            ], cwd=repo)
+            added_data = json.loads(added.stdout)
+            if added_data["status"] != "pass":
+                raise AssertionError(f"attempt-memory add should pass: {added_data}")
+
+        listed = run([
+            str(cli),
+            "attempt-memory",
+            "list",
+            "--project-root",
+            str(repo),
+            "--run-id",
+            "run-memory",
+            "--json",
+        ], cwd=repo)
+        listed_data = json.loads(listed.stdout)
+        entries = listed_data["entries"]
+        if len(entries) != 1:
+            raise AssertionError(f"repeated attempt should summarize to one entry: {listed_data}")
+        if entries[0]["repeatCount"] != 2:
+            raise AssertionError(f"repeated attempt should increment count: {listed_data}")
+
+        bounded = run([
+            str(cli),
+            "attempt-memory",
+            "add",
+            "--project-root",
+            str(repo),
+            "--run-id",
+            "run-memory",
+            "--kind",
+            "rejected_alternative",
+            "--fingerprint",
+            "alternate implementation rejected",
+            "--summary",
+            "alternate implementation was too broad",
+            "--max-active",
+            "1",
+            "--json",
+        ], cwd=repo)
+        bounded_data = json.loads(bounded.stdout)
+        if bounded_data["activeCount"] != 1:
+            raise AssertionError(f"attempt memory should enforce max-active: {bounded_data}")
+
+        listed_again = run([
+            str(cli),
+            "attempt-memory",
+            "list",
+            "--project-root",
+            str(repo),
+            "--run-id",
+            "run-memory",
+            "--json",
+        ], cwd=repo)
+        listed_again_data = json.loads(listed_again.stdout)
+        if len(listed_again_data["entries"]) != 1:
+            raise AssertionError(f"bounded attempt memory should list one active entry: {listed_again_data}")
+        if listed_again_data["entries"][0]["summary"] != "alternate implementation was too broad":
+            raise AssertionError(f"bounded attempt memory should retain most recent entry: {listed_again_data}")
+
+        memory_file = repo / ".gauntlet" / "attempt-memory.jsonl"
+        if not memory_file.exists():
+            raise AssertionError("attempt memory should write local scratchpad file")
+        memory_text = memory_file.read_text()
+        assert_not_contains(memory_text, "private/path/test_secret.py", "attempt memory should hash fingerprints")
+
+        old_entry = {
+            "schemaVersion": "1.0",
+            "kind": "proof_failure",
+            "fingerprintHash": "old-entry",
+            "summary": "old failed attempt",
+            "repeatCount": 1,
+            "firstSeen": "2026-01-01T00:00:00Z",
+            "lastSeen": "2026-01-01T00:00:00Z",
+            "runIds": ["run-memory"],
+        }
+        memory_file.write_text(memory_file.read_text() + json.dumps(old_entry) + "\n")
+        pruned = run([
+            str(cli),
+            "attempt-memory",
+            "list",
+            "--project-root",
+            str(repo),
+            "--run-id",
+            "run-memory",
+            "--max-age-days",
+            "7",
+            "--now",
+            "2026-07-09T00:00:00Z",
+            "--json",
+        ], cwd=repo)
+        pruned_data = json.loads(pruned.stdout)
+        if pruned_data["activeCount"] != 1:
+            raise AssertionError(f"attempt memory should prune old entries by age: {pruned_data}")
+        assert_not_contains(memory_file.read_text(), "old-entry", "attempt memory age pruning should rewrite scratchpad")
+
+        expired = run([
+            str(cli),
+            "analytics",
+            "closeout",
+            "--project-root",
+            str(repo),
+            "--run-id",
+            "run-memory",
+            "--attempt-memory-path",
+            str(memory_file),
+            "--expire-attempt-memory",
+            "--json",
+        ], cwd=repo)
+        expired_data = json.loads(expired.stdout)
+        if expired_data["attemptMemoryExpired"] != 1:
+            raise AssertionError(f"closeout should expire run-scoped attempt memory when requested: {expired_data}")
+        if memory_file.read_text().strip():
+            raise AssertionError("closeout should remove run-scoped scratchpad entries")
+
+        events = (repo / ".gauntlet" / "analytics" / "events.ndjson").read_text()
+        assert_contains(events, "attempt_memory_written", "attempt memory write analytics")
+        assert_contains(events, "attempt_memory_read", "attempt memory read analytics")
+        assert_not_contains(events, "private/path/test_secret.py", "attempt memory analytics should not store raw fingerprints")
+
+
 def test_thread_changelog_captures_pr_history_and_followups():
     changelog = read(ROOT / "docs" / "gauntlet-runs" / "2026-07-04-thread-changelog.md")
     for marker in [
@@ -1789,7 +2216,7 @@ def test_workflow_etiquette_is_in_global_workflow():
         "set_thread_archived",
         "Archive Summary",
         "Pass the PR changelog or closeout content to `scripts/gauntlet.py archive plan --content`",
-        "Every Gauntlet implementation closeout should print the Archive Summary",
+        "the final response includes files changed, proof/tests completed, and unresolved risks",
     ]:
         assert_contains(combined, marker, "workflow etiquette global guidance")
 
@@ -2081,6 +2508,8 @@ def main():
         test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk,
         test_gauntlet_cli_small_helper_commands,
         test_gauntlet_cli_changelog_memory_and_followup_helpers,
+        test_gauntlet_cli_local_analytics_and_closeout_facts,
+        test_gauntlet_cli_bounded_attempt_memory,
         test_thread_changelog_captures_pr_history_and_followups,
         test_workflow_etiquette_is_in_global_workflow,
         test_promotion_scanner_is_release_wrapup_not_patch_gate,

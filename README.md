@@ -16,6 +16,7 @@ A product-thinking harness for AI coding agents.
   <a href="#v201-run-log-harness">v2.0.1</a> |
   <a href="#-build-stages">Build Stages</a> |
   <a href="#-run-logs">Run Logs</a> |
+  <a href="#-skill-quality-bar">Skill Quality Bar</a> |
   <a href="#-coverage-gaps">Coverage Gaps</a> |
   <a href="#-production-quality-bar">Production Quality Bar</a> |
   <a href="#-install">Install</a>
@@ -54,6 +55,7 @@ The workflow is built around Patch, Feature, and Release modes; Standard and Dee
 | Product-thinking loop | Shapes rough asks into coherent product features before implementation and checks consistency after. |
 | Scoped role skills | Adds product architecture, planning, triage, implementation, black-box testing, experience review, and deep code review only at smoke, delta, or full scope when useful. |
 | Run logs | Writes a tiny exceptions-first Markdown receipt for material Feature/Release work: assumptions, decisions, skipped checks, failures, `Cannot verify`, and follow-ups. |
+| Skill quality bar | Gives future skill and workflow edits a practical behavior-delta, trigger, completion, proof, and token-cost bar without making every Patch heavier. |
 | Coverage gaps | Captures pending candidates when missing reusable guidance forced a material assumption or repeated review finding. |
 | Workflow speedup helpers | Classifies changed surfaces, recommends bounded tests, and generates redacted review packets without making every Patch run a heavy quality gate. |
 | Promotion scanner | Produces a Promotion Brief when repeated manual or agent loops should be considered for repo code, repo test, repo docs/run log, Gauntlet skill/tool, coverage gap, or Reject. |
@@ -125,6 +127,14 @@ The run log is exceptions-first. It records only what future agents would regret
 - For Release, a compact proof summary or launch cut line when it affects risk.
 
 Routine successful checks stay in the final chat summary. The run log should feel like a receipt, not a project report.
+
+## 🧰 Skill Quality Bar
+
+[docs/skill-quality-bar.md](docs/skill-quality-bar.md) is the reference for creating or meaningfully changing Gauntlet skills, role skills, workflow guidance, eval guidance, or skill-like checklists.
+
+The baseline bar asks whether the change creates a practical behavior delta, has a clear trigger, defines completion and output, steers positively, prunes no-op prose, uses progressive disclosure, and keeps cheap harness mechanics such as schemas, bounded attempt notes, and `Cannot verify` slots where they help. The escalation bar is reserved for high-impact work that earns extra tokens: forward-test scenarios, adversarial skill review, two-attempt Deep planning, impact proof review, or parallel reviewer lanes.
+
+Gauntlet credits Matt Pocock's `writing-great-skills` for the skill-writing vocabulary that informs this reference, while keeping Gauntlet's applied bar in its own docs.
 
 ## 🕳 Coverage Gaps
 
@@ -247,7 +257,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [docs/workflow-speedups.md](docs/workflow-speedups.md) | Advisory changed-surface, test-planning, review-packet, and subagent packet guidance. |
 | [docs/promotion-scanner.md](docs/promotion-scanner.md) | Trigger policy and gap-routing guidance for promotion scans. |
 | [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
-| [scripts/gauntlet.py](scripts/gauntlet.py) | Small deterministic CLI for archive planning/execution, install verification, follow-up note/thread packets, Implementation Memory linting, PR/changelog generation, and saved diagram lookup. |
+| [scripts/gauntlet.py](scripts/gauntlet.py) | Small deterministic CLI for local analytics, closeout facts, bounded attempt memory, release-candidate summaries, archive planning/execution, install verification, follow-up packets, Implementation Memory linting, PR/changelog drafts, and saved diagram lookup. |
 | [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals. |
 | [scripts/classify-ts-durability.sh](scripts/classify-ts-durability.sh) | Classifies whether TypeScript durability standards are required for the current work. |
 | [scripts/diff-intel.py](scripts/diff-intel.py) | Writes advisory changed-file, package-root, risk-trigger, dirty-worktree, confidence, and `Cannot verify` intel. |
