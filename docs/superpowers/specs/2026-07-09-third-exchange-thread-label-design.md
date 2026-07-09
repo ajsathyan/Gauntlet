@@ -14,6 +14,18 @@ Make priority and task naming decisions visible and actionable in every Codex ta
 - Once accepted, apply the label with `set_thread_title`; do not leave it as chat-only advice.
 - Re-evaluate the `-auto` suffix when execution mode materially changes, without reopening an already settled priority unless scope or risk changes.
 
+## Research Priority Semantics
+
+Research is never assigned `p4` merely because it is research. Classify it by the consequence and durable decision it supports:
+
+- `p0`: research whose failure could drive Release-class, security, privacy, legal, financial, data-integrity, or similarly material harm.
+- `p1`: research that shapes a substantial product, feature, workflow, positioning, or strategic direction.
+- `p2`: research that informs a consequential implementation or bounded high-impact decision.
+- `p3`: normal bounded research with a durable answer or decision artifact.
+- `p4`: low-durable-output brainstorming, abandoned work, routine admin, or intentionally parked exploration.
+
+When classification is uncertain, default bounded research to `p3`, not `p4`, and raise it when downstream consequence warrants it. Do not inflate priority solely because research is broad or time-consuming.
+
 ## Scope
 
 Change the Gauntlet source guidance, its workflow checks, and installation verification. Reinstall the updated guidance into the active Codex home so new tasks receive the rule immediately after reload. Rename the currently active workflow-fix task and the live `harness-evals` task as direct recovery actions.
@@ -24,11 +36,12 @@ Out of scope:
 - Automatic priority inference outside the agent workflow.
 - Renaming already-valid labeled tasks.
 - Reprioritizing tasks based on urgency; the existing mapping remains based on work class and consequence.
+- Building a separate research-only priority system.
 
 ## Implementation Design
 
-1. Add the third-exchange deadline and first-substantive-response preference to `AGENTS.md` and `docs/workflow-etiquette.md`.
-2. Add a focused workflow test that fails until both source surfaces contain the deadline, accepted-label action, and valid-title exception.
+1. Add the third-exchange deadline, first-substantive-response preference, and impact-based research mapping to `AGENTS.md` and `docs/workflow-etiquette.md`.
+2. Add a focused workflow test that fails until both source surfaces contain the deadline, accepted-label action, valid-title exception, and rule that research is not automatically `p4`.
 3. Extend install verification so the installed global `AGENTS.md` is checked for the same invariant, preventing a source/install drift recurrence.
 4. Run targeted workflow checks, then the full Gauntlet workflow check.
 5. Reinstall Gauntlet for Codex and verify the installed global guidance contains the invariant.
@@ -55,6 +68,7 @@ The guidance remains the enforcement mechanism because Codex task behavior is pr
 - Guidance prefers the first substantive response when classification is already possible.
 - Existing valid labels are not reopened.
 - Accepted labels are applied with `set_thread_title`.
+- Research is classified by downstream consequence and defaults to `p3` when bounded but otherwise uncertain; it is never automatically `p4`.
 - Automated checks fail if the deadline disappears from source or installed guidance.
 - The live eval task is titled `p0-auto: build harness eval suite`.
 - This task is titled `p2-auto: enforce third-turn priority labels`.
