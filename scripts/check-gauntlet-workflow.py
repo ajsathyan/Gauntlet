@@ -2431,6 +2431,9 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         installed_agents = read(agent_home / "AGENTS.md")
         assert_contains(installed_agents, "Global Agent Coding Workflow", "Codex AGENTS install")
         assert_contains(installed_agents, personal_block, "Codex personal house voice preservation")
+        installed_mode = (agent_home / "AGENTS.md").stat().st_mode & 0o777
+        if installed_mode != 0o644:
+            raise AssertionError(f"Codex AGENTS install mode should be 0644, got {installed_mode:04o}")
         for marker in [
             "no later than the third user-assistant exchange",
             "Research is never assigned `p4` merely because it is research",

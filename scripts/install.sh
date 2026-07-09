@@ -199,6 +199,8 @@ write_codex_agents() {
     rm -f "$output_file"
   fi
 
+  chmod 0644 "$codex_file"
+
   rm -f "$personal_file" "$base_file" "$output_file"
 }
 
