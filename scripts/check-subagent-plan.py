@@ -9,18 +9,36 @@ from pathlib import Path
 
 LOG_NAME = "subagent-plan-log.jsonl"
 SUMMARY_NAME = "subagent-plan-summary.json"
+VALID_SCHEMA_VERSION = "1.1"
 VALID_STATE_ACCESS = {"none", "read-only", "mutates"}
+VALID_LANE_STATUS = {"To Do", "In Progress", "Blocked", "In Review", "Done", "Canceled"}
 OVERBROAD_PATHS = {"*", "**", "**/*", ".", "./", "/*"}
 REQUIRED_LANE_FIELDS = [
     "id",
+    "status",
+    "title",
     "skill",
+    "objective",
+    "projectRoot",
+    "worktreePath",
+    "acceptedSource",
     "scope",
+    "inScope",
+    "outOfScope",
     "filesRead",
     "filesWrite",
+    "filesAvoid",
     "stateScope",
     "stateAccess",
+    "dependencies",
+    "consumes",
+    "produces",
+    "constraints",
     "proof",
     "inlineContext",
+    "taskPacketRef",
+    "expectedReturn",
+    "askUserPolicy",
 ]
 SECRET_PATTERNS = [
     re.compile(r"(?i)\b[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*['\"]?[^\s'\"`]+"),
@@ -87,8 +105,28 @@ def is_overbroad_path(pattern):
     return normalized in OVERBROAD_PATHS
 
 
-def validate_plan(data, max_inline_words, max_total_inline_words):
+def resolve_project_reference(project_root, reference):
+    if not isinstance(reference, str) or not reference.strip():
+        return None
+    path_part = reference.split("#", 1)[0].strip()
+    if not path_part or Path(path_part).is_absolute():
+        return None
+    candidate = (project_root / path_part).resolve()
+    try:
+        candidate.relative_to(project_root)
+    except ValueError:
+        return None
+    return candidate
+
+
+def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
     rejections = []
+    if data.get("schemaVersion") != VALID_SCHEMA_VERSION:
+        add_rejection(
+            rejections,
+            "unsupported_schema_version",
+            f"schemaVersion must be {VALID_SCHEMA_VERSION}",
+        )
     lanes = data.get("lanes")
     if not isinstance(lanes, list):
         add_rejection(rejections, "missing_lanes", "plan must include a lanes array")
@@ -117,9 +155,34 @@ def validate_plan(data, max_inline_words, max_total_inline_words):
         else:
             seen_ids.add(lane["id"])
 
-        for field in ["skill", "scope", "stateScope", "stateAccess", "inlineContext"]:
+        for field in [
+            "status",
+            "title",
+            "skill",
+            "objective",
+            "projectRoot",
+            "worktreePath",
+            "acceptedSource",
+            "scope",
+            "stateScope",
+            "stateAccess",
+            "inlineContext",
+            "taskPacketRef",
+            "expectedReturn",
+            "askUserPolicy",
+        ]:
             if field in lane and not isinstance(lane[field], str):
                 add_rejection(rejections, "invalid_field_type", f"{field} must be a string", lane_id)
+            elif field in lane and not lane[field].strip():
+                add_rejection(rejections, "empty_field", f"{field} must not be empty", lane_id)
+
+        if lane.get("status") not in VALID_LANE_STATUS:
+            add_rejection(
+                rejections,
+                "invalid_lane_status",
+                f"status must be one of: {', '.join(sorted(VALID_LANE_STATUS))}",
+                lane_id,
+            )
 
         if lane.get("stateAccess") not in VALID_STATE_ACCESS:
             add_rejection(
@@ -129,11 +192,51 @@ def validate_plan(data, max_inline_words, max_total_inline_words):
                 lane_id,
             )
 
-        for field in ["filesRead", "filesWrite", "proof"]:
+        for field in [
+            "inScope",
+            "outOfScope",
+            "filesRead",
+            "filesWrite",
+            "filesAvoid",
+            "dependencies",
+            "consumes",
+            "produces",
+            "constraints",
+            "proof",
+        ]:
             if field in lane and not require_list(lane[field]):
                 add_rejection(rejections, "invalid_field_type", f"{field} must be a list of strings", lane_id)
         if isinstance(lane.get("proof"), list) and not lane["proof"]:
             add_rejection(rejections, "missing_proof", "lane proof must not be empty", lane_id)
+
+        if isinstance(lane.get("projectRoot"), str) and lane["projectRoot"].strip():
+            declared_root = Path(lane["projectRoot"])
+            if not declared_root.is_absolute():
+                declared_root = project_root / declared_root
+            if declared_root.resolve() != project_root:
+                add_rejection(
+                    rejections,
+                    "project_root_mismatch",
+                    "lane projectRoot must resolve to the validated project root",
+                    lane_id,
+                )
+
+        if isinstance(lane.get("taskPacketRef"), str) and lane["taskPacketRef"].strip():
+            packet_path = resolve_project_reference(project_root, lane["taskPacketRef"])
+            if packet_path is None:
+                add_rejection(
+                    rejections,
+                    "invalid_task_packet_ref",
+                    "taskPacketRef must be a relative path inside the project root",
+                    lane_id,
+                )
+            elif not packet_path.is_file():
+                add_rejection(
+                    rejections,
+                    "task_packet_missing",
+                    f"taskPacketRef does not exist: {lane['taskPacketRef']}",
+                    lane_id,
+                )
 
         inline_words = word_count(lane.get("inlineContext", ""))
         total_inline_words += inline_words
@@ -292,7 +395,7 @@ def main():
         raise SystemExit("plan path is required unless --stats is used")
 
     data = json.loads(args.plan.read_text(encoding="utf-8"))
-    rejections = validate_plan(data, args.max_inline_words, args.max_total_inline_words)
+    rejections = validate_plan(data, project_root, args.max_inline_words, args.max_total_inline_words)
     status = "rejected" if rejections else "accepted"
     record = {
         "schemaVersion": "1.0",
