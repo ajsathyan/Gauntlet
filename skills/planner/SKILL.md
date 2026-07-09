@@ -24,6 +24,8 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Verification plan
 - Parallelizable lanes: independent tasks that can go to subagents, or `None`
 - Subagent manifest: `.gauntlet/subagent-plan.json` or `Not relevant because...`
+- Subagent packetization: required or `Not relevant because...`
+- Scope-addition delta: material change or `Scope delta checked: no material change.`
 - Ordered **Gauntlet Task Packet** list
 - First ready task
 
@@ -50,6 +52,8 @@ Each task gets a packet. Keep tasks end-to-end unless files, state, and proof ar
 - Convert uncertainty into probes, checks, explicit assumptions, or Cannot verify items.
 - For performance, security, reliability, and hot-path work, include a comparison or adversarial check when appetite allows.
 - When `Parallelizable lanes` is not `None`, write `.gauntlet/subagent-plan.json` and validate it with `scripts/check-subagent-plan.py` before dispatch.
+- `Subagent packetization: required` means validate accepted lane packets and the current-run manifest before implementation, not just dispatch.
+- Run scope-addition delta foresight before added scope; use the one-line marker for clean checks.
 - Use subagents only for accepted independent task packets; do not split tightly coupled state or one decision tree across workers.
 - For Release panels, preserve the launch cut line, panel delta, `| Concern | Decision | Why Not Defer | Proof | Plan Delta |`, and the allowed decisions: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, `Reject`.
 - A `Ship blocker` needs concrete harm, no acceptable fallback/deferral, executable proof, and a real plan delta; otherwise downgrade it.

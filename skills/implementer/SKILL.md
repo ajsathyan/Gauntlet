@@ -36,6 +36,8 @@ For Feature or Release work, also report run-log-friendly exceptions:
 - Implement the smallest correct step.
 - Keep interfaces narrow and behavior explicit.
 - Add or update tests when behavior changes.
+- Refuse delegated implementation when required lane packets or an accepted current-run manifest are missing. Return the exact missing packet or validator evidence to the orchestrator.
+- Before implementing added scope, require its scope-addition delta to be resolved; a clean check may be represented by `Scope delta checked: no material change.` in the plan or task packet.
 - For independent task packets with disjoint files, state, and proof, use only subagent lanes accepted by `scripts/check-subagent-plan.py`; otherwise implement sequentially. Do not repeat large shared context into subagents unless speed gains justify the tokens.
 - Avoid broad rewrites, speculative abstractions, unrelated cleanup, and silent behavior changes.
 - After substantial or generated-code-heavy changes, remove dead code and unnecessary abstractions you introduced before final verification.

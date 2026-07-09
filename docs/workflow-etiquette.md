@@ -61,8 +61,10 @@ Priority mapping:
 - `p0`: Release-class or materially risky work.
 - `p1`: Feature-class work.
 - `p2`: Deep Patch, tricky patch, or small change with high consequence.
-- `p3`: normal Patch.
-- `p4`: brainstorm, research, docs-only, abandoned, admin, or low-durable-output work.
+- `p3`: normal Patch or normal bounded research with a durable answer or decision artifact.
+- `p4`: low-durable-output brainstorming, abandoned work, routine admin, or intentionally parked exploration.
+
+Research is never assigned `p4` merely because it is research. Classify it by the consequence and durable decision it supports: `p0` for Release-class harm, `p1` for substantial product or strategic direction, `p2` for consequential implementation decisions, and `p3` for normal bounded research. When uncertain, default bounded research to `p3`; do not inflate priority merely because research is broad or time-consuming.
 
 Blocking rule:
 
@@ -71,6 +73,7 @@ Blocking rule:
 - If the user responds affirmatively or continues without objecting to a suggested priority/title, treat the label as accepted and apply it. Do not require a separate explicit "yes".
 - After selecting a kickoff label, call `set_thread_title` immediately; the label is an app action, not just planning text.
 - If the user supplies an alternate priority/title, call `set_thread_title` with the user's version and continue from that label.
+- For an unlabeled task, suggest the priority/title on the first substantive response when classification is responsible and no later than the third user-assistant exchange. Existing valid `p0` through `p4` labels, with optional `-auto`, are not reopened merely to repeat naming ceremony.
 - Before implementation, include `Edge Cases From This Ask` for p0-p2 work and p3 work with side effects, state changes, user-facing behavior, or a repeated prior miss.
 - Split edge cases into `Need user decision` and `Safe defaults I will apply`; ask only for edge cases that change product behavior, data/money/privacy/security risk, or acceptance criteria.
 
@@ -85,6 +88,7 @@ Execution Mode rule:
 - Recheck execution mode after Foresight and before side-effectful Execution. Promote to `autonomous` once goals, requirements, domain relationships, and acceptable defaults are clear enough to proceed.
 - Demote to `review` when product judgment, external side effects, irreversible decisions, uncertain domain relationships, or unclear requirements need the user before autonomous execution would be responsible.
 - When demoting to `review`, ask the smallest useful clarifying question and include the agent's recommended answer so the user can accept or correct it quickly.
+- Silently reassess priority and execution mode when implementation begins and when implementation materially changes scope, affected systems, external side effects, risk, proof burden, or reversibility. If the priority is unchanged, say nothing about it. If it changes, state the old and new priority once, name the trigger, and update the thread title. Call out an execution-mode change only when the suffix changes between review and `-auto`.
 
 User override always wins.
 
@@ -112,6 +116,8 @@ Rules:
 - For p3, run only when there is a concrete side-effect surface, state transition, user-facing behavior, or repeated prior miss.
 - For p0-p2, run by default before implementation, but keep it bounded.
 - Do not hide unclear requirements by calling them edge cases. If the uncertainty changes product behavior, data, money, privacy, security, or acceptance criteria, route it through Planning or Kickoff instead.
+- Run scope-addition delta foresight before implementing every genuine addition to accepted scope. Inspect the addition and its boundary with existing scope for new edge cases, invalidated assumptions, acceptance/proof changes, priority/execution changes, and packetization changes.
+- A clean scope-addition check records only `Scope delta checked: no material change.` in the plan/task packet and stays silent in chat. Material findings update the affected task packets, dependencies, acceptance criteria, and proof before implementation and are called out only when they change the plan or need a decision.
 - If the work depends on how domain entities relate and that relationship is not explicit in code, docs, tests, or prior accepted context, demote execution mode to `review`.
 - When latency matters, solidify the safe default or create a specific lane so future autonomous execution can move quickly without repeated ceremony.
 
@@ -146,6 +152,14 @@ Delegation:
 - Use rule: cite exact sections; do not inline the whole doc
 - Child ledger: [C1][Status] lane - dependency/worktree note
 ```
+
+Pre-implementation packetization gate:
+
+- At implementation transition, record `Subagent packetization: required` or `Subagent packetization: not relevant because...`.
+- Packetization is required when the user asks for subagents, the accepted plan proposes parallel lanes, or multiple agent/child-chat lanes will implement the work.
+- When required, every lane needs a referenced accepted packet covering lane id/title/status, skill/objective, project/worktree context, accepted source, in/out scope, ownership/avoidance, dependencies, consumes/produces, constraints, proof, expected return format, and ask-user policy.
+- The referenced packets and accepted current-run `.gauntlet/subagent-plan.json` must exist before implementation, not merely before dispatch. Write-heavy lane ownership and worktrees, the lane ledger, and the first ready lane must also be named.
+- If material scope changes add or reshape lanes, update packets and revalidate before implementing the affected scope.
 
 Trigger rules:
 
@@ -209,7 +223,7 @@ Ask-user policy: do not ask user directly; return Needs decision to the main cha
 
 Boundaries:
 
-- It is not a new mandatory gate.
+- Implementation Memory is not a mandatory gate by itself. Packetization is mandatory only when the trigger above says it is required.
 - It is not a run log. Run logs capture decisions and exceptions after or during a run; Implementation Memory makes future implementation cheaper before or across runs.
 - It is not a task packet. Task packets should cite exact sections of Implementation Memory instead of copying the whole thing.
 - It should not contain secrets, raw private data, or unredacted operational state.
