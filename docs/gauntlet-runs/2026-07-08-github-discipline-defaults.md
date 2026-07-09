@@ -22,6 +22,7 @@ Proof scope: delta.
 
 - No CLI behavior changed in this pass. A future `git plan` helper can generalize archive-time Git checks if repeated runs prove the loop.
 - Used a sibling worktree for implementation because the source checkout had unrelated untracked `house-voice-plans.md`.
+- Manual changelog-helper inspection after PR creation confirmed the helper is not default closeout behavior. Running `scripts/gauntlet.py changelog pr` against this run log failed because the helper expects an Implementation Memory file with required sections; it wrote no changelog file.
 
 ## Production Quality Bar
 
