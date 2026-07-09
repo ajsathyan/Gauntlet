@@ -365,6 +365,37 @@ def test_subagent_parallelism_is_context_efficient():
     )
 
 
+def test_kickoff_and_implementation_transition_gates_are_documented():
+    agents = read(AGENTS_MD)
+    etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
+    planner = read(SKILLS / "planner" / "SKILL.md")
+    implementer = read(SKILLS / "implementer" / "SKILL.md")
+
+    for marker in [
+        "no later than the third user-assistant exchange",
+        "Research is never assigned `p4` merely because it is research",
+        "If the priority is unchanged, say nothing about it",
+        "Subagent packetization: required",
+        "before implementation, not merely before dispatch",
+        "Scope delta checked: no material change.",
+    ]:
+        assert_contains("\n".join([agents, etiquette]), marker, "implementation-transition guidance")
+
+    for marker in [
+        "Subagent packetization: required",
+        "Scope delta checked: no material change.",
+        "before implementation",
+    ]:
+        assert_contains(planner, marker, "planner implementation-transition gate")
+
+    for marker in [
+        "Refuse delegated implementation",
+        "current-run manifest",
+        "scope-addition delta",
+    ]:
+        assert_contains(implementer, marker, "implementer implementation-transition gate")
+
+
 def test_skill_quality_bar_is_trigger_bounded():
     agents = read(AGENTS_MD)
     readme = read(README_MD)
@@ -2291,6 +2322,13 @@ def assert_installed_gauntlet_layout(agent_home):
         "$AGENT_HOME/gauntlet/docs/ui-constitution.md",
         "installed AGENTS frontend quality path",
     )
+    for marker in [
+        "no later than the third user-assistant exchange",
+        "Research is never assigned `p4` merely because it is research",
+        "Subagent packetization: required",
+        "Scope delta checked: no material change.",
+    ]:
+        assert_contains(installed_agents, marker, "installed implementation-transition guidance")
     run([str(installed_check)])
 
 
@@ -2304,6 +2342,13 @@ def test_codex_install_layout_supports_workflow_check():
         assert_installed_gauntlet_layout(agent_home)
         installed_agents = read(agent_home / "AGENTS.md")
         assert_contains(installed_agents, "Global Agent Coding Workflow", "Codex AGENTS install")
+        for marker in [
+            "no later than the third user-assistant exchange",
+            "Research is never assigned `p4` merely because it is research",
+            "Subagent packetization: required",
+            "Scope delta checked: no material change.",
+        ]:
+            assert_contains(installed_agents, marker, "Codex root implementation-transition guidance")
         if (agent_home / "CLAUDE.md").exists():
             raise AssertionError("Codex install should not create CLAUDE.md")
 
@@ -2493,6 +2538,7 @@ def main():
         test_product_thinking_and_scope_routing_are_documented,
         test_production_quality_bar_is_launch_gated,
         test_subagent_parallelism_is_context_efficient,
+        test_kickoff_and_implementation_transition_gates_are_documented,
         test_subagent_plan_validator_logs_rejections,
         test_subagent_plan_validator_rejects_secret_and_overbroad_scope,
         test_guarded_panel_contract_is_uniform,
