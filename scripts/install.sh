@@ -155,6 +155,53 @@ EOF
   rm -f "$block_file"
 }
 
+write_codex_agents() {
+  local codex_file="$AGENT_HOME/AGENTS.md"
+  local personal_file
+  local base_file
+  local output_file
+  personal_file="$(mktemp)"
+  base_file="$(mktemp)"
+  output_file="$(mktemp)"
+
+  if [ -f "$codex_file" ]; then
+    awk '
+      /<!-- BEGIN PERSONAL HOUSE VOICE -->/ { in_block = 1 }
+      in_block { print }
+      /<!-- END PERSONAL HOUSE VOICE -->/ { if (in_block) exit }
+    ' "$codex_file" > "$personal_file"
+  fi
+
+  awk '
+    /<!-- BEGIN PERSONAL HOUSE VOICE -->/ { in_block = 1; next }
+    /<!-- END PERSONAL HOUSE VOICE -->/ { in_block = 0; next }
+    !in_block { print }
+  ' "$ROOT/AGENTS.md" > "$base_file"
+
+  if [ -s "$personal_file" ]; then
+    awk -v personal_file="$personal_file" '
+      BEGIN {
+        while ((getline line < personal_file) > 0) {
+          personal = personal line ORS
+        }
+      }
+      NR == 1 {
+        print
+        print ""
+        printf "%s", personal
+        next
+      }
+      { print }
+    ' "$base_file" > "$output_file"
+    mv "$output_file" "$codex_file"
+  else
+    mv "$base_file" "$codex_file"
+    rm -f "$output_file"
+  fi
+
+  rm -f "$personal_file" "$base_file" "$output_file"
+}
+
 mkdir -p "$AGENT_HOME/skills" "$AGENT_HOME/gauntlet"
 cp "$ROOT/README.md" "$AGENT_HOME/gauntlet/README.md"
 cp "$ROOT/AGENTS.md" "$AGENT_HOME/gauntlet/AGENTS.md"
@@ -183,7 +230,7 @@ rm -f "$AGENT_HOME/gauntlet/scripts/validate-review-brief-data.py"
 
 case "$TARGET" in
   codex)
-    cp "$ROOT/AGENTS.md" "$AGENT_HOME/AGENTS.md"
+    write_codex_agents
     ;;
   claude)
     write_claude_adapter
