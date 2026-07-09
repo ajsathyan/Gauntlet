@@ -98,6 +98,17 @@ Decision Gate: none | before blocked archive | before unsafe side effect | befor
 - If the user supplies an alternate priority/title, call `set_thread_title` with the user's version and continue from that label.
 - Before implementation, include `Edge Cases From This Ask` for p0-p2 work and p3 work with side effects, state changes, user-facing behavior, or a repeated prior miss. Split it into `Need user decision` and `Safe defaults I will apply`; ask only for edge cases that change product behavior, data/money/privacy/security risk, or acceptance criteria.
 
+## Git Discipline
+
+Use `docs/github-discipline.md` for the beginner-friendly reference. Keep the active default simple: branch from `main`, commit coherent checkpoints, open a PR, verify, merge with a merge commit, and delete the branch.
+
+- Use a branch for any persisted repo change. Use a separate worktree when the current workspace is dirty, work is p0-p2, work is broad, or child implementation lanes need isolation.
+- Treat PRs as memory and proof bundles, even for solo builders: changed files, checks, review context, run logs, and merge rationale should be recoverable from the PR.
+- Preserve useful checkpoint commits by default. Use merge commits for automated PR merges; do not squash, rebase, or direct-push to `main` unless the user or repo explicitly asks.
+- Main chats own the final branch, child-lane ledger, PR, user decisions, and merge decision. Child implementation chats may work in isolated branches or worktrees, but they return reports and do not direct-push to `main`.
+- Direct push to `main` is an explicit shortcut for tiny, low-risk solo changes, not the default taught workflow.
+- When dirty files are present, identify whether they belong to the current task. Preserve unrelated dirty work; isolate new work or ask before including, overwriting, abandoning, or archiving over it.
+
 When the user asks to archive a Codex thread:
 
 1. If the thread title already starts with `/^p[0-4](-auto)?:/`, skip naming.
