@@ -88,4 +88,4 @@ Human or agent judgment should remain conversational:
 
 Gauntlet's closeout helpers deliberately do not auto-commit, auto-push, auto-merge, auto-generate changelogs, publish release notes, or archive threads by default.
 
-Use `scripts/gauntlet.py changelog pr --implementation-memory "$MEMORY_PATH" --git-root "$PROJECT_ROOT"` only when an explicit PR/changelog draft is requested. Reuse that output during archive planning by passing it to `scripts/gauntlet.py archive plan --content`.
+Use `scripts/gauntlet.py changelog pr --accepted-spec "$SPEC_PATH" --plan "$PLAN_PATH" --git-root "$PROJECT_ROOT"` only when an explicit PR/changelog draft is requested. Reuse that output during archive planning by passing it to `scripts/gauntlet.py archive plan --content`.

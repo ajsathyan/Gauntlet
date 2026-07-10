@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import hashlib
 import os
 import shutil
 import subprocess
@@ -88,21 +89,44 @@ def test_simplified_modes_and_depth_are_documented():
     planner = read(SKILLS / "planner" / "SKILL.md")
     combined = "\n".join([agents, readme, planner])
 
-    for label in ["Patch", "Feature", "Release"]:
+    for label in ["Research", "Patch", "Feature", "Release"]:
         assert_contains(combined, label, "mode docs")
     for marker in [
-        "Mode: Patch | Feature | Release",
+        "Path: Research | Patch | Feature | Release",
         "Depth: Standard | Deep",
-        "Triggered gates:",
-        "Run Log",
-        "Panel Guard",
-        "Hygiene",
-        "TS Durability",
+        "Research does not inherit implementation gates",
+        "Classify internally",
+        "Surface the classification only when",
     ]:
         assert_contains(combined, marker, "simplified mode model")
 
     for stale in ["### Deep Patch", "### Slice", "Deep Patch |", "| Deep Patch", "Slice |"]:
         assert_not_contains(combined, stale, "simplified mode model")
+
+
+def test_gauntlet_is_the_single_workflow_authority():
+    agents = read(AGENTS_MD)
+    readme = read(README_MD)
+    combined = "\n".join([agents, readme])
+
+    for marker in [
+        "Gauntlet is the single workflow authority",
+        "Do not invoke overlapping workflow systems",
+        "domain or tool skill",
+        "Superpowers",
+        "adapted techniques",
+    ]:
+        assert_contains(combined, marker, "single workflow authority")
+
+    for stale in [
+        "docs/superpowers/plans",
+        "docs/superpowers/specs",
+        "Use superpowers:subagent-driven-development",
+    ]:
+        assert_not_contains(combined, stale, "single workflow authority")
+
+    if (ROOT / "docs" / "superpowers").exists():
+        raise AssertionError("tracked Superpowers plan/spec artifacts should be removed")
 
 
 def test_v201_run_log_contract_replaces_default_review_brief():
@@ -114,7 +138,6 @@ def test_v201_run_log_contract_replaces_default_review_brief():
     for marker in [
         "v2.0.1",
         "Run Log",
-        "Decision Log Gate",
         "exceptions-first",
         "docs/gauntlet-runs/",
         "Assumptions",
@@ -336,6 +359,8 @@ def test_subagent_parallelism_is_context_efficient():
         "scripts/check-subagent-plan.py",
         "subagent-plan-summary.json",
         "expected speedup",
+        "Do not redo a child's full assignment",
+        "30-60 seconds",
     ]:
         assert_contains(agents, marker, "subagent context-efficiency guard")
 
@@ -351,6 +376,8 @@ def test_subagent_parallelism_is_context_efficient():
         "planner firm end-to-end rule",
     )
     assert_contains(planner, ".gauntlet/subagent-plan.json", "planner subagent manifest")
+    assert_contains(planner, "canonical lane contract", "planner canonical manifest")
+    assert_not_contains(planner, "taskPacketRef", "planner duplicate task packet")
     assert_not_contains(planner, "Prefer end-to-end steps over component piles.", "planner soft end-to-end rule")
 
     assert_contains(
@@ -365,31 +392,31 @@ def test_subagent_parallelism_is_context_efficient():
     )
 
 
-def test_kickoff_and_implementation_transition_gates_are_documented():
+def test_material_transitions_replace_kickoff_ceremony():
     agents = read(AGENTS_MD)
     etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
     planner = read(SKILLS / "planner" / "SKILL.md")
     implementer = read(SKILLS / "implementer" / "SKILL.md")
 
     for marker in [
-        "no later than the third user-assistant exchange",
-        "Research is never assigned `p4` merely because it is research",
+        "Set or update the thread title silently",
+        "Do not ask the user to approve priority or title metadata",
         "If the priority is unchanged, say nothing about it",
-        "Subagent packetization: required",
-        "before implementation, not merely before dispatch",
+        "Do not print a no-op edge-case section",
+        "one accepted spec and one canonical plan",
         "Scope delta checked: no material change.",
     ]:
         assert_contains("\n".join([agents, etiquette]), marker, "implementation-transition guidance")
 
     for marker in [
-        "Subagent packetization: required",
+        "canonical plan",
         "Scope delta checked: no material change.",
-        "before implementation",
+        "Do not pre-write production code",
     ]:
         assert_contains(planner, marker, "planner implementation-transition gate")
 
     for marker in [
-        "Refuse delegated implementation",
+        "RED-GREEN-REFACTOR",
         "current-run manifest",
         "scope-addition delta",
     ]:
@@ -555,7 +582,7 @@ def test_subagent_plan_validator_rejects_secret_and_overbroad_scope():
                 raise AssertionError(f"subagent validator missing {code} rejection")
 
 
-def test_subagent_plan_validator_requires_complete_lane_packets():
+def test_subagent_plan_validator_uses_one_canonical_manifest_and_typed_dependencies():
     validator = SCRIPTS / "check-subagent-plan.py"
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -575,9 +602,9 @@ def test_subagent_plan_validator_requires_complete_lane_packets():
                 "proof": [f"test-{lane_id}"],
                 "inlineContext": f"Short context for {lane_id}.",
             })
-        plan.write_text(json.dumps({"schemaVersion": "1.1", "lanes": incomplete_lanes}))
+        plan.write_text(json.dumps({"schemaVersion": "1.2", "lanes": incomplete_lanes}))
 
-        incomplete = run([str(validator), str(project), str(plan), "--run-id", "packet-fields"], check=False)
+        incomplete = run([str(validator), str(project), str(plan), "--run-id", "manifest-fields"], check=False)
         if incomplete.returncode == 0:
             raise AssertionError("incomplete lane packets should fail before implementation")
         record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
@@ -603,38 +630,59 @@ def test_subagent_plan_validator_requires_complete_lane_packets():
                 "filesAvoid": ["src/shared/**"],
                 "stateScope": lane_id,
                 "stateAccess": "mutates",
-                "dependencies": [],
+                "dependsOn": [] if lane_id == "C1" else ["C1"],
                 "consumes": ["accepted spec"],
                 "produces": [f"{lane_id} patch"],
                 "constraints": ["preserve unrelated work"],
                 "proof": [f"test-{lane_id}"],
                 "inlineContext": f"Short context for {lane_id}.",
-                "taskPacketRef": f".gauntlet/packets/{lane_id}.md",
                 "expectedReturn": "Compact implementation report",
                 "askUserPolicy": "Return Needs decision to the orchestrator.",
             })
-        plan.write_text(json.dumps({"schemaVersion": "1.1", "lanes": complete_lanes}))
+        plan.write_text(json.dumps({"schemaVersion": "1.2", "lanes": complete_lanes}))
 
-        missing_packet = run([str(validator), str(project), str(plan), "--run-id", "packet-files"], check=False)
-        if missing_packet.returncode == 0:
-            raise AssertionError("missing task packet references should fail before implementation")
-        record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
-        if "task_packet_missing" not in {rejection["code"] for rejection in record["rejections"]}:
-            raise AssertionError("missing task packets should report task_packet_missing")
-
-        packet_dir = project / ".gauntlet" / "packets"
-        packet_dir.mkdir(parents=True)
-        for lane_id in ["C1", "C2"]:
-            (packet_dir / f"{lane_id}.md").write_text(f"# {lane_id} Task Packet\n")
-
-        accepted = run([str(validator), str(project), str(plan), "--run-id", "packet-accepted"], check=False)
+        accepted = run([str(validator), str(project), str(plan), "--run-id", "manifest-accepted"], check=False)
         if accepted.returncode != 0:
-            raise AssertionError(f"complete lane packets should pass:\n{accepted.stdout}\n{accepted.stderr}")
+            raise AssertionError(f"complete canonical manifest should pass:\n{accepted.stdout}\n{accepted.stderr}")
+
+        complete_lanes[0]["status"] = "Done"
+        plan.write_text(json.dumps({"schemaVersion": "1.2", "lanes": complete_lanes}))
+        unblocked = run([str(validator), str(project), str(plan), "--run-id", "dependency-complete"], check=False)
+        if unblocked.returncode != 0:
+            raise AssertionError(f"a lane with only Done dependencies should be ready:\n{unblocked.stdout}\n{unblocked.stderr}")
+        complete_lanes[0]["status"] = "To Do"
+
+        complete_lanes[0]["taskPacketRef"] = "docs/duplicate-packet.md"
+        plan.write_text(json.dumps({"schemaVersion": "1.2", "lanes": complete_lanes}))
+        duplicate = run([str(validator), str(project), str(plan), "--run-id", "duplicate-packet"], check=False)
+        duplicate_record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
+        if duplicate.returncode == 0 or "legacy_duplicate_field" not in {item["code"] for item in duplicate_record["rejections"]}:
+            raise AssertionError("taskPacketRef should be rejected as a duplicate planning source")
+        del complete_lanes[0]["taskPacketRef"]
+
+        complete_lanes[1]["dependsOn"] = ["C9"]
+        plan.write_text(json.dumps({"schemaVersion": "1.2", "lanes": complete_lanes}))
+        unknown = run([str(validator), str(project), str(plan), "--run-id", "unknown-dependency"], check=False)
+        unknown_record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
+        if unknown.returncode == 0 or "unknown_dependency" not in {item["code"] for item in unknown_record["rejections"]}:
+            raise AssertionError("unknown lane dependencies should fail")
+
+        complete_lanes[1]["dependsOn"] = ["C1"]
+        complete_lanes[0]["dependsOn"] = ["C2"]
+        plan.write_text(json.dumps({"schemaVersion": "1.2", "lanes": complete_lanes}))
+        cycle = run([str(validator), str(project), str(plan), "--run-id", "dependency-cycle"], check=False)
+        if cycle.returncode == 0:
+            raise AssertionError("cyclic lane dependencies should fail")
+        record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
+        cycle_codes = {rejection["code"] for rejection in record["rejections"]}
+        if "dependency_cycle" not in cycle_codes:
+            raise AssertionError("cyclic manifest should report dependency_cycle")
+        if "no_ready_lane" not in cycle_codes:
+            raise AssertionError("fully blocked dependency graphs should report no_ready_lane")
 
 
 def test_guarded_panel_contract_is_uniform():
     files = {
-        "AGENTS.md": read(AGENTS_MD),
         "planner": read(SKILLS / "planner" / "SKILL.md"),
         "issue-triager": read(SKILLS / "issue-triager" / "SKILL.md"),
         "deep-code-reviewer": read(SKILLS / "deep-code-reviewer" / "SKILL.md"),
@@ -654,7 +702,7 @@ def test_guarded_panel_contract_is_uniform():
     for name, text in files.items():
         for marker in required:
             assert_contains(text, marker, name)
-    assert_contains(files["AGENTS.md"], "collapse", "AGENTS.md")
+    assert_contains(read(AGENTS_MD), "Guarded Release", "AGENTS.md")
     assert_contains(files["planner"], "Do not union every idea", "planner")
 
 
@@ -778,35 +826,29 @@ def test_diff_intel_test_plan_and_review_pack_are_bounded():
         if not any(item["tier"] == "broader" and item["command"] == "npm test" for item in plan["commands"]):
             raise AssertionError("durable/security diffs should recommend broader npm test with rationale")
 
-        implementation_memory = project / "docs" / "implementation-memory.md"
-        implementation_memory.write_text(
+        accepted_spec = project / "docs" / "accepted-spec.md"
+        accepted_spec.write_text(
             "\n".join([
-                "# Implementation Memory",
+                "# Accepted Spec",
                 "",
                 "## Goal",
                 "",
                 "Build a safer session path.",
-                "",
-                "## Scan Index",
-                "",
-                "- Search: `rg session-token src/auth`",
-                "- Read first: `src/auth/session.ts`",
-                "",
-                "## Private Raw Notes",
-                "",
-                "This section should not be copied into the review pack.",
-                "",
             ]),
             encoding="utf-8",
         )
+        canonical_plan = project / "docs" / "canonical-plan.md"
+        canonical_plan.write_text("# Canonical Plan\n\n- Search: `rg session-token src/auth`\n", encoding="utf-8")
 
         run([
             str(review_pack),
             str(project),
             "--diff-intel",
             str(intel_path),
-            "--implementation-memory",
-            "docs/implementation-memory.md",
+            "--accepted-spec",
+            "docs/accepted-spec.md",
+            "--plan",
+            "docs/canonical-plan.md",
         ])
         packet = (project / ".gauntlet" / "review-pack.md").read_text()
         for marker in [
@@ -815,14 +857,15 @@ def test_diff_intel_test_plan_and_review_pack_are_bounded():
             "src/auth/session.ts",
             "Test Plan Summary",
             "npm run typecheck",
-            "Implementation Memory",
-            "docs/implementation-memory.md",
+            "Accepted Spec",
+            "docs/accepted-spec.md",
+            "Canonical Plan",
+            "docs/canonical-plan.md",
             "rg session-token src/auth",
             "Expected Return Format",
             "Cannot verify",
         ]:
             assert_contains(packet, marker, "review packet")
-        assert_not_contains(packet, "This section should not be copied", "review packet implementation memory excerpt")
         assert_not_contains(packet, "\n- - ", "review packet list formatting")
         assert_contains(packet, "[REDACTED_SECRET]", "review packet redaction")
         assert_not_contains(packet, "sk-live-secret-value", "review packet secret redaction")
@@ -931,10 +974,10 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         "diff-intel.py",
         "test-plan.py",
         "review-pack.py",
-        "gauntlet.py memory lint",
         "gauntlet.py changelog pr",
         "gauntlet.py followup thread",
-        "Implementation Memory remains the source",
+        "accepted spec and canonical plan remain the sources",
+        "deprecated compatibility inputs",
         "create_thread",
         "advisory",
         "confidence",
@@ -947,15 +990,12 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         assert_contains(combined, marker, "workflow speedup guidance")
 
     for marker in [
-        "p#-auto: [C1][In Progress]",
-        "main chat is the orchestrator",
-        "do not ask the user directly",
+        "Main-task behavior",
         "Needs decision",
         "`To Do`, `In Progress`, `Blocked`, `In Review`, `Done`, and `Canceled`",
-        "Use `Blocked` only for a concrete blocker",
-        "Create a separate git worktree by default for write-heavy child chats",
-        "Archive the child chat after its report is integrated",
-        "Child task packet shape",
+        "`Blocked` requires a concrete",
+        "does not duplicate full child assignments",
+        "waits 30–60 seconds",
     ]:
         assert_contains(read(ROOT / "docs" / "workflow-etiquette.md"), marker, "delegation etiquette child lane guidance")
 
@@ -968,18 +1008,10 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         assert_contains(speedups, marker, "workflow speedup child lane guidance")
 
     for marker in [
-        "scripts/gauntlet.py memory lint",
-        "scripts/gauntlet.py changelog pr",
-        "scripts/gauntlet.py followup thread",
-        "Edge Cases From This Ask",
-        "Need user decision",
-        "Safe defaults I will apply",
-        "before implementation",
-        "emit app-action packets",
-        "p#-auto: [C1][In Progress]",
-        "main chat as orchestrator",
-        "create a separate git worktree by default",
-        "Child lane id, title, status, dependency note, and worktree path",
+        "Do not print a no-op edge-case section",
+        "one accepted spec and one canonical plan",
+        "canonical lane contract",
+        "30-60 seconds",
     ]:
         assert_contains(agents, marker, "active AGENTS workflow speedup routing")
 
@@ -1016,12 +1048,32 @@ def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumption
             "--json",
         ])
         data = json.loads(result.stdout)
-        if data["status"] != "pass":
-            raise AssertionError(f"valid autonomous kickoff should pass: {data}")
+        if data["status"] != "warn":
+            raise AssertionError(f"deprecated kickoff validation should warn without blocking: {data}")
+        if not any(finding["code"] == "kickoff_check_deprecated" for finding in data["findings"]):
+            raise AssertionError(f"deprecated kickoff warning missing: {data}")
         if data["parsedTitle"]["executionMode"] != "autonomous":
             raise AssertionError("auto title should parse as autonomous")
         if data["effectiveExecutionMode"] != "autonomous":
             raise AssertionError("auto kickoff should report effective execution mode")
+
+        research = Path(tmp) / "research.md"
+        research.write_text(
+            "Mode: Research\nDepth: Deep\nVerification Scope: not relevant\n"
+            "Execution Mode: autonomous\nSuggested thread label: p3-auto: audit workflow evidence\n"
+        )
+        research_result = run([
+            str(checker),
+            "--title",
+            "p3-auto: audit workflow evidence",
+            "--content",
+            str(research),
+            "--require-kickoff",
+            "--json",
+        ])
+        research_data = json.loads(research_result.stdout)
+        if research_data["kickoffFields"].get("Mode") != "Research" or research_data["status"] != "warn":
+            raise AssertionError(f"legacy kickoff parsing should accept the Research path: {research_data}")
 
         legacy = run([str(checker), "--title", "p2 - fix archive closeout", "--json"])
         legacy_data = json.loads(legacy.stdout)
@@ -1663,7 +1715,7 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
                 str(cli),
                 "changelog",
                 "pr",
-                "--implementation-memory",
+                "--accepted-spec",
                 str(memory),
                 "--git-root",
                 str(repo),
@@ -1681,6 +1733,8 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
         changelog_data = json.loads(changelog.stdout)
         if changelog_data["status"] != "pass":
             raise AssertionError(f"verified changelog should pass: {changelog_data}")
+        if changelog_data.get("source") != str(memory) or changelog_data.get("sources") != [str(memory)]:
+            raise AssertionError(f"changelog should preserve the legacy string source and add sources: {changelog_data}")
         for marker in [
             "Build changelog and follow-up helpers for Gauntlet.",
             "## Archive Summary",
@@ -1790,6 +1844,8 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
         unverified_data = json.loads(unverified.stdout)
         if unverified_data["status"] != "warn":
             raise AssertionError(f"missing gh should warn while producing markdown: {unverified_data}")
+        if unverified_data.get("source") != str(memory) or unverified_data.get("sources") != [str(memory)]:
+            raise AssertionError(f"legacy changelog input should preserve the source string contract: {unverified_data}")
         if not any(finding["code"] == "cannot_verify_pr_metadata" for finding in unverified_data["findings"]):
             raise AssertionError(f"missing gh should produce Cannot verify finding: {unverified_data}")
         assert_contains(unverified_data["markdown"], "Cannot verify", "unverified PR changelog")
@@ -2312,24 +2368,22 @@ def test_workflow_etiquette_is_in_global_workflow():
 
     for marker in [
         "Workflow Etiquette",
-        "Execution Mode: review | autonomous",
-        "Decision Gate",
-        "Archival Etiquette",
+        "Execution mode: review | autonomous",
+        "Decision gate",
+        "## Archive",
         "scripts/check-workflow-etiquette.py",
         "scripts/gauntlet.py",
-        "confirm-git-risk",
-        "After selecting a kickoff label, call `set_thread_title` immediately",
-        "If the user supplies an alternate priority/title, call `set_thread_title` with the user's version",
-        "set_thread_title",
-        "set_thread_archived",
+        "--confirm-git-risk",
+        "Set or update the thread title silently",
+        "Execute returned app actions in order: title, then archive",
         "Archive Summary",
-        "Pass the PR changelog or closeout content to `scripts/gauntlet.py archive plan --content`",
-        "the final response includes files changed, proof/tests completed, and unresolved risks",
+        "Pass PR/closeout content",
+        "final response names changed files, proof completed, and unresolved risk",
     ]:
         assert_contains(combined, marker, "workflow etiquette global guidance")
 
 
-def test_promotion_scanner_is_release_wrapup_not_patch_gate():
+def test_promotion_scanner_is_explicit_or_evidence_triggered():
     agents = read(AGENTS_MD)
     readme = read(README_MD)
     promotion_doc = read(ROOT / "docs" / "promotion-scanner.md")
@@ -2341,7 +2395,8 @@ def test_promotion_scanner_is_release_wrapup_not_patch_gate():
     for marker in [
         "promotion-scanner",
         "Promotion Brief",
-        "Release or live-ops wrap-up",
+        "standalone",
+        "explicit",
         "repeated manual verification",
         "stale vs latest evidence",
         "repo code",
@@ -2352,7 +2407,7 @@ def test_promotion_scanner_is_release_wrapup_not_patch_gate():
         "No live operational actions",
         "Do not infer",
         "secrets/redaction",
-        "Do not run for ordinary Patch",
+        "Do not run automatically for ordinary Patch",
         "GAP-###",
         "Gauntlet-general missing guidance",
     ]:
@@ -2362,10 +2417,12 @@ def test_promotion_scanner_is_release_wrapup_not_patch_gate():
         raise AssertionError("promotion-scanner eval case is missing")
 
 
-def run_install(agent_home, target="codex"):
+def run_install(agent_home, target="codex", check=True, extra_env=None):
     env = os.environ.copy()
     env["AGENT_HOME"] = str(agent_home)
     env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
+    if extra_env:
+        env.update(extra_env)
     result = subprocess.run(
         [str(SCRIPTS / "install.sh"), "--target", target],
         cwd=ROOT,
@@ -2374,7 +2431,7 @@ def run_install(agent_home, target="codex"):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    if result.returncode != 0:
+    if check and result.returncode != 0:
         raise AssertionError(
             f"install.sh failed with {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
@@ -2400,12 +2457,14 @@ def assert_installed_gauntlet_layout(agent_home):
         "installed AGENTS frontend quality path",
     )
     for marker in [
-        "no later than the third user-assistant exchange",
-        "Research is never assigned `p4` merely because it is research",
-        "Subagent packetization: required",
+        "Gauntlet is the single workflow authority",
+        "Path: Research | Patch | Feature | Release",
+        "one accepted spec and one canonical plan",
         "Scope delta checked: no material change.",
     ]:
         assert_contains(installed_agents, marker, "installed implementation-transition guidance")
+    if len(installed_agents.encode("utf-8")) >= 32768:
+        raise AssertionError("installed Gauntlet router should remain below Codex's default 32 KiB project-doc budget")
     run([str(installed_check)])
 
 
@@ -2422,32 +2481,206 @@ def test_codex_install_layout_supports_workflow_check():
 Keep this user-owned instruction across Gauntlet reinstalls.
 <!-- END PERSONAL HOUSE VOICE -->"""
         (agent_home / "AGENTS.md").write_text(
-            "# Global Agent Coding Workflow\n\n"
+            "# My Existing Global Instructions\n\n"
             f"{personal_block}\n\n"
-            "Stale Gauntlet workflow content.\n"
+            "Keep this unrelated instruction too.\n"
         )
         run_install(agent_home, target="codex")
         assert_installed_gauntlet_layout(agent_home)
         installed_agents = read(agent_home / "AGENTS.md")
-        assert_contains(installed_agents, "Global Agent Coding Workflow", "Codex AGENTS install")
+        assert_contains(installed_agents, "BEGIN GAUNTLET MANAGED BLOCK", "Codex managed block")
+        assert_contains(installed_agents, "Keep this unrelated instruction too.", "Codex unrelated instruction preservation")
         assert_contains(installed_agents, personal_block, "Codex personal house voice preservation")
         installed_mode = (agent_home / "AGENTS.md").stat().st_mode & 0o777
         if installed_mode != 0o644:
             raise AssertionError(f"Codex AGENTS install mode should be 0644, got {installed_mode:04o}")
-        for marker in [
-            "no later than the third user-assistant exchange",
-            "Research is never assigned `p4` merely because it is research",
-            "Subagent packetization: required",
-            "Scope delta checked: no material change.",
-        ]:
+        for marker in ["Gauntlet is the single workflow authority", "Path: Research | Patch | Feature | Release"]:
             assert_contains(installed_agents, marker, "Codex root implementation-transition guidance")
         if (agent_home / "CLAUDE.md").exists():
             raise AssertionError("Codex install should not create CLAUDE.md")
 
         run_install(agent_home, target="codex")
         reinstalled_agents = read(agent_home / "AGENTS.md")
+        if reinstalled_agents.count("BEGIN GAUNTLET MANAGED BLOCK") != 1:
+            raise AssertionError("Codex reinstall should replace one managed block")
         if reinstalled_agents.count("BEGIN PERSONAL HOUSE VOICE") != 1:
             raise AssertionError("Codex reinstall should preserve one personal house voice block")
+
+        missing_eval = agent_home / "gauntlet" / "evals" / "skill-evals.json"
+        missing_eval.unlink()
+        verify = run([
+            str(agent_home / "gauntlet" / "scripts" / "gauntlet.py"),
+            "install",
+            "verify",
+            "--target",
+            "codex",
+            "--agent-home",
+            str(agent_home),
+            "--json",
+        ], check=False)
+        if verify.returncode == 0:
+            raise AssertionError("install verification should fail when a required eval artifact is missing")
+        verify_codes = {finding["code"] for finding in json.loads(verify.stdout)["findings"]}
+        if "missing_install_payload:gauntlet/evals/skill-evals.json" not in verify_codes:
+            raise AssertionError(f"missing eval payload should be named precisely: {verify.stdout}")
+
+
+def test_install_migrates_legacy_codex_layout_and_rejects_malformed_blocks():
+    if not (ROOT / ".git").exists():
+        return
+
+    with tempfile.TemporaryDirectory() as tmp:
+        agent_home = Path(tmp) / "legacy-home"
+        (agent_home / "gauntlet").mkdir(parents=True)
+        legacy = "# Global Agent Coding Workflow\n\nLegacy Gauntlet body.\n"
+        personal = """<!-- BEGIN PERSONAL HOUSE VOICE -->
+## Personal Test Voice
+
+Keep this user-owned instruction.
+<!-- END PERSONAL HOUSE VOICE -->"""
+        (agent_home / "gauntlet" / "AGENTS.md").write_text(legacy)
+        (agent_home / "AGENTS.md").write_text(
+            "# Global Agent Coding Workflow\n\n" + personal + "\n\nLegacy Gauntlet body.\n"
+        )
+
+        run_install(agent_home, target="codex")
+        migrated = read(agent_home / "AGENTS.md")
+        if migrated.count("BEGIN GAUNTLET MANAGED BLOCK") != 1:
+            raise AssertionError("legacy Codex install should migrate to one managed block")
+        if migrated.count("BEGIN PERSONAL HOUSE VOICE") != 1:
+            raise AssertionError("legacy migration should preserve the personal house voice")
+        assert_not_contains(migrated, "Legacy Gauntlet body.", "retired legacy Gauntlet body")
+        assert_contains(migrated, "Gauntlet is the single workflow authority", "new managed Gauntlet body")
+
+    malformed_cases = {
+        "unterminated": "Before\n<!-- BEGIN GAUNTLET MANAGED BLOCK -->\nunterminated\n",
+        "reversed": "Before\n<!-- END GAUNTLET MANAGED BLOCK -->\nbody\n<!-- BEGIN GAUNTLET MANAGED BLOCK -->\n",
+    }
+    for target, filename in [("codex", "AGENTS.md"), ("claude", "CLAUDE.md")]:
+        for case_name, original in malformed_cases.items():
+            with tempfile.TemporaryDirectory() as tmp:
+                agent_home = Path(tmp) / f"malformed-{target}-{case_name}"
+                agent_home.mkdir()
+                (agent_home / filename).write_text(original)
+                result = run_install(agent_home, target=target, check=False)
+                if result.returncode == 0:
+                    raise AssertionError(f"{target} install should reject a {case_name} managed block")
+                if (agent_home / filename).read_text() != original:
+                    raise AssertionError(f"{target} {case_name}-block failure must preserve the original file")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        agent_home = root / "partial-home"
+        fake_bin = root / "bin"
+        agent_home.mkdir()
+        fake_bin.mkdir()
+        original = "# Existing Global Instructions\n\nKeep this active.\n"
+        (agent_home / "AGENTS.md").write_text(original)
+        fake_rsync = fake_bin / "rsync"
+        fake_rsync.write_text("#!/usr/bin/env bash\nexit 9\n")
+        fake_rsync.chmod(0o755)
+        path = f"{fake_bin}:{os.environ.get('PATH', '')}"
+        failed = run_install(agent_home, target="codex", check=False, extra_env={"PATH": path})
+        if failed.returncode == 0:
+            raise AssertionError("payload-copy failure should fail the install")
+        if (agent_home / "AGENTS.md").read_text() != original:
+            raise AssertionError("payload-copy failure must not activate or alter the Codex router")
+
+
+def test_superpowers_sources_are_attributed_and_retirement_is_allowlisted():
+    attribution = ROOT / "docs" / "upstream-superpowers.md"
+    manifest_path = ROOT / "docs" / "upstream-superpowers.json"
+    sync = SCRIPTS / "check-superpowers-sync.py"
+    retire = SCRIPTS / "retire-superpowers.py"
+    for path in [attribution, manifest_path, sync, retire]:
+        if not path.exists():
+            raise AssertionError(f"missing Superpowers migration artifact: {path}")
+
+    attribution_text = read(attribution)
+    for marker in ["Jesse Vincent", "obra/superpowers", "MIT", "5.1.3", "adapted concepts, not vendored text"]:
+        assert_contains(attribution_text, marker, "Superpowers attribution")
+
+    manifest = json.loads(read(manifest_path))
+    if manifest.get("upstream", {}).get("repository") != "https://github.com/obra/superpowers":
+        raise AssertionError("Superpowers upstream repository is not pinned")
+    if not manifest.get("techniques") or not manifest.get("retiredSkills"):
+        raise AssertionError("Superpowers mapping needs techniques and retiredSkills")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source = root / "source"
+        (source / "skills" / "systematic-debugging").mkdir(parents=True)
+        source_text = "root-cause-first\n"
+        source_skill = source / "skills" / "systematic-debugging" / "SKILL.md"
+        source_skill.write_text(source_text)
+        (source / ".codex-plugin").mkdir()
+        (source / ".codex-plugin" / "plugin.json").write_text(json.dumps({"version": "5.1.3"}))
+        fixture_manifest = root / "manifest.json"
+        fixture_manifest.write_text(json.dumps({
+            "schemaVersion": "1.0",
+            "upstream": {"repository": "https://github.com/obra/superpowers", "reviewedVersion": "5.1.3"},
+            "techniques": [{
+                "sourceSkill": "systematic-debugging",
+                "sourcePath": "skills/systematic-debugging/SKILL.md",
+                "reviewedSha256": hashlib.sha256(source_text.encode()).hexdigest(),
+                "destinations": ["skills/debugger/SKILL.md"],
+            }],
+            "retiredSkills": ["brainstorming", "using-superpowers"],
+        }))
+        current = run([str(sync), "--source", str(source), "--manifest", str(fixture_manifest), "--json"])
+        if json.loads(current.stdout)["status"] != "pass":
+            raise AssertionError(f"matching upstream map should pass: {current.stdout}")
+        source_skill.write_text("changed upstream\n")
+        changed = run([str(sync), "--source", str(source), "--manifest", str(fixture_manifest), "--json"], check=False)
+        if changed.returncode == 0 or json.loads(changed.stdout)["status"] != "review":
+            raise AssertionError(f"changed upstream source should require review: {changed.stdout}")
+
+        active = root / "active-skills"
+        (active / "brainstorming").mkdir(parents=True)
+        (active / "using-superpowers").mkdir()
+        (active / "personal-skill").mkdir()
+        config = root / "config.toml"
+        config.write_text('[plugins."superpowers@openai-curated"]\nenabled = true\n')
+        archive = root / "retired"
+        dry_run = run([
+            str(retire), "--active-skills", str(active), "--config", str(config),
+            "--archive", str(archive), "--manifest", str(fixture_manifest), "--json",
+        ])
+        if (active / "brainstorming").exists() is False or json.loads(dry_run.stdout)["applied"]:
+            raise AssertionError("retirement must be dry-run by default")
+        applied = run([
+            str(retire), "--active-skills", str(active), "--config", str(config),
+            "--archive", str(archive), "--manifest", str(fixture_manifest), "--apply", "--json",
+        ])
+        applied_data = json.loads(applied.stdout)
+        if applied_data["status"] != "pass" or not applied_data["applied"]:
+            raise AssertionError(f"Superpowers retirement should apply cleanly: {applied.stdout}")
+        if (active / "brainstorming").exists() or (active / "using-superpowers").exists():
+            raise AssertionError("allowlisted Superpowers skills should leave the active directory")
+        if not (active / "personal-skill").exists():
+            raise AssertionError("unrelated skills must be preserved")
+        assert_contains(config.read_text(), "enabled = false", "disabled Superpowers plugin")
+
+        unsafe_configs = {
+            "missing-section": "[plugins.\"another-plugin\"]\nenabled = true\n",
+            "missing-enabled-key": '[plugins."superpowers@openai-curated"]\nmode = "manual"\n',
+        }
+        for label, config_text in unsafe_configs.items():
+            unsafe_active = root / f"unsafe-active-{label}"
+            (unsafe_active / "brainstorming").mkdir(parents=True)
+            unsafe_config = root / f"unsafe-{label}.toml"
+            unsafe_config.write_text(config_text)
+            unsafe_archive = root / f"unsafe-archive-{label}"
+            unsafe_result = run([
+                str(retire), "--active-skills", str(unsafe_active), "--config", str(unsafe_config),
+                "--archive", str(unsafe_archive), "--manifest", str(fixture_manifest), "--apply", "--json",
+            ], check=False)
+            if unsafe_result.returncode == 0:
+                raise AssertionError(f"retirement should stop when plugin disablement is unresolved: {label}")
+            if not (unsafe_active / "brainstorming").exists():
+                raise AssertionError(f"unverified plugin disablement must not move skills: {label}")
+            if unsafe_config.read_text() != config_text:
+                raise AssertionError(f"unverified plugin disablement must preserve config: {label}")
 
 
 def test_claude_install_layout_adapts_agents_without_overwriting_user_memory():
@@ -2487,7 +2720,7 @@ def test_install_docs_explain_codex_and_claude_targets():
         "CLAUDE.md",
         "scripts/gauntlet.py",
         "managed import block",
-        "does not overwrite unrelated existing Claude instructions",
+        "preserving existing Claude instructions",
     ]:
         assert_contains(readme, marker, "install target docs")
 
@@ -2630,15 +2863,16 @@ def test_skill_changes_are_guarded_by_pre_commit():
 def main():
     tests = [
         test_simplified_modes_and_depth_are_documented,
+        test_gauntlet_is_the_single_workflow_authority,
         test_v201_run_log_contract_replaces_default_review_brief,
         test_coverage_gap_and_design_lint_guidance_are_documented,
         test_product_thinking_and_scope_routing_are_documented,
         test_production_quality_bar_is_launch_gated,
         test_subagent_parallelism_is_context_efficient,
-        test_kickoff_and_implementation_transition_gates_are_documented,
+        test_material_transitions_replace_kickoff_ceremony,
         test_subagent_plan_validator_logs_rejections,
         test_subagent_plan_validator_rejects_secret_and_overbroad_scope,
-        test_subagent_plan_validator_requires_complete_lane_packets,
+        test_subagent_plan_validator_uses_one_canonical_manifest_and_typed_dependencies,
         test_guarded_panel_contract_is_uniform,
         test_ts_durability_classifier_behavior,
         test_diff_intel_test_plan_and_review_pack_are_bounded,
@@ -2656,12 +2890,14 @@ def main():
         test_gauntlet_cli_bounded_attempt_memory,
         test_thread_changelog_captures_pr_history_and_followups,
         test_workflow_etiquette_is_in_global_workflow,
-        test_promotion_scanner_is_release_wrapup_not_patch_gate,
+        test_promotion_scanner_is_explicit_or_evidence_triggered,
         test_skill_evals_compare_all_arms,
         test_skill_evals_include_behavior_and_metrics,
         test_skill_linter_examples_and_na_defaults,
         test_skill_changes_are_guarded_by_pre_commit,
         test_codex_install_layout_supports_workflow_check,
+        test_install_migrates_legacy_codex_layout_and_rejects_malformed_blocks,
+        test_superpowers_sources_are_attributed_and_retirement_is_allowlisted,
         test_claude_install_layout_adapts_agents_without_overwriting_user_memory,
         test_install_docs_explain_codex_and_claude_targets,
     ]

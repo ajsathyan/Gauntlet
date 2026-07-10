@@ -1142,31 +1142,39 @@ def command_memory_lint(args):
 
 
 def command_changelog_pr(args):
+    source_paths = [path for path in [args.accepted_spec, args.plan] if path]
+    legacy_memory = getattr(args, "implementation_memory", None)
+    if not source_paths and legacy_memory:
+        source_paths = [legacy_memory]
     payload = {
         "schemaVersion": "1.0",
         "status": "pass",
-        "source": str(args.implementation_memory),
+        "source": str(source_paths[0]) if source_paths else "",
+        "sources": [str(path) for path in source_paths],
         "findings": [],
         "pr": None,
         "markdown": "",
     }
-    memory_path = Path(args.implementation_memory)
-    if not memory_path.exists():
-        add_finding(payload, "missing_memory_file", "fail", f"Implementation Memory file does not exist: {memory_path}")
+    if not source_paths:
+        add_finding(payload, "missing_changelog_source", "fail", "Provide --accepted-spec and/or --plan.")
+    missing_paths = [Path(path) for path in source_paths if not Path(path).exists()]
+    for path in missing_paths:
+        add_finding(payload, "missing_changelog_source", "fail", f"Changelog source does not exist: {path}")
+    if legacy_memory and not args.accepted_spec and not args.plan:
+        add_finding(payload, "legacy_implementation_memory", "warn", "--implementation-memory is deprecated; use --accepted-spec and --plan.")
+    if payload["findings"] and any(item["severity"] == "fail" for item in payload["findings"]):
         payload["status"] = status_for(payload)
-        payload["markdown"] = build_changelog_markdown(str(memory_path), {}, None, [], payload["findings"])
+        payload["markdown"] = build_changelog_markdown(", ".join(str(path) for path in source_paths) or "missing", {}, None, [], payload["findings"])
         if args.json:
             print(json.dumps(payload, indent=2))
         else:
             print(payload["markdown"])
         return EXIT_CODES[payload["status"]]
 
-    text = read_text(memory_path)
+    paths = [Path(path) for path in source_paths]
+    text = "\n\n".join(read_text(path) for path in paths)
     sections = markdown_sections(text)
     followups = parse_followups(text)
-    lint = memory_lint_payload(memory_path)
-    for finding in lint.get("findings", []):
-        add_finding(payload, finding["code"], finding["severity"], finding["message"])
 
     repo = Path(args.git_root).resolve()
     inside = git(["rev-parse", "--is-inside-work-tree"], repo)
@@ -1189,7 +1197,8 @@ def command_changelog_pr(args):
             add_finding(payload, "cannot_verify_pr_metadata", "warn", f"Could not verify current PR metadata: {error or 'unknown gh error'}.")
 
     payload["status"] = status_for(payload)
-    payload["markdown"] = build_changelog_markdown(display_path(Path.cwd().resolve(), memory_path), sections, pr, followups, payload["findings"])
+    source_display = ", ".join(display_path(Path.cwd().resolve(), path) for path in paths)
+    payload["markdown"] = build_changelog_markdown(source_display, sections, pr, followups, payload["findings"])
     if args.output:
         output = Path(args.output)
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -1629,9 +1638,28 @@ def command_install_verify(args):
     require(agent_home / "gauntlet" / "scripts" / "check-gauntlet-workflow.py", "missing_installed_workflow_check")
     require(agent_home / "gauntlet" / "scripts" / "gauntlet.py", "missing_installed_gauntlet_cli")
     require(agent_home / "skills", "missing_installed_skills")
+    for relative in [
+        "skills/intake/SKILL.md",
+        "skills/planner/SKILL.md",
+        "skills/researcher/SKILL.md",
+        "skills/debugger/SKILL.md",
+        "gauntlet/docs/workflow-etiquette.md",
+        "gauntlet/docs/upstream-superpowers.json",
+        "gauntlet/evals/skill-evals.json",
+        "gauntlet/evals/behavior-fixtures.json",
+        "gauntlet/scripts/check-gauntlet-workflow.py",
+    ]:
+        require(agent_home / relative, f"missing_install_payload:{relative}")
 
     if args.target == "codex":
-        require(agent_home / "AGENTS.md", "missing_codex_agents")
+        codex_agents = agent_home / "AGENTS.md"
+        require(codex_agents, "missing_codex_agents")
+        if codex_agents.exists():
+            text = codex_agents.read_text(encoding="utf-8")
+            if text.count("BEGIN GAUNTLET MANAGED BLOCK") != 1 or text.count("END GAUNTLET MANAGED BLOCK") != 1:
+                findings.append({"code": "invalid_codex_managed_block", "severity": "fail", "message": "Codex AGENTS.md must contain exactly one complete Gauntlet managed block."})
+            if "Gauntlet is the single workflow authority" not in text:
+                findings.append({"code": "missing_codex_gauntlet_router", "severity": "fail", "message": "Codex AGENTS.md lacks the current Gauntlet router."})
     if args.target == "claude":
         claude_md = agent_home / "CLAUDE.md"
         require(claude_md, "missing_claude_md")
@@ -1789,7 +1817,9 @@ def build_parser():
     changelog = subcommands.add_parser("changelog", help="Changelog generation helpers.")
     changelog_subcommands = changelog.add_subparsers(dest="changelog_command", required=True)
     changelog_pr = changelog_subcommands.add_parser("pr")
-    changelog_pr.add_argument("--implementation-memory", type=Path, required=True)
+    changelog_pr.add_argument("--accepted-spec", type=Path, default=None)
+    changelog_pr.add_argument("--plan", type=Path, default=None)
+    changelog_pr.add_argument("--implementation-memory", type=Path, default=None, help=argparse.SUPPRESS)
     changelog_pr.add_argument("--git-root", type=Path, default=Path.cwd())
     changelog_pr.add_argument("--output", type=Path, default=None)
     changelog_pr.add_argument("--json", action="store_true")

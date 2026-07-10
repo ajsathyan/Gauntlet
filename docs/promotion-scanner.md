@@ -1,18 +1,18 @@
 # Promotion Scanner
 
-`promotion-scanner` turns repeated manual, agent, subagent, trace, monitor, shell, and run-log work into a bounded Promotion Brief. The goal is to decide whether a repeated loop should graduate into repo code, repo test, repo docs/run log, a Gauntlet skill/tool, a coverage gap, or Reject.
+`promotion-scanner` turns repeated manual, agent, subagent, trace, monitor, shell, and run-log work into a bounded promotion decision. The goal is to decide whether a repeated loop should graduate into repo code, repo test, repo docs/run log, a Gauntlet skill/tool, a coverage gap, or Reject.
 
 This is not an action recommender. No live operational actions: do not recommend terminating pods, deleting data, revoking access, deploying, billing, migrating, or mutating production state now.
 
 ## When To Run
 
-Run on explicit user request, Release or live-ops wrap-up, repeated manual verification, repeated `Cannot verify`, or repeated evidence across run logs. Do not run for ordinary Patch.
+Run on explicit user request or when repeated manual verification, repeated `Cannot verify`, or repeated evidence across run logs supports an actual durable destination. Do not run automatically for ordinary Patch or Release wrap-up.
 
 Dynamic triggers beat calendar triggers. A useful threshold is two similar loops in one Release/live-ops run, or the same loop across two run logs, with enough explicit artifacts to distinguish stale vs latest evidence.
 
 ## Output
 
-The output is a compact Promotion Brief:
+Integrate a compact candidate table into the current report by default. Produce a standalone Promotion Brief only when the user explicitly requests one or a durable cross-run artifact is the task.
 
 - current evidence table by entity or surface
 - timeline highlights with stale vs latest evidence separated

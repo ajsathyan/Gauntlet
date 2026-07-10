@@ -1,63 +1,58 @@
 ---
 name: planner
-description: Use when an accepted spec needs bounded task packets with dependencies, interfaces, proof, risks, deferrals, and a first ready task.
+description: Use when an accepted spec needs one canonical implementation plan with bounded tasks, dependencies, interfaces, proof, risks, deferrals, and a first ready task.
 ---
 
 # Planner
 
-Shape work into user-valuable implementation steps. Define appetite before scope. Separate mode (`Patch`, `Feature`, `Release`) from depth (`Standard`, `Deep`).
+Turn an accepted direction into one canonical plan. Define appetite before scope. Optional example: `examples/task-packet.md`.
 
 ## Output
 
-If a field is outside accepted scope, write `Not relevant because...` instead of stretching the plan. Optional example: read `examples/task-packet.md` only when output shape is ambiguous.
+If a field is outside scope, write `Not relevant because...` instead of padding the plan. Read the optional example only when output shape is ambiguous.
 
-- Problem
-- Target outcome
+- Problem and target outcome
 - Appetite
-- Mode and depth
-- Triggered gates
-- Production Quality Bar: triggered near-launch guardrails, release proof, and deferrals, or `Not relevant because...`
-- Must-haves
-- Non-goals
-- Scope pressure and deferrals
-- Risks/unknowns
+- Change mode and depth
+- Accepted spec/source
+- Must-haves and non-goals
+- Material assumptions, decisions, and deferrals
+- Risks/unknowns and invalidation triggers
 - Verification plan
-- Parallelizable lanes: independent tasks that can go to subagents, or `None`
+- Parallel lanes with separate files/state/proof, or `None`
 - Subagent manifest: `.gauntlet/subagent-plan.json` or `Not relevant because...`
-- Subagent packetization: required or `Not relevant because...`
 - Scope-addition delta: material change or `Scope delta checked: no material change.`
 - Ordered **Gauntlet Task Packet** list
 - First ready task
 
 ## Gauntlet Task Packet
 
-Each task gets a packet. Keep tasks end-to-end unless files, state, and proof are independent enough for parallel subagents.
-
-- Task
-- Goal
-- Files/areas to inspect
-- Files/areas to avoid
-- Global Constraints copied verbatim from the spec
-- Consumes: prior outputs, exact names, contracts, state, or handles
-- Produces: outputs, exact names, contracts, state, or handles
-- Steps
+- Task and goal
+- Files/areas to inspect and avoid
+- Inherited constraints
+- Consumes and produces: exact contracts, state, or handles
+- Implementation outline
 - Proof: command, screenshot, benchmark, manual check, or static scan
-- Cannot verify: cross-task or external proof the implementer cannot check
+- Cannot verify: external or cross-task proof unavailable to the implementer
 - Done when
-- Review target: reviewer skill, run log, or coverage gap expected
+- Review target
 
 ## Rules
 
-- Use end-to-end steps unless files, state, and proof are independent enough to split.
-- Convert uncertainty into probes, checks, explicit assumptions, or Cannot verify items.
-- For performance, security, reliability, and hot-path work, include a comparison or adversarial check when appetite allows.
-- When `Parallelizable lanes` is not `None`, write `.gauntlet/subagent-plan.json` and validate it with `scripts/check-subagent-plan.py` before dispatch.
-- `Subagent packetization: required` means validate accepted lane packets and the current-run manifest before implementation, not just dispatch.
-- Run scope-addition delta foresight before added scope; use the one-line marker for clean checks.
-- Use subagents only for accepted independent task packets; do not split tightly coupled state or one decision tree across workers.
-- For Release panels, preserve the launch cut line, panel delta, `| Concern | Decision | Why Not Defer | Proof | Plan Delta |`, and the allowed decisions: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, `Reject`.
-- A `Ship blocker` needs concrete harm, no acceptable fallback/deferral, executable proof, and a real plan delta; otherwise downgrade it.
-- When running duplicate planning prompts for Release risk, compare missing blockers, dependency order, proof requirements, first task, deferrals, and rejections. Do not union every idea.
-- For TypeScript work, include the TS Durability gate only when the classifier says `durabilityRequired: true` or the user explicitly asks.
-- Trigger the Production Quality Bar only for near-launch, private-beta, production-bound, hardened, or audited work; plan release proof such as CI/local checks, no-mutation or dry-run, automated GitHub release tags/artifacts, and rollback/support evidence.
+- Use one accepted spec and one canonical plan. Intake notes, exploration, and Implementation Memory are not parallel sources of truth.
 - Stop planning once the first build step and first meaningful proof path are obvious.
+- Use end-to-end steps unless files, state, and proof are independent enough to split.
+- Do not use 2-5 minute micro-steps or commits after every mechanical action.
+- Do not pre-write production code in the plan. Include code only for a small interface, migration shape, or probe that resolves real ambiguity.
+- Compare alternatives in one bounded Deep pass. Use a second plan only for concrete Release-class harm or explicit request.
+- Convert uncertainty into probes, explicit assumptions, invalidation triggers, or Cannot verify items.
+- When parallelism is earned, `.gauntlet/subagent-plan.json` is the canonical lane contract. Do not write a second Markdown packet; generate prompts from lane entries.
+- Validate the manifest before parallel dispatch. Revalidate only when material scope changes reshape lanes.
+- Use typed `dependsOn` lane IDs. The first ready lane has no unresolved dependency.
+- Do not use subagents for tightly coupled state, overlapping writes, or a single decision tree.
+- For guarded Release work, preserve the launch cut line, panel delta, and `| Concern | Decision | Why Not Defer | Proof | Plan Delta |`. Decisions: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, or `Reject`. A blocker needs concrete harm, no acceptable fallback, executable proof, and a real delta. Do not union every idea from reviews.
+- Trigger the Production Quality Bar only for near-launch, private-beta, production-bound, hardened, or audited work; otherwise mark `Not relevant because...`. When active, make release proof concrete: dry-run or no-mutation evidence, automated GitHub release tags or artifacts when relevant, rollback/support proof, and explicit deferrals.
+
+## Attribution
+
+End-to-end task sizing, explicit interfaces, and execution checkpoints are adapted from Jesse Vincent's Superpowers `writing-plans` and `executing-plans` skills, version 5.1.3 (MIT). Gauntlet intentionally omits prewritten implementation code, mandatory micro-steps, duplicate plan documents, and universal human checkpoints. See `docs/upstream-superpowers.md`.

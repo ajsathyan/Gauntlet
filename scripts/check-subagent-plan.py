@@ -9,7 +9,7 @@ from pathlib import Path
 
 LOG_NAME = "subagent-plan-log.jsonl"
 SUMMARY_NAME = "subagent-plan-summary.json"
-VALID_SCHEMA_VERSION = "1.1"
+VALID_SCHEMA_VERSION = "1.2"
 VALID_STATE_ACCESS = {"none", "read-only", "mutates"}
 VALID_LANE_STATUS = {"To Do", "In Progress", "Blocked", "In Review", "Done", "Canceled"}
 OVERBROAD_PATHS = {"*", "**", "**/*", ".", "./", "/*"}
@@ -21,7 +21,6 @@ REQUIRED_LANE_FIELDS = [
     "objective",
     "projectRoot",
     "worktreePath",
-    "acceptedSource",
     "scope",
     "inScope",
     "outOfScope",
@@ -30,16 +29,15 @@ REQUIRED_LANE_FIELDS = [
     "filesAvoid",
     "stateScope",
     "stateAccess",
-    "dependencies",
+    "dependsOn",
     "consumes",
     "produces",
-    "constraints",
     "proof",
     "inlineContext",
-    "taskPacketRef",
     "expectedReturn",
     "askUserPolicy",
 ]
+LEGACY_DUPLICATE_FIELDS = {"dependencies", "taskPacketRef"}
 SECRET_PATTERNS = [
     re.compile(r"(?i)\b[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*['\"]?[^\s'\"`]+"),
     re.compile(r"(?i)\b(sk|pk|rk)-(live|test)-[A-Za-z0-9_-]{8,}"),
@@ -105,20 +103,6 @@ def is_overbroad_path(pattern):
     return normalized in OVERBROAD_PATHS
 
 
-def resolve_project_reference(project_root, reference):
-    if not isinstance(reference, str) or not reference.strip():
-        return None
-    path_part = reference.split("#", 1)[0].strip()
-    if not path_part or Path(path_part).is_absolute():
-        return None
-    candidate = (project_root / path_part).resolve()
-    try:
-        candidate.relative_to(project_root)
-    except ValueError:
-        return None
-    return candidate
-
-
 def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
     rejections = []
     if data.get("schemaVersion") != VALID_SCHEMA_VERSION:
@@ -134,6 +118,13 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
     if len(lanes) < 2:
         add_rejection(rejections, "not_enough_lanes", "parallel subagent plans need at least two lanes")
 
+    shared_source = data.get("acceptedSource")
+    if shared_source is not None and (not isinstance(shared_source, str) or not shared_source.strip()):
+        add_rejection(rejections, "invalid_field_type", "top-level acceptedSource must be a non-empty string")
+    shared_constraints = data.get("constraints")
+    if shared_constraints is not None and not require_list(shared_constraints):
+        add_rejection(rejections, "invalid_field_type", "top-level constraints must be a list of strings")
+
     seen_ids = set()
     contexts = {}
     total_inline_words = 0
@@ -147,6 +138,22 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
         for field in REQUIRED_LANE_FIELDS:
             if field not in lane:
                 add_rejection(rejections, "missing_field", f"lane missing required field: {field}", lane_id)
+
+        for field in LEGACY_DUPLICATE_FIELDS:
+            if field in lane:
+                add_rejection(
+                    rejections,
+                    "legacy_duplicate_field",
+                    f"{field} is not supported in schema 1.2; use the canonical manifest only",
+                    lane_id,
+                )
+
+        lane_source = lane.get("acceptedSource", shared_source)
+        if not isinstance(lane_source, str) or not lane_source.strip():
+            add_rejection(rejections, "missing_field", "acceptedSource is required at plan or lane level", lane_id)
+        lane_constraints = lane.get("constraints", shared_constraints)
+        if not require_list(lane_constraints):
+            add_rejection(rejections, "missing_field", "constraints are required at plan or lane level", lane_id)
 
         if not isinstance(lane.get("id"), str) or not lane.get("id").strip():
             add_rejection(rejections, "invalid_id", "lane id must be a non-empty string", lane_id)
@@ -162,12 +169,10 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
             "objective",
             "projectRoot",
             "worktreePath",
-            "acceptedSource",
             "scope",
             "stateScope",
             "stateAccess",
             "inlineContext",
-            "taskPacketRef",
             "expectedReturn",
             "askUserPolicy",
         ]:
@@ -198,10 +203,9 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
             "filesRead",
             "filesWrite",
             "filesAvoid",
-            "dependencies",
+            "dependsOn",
             "consumes",
             "produces",
-            "constraints",
             "proof",
         ]:
             if field in lane and not require_list(lane[field]):
@@ -218,23 +222,6 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
                     rejections,
                     "project_root_mismatch",
                     "lane projectRoot must resolve to the validated project root",
-                    lane_id,
-                )
-
-        if isinstance(lane.get("taskPacketRef"), str) and lane["taskPacketRef"].strip():
-            packet_path = resolve_project_reference(project_root, lane["taskPacketRef"])
-            if packet_path is None:
-                add_rejection(
-                    rejections,
-                    "invalid_task_packet_ref",
-                    "taskPacketRef must be a relative path inside the project root",
-                    lane_id,
-                )
-            elif not packet_path.is_file():
-                add_rejection(
-                    rejections,
-                    "task_packet_missing",
-                    f"taskPacketRef does not exist: {lane['taskPacketRef']}",
                     lane_id,
                 )
 
@@ -272,6 +259,55 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
             "total_inline_context_too_large",
             f"total inlineContext has {total_inline_words} words; max is {max_total_inline_words}",
         )
+
+    lane_by_id = {
+        lane.get("id"): lane
+        for lane in lanes
+        if isinstance(lane, dict) and isinstance(lane.get("id"), str) and lane.get("id").strip()
+    }
+    for lane_id, lane in lane_by_id.items():
+        for dependency in lane.get("dependsOn", []) if isinstance(lane.get("dependsOn"), list) else []:
+            if dependency == lane_id:
+                add_rejection(rejections, "self_dependency", f"{lane_id} depends on itself", lane_id)
+            elif dependency not in lane_by_id:
+                add_rejection(rejections, "unknown_dependency", f"{lane_id} depends on unknown lane: {dependency}", lane_id)
+
+    visiting = set()
+    visited = set()
+    cycle_found = False
+
+    def visit(lane_id):
+        nonlocal cycle_found
+        if lane_id in visiting:
+            cycle_found = True
+            return
+        if lane_id in visited:
+            return
+        visiting.add(lane_id)
+        for dependency in lane_by_id.get(lane_id, {}).get("dependsOn", []):
+            if dependency in lane_by_id:
+                visit(dependency)
+        visiting.remove(lane_id)
+        visited.add(lane_id)
+
+    for lane_id in lane_by_id:
+        visit(lane_id)
+    if cycle_found:
+        add_rejection(rejections, "dependency_cycle", "lane dependsOn graph contains a cycle")
+
+    ready_lanes = []
+    for lane_id, lane in lane_by_id.items():
+        if lane.get("status") not in {"To Do", "In Progress", "In Review"}:
+            continue
+        unresolved = [
+            dependency
+            for dependency in lane.get("dependsOn", [])
+            if dependency not in lane_by_id or lane_by_id[dependency].get("status") != "Done"
+        ]
+        if not unresolved:
+            ready_lanes.append(lane_id)
+    if lane_by_id and not ready_lanes:
+        add_rejection(rejections, "no_ready_lane", "manifest has no ready lane without dependencies")
 
     for left_index, left in enumerate(lanes if isinstance(lanes, list) else []):
         if not isinstance(left, dict):

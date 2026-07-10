@@ -4,60 +4,48 @@ Metadata:
 
 - ID: `workflow-etiquette-flow-2026-07-04`
 - Feature: `workflow-etiquette`
-- Source thread/title: `p1 - Indexed implementation context docs`
+- Source thread/title: `p1-auto: Simplify Gauntlet planning workflow`
 - Tags: `gauntlet`, `etiquette`, `planning`, `execution`, `archive`, `execution-mode`, `decision-gate`, `follow-up`
 - Related files: `docs/workflow-etiquette.md`
 
-Purpose: show the current workflow-etiquette loop from planning through archival, including review/autonomous execution mode, decision gates, delegation, follow-up strength, and pause/reentry.
+Purpose: show the lean Gauntlet loop from research or intake through one canonical plan, execution, proof, and archival.
 
 ```mermaid
 flowchart LR
     subgraph Main["Main Path"]
-        A["Planning"] --> B["Kickoff"]
-        B --> M["Execution Mode<br/>review | auto"]
-        M --> J["Decision Gate?<br/>optional stop point"]
-        J --> C["Foresight"]
-        C --> D["Delegation?"]
-        D --> E["Execution"]
-        E --> F["Debrief"]
-        F --> G["Archival"]
+        A{"Research or change?"}
+        A -- "Research" --> R["Evidence-bounded research"]
+        R --> Z{"Implementation requested?"}
+        Z -- "No" --> O["Answer with confidence<br/>and Cannot verify"]
+        Z -- "Yes" --> S["Accepted spec"]
+        A -- "Change" --> S
+        S --> P["One canonical plan"]
+        P --> E["Implementation"]
+        E --> V["Proof and review"]
+        V --> G["Closeout or archive"]
     end
 
-    subgraph Review["Review Loops"]
-        R{"Domain model, latency,<br/>or stop-condition risk?"}
-        Q["Clarify<br/>with recommendation"]
+    subgraph Control["Triggered Controls"]
+        J["Decision gate only for<br/>a material unresolved choice"]
+        D{"Parallel lanes earned?"}
+        M["Canonical JSON manifest<br/>with typed dependencies"]
     end
 
     subgraph Side["Side Captures"]
-        P["Continuity<br/>Pause Work Packet"]
+        C["Continuity<br/>landing pad"]
         U["Follow-Up<br/>strong or later"]
     end
 
-    C --> R
-    R -- "needs review" --> Q
-    Q --> C
-    R -- "safe" --> D
+    S -. "material decision" .-> J
+    J -. "resolved" .-> P
+    P --> D
+    D -- "No" --> E
+    D -- "Yes" --> M
+    M --> E
 
-    D -- "implementation memory needed" --> D1["Implementation Memory<br/>Lane Index"]
-    D1 --> E
-
-    E --> X{"Checkpoint"}
-    X -- "continue" --> E
-    X -- "model changed" --> C
-    X -- "new lane" --> D1
-    X -- "gate reached" --> J
-    X -- "done" --> F
-
-    E -. "pause" .-> P
-    P -. "resume" .-> E
+    E -. "pause" .-> C
+    C -. "resume" .-> E
 
     E -. "future topic" .-> U
     U -. "captured" .-> E
-
-    G --> Z{"Strong follow-up?"}
-    Z -- "none or resolved" --> H["Archive"]
-    Z -- "finish here" --> E
-    Z -- "new chat" --> N["Same-repo chat<br/>with context"]
-    N --> H
-    Z -- "archive anyway" --> H
 ```

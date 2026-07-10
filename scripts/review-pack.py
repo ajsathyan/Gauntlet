@@ -6,7 +6,7 @@ from gauntlet_diff_helpers import build_diff_intel, diff_for_file, now_iso, read
 
 
 MAX_DIFF_LINES_PER_FILE = 80
-MAX_IMPLEMENTATION_MEMORY_LINES = 40
+MAX_CONTEXT_LINES = 40
 
 
 def bullets(items, empty="None."):
@@ -62,73 +62,28 @@ def test_plan_section(root, test_plan, test_plan_path):
     ]
 
 
-def heading(line):
-    match = line.strip().lower()
-    if not match.startswith("#"):
-        return None
-    hashes, _, title = line.partition(" ")
-    if not title:
-        return None
-    if not set(hashes) <= {"#"}:
-        return None
-    return len(hashes), title.strip().rstrip("#").strip().lower()
-
-
-def scan_index_excerpt(text):
-    lines = text.splitlines()
-    start = None
-    start_level = None
-    for index, line in enumerate(lines):
-        parsed = heading(line)
-        if parsed and parsed[1] == "scan index":
-            start = index + 1
-            start_level = parsed[0]
-            break
-    if start is None:
-        return None
-
-    end = len(lines)
-    for index in range(start, len(lines)):
-        parsed = heading(lines[index])
-        if parsed and parsed[0] <= start_level:
-            end = index
-            break
-
-    excerpt_lines = lines[start:end]
-    if len(excerpt_lines) > MAX_IMPLEMENTATION_MEMORY_LINES:
-        excerpt_lines = excerpt_lines[:MAX_IMPLEMENTATION_MEMORY_LINES] + [
-            "... Implementation Memory Scan Index excerpt truncated ..."
-        ]
-    excerpt = "\n".join(excerpt_lines).strip()
-    return excerpt or "Scan Index heading exists, but no content was supplied."
-
-
-def implementation_memory_section(root, implementation_memory_path):
-    if not implementation_memory_path:
+def context_section(root, path_value, label):
+    if not path_value:
         return [], []
 
-    path = Path(implementation_memory_path)
-    cannot_verify = []
+    path = Path(path_value)
     if not path.exists():
-        return [], [f"Implementation Memory path was supplied but not found: {display_path(root, path)}"]
+        return [], [f"{label} path was supplied but not found: {display_path(root, path)}"]
 
-    excerpt = scan_index_excerpt(redact_secrets(path.read_text(encoding="utf-8", errors="ignore")))
-    if excerpt is None:
-        cannot_verify.append(
-            f"Implementation Memory lacks a `Scan Index` section: {display_path(root, path)}"
-        )
-        excerpt = "No Scan Index found."
+    lines = redact_secrets(path.read_text(encoding="utf-8", errors="ignore")).splitlines()
+    if len(lines) > MAX_CONTEXT_LINES:
+        lines = lines[:MAX_CONTEXT_LINES] + [f"... {label} excerpt truncated ..."]
+    excerpt = "\n".join(lines).strip() or "No content supplied."
 
     return [
-        "## Implementation Memory",
+        f"## {label}",
         f"Path: `{display_path(root, path)}`",
         "",
-        "Only the Scan Index excerpt is included; inspect the source document for broader rationale.",
+        "Bounded excerpt; inspect the canonical source for full context.",
         "",
-        "### Scan Index Excerpt",
         excerpt,
         "",
-    ], cannot_verify
+    ], []
 
 
 def project_relative_path(root, path):
@@ -169,18 +124,21 @@ def diff_excerpt(root, changed, base_ref):
     return f"### `{changed['path']}`\n\n```diff\n" + "\n".join(lines) + "\n```\n"
 
 
-def build_review_pack(project_root, intel, test_plan=None, test_plan_path=None, implementation_memory_path=None):
+def build_review_pack(project_root, intel, test_plan=None, test_plan_path=None, accepted_spec_path=None, plan_path=None, legacy_memory_path=None):
     root = Path(project_root).resolve()
     triggers = intel.get("riskTriggers", [])
     changed_files = intel.get("changedFiles", [])
     cannot_verify = list(intel.get("cannotVerify", []))
     if intel.get("confidence") != "high":
         cannot_verify.append("Diff classification is advisory; confirm surfaces and tests against local repo conventions.")
-    implementation_memory_lines, implementation_memory_cannot_verify = implementation_memory_section(
-        root,
-        implementation_memory_path,
-    )
-    cannot_verify.extend(implementation_memory_cannot_verify)
+    accepted_spec_lines, accepted_spec_cannot_verify = context_section(root, accepted_spec_path, "Accepted Spec")
+    plan_lines, plan_cannot_verify = context_section(root, plan_path, "Canonical Plan")
+    cannot_verify.extend(accepted_spec_cannot_verify + plan_cannot_verify)
+    legacy_lines = []
+    if legacy_memory_path and not accepted_spec_path:
+        legacy_lines, legacy_cannot_verify = context_section(root, legacy_memory_path, "Legacy Implementation Memory")
+        cannot_verify.extend(legacy_cannot_verify)
+        cannot_verify.append("Deprecated --implementation-memory input used; migrate this context into the accepted spec or canonical plan.")
 
     sections = [
         "# Gauntlet Review Pack",
@@ -210,7 +168,9 @@ def build_review_pack(project_root, intel, test_plan=None, test_plan_path=None, 
         "- Treat missing or low-confidence test mappings as `Cannot verify`, not as proof of safety.",
         "",
         *test_plan_section(root, test_plan, test_plan_path),
-        *implementation_memory_lines,
+        *accepted_spec_lines,
+        *plan_lines,
+        *legacy_lines,
         "## Cannot verify",
         bullets(cannot_verify, "None from the generator; reviewer should still report missing proof."),
         "",
@@ -241,7 +201,9 @@ def main():
     parser.add_argument("--diff-intel", type=Path, default=None)
     parser.add_argument("--test-plan", type=Path, default=None, help="test-plan JSON to summarize; defaults to .gauntlet/test-plan.json when present")
     parser.add_argument("--no-test-plan", action="store_true", help="do not include an existing test-plan summary")
-    parser.add_argument("--implementation-memory", type=Path, default=None, help="Implementation Memory Markdown file; only the Scan Index excerpt is included")
+    parser.add_argument("--accepted-spec", type=Path, default=None, help="accepted spec/context file")
+    parser.add_argument("--plan", type=Path, default=None, help="canonical implementation plan file")
+    parser.add_argument("--implementation-memory", type=Path, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
 
@@ -253,8 +215,10 @@ def main():
         test_plan_path = project_relative_path(project_root, args.test_plan) or project_root / ".gauntlet" / "test-plan.json"
         if test_plan_path.exists():
             test_plan = read_json(test_plan_path)
-    implementation_memory_path = project_relative_path(project_root, args.implementation_memory)
-    packet = build_review_pack(project_root, intel, test_plan, test_plan_path, implementation_memory_path)
+    accepted_spec_path = project_relative_path(project_root, args.accepted_spec)
+    plan_path = project_relative_path(project_root, args.plan)
+    legacy_memory_path = project_relative_path(project_root, args.implementation_memory)
+    packet = build_review_pack(project_root, intel, test_plan, test_plan_path, accepted_spec_path, plan_path, legacy_memory_path)
     output = args.output or project_root / ".gauntlet" / "review-pack.md"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(packet, encoding="utf-8")

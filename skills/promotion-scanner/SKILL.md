@@ -5,15 +5,15 @@ description: Use when repeated manual, agent, subagent, trace, monitor, shell, o
 
 # Promotion Scanner
 
-Find repeated manual or agent loops that deserve durable engineering. This is a promotion brief, not an action recommender. No live operational actions.
+Find repeated manual or agent loops that deserve durable engineering. This is a promotion decision, not an action recommender. No live operational actions.
 
-Use on explicit request, Release or live-ops wrap-up, repeated manual verification, repeated `Cannot verify`, or repeated run-log evidence. Do not run for ordinary Patch.
+Use on explicit request or when repeated manual verification, repeated `Cannot verify`, or repeated cross-run evidence supports a real durable destination decision. Do not run automatically for ordinary Release wrap-up or Patch.
 
 If evidence is missing or stale, write `Cannot verify`. If the scan is outside scope, write `Not relevant because...`. Optional example: read `examples/promotion-brief.md` only when output shape is ambiguous.
 
 ## Output Contract
 
-- Title: `Promotion Brief`
+- Format: integrate a compact candidate table into the current report by default. Use title `Promotion Brief` only when the user explicitly requests a standalone brief or a durable cross-run artifact is the task.
 - Verdict: `Candidates found`, `No action`, `Needs proof`, or `Cannot verify`
 - Evidence reviewed: traces, shell outputs, subagent reports, monitor logs, run logs, code paths, tests, repo guidance, and prior decisions
 - Current evidence table by entity or surface, with source, timestamp or freshness, and confidence

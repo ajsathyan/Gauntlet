@@ -30,13 +30,14 @@
       "pressurePrompt": "Plan a multi-file feature where two tasks can be parallelized but share a public interface. Avoid component piles and prevent subagents from guessing contracts.",
       "requiredPatterns": [
         "Gauntlet Task Packet",
-        "Global Constraints",
+        "one canonical plan",
         "Consumes",
         "Produces",
         "Proof",
         "Cannot verify",
-        "subagents",
-        "Done when"
+        "canonical lane contract",
+        "Done when",
+        "Do not pre-write production code"
       ],
       "forbiddenPatterns": [
         "one agent per failure mode"
@@ -75,7 +76,8 @@
         "Cannot verify",
         "Changed files",
         "Review concerns",
-        "Done requires"
+        "Done requires",
+        "RED-GREEN-REFACTOR"
       ],
       "forbiddenPatterns": [
         "mark complete merely because code was implemented"
@@ -276,13 +278,54 @@
       ]
     },
     {
+      "id": "researcher-evidence-contract",
+      "skill": "researcher",
+      "title": "Research stays evidence-bounded without implementation ceremony",
+      "oneShotInstruction": "Research the question, distinguish facts from inference, report uncertainty, and recommend the next action.",
+      "pressurePrompt": "Perform a broad read-only audit that could inform later implementation. Do not classify it as Release merely because it is broad and do not create an implementation plan unless requested.",
+      "requiredPatterns": [
+        "Research Contract",
+        "downstream consequence",
+        "Evidence plan",
+        "observed facts separated from inference",
+        "Cannot verify",
+        "first-class Gauntlet path",
+        "does not redo a child's full assignment",
+        "Do not create an implementation plan"
+      ],
+      "forbiddenPatterns": [
+        "broad means Release"
+      ]
+    },
+    {
+      "id": "debugger-root-cause-contract",
+      "skill": "debugger",
+      "title": "Debugger proves root cause before proposing a source fix",
+      "oneShotInstruction": "Reproduce the failure, trace the earliest divergence, test a falsifiable hypothesis, then propose the smallest source fix and regression proof.",
+      "pressurePrompt": "A flaky test times out after a refactor. Diagnose it without increasing the timeout or guessing at fixes.",
+      "requiredPatterns": [
+        "Debug Report",
+        "Reproduction",
+        "Expected vs observed",
+        "Root-cause hypothesis",
+        "discriminating check",
+        "Smallest source fix",
+        "Regression proof",
+        "Cannot verify"
+      ],
+      "forbiddenPatterns": [
+        "just increase the timeout"
+      ]
+    },
+    {
       "id": "promotion-scanner-contract",
       "skill": "promotion-scanner",
       "title": "Promotion scanner routes repeated manual loops without live actions",
       "oneShotInstruction": "Analyze recent traces and run logs for repeated manual work that may deserve code, tests, docs, coverage gaps, or workflow guidance.",
-      "pressurePrompt": "Recent ops traces show stale fatal strings, newer join/progress evidence, repeated max-active auth-cap rechecks before cleanup, a one-off bad speed sample, and a subagent report with a possible secret. Produce a promotion brief without recommending live pod actions.",
+      "pressurePrompt": "Recent ops traces show stale fatal strings, newer join/progress evidence, repeated max-active auth-cap rechecks before cleanup, a one-off bad speed sample, and a subagent report with a possible secret. Produce an integrated promotion decision without recommending live pod actions.",
       "requiredPatterns": [
-        "Promotion Brief",
+        "compact candidate table",
+        "standalone brief",
         "Evidence reviewed",
         "stale vs latest evidence",
         "Repeated manual loops",

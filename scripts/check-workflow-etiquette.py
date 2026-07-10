@@ -10,7 +10,7 @@ CURRENT_TITLE = re.compile(r"^p([0-4])(-auto)?:\s+(.+?)\s*$")
 LEGACY_TITLE = re.compile(r"^p([0-4])\s+-\s+(.+?)\s*$")
 FIELD_PATTERN = r"^\s*(?:-\s*)?{field}:\s*(.+?)\s*$"
 VALID_FIELDS = {
-    "Mode": {"Patch", "Feature", "Release"},
+    "Mode": {"Research", "Patch", "Feature", "Release"},
     "Depth": {"Standard", "Deep"},
     "Verification Scope": {"smoke", "delta", "full", "not relevant"},
     "Execution Mode": {"review", "autonomous"},
@@ -129,14 +129,14 @@ def parse_title(
 
 
 def check_kickoff(content, parsed_title, findings):
+    add_finding(
+        findings,
+        "kickoff_check_deprecated",
+        "warn",
+        "The five-field kickoff block is deprecated; classify internally and surface only material transitions.",
+        migration_friendly=True,
+    )
     if not content:
-        add_finding(
-            findings,
-            "missing_kickoff_content",
-            "warn",
-            "Kickoff check requested, but no content file was provided.",
-            migration_friendly=True,
-        )
         return {}, parsed_title
 
     fields = {field: field_value(content, field) for field in REQUIRED_KICKOFF_FIELDS + OPTIONAL_KICKOFF_FIELDS}
@@ -153,16 +153,6 @@ def check_kickoff(content, parsed_title, findings):
 
     raw_execution_mode = fields.get("Execution Mode")
     fields["Execution Mode"] = normalize_execution_mode(raw_execution_mode, findings)
-    for field in REQUIRED_KICKOFF_FIELDS:
-        if not fields.get(field):
-            add_finding(
-                findings,
-                f"missing_{field.lower().replace(' ', '_')}",
-                "warn",
-                f"Kickoff is missing '{field}'.",
-                migration_friendly=True,
-            )
-
     for field, valid_values in VALID_FIELDS.items():
         value = fields.get(field)
         if value and value not in valid_values:
@@ -433,7 +423,7 @@ def main():
     parser.add_argument("--title", default=None, help="Thread title to validate.")
     parser.add_argument("--suggested-title", default=None, help="Suggested title to use when archive should rename first.")
     parser.add_argument("--content", type=Path, default=None, help="Markdown/text content to scan.")
-    parser.add_argument("--require-kickoff", action="store_true", help="Warn when kickoff fields are missing.")
+    parser.add_argument("--require-kickoff", action="store_true", help="Deprecated compatibility check; warns without requiring kickoff fields.")
     parser.add_argument("--require-assumptions", action="store_true", help="Require autonomous Assumptions Made fields.")
     parser.add_argument("--archive", action="store_true", help="Check archive-time review blockers.")
     parser.add_argument("--archive-anyway", action="store_true", help="Do not pause archive for unresolved strong follow-ups.")

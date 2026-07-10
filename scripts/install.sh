@@ -109,6 +109,27 @@ write_claude_adapter() {
 EOF
 
   if [ -f "$claude_file" ]; then
+    local begin_count
+    local end_count
+    begin_count="$(grep -c '<!-- BEGIN GAUNTLET MANAGED BLOCK -->' "$claude_file" || true)"
+    end_count="$(grep -c '<!-- END GAUNTLET MANAGED BLOCK -->' "$claude_file" || true)"
+    if [ "$begin_count" -ne "$end_count" ] || [ "$begin_count" -gt 1 ]; then
+      echo "Malformed Gauntlet managed block in $claude_file" >&2
+      rm -f "$block_file" "$output_file"
+      return 1
+    fi
+    if [ "$begin_count" -eq 1 ]; then
+      local begin_line
+      local end_line
+      begin_line="$(grep -n '<!-- BEGIN GAUNTLET MANAGED BLOCK -->' "$claude_file" | cut -d: -f1)"
+      end_line="$(grep -n '<!-- END GAUNTLET MANAGED BLOCK -->' "$claude_file" | cut -d: -f1)"
+      if [ "$begin_line" -ge "$end_line" ]; then
+        echo "Malformed Gauntlet managed block in $claude_file" >&2
+        rm -f "$block_file" "$output_file"
+        return 1
+      fi
+    fi
+
     awk -v block_file="$block_file" '
       BEGIN {
         while ((getline line < block_file) > 0) {
@@ -157,52 +178,144 @@ EOF
 
 write_codex_agents() {
   local codex_file="$AGENT_HOME/AGENTS.md"
+  local block_file
   local personal_file
-  local base_file
+  local legacy_base_file
+  local legacy_normalized_file
+  local installed_normalized_file
+  local legacy_reference
   local output_file
+  block_file="$(mktemp)"
   personal_file="$(mktemp)"
-  base_file="$(mktemp)"
+  legacy_base_file="$(mktemp)"
+  legacy_normalized_file="$(mktemp)"
+  installed_normalized_file="$(mktemp)"
   output_file="$(mktemp)"
+  legacy_reference="${LEGACY_INSTALLED_AGENTS:-}"
+
+  {
+    printf '%s\n' '<!-- BEGIN GAUNTLET MANAGED BLOCK -->'
+    cat "$ROOT/AGENTS.md"
+    printf '%s\n' '<!-- END GAUNTLET MANAGED BLOCK -->'
+  } > "$block_file"
 
   if [ -f "$codex_file" ]; then
+    local begin_count
+    local end_count
+    begin_count="$(grep -c '<!-- BEGIN GAUNTLET MANAGED BLOCK -->' "$codex_file" || true)"
+    end_count="$(grep -c '<!-- END GAUNTLET MANAGED BLOCK -->' "$codex_file" || true)"
+    if [ "$begin_count" -ne "$end_count" ] || [ "$begin_count" -gt 1 ]; then
+      echo "Malformed Gauntlet managed block in $codex_file" >&2
+      rm -f "$block_file" "$personal_file" "$legacy_base_file" "$legacy_normalized_file" "$installed_normalized_file" "$output_file"
+      return 1
+    fi
+    if [ "$begin_count" -eq 1 ]; then
+      local begin_line
+      local end_line
+      begin_line="$(grep -n '<!-- BEGIN GAUNTLET MANAGED BLOCK -->' "$codex_file" | cut -d: -f1)"
+      end_line="$(grep -n '<!-- END GAUNTLET MANAGED BLOCK -->' "$codex_file" | cut -d: -f1)"
+      if [ "$begin_line" -ge "$end_line" ]; then
+        echo "Malformed Gauntlet managed block in $codex_file" >&2
+        rm -f "$block_file" "$personal_file" "$legacy_base_file" "$legacy_normalized_file" "$installed_normalized_file" "$output_file"
+        return 1
+      fi
+    fi
+
     awk '
       /<!-- BEGIN PERSONAL HOUSE VOICE -->/ { in_block = 1 }
       in_block { print }
       /<!-- END PERSONAL HOUSE VOICE -->/ { if (in_block) exit }
     ' "$codex_file" > "$personal_file"
-  fi
 
-  awk '
-    /<!-- BEGIN PERSONAL HOUSE VOICE -->/ { in_block = 1; next }
-    /<!-- END PERSONAL HOUSE VOICE -->/ { in_block = 0; next }
-    !in_block { print }
-  ' "$ROOT/AGENTS.md" > "$base_file"
-
-  if [ -s "$personal_file" ]; then
-    awk -v personal_file="$personal_file" '
+    if [ "$begin_count" -eq 1 ]; then
+      awk -v block_file="$block_file" '
       BEGIN {
-        while ((getline line < personal_file) > 0) {
-          personal = personal line ORS
+        while ((getline line < block_file) > 0) {
+          block = block line ORS
         }
+        in_block = 0
+        replaced = 0
       }
-      NR == 1 {
-        print
-        print ""
-        printf "%s", personal
+      /<!-- BEGIN GAUNTLET MANAGED BLOCK -->/ {
+        if (!replaced) {
+          printf "%s", block
+          replaced = 1
+        }
+        in_block = 1
         next
       }
-      { print }
-    ' "$base_file" > "$output_file"
-    mv "$output_file" "$codex_file"
+      /<!-- END GAUNTLET MANAGED BLOCK -->/ {
+        if (in_block) {
+          in_block = 0
+          next
+        }
+      }
+      !in_block { print }
+      END {
+        if (!replaced) {
+          print ""
+          printf "%s", block
+        }
+      }
+      ' "$codex_file" > "$output_file"
+    else
+      awk '
+        /<!-- BEGIN PERSONAL HOUSE VOICE -->/ { in_personal = 1; next }
+        /<!-- END PERSONAL HOUSE VOICE -->/ { in_personal = 0; next }
+        !in_personal { print }
+      ' "$codex_file" > "$legacy_base_file"
+
+      # In the legacy layout the personal block could leave one extra blank line
+      # inside otherwise identical Gauntlet text. Normalize blank runs only for
+      # comparison; never normalize user-owned output.
+      awk '
+        /^[[:space:]]*$/ { if (!blank) print ""; blank = 1; next }
+        { sub(/[[:space:]]+$/, ""); print; blank = 0 }
+      ' "$legacy_base_file" > "$legacy_normalized_file"
+      if [ -n "$legacy_reference" ] && [ -f "$legacy_reference" ]; then
+        awk '
+          /^[[:space:]]*$/ { if (!blank) print ""; blank = 1; next }
+          { sub(/[[:space:]]+$/, ""); print; blank = 0 }
+        ' "$legacy_reference" > "$installed_normalized_file"
+      fi
+
+      if [ -n "$legacy_reference" ] && [ -f "$legacy_reference" ] && cmp -s "$legacy_normalized_file" "$installed_normalized_file"; then
+        {
+          if [ -s "$personal_file" ]; then
+            cat "$personal_file"
+            printf '\n'
+          fi
+          cat "$block_file"
+        } > "$output_file"
+      else
+        {
+          cat "$codex_file"
+          printf '\n'
+          cat "$block_file"
+        } > "$output_file"
+      fi
+    fi
   else
-    mv "$base_file" "$codex_file"
-    rm -f "$output_file"
+    cp "$block_file" "$output_file"
   fi
 
+  mv "$output_file" "$codex_file"
   chmod 0644 "$codex_file"
-
-  rm -f "$personal_file" "$base_file" "$output_file"
+  rm -f "$block_file" "$personal_file" "$legacy_base_file" "$legacy_normalized_file" "$installed_normalized_file" "$output_file"
 }
+
+LEGACY_INSTALLED_AGENTS=""
+if [ "$TARGET" = "codex" ] && [ -f "$AGENT_HOME/gauntlet/AGENTS.md" ]; then
+  LEGACY_INSTALLED_AGENTS="$(mktemp)"
+  cp "$AGENT_HOME/gauntlet/AGENTS.md" "$LEGACY_INSTALLED_AGENTS"
+fi
+
+cleanup_install_snapshot() {
+  if [ -n "$LEGACY_INSTALLED_AGENTS" ]; then
+    rm -f "$LEGACY_INSTALLED_AGENTS"
+  fi
+}
+trap cleanup_install_snapshot EXIT
 
 mkdir -p "$AGENT_HOME/skills" "$AGENT_HOME/gauntlet"
 cp "$ROOT/README.md" "$AGENT_HOME/gauntlet/README.md"
@@ -230,6 +343,25 @@ rm -f "$AGENT_HOME/gauntlet/scripts/serve-review-brief.sh"
 rm -f "$AGENT_HOME/gauntlet/scripts/start-review-brief.sh"
 rm -f "$AGENT_HOME/gauntlet/scripts/validate-review-brief-data.py"
 
+for required_path in \
+  "$AGENT_HOME/gauntlet/AGENTS.md" \
+  "$AGENT_HOME/gauntlet/docs/workflow-etiquette.md" \
+  "$AGENT_HOME/gauntlet/docs/upstream-superpowers.json" \
+  "$AGENT_HOME/gauntlet/scripts/check-gauntlet-workflow.py" \
+  "$AGENT_HOME/gauntlet/evals/skill-evals.json" \
+  "$AGENT_HOME/gauntlet/evals/behavior-fixtures.json" \
+  "$AGENT_HOME/skills/intake/SKILL.md" \
+  "$AGENT_HOME/skills/planner/SKILL.md" \
+  "$AGENT_HOME/skills/researcher/SKILL.md" \
+  "$AGENT_HOME/skills/debugger/SKILL.md"
+do
+  if [ ! -s "$required_path" ]; then
+    echo "Gauntlet install payload is incomplete: $required_path" >&2
+    exit 1
+  fi
+done
+
+# Activate the new workflow only after the payload is complete.
 case "$TARGET" in
   codex)
     write_codex_agents

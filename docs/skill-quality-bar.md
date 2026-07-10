@@ -28,7 +28,7 @@ Use this section only when the work is high-impact: new Gauntlet role skills, ma
 
 | Escalation | Use When | Artifact |
 | --- | --- | --- |
-| Two-attempt Deep planning | A skill or workflow rule could materially change future implementation quality, risk routing, or user trust. | A short comparison of missed blockers, dependency order, proof requirements, first ready task, deferrals, and rejected alternatives. |
+| Independent second plan | Concrete Release-class harm could be missed, or the user explicitly requests an independent plan. Normal Deep work compares alternatives inside one bounded pass. | A short comparison of missed blockers, dependency order, proof requirements, first ready task, deferrals, and rejected alternatives. |
 | Forward-test scenario | The skill is new, rewritten, or correcting an observed failure mode. | A minimal pressure scenario showing the desired behavior and the proof that the skill now steers it. |
 | Adversarial skill review | The skill touches safety, release, privacy, data integrity, broad orchestration, or repeated prior misses. | Findings by severity, `Cannot verify`, and the one next action. |
 | Impact proof review | The skill claims to improve reliability, speed, autonomy, or review quality. | A concrete proof path or a deferred analytics question, not invented certainty. |
@@ -48,16 +48,18 @@ Use these mechanics when they directly help the skill's job:
 
 These mechanics are not etiquette-specific. They sit above individual roles as harness behavior. A role skill may own one mechanic when it is central to that role, but the quality bar asks whether the mechanic belongs in the skill at all.
 
-## Bringing Matt Pocock's Skill Guidance Into Gauntlet
+## External Technique Provenance
 
 Gauntlet should not silently absorb third-party skill text. Use this pattern instead:
 
 - Keep Gauntlet's portable behavior in this reference and the relevant role skills.
 - Attribute the source when Gauntlet uses concepts from Matt Pocock's `writing-great-skills`.
 - If Gauntlet vendors exact or adapted third-party files later, include the upstream license/notice and source path in the repo.
-- Treat `writing-great-skills` as a deeper reference for skill authors; use this document as the applied Gauntlet bar.
+- Treat upstream material as review input, not a runtime workflow dependency. Gauntlet owns the adapted behavior and maps it to exact upstream versions/hashes so future updates can be reviewed selectively.
 
 Source checked for this run: `mattpocock/skills` tag `v1.1.0`, commit `d574778f94cf620fcc8ce741584093bc650a61d3`, MIT license.
+
+Superpowers technique provenance and update checks live in `docs/upstream-superpowers.md` and `docs/upstream-superpowers.json`.
 
 ## Deferred
 
