@@ -338,6 +338,8 @@ def test_subagent_parallelism_is_context_efficient():
     for marker in [
         "Parallelism must beat its context cost",
         "Delegate only independent files, state, contracts, or evidence lanes",
+        "spawn subagents automatically without waiting for the user to request delegation",
+        "Standing authorization",
         "bounded task packets",
         "Native Codex state",
         "main-task messages",
@@ -397,6 +399,7 @@ def test_workflow_guidance_keeps_routine_controls_silent():
     for marker in [
         "Keep routine reads, searches, formatting, command setup, generated packets, and unchanged polls in tools or artifacts",
         "Classify path, depth, verification, execution posture, and priority internally",
+        "All applicable workflow etiquette remains active during quiet execution",
         "Native Codex state owns child progress; do not require title or status churn",
         "Surface:",
         "changed judgment, scope, risk, or verification",
@@ -3115,6 +3118,8 @@ def test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes():
         "missing-proof",
         "authority-violation",
         "verbose-output",
+        "automatic-quiet-delegation",
+        "coupled-lanes-stay-main",
         "phrase-echo-wrong-action",
         "subjective-needs-judgment",
     ]:
@@ -3122,6 +3127,12 @@ def test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes():
             raise AssertionError(f"missing orchestration outcome case: {required}")
     if pairs["phrase-echo-wrong-action"]["arms"]["current"]["verdict"] != "fail":
         raise AssertionError("phrase echo with the wrong observable action must fail")
+    delegation = pairs["automatic-quiet-delegation"]["arms"]
+    if delegation["current"]["verdict"] != "fail" or delegation["candidate"]["verdict"] != "pass":
+        raise AssertionError("automatic quiet delegation canary must reject serial execution and accept bounded child dispatch")
+    coupled = pairs["coupled-lanes-stay-main"]["arms"]
+    if coupled["current"]["verdict"] != "fail" or coupled["candidate"]["verdict"] != "pass":
+        raise AssertionError("coupled-lane canary must reject needless delegation and accept end-to-end execution")
     if pairs["subjective-needs-judgment"]["arms"]["candidate"]["verdict"] != "cannot_verify":
         raise AssertionError("uncalibrated subjective judgment must remain Cannot verify")
 

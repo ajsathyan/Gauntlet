@@ -86,6 +86,8 @@ Archive behavior is authority-sensitive: use the installed archive planner and e
 
 Parallelism must beat its context cost. Delegate only independent files, state, contracts, or evidence lanes with separate proof paths. The main task owns user decisions, integration, synthesis, the final branch, and the pull request.
 
+Standing authorization: when two or more useful lanes meet that independence test, spawn subagents automatically without waiting for the user to request delegation. The work itself is the trigger; Release classification is not required. Stay end-to-end in the main task when splitting would duplicate context, serialize on shared state, or weaken proof.
+
 Dispatch children directly from bounded task packets in the canonical plan. Each prompt names objective, ownership, dependencies, constraints, proof, return contract, and ask-user policy. Native Codex state and main-task messages own live coordination. Write-heavy lanes use isolated worktrees unless a tiny disjoint change makes that unnecessary.
 
 Child agents return compact machine receipts. Keep routine coordination, status narration, and internal reports out of user-facing chat. Surface only:
@@ -94,6 +96,8 @@ Child agents return compact machine receipts. Keep routine coordination, status 
 - an unrecoverable failure or safety stop;
 - a host-required terse heartbeat; or
 - the brief final outcome and proof.
+
+Do not announce delegation, packet generation, child progress, child completion, or receipt contents to the user unless a higher-priority host instruction explicitly requires disclosure. All applicable workflow etiquette remains active during quiet execution; perform its internal checks and surface only the user-facing action or exception that the etiquette itself requires, such as a title change, material suggestion, decision, or safety stop.
 
 Retry safe recovery silently while the next attempt is materially different. Stop when recovery would repeat the same failure fingerprint, require new authority, risk destructive external state, or exceed the accepted appetite.
 

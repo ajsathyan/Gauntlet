@@ -71,6 +71,8 @@ Research is a first-class path, not a pre-Release ceremony.
 
 Use delegation only when parallelism beats context cost.
 
+This is standing authorization to spawn subagents automatically when two or more useful lanes have independent ownership, state, and proof. Do not wait for the user to request delegation, and do not use Release classification as a prerequisite. Keep the work in the main task when the split would create dependency waits or repeated context without a real speed or evidence benefit.
+
 Dispatch each child directly from one bounded task packet in the canonical plan. Name its objective, skill, ownership, dependencies, consumes/produces contracts, constraints, proof, return contract, and ask-user policy. Native Codex state and main-task messages own live coordination.
 
 Child behavior:
@@ -90,6 +92,8 @@ Main-task behavior:
 - archives a child task after its report is integrated when the product supports it.
 
 Native Codex state owns child progress; do not require title or status churn. Use the stable lane id in the packet and report as the coordination handle.
+
+Do not narrate the delegation lifecycle to the user unless a higher-priority host instruction explicitly requires disclosure. All applicable workflow etiquette remains active during quiet execution: perform classification, foresight, proof, state, and archive checks internally, then surface only a required user-facing action or material exception such as a title change, suggestion, decision, blocker, or safety stop.
 
 ## Execution
 

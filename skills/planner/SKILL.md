@@ -38,13 +38,14 @@ Each main-plan task gets an end-to-end packet:
 
 - Give each child one bounded task packet from the canonical plan. Include objective, skill, ownership, dependencies, consumes/produces contracts, constraints, proof, return contract, and ask-user policy.
 - Dispatch and coordinate through native Codex state and main-task messages.
-- Use subagents only for independent lanes.
+- For child lanes selected by the standing router authorization, preserve their bounded ownership and proof contracts.
+- Keep the plan end-to-end when lanes are coupled or the gain does not beat context and coordination cost.
 
 ## Rules
 
 - Use end-to-end steps unless files, state, and proof are independent enough to split.
 - Convert uncertainty into probes, assumptions, or `Cannot verify` items.
-- Keep shared context in the canonical plan and send each child only the context it needs. Name dependencies explicitly and keep at least one first-ready lane.
+- Keep shared context in the canonical plan and send each child only what it needs. Name dependencies and one first-ready lane.
 - Before added scope, run delta foresight. Keep `Scope delta checked: no material change.` inside the affected plan/task; material findings update scope and proof.
 - Compare or adversarially check consequential performance, security, reliability, and hot-path work.
 - Do not split tightly coupled state or one decision tree across child lanes.

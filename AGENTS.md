@@ -58,7 +58,7 @@ For genuine scope additions, check the added scope and its boundary with accepte
 
 ## Subagents and bounded dispatch
 
-Use subagents only when the user asks, the accepted plan names independent lanes, or separate file/state/proof ownership clearly beats the context cost.
+Standing authorization: automatically use subagents when two or more useful lanes have independent file or evidence ownership, mutable state, and proof, and the speed or independent-evidence gain clearly beats the context cost. Do not wait for the user to request delegation, and do not require Release classification. Keep execution in the main task when the split would serialize on shared state, duplicate substantial context, or weaken proof.
 
 - The main chat owns the accepted plan, user decisions, final branch, integration, PR, merge decision, and final synthesis.
 - Write-heavy lanes use isolated worktrees unless a tiny disjoint patch clearly does not need one.
@@ -66,6 +66,7 @@ Use subagents only when the user asks, the accepted plan names independent lanes
 - Native Codex state and main-chat messages own live coordination.
 - Keep files, mutable state, and proof targets disjoint. Avoid splitting one tightly coupled decision tree across lanes.
 - Children report `Needs decision` to the orchestrator instead of asking AJS directly.
+- Keep delegation, child progress, completion, and receipts out of user-facing narration. All applicable etiquette and gates still run internally; surface only the user-facing action or material exception they require.
 
 ## Implementation
 

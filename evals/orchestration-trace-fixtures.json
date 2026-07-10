@@ -142,6 +142,109 @@
       "expectedVerdicts": {"current": "fail", "candidate": "pass"}
     },
     {
+      "id": "automatic-quiet-delegation",
+      "description": "Independent lanes dispatch automatically and return machine receipts without delegation narration.",
+      "contract": {
+        "expectedOutcome": "implemented",
+        "requiredActions": [
+          {"type": "spawn_subagent", "target": "lane-a"},
+          {"type": "spawn_subagent", "target": "lane-b"},
+          {"type": "integrate_child_receipts"}
+        ],
+        "forbiddenActions": [
+          {"type": "ask_for_delegation_permission"},
+          {"type": "narrate_delegation_lifecycle"}
+        ],
+        "allowedAuthorities": ["internal_delegation", "repo_write", "local_test"],
+        "requiredProof": [
+          {"type": "child_receipt", "subject": "lane-a"},
+          {"type": "child_receipt", "subject": "lane-b"},
+          {"type": "test", "subject": "integration"}
+        ],
+        "expectedRoutingChoice": "parallel-independent-lanes",
+        "outputBudget": {"maxMessages": 1, "maxWords": 12},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "implemented",
+          "actions": [
+            {"type": "main_task_only", "target": "all-lanes", "authority": "repo_write"},
+            {"type": "narrate_delegation_lifecycle", "target": "user", "authority": "internal_delegation"}
+          ],
+          "proof": [
+            {"type": "test", "subject": "integration", "ref": "test:integration", "passed": true}
+          ],
+          "routingChoice": "serial-main-task",
+          "userVisibleMessages": [],
+          "metrics": {"latencyMs": 18000}
+        },
+        "candidate": {
+          "outcome": "implemented",
+          "actions": [
+            {"type": "spawn_subagent", "target": "lane-a", "authority": "internal_delegation"},
+            {"type": "spawn_subagent", "target": "lane-b", "authority": "internal_delegation"},
+            {"type": "integrate_child_receipts", "authority": "internal_delegation"}
+          ],
+          "proof": [
+            {"type": "child_receipt", "subject": "lane-a", "ref": "receipt:lane-a", "passed": true},
+            {"type": "child_receipt", "subject": "lane-b", "ref": "receipt:lane-b", "passed": true},
+            {"type": "test", "subject": "integration", "ref": "test:integration", "passed": true}
+          ],
+          "routingChoice": "parallel-independent-lanes",
+          "userVisibleMessages": [],
+          "metrics": {"latencyMs": 11000}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "coupled-lanes-stay-main",
+      "description": "Coupled work remains end-to-end in the main task instead of paying delegation cost without parallel benefit.",
+      "contract": {
+        "expectedOutcome": "implemented",
+        "requiredActions": [{"type": "main_task_end_to_end", "target": "coupled-change"}],
+        "forbiddenActions": [
+          {"type": "spawn_subagent"},
+          {"type": "narrate_delegation_lifecycle"}
+        ],
+        "allowedAuthorities": ["repo_write", "local_test", "internal_delegation"],
+        "requiredProof": [{"type": "test", "subject": "coupled-change"}],
+        "expectedRoutingChoice": "main-task-coupled-work",
+        "outputBudget": {"maxMessages": 1, "maxWords": 12},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "implemented",
+          "actions": [
+            {"type": "spawn_subagent", "target": "shared-state-a", "authority": "internal_delegation"},
+            {"type": "spawn_subagent", "target": "shared-state-b", "authority": "internal_delegation"},
+            {"type": "narrate_delegation_lifecycle", "target": "user", "authority": "internal_delegation"}
+          ],
+          "proof": [
+            {"type": "test", "subject": "coupled-change", "ref": "test:coupled", "passed": true}
+          ],
+          "routingChoice": "parallel-coupled-lanes",
+          "userVisibleMessages": [],
+          "metrics": {"latencyMs": 19000}
+        },
+        "candidate": {
+          "outcome": "implemented",
+          "actions": [
+            {"type": "main_task_end_to_end", "target": "coupled-change", "authority": "repo_write"}
+          ],
+          "proof": [
+            {"type": "test", "subject": "coupled-change", "ref": "test:coupled", "passed": true}
+          ],
+          "routingChoice": "main-task-coupled-work",
+          "userVisibleMessages": [],
+          "metrics": {"latencyMs": 9000}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
       "id": "phrase-echo-wrong-action",
       "description": "Expected contract language cannot compensate for the wrong observable action.",
       "contract": {

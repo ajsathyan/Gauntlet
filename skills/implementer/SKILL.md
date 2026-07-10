@@ -41,7 +41,8 @@ For Feature or Release work, add only exceptions that occurred: material decisio
 - Every delegated lane requires one bounded task packet naming objective, ownership, dependencies, constraints, proof, return contract, and ask-user policy.
 - Native Codex state and main-task messages own live coordination.
 - Shared accepted context lives in the canonical plan; child prompts contain only the context needed for their lane.
-- Run parallel only when lanes have disjoint files, state, and proof; otherwise implement sequentially. Do not repeat large shared context unless speed gains justify the tokens.
+- For child lanes selected by the standing router authorization, preserve disjoint ownership, state, and proof. Otherwise work sequentially. Repeat shared context only when speed or independent evidence justifies it.
+- Keep delegation, child progress, and compact receipts out of user-facing messages unless the host requires disclosure; all other applicable workflow etiquette still runs internally.
 - Keep clean validation, mode/gate selection, scope-delta checks, review transitions, and hygiene transitions out of the report.
 - Resolve added-scope deltas first. A clean plan/task may retain `Scope delta checked: no material change.`
 - Retry a delegated-lane failure silently only when the next attempt is safe, materially different, and inside accepted authority and appetite. Stop and return the compact receipt when the failure fingerprint would repeat, new authority is required, destructive external state is at risk, or the appetite would be exceeded.
