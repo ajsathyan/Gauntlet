@@ -51,7 +51,7 @@ Each task gets a packet. Keep tasks end-to-end unless files, state, and proof ar
 - Use end-to-end steps unless files, state, and proof are independent enough to split.
 - Convert uncertainty into probes, checks, explicit assumptions, or Cannot verify items.
 - For performance, security, reliability, and hot-path work, include a comparison or adversarial check when appetite allows.
-- For parallel lanes, write and validate `.gauntlet/subagent-plan.json` as the sole lane contract before dispatch.
+- For parallel lanes, write and validate `.gauntlet/subagent-plan.json` as the sole lane contract before implementation or dispatch begins.
 - Do not write Markdown lane handoffs; render with `scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --render-lane "$LANE_ID"`.
 - Share inherited `acceptedSource` and `constraints` at plan level. `dependencies` remains descriptive; it provides no DAG, readiness, or completion state.
 - Run scope-addition delta foresight before added scope; use the one-line marker for clean checks.

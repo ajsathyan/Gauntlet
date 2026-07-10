@@ -48,7 +48,7 @@ For Feature or Release work, also report run-log-friendly exceptions:
 - Add or update tests when behavior changes.
 - Refuse delegated implementation when an accepted current-run manifest is missing or rejected. The manifest is the lane contract; do not require or create a second Markdown packet.
 - Before implementing added scope, require its scope-addition delta to be resolved; a clean check may be represented by `Scope delta checked: no material change.` in the plan or task packet.
-- For independent task packets with disjoint files, state, and proof, use only subagent lanes accepted by `scripts/check-subagent-plan.py`; otherwise implement sequentially. Do not repeat large shared context into subagents unless speed gains justify the tokens.
+- For independent manifest lanes with disjoint files, state, and proof, use only subagent lanes accepted by `scripts/check-subagent-plan.py`; otherwise implement sequentially. Do not repeat large shared context into subagents unless speed gains justify the tokens.
 - Retry a delegated-lane failure silently only when the next attempt is safe, materially different, and inside accepted authority and appetite. Stop and return the compact receipt when the failure fingerprint would repeat, new authority is required, destructive external state is at risk, or the accepted appetite would be exceeded.
 - Avoid broad rewrites, speculative abstractions, unrelated cleanup, and silent behavior changes.
 - After substantial or generated-code-heavy changes, remove dead code and unnecessary abstractions you introduced before final verification.

@@ -312,6 +312,10 @@ render_router "$rendered_router"
 
 mkdir -p "$AGENT_HOME/skills" "$AGENT_HOME/gauntlet"
 cp "$ROOT/README.md" "$AGENT_HOME/gauntlet/README.md"
+mkdir -p "$AGENT_HOME/gauntlet/router"
+if [ "$ROOT/router/AGENTS.md" != "$AGENT_HOME/gauntlet/router/AGENTS.md" ]; then
+  cp "$ROOT/router/AGENTS.md" "$AGENT_HOME/gauntlet/router/AGENTS.md"
+fi
 cp "$rendered_router" "$AGENT_HOME/gauntlet/AGENTS.md"
 chmod 0644 "$AGENT_HOME/gauntlet/AGENTS.md"
 rm -rf "$AGENT_HOME/skills/review-brief-builder"

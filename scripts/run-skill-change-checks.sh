@@ -54,6 +54,10 @@ echo "targeted skill evals: $skill_names"
   --scorer-smoke-responses "$ROOT/evals/scorer-smoke-fixtures.json" \
   --results "$ROOT/evals/results/skill-change-check.json"
 
+"$ROOT/scripts/run-orchestration-evals.py" \
+  --pack "$ROOT/evals/orchestration-trace-fixtures.json" \
+  --results "$ROOT/evals/results/orchestration-scorer-check.json"
+
 "$ROOT/scripts/lint-skills.py" \
   --skills-root "$SKILLS_ROOT" \
   --only "$skill_names" \

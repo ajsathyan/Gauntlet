@@ -36,7 +36,7 @@ This gives solo builders and AI-assisted teams a durable trail: what changed, wh
 The main chat owns the final Git story:
 
 - Selects or creates the task branch.
-- Tracks the child-lane ledger and user-facing decisions.
+- Tracks canonical manifest state and user decisions without printing a routine lane ledger.
 - Integrates child implementation work.
 - Opens or updates the final PR.
 - Decides whether checks and review are enough to merge.
@@ -46,7 +46,7 @@ Child chats should stay bounded:
 - Read-only review, research, summarization, and log-analysis lanes return reports, not commits.
 - Implementation child chats use separate branches or worktrees when they write code, touch multiple files, or have uncertain ownership.
 - Child chats do not direct-push to `main`.
-- Child chats should return compact reports with changed files, proof, risks, and any unresolved decision for the main chat.
+- Child chats return compact machine receipts with status, changed files, proof, and any blocker for the main chat.
 
 ## Solo Builder Rules
 

@@ -55,9 +55,9 @@ Latest deterministic target: all `new_skill` coverage arms pass; `one_shot` and 
 | Skill | Current Decision |
 | --- | --- |
 | `intake` | Keep packet shape. |
-| `planner` | Keep bounded task packets and Release panel table preservation. |
+| `planner` | Keep bounded main-plan tasks; use one canonical manifest instead of duplicate subagent packets. |
 | `product-architect` | Route non-obvious rationale to run logs, not product UI. |
-| `implementer` | Report run-log-friendly exceptions instead of review handles. |
+| `implementer` | Return compact machine receipts for delegated lanes and run-log-friendly exceptions only when material. |
 | `adversarial-reviewer` | Report concrete risk and optional coverage gap candidates. |
 | `black-box-tester` | Keep external charters and proof limits. |
 | `experience-reviewer` | Keep PM/design separation and optional coverage gap candidates. |

@@ -1626,12 +1626,34 @@ def command_install_verify(args):
             findings.append({"code": code, "severity": "fail", "message": f"Missing {path}"})
 
     require(agent_home / "gauntlet" / "AGENTS.md", "missing_installed_agents")
+    require(agent_home / "gauntlet" / "router" / "AGENTS.md", "missing_router_source")
     require(agent_home / "gauntlet" / "scripts" / "check-gauntlet-workflow.py", "missing_installed_workflow_check")
     require(agent_home / "gauntlet" / "scripts" / "gauntlet.py", "missing_installed_gauntlet_cli")
     require(agent_home / "skills", "missing_installed_skills")
 
+    installed_router = agent_home / "gauntlet" / "AGENTS.md"
+    if installed_router.exists():
+        router_text = installed_router.read_text(encoding="utf-8")
+        expected_root = str(agent_home / "gauntlet")
+        expected_skills = str(agent_home / "skills")
+        if "{{GAUNTLET_ROOT}}" in router_text or "{{AGENT_HOME}}" in router_text:
+            findings.append({"code": "unresolved_router_placeholder", "severity": "fail", "message": "Installed router contains an unresolved path placeholder."})
+        if expected_root not in router_text:
+            findings.append({"code": "missing_installed_root_path", "severity": "fail", "message": "Installed router lacks the rendered Gauntlet root."})
+        if expected_skills not in router_text:
+            findings.append({"code": "missing_installed_skills_path", "severity": "fail", "message": "Installed router lacks the rendered skills root."})
+        if len(router_text.encode("utf-8")) >= 32768:
+            findings.append({"code": "installed_router_too_large", "severity": "fail", "message": "Installed router exceeds the 32 KiB default instruction budget."})
+
     if args.target == "codex":
-        require(agent_home / "AGENTS.md", "missing_codex_agents")
+        codex_agents = agent_home / "AGENTS.md"
+        require(codex_agents, "missing_codex_agents")
+        if codex_agents.exists():
+            text = codex_agents.read_text(encoding="utf-8")
+            if text.count("BEGIN GAUNTLET MANAGED BLOCK") != 1 or text.count("END GAUNTLET MANAGED BLOCK") != 1:
+                findings.append({"code": "invalid_codex_managed_block", "severity": "fail", "message": "Codex AGENTS.md must contain exactly one complete Gauntlet managed block."})
+            if "Gauntlet Workflow Router" not in text:
+                findings.append({"code": "missing_codex_router", "severity": "fail", "message": "Codex AGENTS.md lacks the installed Gauntlet router."})
     if args.target == "claude":
         claude_md = agent_home / "CLAUDE.md"
         require(claude_md, "missing_claude_md")
