@@ -2674,10 +2674,14 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         if (agent_home / "CLAUDE.md").exists():
             raise AssertionError("Codex install should not create CLAUDE.md")
 
+        stale_script = agent_home / "gauntlet" / "scripts" / "removed-workflow-helper.py"
+        stale_script.write_text("stale installed payload\n")
         run_install(agent_home, target="codex")
         reinstalled_agents = read(agent_home / "AGENTS.md")
         if reinstalled_agents != installed_agents:
             raise AssertionError("Codex reinstall should be byte-idempotent")
+        if stale_script.exists():
+            raise AssertionError("Codex reinstall should remove scripts deleted from the source payload")
 
         verify = run([
             str(agent_home / "gauntlet" / "scripts" / "gauntlet.py"),
