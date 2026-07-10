@@ -89,8 +89,8 @@ Rules:
 - For p3, run only when there is a concrete side-effect surface, state transition, user-facing behavior, or repeated prior miss.
 - For p0-p2, run by default before implementation, but keep it bounded.
 - Do not hide unclear requirements by calling them edge cases. If the uncertainty changes product behavior, data, money, privacy, security, or acceptance criteria, route it through Planning or Kickoff instead.
-- Run scope-addition delta foresight before implementing every genuine addition to accepted scope. Inspect the addition and its boundary with existing scope for new edge cases, invalidated assumptions, acceptance/proof changes, priority/execution changes, and packetization changes.
-- A clean scope-addition check records only `Scope delta checked: no material change.` in the plan/task packet and stays silent in chat. Material findings update the affected task packets, dependencies, acceptance criteria, and proof before implementation and are called out only when they change the plan or need a decision.
+- Run scope-addition delta foresight before implementing every genuine addition to accepted scope. Inspect the addition and its boundary with existing scope for new edge cases, invalidated assumptions, acceptance/proof changes, priority/execution changes, and manifest/lane changes.
+- A clean scope-addition check records only `Scope delta checked: no material change.` in the plan/task and stays silent in chat. Material findings update the affected plan, lanes, dependencies, acceptance criteria, and proof before implementation and are called out only when they change the plan or need a decision.
 - If the work depends on how domain entities relate and that relationship is not explicit in code, docs, tests, or prior accepted context, demote execution mode to `review`.
 - When latency matters, solidify the safe default or create a specific lane so future autonomous execution can move quickly without repeated ceremony.
 

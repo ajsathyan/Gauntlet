@@ -111,7 +111,7 @@ Keep deterministic coverage, scorer plumbing, and behavioral outcome evidence di
 
 - `router/AGENTS.md` must stay below Codex's documented default `project_doc_max_bytes` budget.
 - The Codex installer owns only one marked Gauntlet block and preserves every byte outside it.
-- Reject missing, reversed, duplicated, or nested managed markers before changing the target.
+- Reject partial, reversed, duplicated, or nested managed markers before changing the target; an unmarked file is a valid first install.
 - Repeated installs must be idempotent.
 - Installed guidance must not execute downstream-relative `scripts/...` or read downstream-relative `docs/...` as Gauntlet sources.
 - Test clean, legacy, managed, malformed, conflicting-downstream-path, and repeat-install cases in temporary homes.

@@ -340,6 +340,7 @@ def test_subagent_parallelism_is_context_efficient():
         "scripts/check-subagent-plan.py",
         ".gauntlet/subagent-plan.json",
         "Do not require a second prose packet",
+        "For two or more parallel lanes or any write-heavy child implementation lane",
     ]:
         assert_contains("\n".join([agents, router]), marker, "subagent context-efficiency guard")
 
@@ -613,7 +614,7 @@ def test_subagent_plan_validator_v12_blocks_material_hazards():
         plan["shared"]["acceptedSource"] = "../outside.md"
         plan["lanes"][1]["filesWrite"] = plan["lanes"][0]["filesWrite"]
         plan["lanes"][1]["stateScope"] = plan["lanes"][0]["stateScope"]
-        plan["lanes"][0]["filesWrite"] = [*plan["lanes"][0]["filesWrite"], "**/*"]
+        plan["lanes"][0]["filesWrite"] = [*plan["lanes"][0]["filesWrite"], "**/*", "../outside/**"]
         plan["lanes"][1]["taskPacketRef"] = "../outside.md"
 
         result, record = run_subagent_plan(validator, project, plan, "v12-material-hazards")
@@ -628,6 +629,7 @@ def test_subagent_plan_validator_v12_blocks_material_hazards():
             "overbroad_write_scope",
             "legacy_packet_field",
             "invalid_accepted_source",
+            "path_outside_project",
         }
         if not expected.issubset(rejection_codes):
             raise AssertionError(f"missing blocking findings: expected {expected}, got {rejection_codes}")
@@ -732,6 +734,17 @@ def test_subagent_plan_validator_uses_canonical_manifest_and_quiet_receipts():
         record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
         if "legacy_packet_field" not in {rejection["code"] for rejection in record["rejections"]}:
             raise AssertionError("taskPacketRef should report legacy_packet_field")
+
+        data = complete_subagent_plan(project)
+        data["runId"] = "unknown-field"
+        data["lanes"][0]["inlineContext"] = "This must not be silently dropped by rendering."
+        plan.write_text(json.dumps(data))
+        unknown_field = run([str(validator), str(project), str(plan), "--run-id", "unknown-field"], check=False)
+        if unknown_field.returncode == 0:
+            raise AssertionError("unknown manifest fields should fail instead of being dropped")
+        record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
+        if "unknown_field" not in {rejection["code"] for rejection in record["rejections"]}:
+            raise AssertionError("unknown manifest fields should report unknown_field")
 
         data = complete_subagent_plan(project)
         data["runId"] = "canonical-render"
@@ -2929,6 +2942,9 @@ def assert_installed_gauntlet_layout(agent_home):
         f"{installed_root}/docs/ui-constitution.md",
         f"{installed_root}/scripts/check-subagent-plan.py",
         "Do not require a second prose packet",
+        "For two or more parallel lanes or any write-heavy child implementation lane",
+        "a request to open a PR does not authorize merging it",
+        f"{installed_root}/scripts/gauntlet.py merge prepare|plan|execute",
         "compact machine receipts",
     ]:
         assert_contains(installed_agents, marker, "installed router guidance")
@@ -2989,6 +3005,48 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         ])
         if json.loads(verify.stdout)["status"] != "pass":
             raise AssertionError(f"Codex install verify should pass: {verify.stdout}")
+
+        installed_env = os.environ.copy()
+        installed_env["AGENT_HOME"] = str(agent_home)
+        installed_env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
+        installed_reinstall = subprocess.run(
+            [str(agent_home / "gauntlet" / "scripts" / "install.sh"), "--target", "codex"],
+            cwd=agent_home / "gauntlet",
+            env=installed_env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if installed_reinstall.returncode != 0:
+            raise AssertionError(
+                "installed Gauntlet should support an idempotent self-reinstall:\n"
+                f"{installed_reinstall.stdout}\n{installed_reinstall.stderr}"
+            )
+        if read(agent_home / "AGENTS.md") != installed_agents:
+            raise AssertionError("installed self-reinstall should not change the managed Codex file")
+        if not (agent_home / "gauntlet" / "docs" / "workflow-etiquette.md").exists():
+            raise AssertionError("installed self-reinstall must not delete its own payload")
+
+        linked_home = Path(tmp) / "linked-agent-home"
+        linked_home.mkdir()
+        linked_target = Path(tmp) / "shared-global-agents.md"
+        linked_content = "# Shared global policy\n\nKeep this through linked installs.\n"
+        linked_target.write_text(linked_content)
+        linked_target.chmod(0o600)
+        (linked_home / "AGENTS.md").symlink_to(linked_target)
+
+        run_install(linked_home, target="codex")
+        if not (linked_home / "AGENTS.md").is_symlink():
+            raise AssertionError("Codex install must preserve an existing AGENTS.md symlink")
+        linked_installed = linked_target.read_text()
+        if not linked_installed.startswith(linked_content):
+            raise AssertionError("Codex install must preserve user bytes through an AGENTS.md symlink")
+        linked_mode = linked_target.stat().st_mode & 0o777
+        if linked_mode != 0o600:
+            raise AssertionError(f"Codex install must preserve existing permissions, got {linked_mode:04o}")
+        run_install(linked_home, target="codex")
+        if linked_target.read_text() != linked_installed:
+            raise AssertionError("linked Codex reinstall should be byte-idempotent")
 
 
 def test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks():

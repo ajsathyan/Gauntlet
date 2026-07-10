@@ -288,11 +288,12 @@ Gauntlet combines those ideas into a product-thinking harness: define the featur
 
 | File | Purpose |
 | --- | --- |
-| [AGENTS.md](AGENTS.md) | Global workflow instructions. |
+| [router/AGENTS.md](router/AGENTS.md) | Portable global workflow router. |
+| [AGENTS.md](AGENTS.md) | Contributor guidance for this repository. |
 | [skills/](skills) | Role-specific reusable instructions. |
 | [docs/](docs) | Coverage gaps, UI constitution, Production Quality Bar, workflow speedups, promotion scanner, design lint candidates, and historical plans. |
 | [scripts/](scripts) | Installer, durability classifier, workflow speedup helpers, workflow checks, skill evals, and skill linter. |
-| [evals/](evals) | Skill eval definitions, behavior fixtures, and baselines. |
+| [evals/](evals) | Skill coverage, scorer-smoke, orchestration-trace fixtures, and baselines. |
 | [LICENSE](LICENSE) | MIT license. |
 
 ## 📄 License

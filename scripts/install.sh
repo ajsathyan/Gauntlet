@@ -143,6 +143,7 @@ import sys
 import tempfile
 
 target = Path(sys.argv[1])
+write_target = target.resolve() if target.is_symlink() else target
 block = Path(sys.argv[2]).read_bytes()
 begin = sys.argv[3].encode()
 end = sys.argv[4].encode()
@@ -198,16 +199,16 @@ else:
 if target.exists() and output == data:
     raise SystemExit(0)
 
-target.parent.mkdir(parents=True, exist_ok=True)
-mode = target.stat().st_mode & 0o777 if target.exists() else 0o644
-fd, temporary = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
+write_target.parent.mkdir(parents=True, exist_ok=True)
+mode = write_target.stat().st_mode & 0o777 if write_target.exists() else 0o644
+fd, temporary = tempfile.mkstemp(prefix=f".{write_target.name}.", dir=write_target.parent)
 try:
     with os.fdopen(fd, "wb") as handle:
         handle.write(output)
         handle.flush()
         os.fsync(handle.fileno())
     os.chmod(temporary, mode)
-    os.replace(temporary, target)
+    os.replace(temporary, write_target)
 finally:
     if os.path.exists(temporary):
         os.unlink(temporary)
@@ -291,7 +292,6 @@ write_codex_agents() {
   } > "$block_file"
 
   write_managed_file "$codex_file" "$block_file" "$legacy_reference"
-  chmod 0644 "$codex_file"
   rm -f "$block_file"
 }
 
@@ -311,35 +311,44 @@ trap cleanup_install EXIT
 render_router "$rendered_router"
 
 mkdir -p "$AGENT_HOME/skills" "$AGENT_HOME/gauntlet"
-cp "$ROOT/README.md" "$AGENT_HOME/gauntlet/README.md"
-mkdir -p "$AGENT_HOME/gauntlet/router"
-if [ "$ROOT/router/AGENTS.md" != "$AGENT_HOME/gauntlet/router/AGENTS.md" ]; then
+source_is_installed_payload="$(python3 - "$ROOT" "$AGENT_HOME/gauntlet" <<'PY'
+import os
+import sys
+
+print("1" if os.path.realpath(sys.argv[1]) == os.path.realpath(sys.argv[2]) else "0")
+PY
+)"
+
+if [ "$source_is_installed_payload" != "1" ]; then
+  cp "$ROOT/README.md" "$AGENT_HOME/gauntlet/README.md"
+  mkdir -p "$AGENT_HOME/gauntlet/router"
   cp "$ROOT/router/AGENTS.md" "$AGENT_HOME/gauntlet/router/AGENTS.md"
+  rm -rf "$AGENT_HOME/skills/review-brief-builder"
+  cp -R "$SKILLS_SRC/." "$AGENT_HOME/skills/"
+  rm -rf "$AGENT_HOME/gauntlet/docs"
+  cp -R "$ROOT/docs" "$AGENT_HOME/gauntlet/"
+  cp -R "$ROOT/scripts" "$AGENT_HOME/gauntlet/"
+  mkdir -p "$AGENT_HOME/gauntlet/evals"
+  rsync -a --delete \
+    --exclude '/generated-prompts/' \
+    --exclude '/results/' \
+    "$ROOT/evals/" "$AGENT_HOME/gauntlet/evals/"
+  rm -rf "$AGENT_HOME/gauntlet/templates"
+  rm -f "$AGENT_HOME/gauntlet/review-brief.html"
+  rm -f "$AGENT_HOME/gauntlet/review-brief-data.json"
+  rm -f "$AGENT_HOME/gauntlet/review-brief-data.schema.json"
+  rm -f "$AGENT_HOME/gauntlet/scripts/serve-notes.sh"
+  rm -f "$AGENT_HOME/gauntlet/scripts/check-review-brief.py"
+  rm -f "$AGENT_HOME/gauntlet/scripts/embed-review-brief-data.py"
+  rm -f "$AGENT_HOME/gauntlet/scripts/init-review-brief.sh"
+  rm -f "$AGENT_HOME/gauntlet/scripts/require-review-brief-started.sh"
+  rm -f "$AGENT_HOME/gauntlet/scripts/serve-review-brief.sh"
+  rm -f "$AGENT_HOME/gauntlet/scripts/start-review-brief.sh"
+  rm -f "$AGENT_HOME/gauntlet/scripts/validate-review-brief-data.py"
 fi
+
 cp "$rendered_router" "$AGENT_HOME/gauntlet/AGENTS.md"
 chmod 0644 "$AGENT_HOME/gauntlet/AGENTS.md"
-rm -rf "$AGENT_HOME/skills/review-brief-builder"
-cp -R "$SKILLS_SRC/." "$AGENT_HOME/skills/"
-rm -rf "$AGENT_HOME/gauntlet/docs"
-cp -R "$ROOT/docs" "$AGENT_HOME/gauntlet/"
-cp -R "$ROOT/scripts" "$AGENT_HOME/gauntlet/"
-mkdir -p "$AGENT_HOME/gauntlet/evals"
-rsync -a --delete \
-  --exclude '/generated-prompts/' \
-  --exclude '/results/' \
-  "$ROOT/evals/" "$AGENT_HOME/gauntlet/evals/"
-rm -rf "$AGENT_HOME/gauntlet/templates"
-rm -f "$AGENT_HOME/gauntlet/review-brief.html"
-rm -f "$AGENT_HOME/gauntlet/review-brief-data.json"
-rm -f "$AGENT_HOME/gauntlet/review-brief-data.schema.json"
-rm -f "$AGENT_HOME/gauntlet/scripts/serve-notes.sh"
-rm -f "$AGENT_HOME/gauntlet/scripts/check-review-brief.py"
-rm -f "$AGENT_HOME/gauntlet/scripts/embed-review-brief-data.py"
-rm -f "$AGENT_HOME/gauntlet/scripts/init-review-brief.sh"
-rm -f "$AGENT_HOME/gauntlet/scripts/require-review-brief-started.sh"
-rm -f "$AGENT_HOME/gauntlet/scripts/serve-review-brief.sh"
-rm -f "$AGENT_HOME/gauntlet/scripts/start-review-brief.sh"
-rm -f "$AGENT_HOME/gauntlet/scripts/validate-review-brief-data.py"
 
 for required_path in \
   "$AGENT_HOME/gauntlet/AGENTS.md" \

@@ -40,6 +40,9 @@ REQUIRED_LANE_FIELDS = [
     "contextDelta",
 ]
 LEGACY_PACKET_FIELDS = {"taskPacketRef"}
+ALLOWED_PLAN_FIELDS = {"schemaVersion", "runId", "shared", "lanes"}
+ALLOWED_SHARED_FIELDS = set(REQUIRED_SHARED_FIELDS)
+ALLOWED_LANE_FIELDS = set(REQUIRED_LANE_FIELDS)
 SECRET_PATTERNS = [
     re.compile(r"(?i)\b[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*['\"]?[^\s'\"`]+"),
     re.compile(r"(?i)\b(sk|pk|rk)-(live|test)-[A-Za-z0-9_-]{8,}"),
@@ -113,6 +116,22 @@ def is_overbroad_path(pattern):
     return str(pattern or "").strip() in OVERBROAD_PATHS
 
 
+def escapes_project(pattern):
+    normalized = str(pattern or "").strip()
+    if not normalized:
+        return False
+    path = Path(normalized)
+    windows_absolute = re.match(r"^[A-Za-z]:[\\/]", normalized) is not None
+    windows_parent = "..\\" in normalized or normalized.endswith("\\..")
+    return (
+        path.is_absolute()
+        or windows_absolute
+        or normalized.startswith("~")
+        or ".." in path.parts
+        or windows_parent
+    )
+
+
 def resolve_project_reference(project_root, reference):
     if not isinstance(reference, str) or not reference.strip():
         return None
@@ -149,6 +168,20 @@ def dependency_orders(left, right):
 def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
     rejections = []
     warnings = []
+    if not isinstance(data, dict):
+        add_finding(rejections, "invalid_plan", "plan must be an object")
+        return {"rejections": rejections, "warnings": warnings}
+
+    for field in data:
+        if field in LEGACY_PACKET_FIELDS:
+            add_finding(
+                rejections,
+                "legacy_packet_field",
+                f"{field} is not supported; render the child prompt from the canonical manifest",
+            )
+        elif field not in ALLOWED_PLAN_FIELDS:
+            add_finding(rejections, "unknown_field", f"plan contains unknown field: {field}")
+
     if data.get("schemaVersion") == "1.1":
         add_finding(
             rejections,
@@ -170,6 +203,15 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
     if not isinstance(shared, dict):
         add_finding(rejections, "missing_shared", "plan must include a shared object")
         shared = {}
+    for field in shared:
+        if field in LEGACY_PACKET_FIELDS:
+            add_finding(
+                rejections,
+                "legacy_packet_field",
+                f"shared.{field} is not supported; render the child prompt from the canonical manifest",
+            )
+        elif field not in ALLOWED_SHARED_FIELDS:
+            add_finding(rejections, "unknown_field", f"shared contains unknown field: {field}")
     for field in REQUIRED_SHARED_FIELDS:
         if field not in shared:
             add_finding(rejections, "missing_shared_field", f"shared missing required field: {field}")
@@ -250,6 +292,9 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
                     f"{field} is not supported; render the child prompt from the canonical manifest",
                     lane_id,
                 )
+        for field in lane:
+            if field not in ALLOWED_LANE_FIELDS and field not in LEGACY_PACKET_FIELDS:
+                add_finding(rejections, "unknown_field", f"lane contains unknown field: {field}", lane_id)
 
         if not isinstance(lane.get("id"), str) or not lane.get("id").strip():
             add_finding(rejections, "invalid_id", "lane id must be a non-empty string", lane_id)
@@ -333,6 +378,13 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
                     lane_id,
                 )
         for pattern in lane.get("filesWrite", []) if isinstance(lane.get("filesWrite"), list) else []:
+            if escapes_project(pattern):
+                add_finding(
+                    rejections,
+                    "path_outside_project",
+                    f"filesWrite must stay project-relative: {pattern}",
+                    lane_id,
+                )
             if is_overbroad_path(pattern):
                 add_finding(
                     rejections,
@@ -340,7 +392,6 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
                     f"filesWrite contains overbroad path '{pattern}'; name bounded files or directories",
                     lane_id,
                 )
-
     if total_context_words > max_total_inline_words:
         add_finding(
             warnings,

@@ -76,13 +76,15 @@ Detailed Git and archive guidance: `{{GAUNTLET_ROOT}}/docs/github-discipline.md`
 
 Archive behavior is authority-sensitive: use the installed archive planner and execute only the actions it returns. Preserve the user's requested merge behavior and do not invent an additional confirmation after merge authority has already been granted.
 
+“Merge this” or “land this” authorizes the accepted branch-to-PR, required-check, merge, verification, and safe-cleanup sequence. “Push to git” authorizes only the current branch, and a request to open a PR does not authorize merging it. Use `{{GAUNTLET_ROOT}}/scripts/gauntlet.py merge prepare|plan|execute`; run `execute` only with merge authority.
+
 ## Delegation And Quiet Execution
 
 Parallelism must beat its context cost. Delegate only independent files, state, contracts, or evidence lanes with separate proof paths. The main task owns user decisions, integration, synthesis, the final branch, and the pull request.
 
-For two or more implementation lanes, keep one canonical `.gauntlet/subagent-plan.json` and validate it with `python3 {{GAUNTLET_ROOT}}/scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --run-id "$RUN_ID"`. Do not require a second prose packet. Write-heavy lanes use isolated worktrees unless a tiny disjoint change makes that unnecessary.
+For two or more parallel lanes or any write-heavy child implementation lane, keep one canonical `.gauntlet/subagent-plan.json` and validate it with `python3 {{GAUNTLET_ROOT}}/scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --run-id "$RUN_ID"`. Do not require a second prose packet. Write-heavy lanes use isolated worktrees unless a tiny disjoint change makes that unnecessary.
 
-Child agents return compact machine receipts. Keep routine coordination, packets, status narration, and internal reports out of user-facing chat. Surface only:
+Child agents return compact machine receipts. Keep routine coordination, status narration, and internal reports out of user-facing chat. Surface only:
 
 - a decision requiring new user authority;
 - an unrecoverable failure or safety stop;

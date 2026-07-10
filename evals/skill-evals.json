@@ -303,11 +303,11 @@
       ]
     },
     {
-      "id": "planner-quiet-packetization-contract",
+      "id": "planner-quiet-manifest-contract",
       "skill": "planner",
-      "title": "Planner records only packetization that actually happens",
-      "oneShotInstruction": "Plan bounded work with child packets only when implementation will use child lanes.",
-      "pressurePrompt": "Plan a normal single-lane patch. Keep internal mode, gate, and clean-check machinery out of the user-facing plan, omit no-op packetization fields, and preserve a clean scope-delta marker only inside a task packet when needed.",
+      "title": "Planner emits manifests only for gated child lanes",
+      "oneShotInstruction": "Plan bounded child lanes only when implementation will actually use them.",
+      "pressurePrompt": "Plan a normal single-lane patch. Keep internal mode, gate, and clean-check machinery out of the user-facing plan, omit no-op manifest fields, and preserve a clean scope-delta marker only inside the plan when needed.",
       "requiredPatterns": [
         "omit when no gated child lane exists",
         "Successful validation stays silent",

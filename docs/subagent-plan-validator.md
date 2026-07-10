@@ -52,7 +52,7 @@ Schema 1.1 and `taskPacketRef` fail with a migration message because a packet fi
 
 ## Findings
 
-Validation blocks implementation for unsupported or incomplete schemas, invalid accepted-source paths, project-root escapes, overlapping write ownership, unordered shared mutable state, secrets, and overbroad write ownership.
+Validation blocks implementation for unsupported, incomplete, or unknown schema fields; accepted-source or write-ownership paths outside the project; project-root escapes; overlapping write ownership; unordered shared mutable state; secrets; and overbroad write ownership. Strict fields keep the renderer from silently dropping lane context.
 
 Repeated or oversized lane context, duplicate proof targets, and broad read scope are advisory. Warnings delay work only when they expose a real dependency, ownership conflict, or user decision.
 

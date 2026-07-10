@@ -1,6 +1,6 @@
 # Gauntlet v2 Skill Audit
 
-Updated for v2.0.2: exceptions-first run logs, coverage-gap candidates, packet contracts, three-arm skill coverage, explicit scorer smoke, observable orchestration traces, `Cannot verify` slots, conditional subagent guidance, skill linting, and token-efficiency review.
+Updated for v2.0.2: exceptions-first run logs, coverage-gap candidates, canonical lane manifests, three-arm skill coverage, explicit scorer smoke, observable orchestration traces, `Cannot verify` slots, conditional subagent guidance, skill linting, and token-efficiency review.
 
 ## Eval Method
 
