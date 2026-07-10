@@ -1678,7 +1678,7 @@ def test_gauntlet_cli_merge_plan_requires_clean_task_branch():
             raise AssertionError(f"clean merge plan should pass:\n{plan_result.stdout}\n{plan_result.stderr}")
         data = json.loads(plan_result.stdout)
         action_types = [action["type"] for action in data["mergePlan"]["actions"]]
-        expected = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch"]
+        expected = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "delete_remote_branch", "verify_default_branch"]
         if action_types != expected:
             raise AssertionError(f"new-PR merge action order mismatch: {action_types}")
 
@@ -1688,7 +1688,7 @@ def test_gauntlet_cli_merge_plan_requires_clean_task_branch():
             "--handoff", str(handoff_path), "--body", str(body_path), "--json",
         ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
         existing_actions = [action["type"] for action in json.loads(existing_result.stdout)["mergePlan"]["actions"]]
-        expected_existing = ["git_push", "gh_pr_edit", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch"]
+        expected_existing = ["git_push", "gh_pr_edit", "gh_pr_checks_watch", "gh_pr_merge", "delete_remote_branch", "verify_default_branch"]
         if existing_result.returncode != 0 or existing_actions != expected_existing:
             raise AssertionError(f"existing PR should be updated, not duplicated: {existing_result.stdout}")
 
@@ -1754,7 +1754,7 @@ def test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main():
             raise AssertionError(f"merge execute should pass:\n{result.stdout}\n{result.stderr}")
         data = json.loads(result.stdout)
         executed = [action["type"] for action in data["executedActions"]]
-        expected = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch"]
+        expected = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "delete_remote_branch", "verify_default_branch"]
         if executed != expected:
             raise AssertionError(f"executed merge order mismatch: {executed}")
         git(["fetch", "origin", "main"], cwd=repo)
@@ -1762,11 +1762,16 @@ def test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main():
         if ancestor.returncode != 0:
             raise AssertionError("merge execute did not verify the feature commit on origin/main")
         log = gh_log.read_text()
-        for marker in ["pr create", "pr checks 7 --watch", "pr merge 7 --merge --delete-branch"]:
+        for marker in ["pr create", "pr checks 7 --watch", "pr merge 7 --merge"]:
             if marker not in log:
                 raise AssertionError(f"missing GitHub action {marker}:\n{log}")
+        if "--delete-branch" in log:
+            raise AssertionError(f"GitHub CLI must not manipulate local worktrees during merge:\n{log}")
         if log.count("pr view") < 3:
             raise AssertionError(f"merge execute did not poll for delayed check registration:\n{log}")
+        remote_branch = run(["git", "ls-remote", "--exit-code", "--heads", "origin", "codex/merge-flow"], cwd=repo, check=False)
+        if remote_branch.returncode != 2:
+            raise AssertionError(f"merge execute did not delete the remote task branch: {remote_branch.stdout}")
 
 
 def test_gauntlet_cli_archive_plans_and_executes_github_merge():
