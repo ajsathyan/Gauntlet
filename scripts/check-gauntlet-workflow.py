@@ -313,7 +313,10 @@ def test_production_quality_bar_is_launch_gated():
         "run-log-builder": run_log,
     }.items():
         assert_contains(text, "Production Quality Bar", name)
-        assert_contains(text, "Not relevant because", name)
+        if name == "planner":
+            assert_contains(text, "omit the field when the trigger is absent", name)
+        else:
+            assert_contains(text, "Not relevant because", name)
 
     if pr_template_path.exists():
         for marker in [
@@ -335,14 +338,13 @@ def test_subagent_parallelism_is_context_efficient():
         "Parallelism must beat its context cost.",
         "Do not use subagents when each one would need the same large spec",
         "scripts/check-subagent-plan.py",
-        "subagent-plan-summary.json",
         "expected speedup",
     ]:
         assert_contains(agents, marker, "subagent context-efficiency guard")
 
     for marker in [
-        "For independent task packets with disjoint files, state, and proof",
-        "Do not repeat large shared context into subagents",
+        "For two or more parallel lanes or any write-heavy child implementation lane",
+        "Shared context lives in the manifest `shared` block",
     ]:
         assert_contains(implementer, marker, "implementer subagent guidance")
 
@@ -386,25 +388,51 @@ def test_kickoff_and_implementation_transition_gates_are_documented():
         "no later than the third user-assistant exchange",
         "Research is never assigned `p4` merely because it is research",
         "If the priority is unchanged, say nothing about it",
-        "Subagent packetization: required",
+        "two or more parallel lanes or any write-heavy child implementation lane",
         "before implementation, not merely before dispatch",
         "Scope delta checked: no material change.",
     ]:
         assert_contains("\n".join([agents, etiquette]), marker, "implementation-transition guidance")
 
     for marker in [
-        "Subagent packetization: required",
+        "Omit the subagent manifest field",
+        "Successful packet validation stays silent",
         "Scope delta checked: no material change.",
         "before implementation",
     ]:
         assert_contains(planner, marker, "planner implementation-transition gate")
 
     for marker in [
-        "Refuse delegated implementation",
+        "Refuse implementation",
         "current-run manifest",
-        "scope-addition delta",
+        "Resolve added-scope deltas",
     ]:
         assert_contains(implementer, marker, "implementer implementation-transition gate")
+
+
+def test_workflow_guidance_keeps_routine_controls_silent():
+    agents = read(AGENTS_MD)
+    etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
+    planner = read(SKILLS / "planner" / "SKILL.md")
+    implementer = read(SKILLS / "implementer" / "SKILL.md")
+    combined = "\n".join([agents, etiquette, planner, implementer])
+
+    for marker in [
+        "Routine workflow mechanics stay internal",
+        "A clean check stays silent in chat",
+        "Successful packet validation stays silent",
+        "Do not record packetization when no child implementation lanes exist",
+        "Native Codex state owns child progress; do not require title/status churn",
+        "User-visible updates contain",
+        "Select mode, depth, proof scope, and triggered gates internally",
+    ]:
+        assert_contains(combined, marker, "quiet workflow contract")
+
+    for obsolete in [
+        "Title child chats with the normal priority prefix plus lane/status tags",
+        "Subagent packetization: not relevant because",
+    ]:
+        assert_not_contains(combined, obsolete, "quiet workflow contract")
 
 
 def test_skill_quality_bar_is_trigger_bounded():
@@ -1027,23 +1055,19 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         assert_contains(combined, marker, "workflow speedup guidance")
 
     for marker in [
-        "p#-auto: [C1][In Progress]",
         "main chat is the orchestrator",
         "do not ask the user directly",
         "Needs decision",
-        "`To Do`, `In Progress`, `Blocked`, `In Review`, `Done`, and `Canceled`",
-        "Use `Blocked` only for a concrete blocker",
+        "Native Codex state owns child progress",
         "Create a separate git worktree by default for write-heavy child chats",
-        "Archive the child chat after its report is integrated",
         "Child task packet shape",
     ]:
         assert_contains(read(ROOT / "docs" / "workflow-etiquette.md"), marker, "delegation etiquette child lane guidance")
 
     for marker in [
         "separate git worktrees by default",
-        "p1-auto: [C1][In Progress]",
         "main chat owns the child-lane ledger",
-        "archive after their reports are integrated",
+        "Native Codex state owns child progress",
     ]:
         assert_contains(speedups, marker, "workflow speedup child lane guidance")
 
@@ -1051,15 +1075,13 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         "scripts/gauntlet.py memory lint",
         "scripts/gauntlet.py changelog pr",
         "scripts/gauntlet.py followup thread",
-        "Edge Cases From This Ask",
-        "Need user decision",
-        "Safe defaults I will apply",
+        "check edge cases",
+        "Scope delta checked: no material change.",
         "before implementation",
         "emit app-action packets",
-        "p#-auto: [C1][In Progress]",
         "main chat as orchestrator",
         "create a separate git worktree by default",
-        "Child lane id, title, status, dependency note, and worktree path",
+        "Child lane id, objective, dependency note, and worktree path",
     ]:
         assert_contains(agents, marker, "active AGENTS workflow speedup routing")
 
@@ -1102,6 +1124,21 @@ def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumption
             raise AssertionError("auto title should parse as autonomous")
         if data["effectiveExecutionMode"] != "autonomous":
             raise AssertionError("auto kickoff should report effective execution mode")
+
+        quiet = Path(tmp) / "quiet.md"
+        quiet.write_text("Implementation can proceed without a user decision.\n")
+        quiet_result = run([
+            str(checker),
+            "--title",
+            "p2-auto: fix archive closeout",
+            "--content",
+            str(quiet),
+            "--require-kickoff",
+            "--json",
+        ])
+        quiet_data = json.loads(quiet_result.stdout)
+        if quiet_data["status"] != "pass":
+            raise AssertionError(f"substantive kickoff without procedural headings should pass: {quiet_data}")
 
         legacy = run([str(checker), "--title", "p2 - fix archive closeout", "--json"])
         legacy_data = json.loads(legacy.stdout)
@@ -2482,7 +2519,7 @@ def assert_installed_gauntlet_layout(agent_home):
     for marker in [
         "no later than the third user-assistant exchange",
         "Research is never assigned `p4` merely because it is research",
-        "Subagent packetization: required",
+        "Do not record packetization when no child implementation lanes exist",
         "Scope delta checked: no material change.",
     ]:
         assert_contains(installed_agents, marker, "installed implementation-transition guidance")
@@ -2517,7 +2554,7 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         for marker in [
             "no later than the third user-assistant exchange",
             "Research is never assigned `p4` merely because it is research",
-            "Subagent packetization: required",
+            "Do not record packetization when no child implementation lanes exist",
             "Scope delta checked: no material change.",
         ]:
             assert_contains(installed_agents, marker, "Codex root implementation-transition guidance")
@@ -2649,7 +2686,7 @@ def test_skill_evals_include_behavior_and_metrics():
                     raise AssertionError(f"{case['id']} {arm_name} missing score speed metric")
 
 
-def test_skill_linter_examples_and_na_defaults():
+def test_skill_linter_examples_and_noop_pruning():
     linter = SCRIPTS / "lint-skills.py"
     evals = ROOT / "evals" / "skill-evals.json"
     if not linter.exists():
@@ -2674,8 +2711,6 @@ def test_skill_linter_examples_and_na_defaults():
             raise AssertionError(f"{skill['name']} exceeds 500 words")
         if not skill.get("optionalExamples"):
             raise AssertionError(f"{skill['name']} missing optional examples")
-        if not skill.get("hasNotRelevantDefault"):
-            raise AssertionError(f"{skill['name']} missing Not relevant because default")
 
 
 def test_skill_changes_are_guarded_by_pre_commit():
@@ -2716,6 +2751,7 @@ def main():
         test_production_quality_bar_is_launch_gated,
         test_subagent_parallelism_is_context_efficient,
         test_kickoff_and_implementation_transition_gates_are_documented,
+        test_workflow_guidance_keeps_routine_controls_silent,
         test_subagent_plan_validator_v12_accepts_shared_and_single_write_lane,
         test_subagent_plan_validator_v12_warns_for_context_efficiency,
         test_subagent_plan_validator_v12_blocks_material_hazards,
@@ -2742,7 +2778,7 @@ def main():
         test_promotion_scanner_is_release_wrapup_not_patch_gate,
         test_skill_evals_compare_all_arms,
         test_skill_evals_include_behavior_and_metrics,
-        test_skill_linter_examples_and_na_defaults,
+        test_skill_linter_examples_and_noop_pruning,
         test_skill_changes_are_guarded_by_pre_commit,
         test_codex_install_layout_supports_workflow_check,
         test_claude_install_layout_adapts_agents_without_overwriting_user_memory,

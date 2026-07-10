@@ -4,7 +4,7 @@ Gauntlet v2.0.2 is a product-thinking harness for AI coding agents. It chooses t
 
 ## Modes
 
-Recommend one mode before non-trivial work. State the recommendation, why, depth, triggered gates, and escalation triggers. The user can override with "use Patch", "use Feature", or "use Release".
+Select mode, depth, proof scope, and triggered gates internally. Surface the selection only when it changes scope, cost, proof, timing, or a decision the user must make. The user can override with "use Patch", "use Feature", or "use Release".
 
 ```text
 Mode: Patch | Feature | Release
@@ -89,20 +89,22 @@ Execution Mode: review | autonomous
 Decision Gate: none | before blocked archive | before unsafe side effect | before merge | before production change | custom
 ```
 
+Routine workflow mechanics stay internal. User-visible updates contain a recommendation, changed assumption, meaningful result, blocker, decision, proof, or completed outcome. Mode/depth/gate selection, skill selection, worktree setup, clean edge/scope checks, successful packet validation, and routine review transitions are not chat events.
+
 - Priority mapping stays consequence-based: `p0` is Release-class or materially risky work, `p1` is Feature-class work, `p2` is a Deep/tricky/high-consequence Patch, `p3` is a normal Patch or normal bounded research, and `p4` is low-durable-output brainstorming, abandoned work, routine admin, or intentionally parked exploration.
 - Research is never assigned `p4` merely because it is research. Classify it by the consequence and durable decision it supports: `p0` for Release-class harm, `p1` for substantial product or strategic direction, `p2` for consequential implementation decisions, and `p3` for normal bounded research. When uncertain, default bounded research to `p3`.
 - For an unlabeled task, suggest the priority/title on the first substantive response when classification is responsible and no later than the third user-assistant exchange. Existing valid `p0` through `p4` labels, with optional `-auto`, are not reopened merely to repeat naming ceremony.
 - Use `review` only when goals, requirements, domain relationships, or acceptable defaults need human clarification before autonomous work would be responsible.
 - Use `autonomous` when the agent can work without the user watching. Agent self-review, fixture review, code review, and QA do not require `review`.
 - Use a `Decision Gate` only for a major unresolved decision, safety failure, or new material assumption. Do not re-ask for behavior the user already requested.
-- For p0, p1, and p2 kickoff labels, ask the user to confirm or change the priority/title before implementation. If the user responds affirmatively or continues without objecting, treat the label as accepted and apply it.
-- For p3 and p4 kickoff labels, do not block on naming; say `I'll use this.`
-- After selecting a kickoff label, call `set_thread_title` immediately; the label is an app action, not just planning text.
+- For p0, p1, and p2, ask about priority only when the consequence class changes scope, risk appetite, proof, execution authorization, or another expectation the user should choose. Otherwise apply the label without narrating it.
+- For p3 and p4, apply the label without blocking or announcing routine naming.
+- After selecting a kickoff label, call `set_thread_title` immediately. Title application is an internal app action unless it fails or the label changes the work.
 - If the user supplies an alternate priority/title, call `set_thread_title` with the user's version and continue from that label.
-- Before implementation, include `Edge Cases From This Ask` for p0-p2 work and p3 work with side effects, state changes, user-facing behavior, or a repeated prior miss. Split it into `Need user decision` and `Safe defaults I will apply`; ask only for edge cases that change product behavior, data/money/privacy/security risk, or acceptance criteria.
+- Before implementation, check edge cases for p0-p2 work and p3 work with side effects, state changes, user-facing behavior, or a repeated prior miss. Surface only cases that change product behavior, data/money/privacy/security risk, acceptance criteria, or a user decision.
 - Silently reassess priority and execution mode when implementation begins and when implementation materially changes scope, affected systems, external side effects, risk, proof burden, or reversibility. If the priority is unchanged, say nothing about it. If it changes, state the old and new priority once, name the trigger, and update the thread title.
-- Run scope-addition delta foresight before implementing every genuine scope addition. Check the added scope and its boundary with accepted work for new edge cases, invalidated assumptions, acceptance/proof changes, priority/execution changes, and packetization changes. A clean check records only `Scope delta checked: no material change.` in the plan/task packet and stays silent in chat. Material findings update the plan and are called out.
-- At implementation transition, record `Subagent packetization: required` or `Subagent packetization: not relevant because...`. It is required when the user asks for subagents, the accepted plan proposes parallel lanes, or multiple agent/child-chat lanes will implement the work. Required lane packets and the accepted current-run manifest must validate before implementation, not merely before dispatch.
+- Run scope-addition delta foresight before implementing every genuine scope addition. Check the addition and its boundary with accepted work for new edge cases, invalidated assumptions, acceptance/proof changes, priority/execution changes, and packetization changes. A clean check stays silent in chat and may record only `Scope delta checked: no material change.` in the affected plan/task packet. Material findings update the plan and are called out.
+- Every child implementation lane receives a bounded packet before implementation. For two or more parallel lanes or any write-heavy child implementation lane, the accepted current-run schema `1.2` manifest and packet references must validate before implementation, not merely before dispatch. A single small read-only child does not need the manifest gate. Do not record packetization when no child implementation lanes exist. Successful packet validation stays silent.
 
 ## Git Discipline
 
@@ -210,11 +212,11 @@ When active, keep the pass bounded: identify the trigger, cap, artifact, and exi
 
 Use the bar to inspect control plane or core workflow ownership boundaries, invariants, launch-critical proof, durable state, state machines, operator/user feedback loops, threat model and redaction policy, and decision-oriented UI. Do not turn these into blockers unless there is concrete launch harm, proof, and a fix or deferral path.
 
-## Architecture Hygiene Pass
+## Current-Change Hygiene
 
-For Feature, Release, and Tier 2/3 or broad multi-file changes, run one architecture hygiene pass after implementation and before completion. Scope it to smoke, delta, or full based on blast radius. Prefer `deep-code-reviewer`; route broad or follow-up findings through `issue-triager`. If later review fixes change code, refresh only the affected hygiene checks.
+For Feature, Release, and Tier 2/3 or broad multi-file changes, include current-change hygiene in the normal final review after implementation and before completion. Scope it to smoke, delta, or full based on blast radius. Prefer `deep-code-reviewer`; route broad or follow-up findings through `issue-triager`. If later review fixes change code, refresh only the affected checks. Do not announce a separate hygiene transition when it is clean.
 
-Do not run the pass by default for Patch unless the change touched shared architecture, replaced a path, introduced multiple abstractions, used generated code, used Deep depth for broad work, or the user asked for cleanup.
+Do not expand the review for Patch unless the change touched shared architecture, replaced a path, introduced multiple abstractions, used generated code, used Deep depth for broad work, or the user asked for cleanup.
 
 Check for current-change dead code, unreachable branches, unused exports/components/files/dependencies, stale sample code, obsolete TODOs, unnecessary abstractions, duplicated logic, mismatched tests/fixtures/docs, invisible scope creep, and compatibility shims with no consumer.
 
@@ -336,28 +338,18 @@ Parallelism must beat its context cost. Do not use subagents when each one would
 
 For child Codex chats or long-running delegated lanes, keep the main chat as orchestrator. The main chat owns the user-facing ledger, user questions, merge decisions, and final synthesis. A child chat does bounded work from a task packet, returns a compact report, and does not ask the user directly; it reports `Needs decision` to the main chat instead.
 
-Title child chats with the normal priority prefix plus lane/status tags:
-
-```text
-p#-auto: [C1][In Progress] Backend policy layer
-p#-auto: [C2][Blocked] Dashboard Policy UI
-p#-auto: [C3][To Do] Proof regression tests
-```
-
-Use only these child-lane statuses: `To Do`, `In Progress`, `Blocked`, `In Review`, `Done`, and `Canceled`. Use `Blocked` only for a concrete blocker such as a missing interface, user decision, credential, merge conflict, failed proof, or external state. Otherwise keep future work as `To Do` with a dependency note.
+Native Codex state owns child progress; do not require title/status churn. Use the stable lane id in the packet and returned report when the main task needs a coordination handle.
 
 For write-heavy child chats, create a separate git worktree by default unless the lane is a tiny clearly disjoint patch. Read-only review, exploration, and log-analysis lanes do not need worktrees by default. Name the worktree in the ledger and packet, preserve unrelated dirty work, and keep file ownership explicit.
 
-Archive a child chat after its report is integrated into the main-chat ledger. If the same lane is needed later, unarchive it or create a focused follow-up thread with the prior lane id and a fresh packet.
-
-When parallel lanes are proposed, write `.gauntlet/subagent-plan.json` and run `scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --run-id "$RUN_ID"` before dispatch. Do not dispatch rejected lanes. If the validator ran, include `.gauntlet/subagent-plan-summary.json` counts in the final response.
+When two or more parallel lanes or any write-heavy child implementation lane is proposed, write schema `1.2` in `.gauntlet/subagent-plan.json` and run `scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --run-id "$RUN_ID"` before implementation. Do not start a lane with blocking findings. Keep clean validation and summary counts out of chat and the final response.
 
 When packetization is required, complete this validation before any implementation lane starts. Material scope changes that add or reshape lanes require updated packets and a fresh current-run validation before the affected implementation continues.
 
 ### Subagent Handoff Packet
 
 - Project root and relevant files or surfaces
-- Child lane id, title, status, dependency note, and worktree path when write-heavy
+- Child lane id, objective, dependency note, and worktree path when write-heavy
 - Skill to use and lane objective
 - Packet reference and accepted spec, task packet, or review source
 - In scope and out of scope
@@ -426,6 +418,6 @@ Stop and ask before proceeding when:
 
 A coding task is complete only when acceptance criteria are met, relevant checks ran or limitations are stated, required run logs and coverage-gap candidates are updated, new or updated `GAP-###` items are named at the end of the final response, no blocking review/test/triage findings remain, and the final response includes files changed, proof/tests completed, and unresolved risks. Print an Archive Summary only when archiving or preparing to archive.
 
-For Feature, Release, and applicable Tier 2/3 work, the architecture hygiene pass must be marked not applicable, completed with no blocking findings, or triaged into bounded follow-up work.
+For Feature, Release, and applicable Tier 2/3 work, blocking current-change hygiene findings must be fixed or triaged into bounded follow-up work. A clean review needs no separate declaration.
 
 For Tier 2/3 work, add one short workflow lesson when useful: whether a recurring failure should update a skill, test, checklist, or this file.

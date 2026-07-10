@@ -33,6 +33,6 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 - GitHub metadata verifies objective PR facts only.
 - Follow-up thread helpers emit `create_thread` app-action packets; create the actual Codex thread with app tools after checking the packet.
 - Child implementation lanes should use separate git worktrees by default when they write code, edit multiple files, or have uncertain ownership. Read-only review, exploration, summarization, and log-analysis lanes do not need worktrees by default.
-- Child thread titles should preserve the Gauntlet priority prefix and add lane/status tags, such as `p1-auto: [C1][In Progress] Backend policy layer`.
-- The main chat owns the child-lane ledger, user questions, merge decisions, and final synthesis. Child chats return compact reports and archive after their reports are integrated.
+- Native Codex state owns child progress; use stable lane ids only in bounded packets and returned reports when the main task needs a coordination handle.
+- The main chat owns the child-lane ledger, user questions, merge decisions, and final synthesis. Child chats return compact reports and do not direct-push to `main`.
 - Keep `quality-check --surface ...`, `.gitignore` suggestions, broad worktree dependency classification, Mermaid rendering, and multi-repo attribution deferred until repeated runs prove a low-risk mechanical loop.

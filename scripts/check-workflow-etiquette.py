@@ -15,14 +15,15 @@ VALID_FIELDS = {
     "Verification Scope": {"smoke", "delta", "full", "not relevant"},
     "Execution Mode": {"review", "autonomous"},
 }
-REQUIRED_KICKOFF_FIELDS = [
+REQUIRED_KICKOFF_FIELDS = []
+OPTIONAL_KICKOFF_FIELDS = [
     "Mode",
     "Depth",
     "Verification Scope",
     "Execution Mode",
     "Suggested thread label",
+    "Decision Gate",
 ]
-OPTIONAL_KICKOFF_FIELDS = ["Decision Gate"]
 STATUS_ORDER = {"pass": 0, "warn": 1, "review": 2, "fail": 3}
 EXIT_CODES = {"pass": 0, "warn": 0, "review": 2, "fail": 1}
 
@@ -130,13 +131,6 @@ def parse_title(
 
 def check_kickoff(content, parsed_title, findings):
     if not content:
-        add_finding(
-            findings,
-            "missing_kickoff_content",
-            "warn",
-            "Kickoff check requested, but no content file was provided.",
-            migration_friendly=True,
-        )
         return {}, parsed_title
 
     fields = {field: field_value(content, field) for field in REQUIRED_KICKOFF_FIELDS + OPTIONAL_KICKOFF_FIELDS}

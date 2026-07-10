@@ -243,6 +243,11 @@ git commit -m "workflow: validate material child hazards"
 - Modify: `skills/implementer/SKILL.md`
 - Modify: `scripts/check-workflow-etiquette.py`
 - Modify: `scripts/check-gauntlet-workflow.py`
+- Modify: `docs/workflow-speedups.md`
+- Modify: `evals/skill-evals.json`
+- Modify: `scripts/lint-skills.py`
+
+**Scope delta:** The existing skill linter required a `Not relevant because...` default in every skill, directly enforcing the no-op prose this task removes. Drop that linter requirement and add focused planner/implementer pressure fixtures; behavior, priority, and proof scope are otherwise unchanged.
 
 **Interfaces:**
 
