@@ -318,15 +318,6 @@ def test_production_quality_bar_is_launch_gated():
         else:
             assert_contains(text, "Not relevant because", name)
 
-    if pr_template_path.exists():
-        for marker in [
-            "Release Proof (near-launch only)",
-            "automated GitHub release tags",
-            "dry-run/no-mutation",
-        ]:
-            assert_contains(pr_template, marker, "production quality bar PR template")
-
-
 def test_subagent_parallelism_is_context_efficient():
     agents = read(AGENTS_MD)
     planner = read(SKILLS / "planner" / "SKILL.md")
@@ -1104,6 +1095,43 @@ def test_contextual_merge_contract_is_documented():
         "scripts/gauntlet.py merge execute",
     ]:
         assert_contains(combined, marker, "contextual merge contract")
+
+
+def test_contextual_pr_template_changelog_and_run_log_contract():
+    template_path = ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md"
+    if not template_path.exists():
+        return
+    template = read(template_path)
+    required = ["## Problem", "## Solution", "## Changelog", "## Testing", "## PR Note"]
+    for marker in required:
+        assert_contains(template, marker, "contextual PR template")
+    positions = [template.index(item) for item in required]
+    if positions != sorted(positions):
+        raise AssertionError("contextual PR template sections are out of order")
+    for obsolete in [
+        "## Functional Changes",
+        "## User Or Agent Impact",
+        "## Workflow Or Behavior Changes",
+        "## Release Proof (near-launch only)",
+    ]:
+        assert_not_contains(template, obsolete, "contextual PR template")
+
+    changelog = read(ROOT / "CHANGELOG.md")
+    entry = "- Gauntlet now keeps routine workflow controls out of the conversation and automatically creates contextual PR and changelog handoffs when merging work."
+    if changelog.count(entry) != 1:
+        raise AssertionError("CHANGELOG must contain the exact contextual merge entry once")
+
+    run_log = read(ROOT / "docs" / "gauntlet-runs" / "2026-07-09-quiet-workflow-guaranteed-merge.md")
+    for marker in [
+        "nine attempts across seven unique validator runs",
+        "148 tokens",
+        "+7.7%",
+        "866 repeated exact-sentence tokens",
+        "2,143 instruction tokens",
+        "total billed or cached child context was unavailable",
+    ]:
+        assert_contains(run_log, marker, "quiet workflow run log")
+    assert_not_contains(run_log, "All tests passed", "exceptions-only run log")
 
 
 def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions():
@@ -3081,6 +3109,7 @@ def main():
         test_workflow_helpers_filter_artifacts_and_find_python_tests,
         test_workflow_speedup_helpers_are_documented_as_advisory,
         test_contextual_merge_contract_is_documented,
+        test_contextual_pr_template_changelog_and_run_log_contract,
         test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions,
         test_workflow_etiquette_checker_pauses_archive_on_followups_and_git_state,
         test_workflow_etiquette_checker_builds_archive_action_plan,

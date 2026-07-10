@@ -93,3 +93,18 @@ Human or agent judgment should remain conversational:
 Use `scripts/gauntlet.py merge prepare` before committing the changelog, `scripts/gauntlet.py merge plan` for a read-only preflight, and `scripts/gauntlet.py merge execute` after the worktree is clean. The helper creates or updates one PR, waits for checks, refreshes PR state, merges through repository policy, deletes the remote branch, and verifies the landed commit on the default branch. It does not create commits; the main task owns coherent commit boundaries.
 
 The older `scripts/gauntlet.py changelog pr --implementation-memory "$MEMORY_PATH" --git-root "$PROJECT_ROOT"` remains available for explicit legacy drafts and archive summaries.
+
+## Commit And PR Framing
+
+Use `<area>: <imperative behavioral outcome>` for commit subjects and PR titles, such as `workflow: generate contextual merge handoffs`. A quick task normally has one behavioral commit with its tests and changelog; preserve multiple commits only when each is independently reviewable.
+
+The contextual PR body is reviewer memory, not a file tour:
+
+1. `## Problem`: who is affected, what was insufficient, and why it matters.
+2. `## Solution`: resulting behavior, important invariants/design choices, preserved behavior, and meaningful non-goals.
+3. `## Changelog`: one release-note bullet copied exactly into `CHANGELOG.md` under `Unreleased`.
+4. `## Testing`: exact commands/results, what they prove, and any limitation or `Cannot verify` item.
+5. `## PR Note`: the material tradeoff, compatibility/recovery context, non-goal, or merge rationale future maintainers need.
+6. `## Security / Risk`: include only for a concrete material risk; omit empty boilerplate.
+
+Build this framing from the user goal and accepted decisions. Use the diff only to fact-check completeness.
