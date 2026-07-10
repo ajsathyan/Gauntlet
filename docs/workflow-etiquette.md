@@ -27,6 +27,8 @@ p#: four word goal
 p#-auto: four word goal
 ```
 
+The goal is exactly four whitespace-delimited words. Gauntlet-owned thread actions must validate this shape before emitting `set_thread_title` or `create_thread`; a raw host rename remains outside Gauntlet's interception boundary.
+
 Use `-auto` when the agent can proceed through reversible local choices without the user watching. A Decision Gate may still name the next unsafe or unresolved boundary.
 
 Priority remains consequence-based:
@@ -135,10 +137,12 @@ Promotion is not an automatic Release wrap-up.
 When the user asks to archive:
 
 1. Reuse the existing valid title or set one silently.
-2. Pass PR/closeout content to `scripts/gauntlet.py archive plan --content` so the Archive Summary is visible.
+2. Pass PR/closeout changelog content to `scripts/gauntlet.py archive plan --content`; missing or malformed Archive Summary content blocks archive actions.
 3. Resolve real git, proof, follow-up, or safety blockers.
 4. Run `archive execute` only after the plan passes or warns within accepted authority.
-5. Execute returned app actions in order: title, then archive.
+5. Execute returned app actions in order: set the title if needed, present the Archive Summary to the user, then archive the thread.
+
+Gauntlet-owned archive plans always place `present_archive_summary` immediately before `archive_thread`. A direct host archive call remains outside Gauntlet's interception boundary and must not be used for Gauntlet workflow closeout.
 
 Archive does not silently grant merge authority. Merge only from an accepted user request or explicit `--merge`, after objective checks pass.
 

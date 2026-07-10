@@ -12,13 +12,20 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from thread_titles import parse_thread_title
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 CHECKER = SCRIPTS / "check-workflow-etiquette.py"
 STATUS_ORDER = {"pass": 0, "warn": 1, "review": 2, "fail": 3}
 EXIT_CODES = {"pass": 0, "warn": 0, "review": 2, "fail": 1}
-APP_ACTIONS = {"set_thread_title", "archive_thread", "create_thread"}
+DEFERRED_AGENT_ACTIONS = {
+    "set_thread_title",
+    "present_archive_summary",
+    "archive_thread",
+    "create_thread",
+}
 PASSING_CHECK_CONCLUSIONS = {"SUCCESS", "SKIPPED", "NEUTRAL"}
 PASSING_STATUS_STATES = {"SUCCESS", "SKIPPED", "NEUTRAL"}
 REQUIRED_HANDOFF_FIELDS = {
@@ -30,7 +37,6 @@ REQUIRED_HANDOFF_FIELDS = {
     "testing",
     "securityRisk",
 }
-TITLE_PATTERN = re.compile(r"^p[0-4](?:-auto)?: .+")
 SECTION_REQUIRED = [
     ("goal", ["goal"]),
     ("scope", ["scope"]),
@@ -552,15 +558,15 @@ def archive_summary_from_sections(sections):
 
 def archive_summary_from_content(path):
     if not path:
-        return None, []
+        return None, [{"code": "missing_archive_summary_content", "severity": "fail", "message": "Archive requires PR changelog or closeout content with an Archive Summary."}]
     path = Path(path)
     if not path.exists():
-        return None, [{"code": "missing_archive_summary_content", "severity": "warn", "message": f"Archive summary content file does not exist: {path}."}]
+        return None, [{"code": "missing_archive_summary_content", "severity": "fail", "message": f"Archive summary content file does not exist: {path}."}]
     text = read_text(path)
     sections = markdown_sections(text)
     raw_summary = find_section(sections, ARCHIVE_SUMMARY_ALIASES)
     if not raw_summary:
-        return None, [{"code": "missing_archive_summary", "severity": "warn", "message": f"No Archive Summary section found in {path}."}]
+        return None, [{"code": "missing_archive_summary", "severity": "fail", "message": f"No Archive Summary section found in {path}."}]
     if has_secret(raw_summary):
         return None, [{"code": "secret_like_archive_summary", "severity": "fail", "message": "Archive Summary contains secret-like content; redact it before archive."}]
     bullets = [redact_secrets(item) for item in section_bullets(raw_summary)[:10]]
@@ -595,12 +601,14 @@ def parse_followups(text):
     return followups
 
 
-def add_finding(payload, code, severity, message):
-    payload.setdefault("findings", []).append({
+def add_finding(payload, code, severity, message, **details):
+    finding = {
         "code": code,
         "severity": severity,
         "message": message,
-    })
+    }
+    finding.update(details)
+    payload.setdefault("findings", []).append(finding)
 
 
 def status_for(payload):
@@ -1463,11 +1471,8 @@ def rebuild_archive_plan(payload, git_actions):
     prior_plan = payload.get("archivePlan") or {}
     prior_actions = prior_plan.get("actions") or []
     prefix_actions = []
-    archive_action = None
     for action in prior_actions:
-        if action.get("type") == "archive_thread":
-            archive_action = action
-        elif action.get("type") != "git_push":
+        if action.get("type") not in {"git_push", "archive_thread", "present_archive_summary"}:
             prefix_actions.append(action)
 
     status = status_for(payload)
@@ -1482,9 +1487,17 @@ def rebuild_archive_plan(payload, git_actions):
         for finding in payload.get("findings", [])
         if finding.get("severity") == "warn"
     ]
-    actions = [*prefix_actions, *git_actions]
-    if status in {"pass", "warn"} and archive_action:
-        actions.append(archive_action)
+    actions = []
+    if status in {"pass", "warn"}:
+        summary = payload.get("archiveSummary") or {}
+        bullets = summary.get("bullets") or []
+        actions = [*prefix_actions, *git_actions]
+        actions.append({
+            "type": "present_archive_summary",
+            "heading": "Archive Summary",
+            "bullets": bullets,
+        })
+        actions.append({"type": "archive_thread"})
 
     payload["archivePlan"] = {
         "canArchive": status in {"pass", "warn"},
@@ -1516,7 +1529,9 @@ def build_archive_payload(args):
                 "Cannot verify chat-level changes from CLI metadata alone. Supply the PR changelog or closeout content with an Archive Summary.",
             ],
         }
-        git_actions = github_archive_actions(args.git_root, payload, args)
+        git_actions = []
+        if status_for(payload) in {"pass", "warn"}:
+            git_actions = github_archive_actions(args.git_root, payload, args)
         return rebuild_archive_plan(payload, git_actions)
     finally:
         args.content = original_content
@@ -1529,7 +1544,7 @@ def execute_archive_actions(payload, git_root):
     remaining_app = []
     for action in payload.get("archivePlan", {}).get("actions", []):
         action_type = action.get("type")
-        if action_type in APP_ACTIONS:
+        if action_type in DEFERRED_AGENT_ACTIONS:
             remaining_app.append(action)
         elif action_type == "git_push":
             result = git(["push"], git_root)
@@ -1564,7 +1579,9 @@ def print_payload(payload, as_json):
         print("Archive Summary")
         for bullet in bullets:
             print(f"- {bullet}")
-        return
+        if payload["status"] in {"pass", "warn"}:
+            return
+        print()
     print(f"Gauntlet: {payload['status']}")
     for finding in payload.get("findings", []):
         print(f"- [{finding['severity']}] {finding['code']}: {finding['message']}")
@@ -2022,8 +2039,25 @@ def command_followup_thread(args):
         "findings": [],
         "actions": [],
     }
-    if not TITLE_PATTERN.match(args.title):
-        add_finding(payload, "malformed_thread_title", "fail", "Thread title must start with p0-p4 or p#-auto, followed by a colon.")
+    parsed_title = parse_thread_title(args.title)
+    if parsed_title["format"] == "malformed":
+        if parsed_title.get("reason") == "goal_word_count":
+            add_finding(
+                payload,
+                "title_goal_word_count",
+                "fail",
+                "Thread title goal must contain exactly four whitespace-delimited words; "
+                f"found {parsed_title['actualWordCount']}.",
+                actualWordCount=parsed_title["actualWordCount"],
+                requiredWordCount=parsed_title["requiredWordCount"],
+            )
+        else:
+            add_finding(
+                payload,
+                "malformed_thread_title",
+                "fail",
+                "Thread title must use 'p#: four word goal' or 'p#-auto: four word goal'.",
+            )
 
     followup, findings = followup_from_args(args)
     for finding in findings:

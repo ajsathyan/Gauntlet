@@ -5,9 +5,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from thread_titles import parse_thread_title
 
-CURRENT_TITLE = re.compile(r"^p([0-4])(-auto)?:\s+(.+?)\s*$")
-LEGACY_TITLE = re.compile(r"^p([0-4])\s+-\s+(.+?)\s*$")
 FIELD_PATTERN = r"^\s*(?:-\s*)?{field}:\s*(.+?)\s*$"
 VALID_FIELDS = {
     "Mode": {"Research", "Patch", "Feature", "Release"},
@@ -28,7 +27,7 @@ STATUS_ORDER = {"pass": 0, "warn": 1, "review": 2, "fail": 3}
 EXIT_CODES = {"pass": 0, "warn": 0, "review": 2, "fail": 1}
 
 
-def add_finding(findings, code, severity, message, migration_friendly=False):
+def add_finding(findings, code, severity, message, migration_friendly=False, **details):
     finding = {
         "code": code,
         "severity": severity,
@@ -36,6 +35,7 @@ def add_finding(findings, code, severity, message, migration_friendly=False):
     }
     if migration_friendly:
         finding["migrationFriendly"] = True
+    finding.update(details)
     findings.append(finding)
 
 
@@ -84,49 +84,34 @@ def parse_title(
     if not title:
         return None
 
-    current = CURRENT_TITLE.match(title)
-    if current:
-        priority = f"p{current.group(1)}"
-        execution_mode = "autonomous" if current.group(2) else "review"
-        return {
-            "source": source,
-            "format": "current",
-            "priority": priority,
-            "executionMode": execution_mode,
-            "goal": current.group(3).strip(),
-            "raw": title,
-        }
+    parsed = {"source": source, **parse_thread_title(title)}
+    if parsed["format"] == "current":
+        return parsed
 
-    legacy = LEGACY_TITLE.match(title)
-    if legacy:
+    if parsed.get("reason") == "goal_word_count":
+        code = malformed_code if malformed_code != "malformed_title" else "title_goal_word_count"
+        message = malformed_message or (
+            "Thread title goal must contain exactly four whitespace-delimited words; "
+            f"found {parsed['actualWordCount']}."
+        )
         add_finding(
             findings,
-            "legacy_title_format",
-            "warn",
-            "Legacy title format accepted during migration; generate new titles as 'p#: four word goal'.",
-            migration_friendly=True,
+            code,
+            malformed_severity,
+            message,
+            actualWordCount=parsed["actualWordCount"],
+            requiredWordCount=parsed["requiredWordCount"],
         )
-        return {
-            "source": source,
-            "format": "legacy",
-            "priority": f"p{legacy.group(1)}",
-            "executionMode": "review",
-            "goal": legacy.group(2).strip(),
-            "raw": title,
-        }
+        return parsed
 
     add_finding(
         findings,
         malformed_code,
         malformed_severity,
         malformed_message
-        or "Thread title must start with 'p#:' or 'p#-auto:'; legacy 'p# -' is warning-only during migration.",
+        or "Thread title must use 'p#: four word goal' or 'p#-auto: four word goal'.",
     )
-    return {
-        "source": source,
-        "format": "malformed",
-        "raw": title,
-    }
+    return parsed
 
 
 def check_kickoff(content, parsed_title, findings):
@@ -179,7 +164,7 @@ def check_kickoff(content, parsed_title, findings):
             parsed_title = suggested
 
     execution_mode = fields.get("Execution Mode")
-    if execution_mode and parsed_title and parsed_title.get("format") in {"current", "legacy"}:
+    if execution_mode and parsed_title and parsed_title.get("format") == "current":
         title_mode = parsed_title.get("executionMode")
         title_is_auto = title_mode == "autonomous"
         field_is_auto = execution_mode == "autonomous"
@@ -337,15 +322,12 @@ def build_archive_plan(args, parsed_title, suggested_title, git_actions, finding
         if finding.get("severity") == "warn"
     ]
 
-    if suggested_title and suggested_title.get("format") in {"current", "legacy"}:
+    if suggested_title and suggested_title.get("format") == "current":
         current_raw = parsed_title.get("raw") if parsed_title else None
         if current_raw != suggested_title["raw"]:
             actions.append({"type": "set_thread_title", "title": suggested_title["raw"]})
 
     actions.extend(git_actions)
-
-    if status in {"pass", "warn"}:
-        actions.append({"type": "archive_thread"})
 
     return {
         "canArchive": status in {"pass", "warn"},

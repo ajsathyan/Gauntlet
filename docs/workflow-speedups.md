@@ -33,6 +33,7 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 - Closeout facts are deliberately small: files changed, proof/tests completed, unresolved risks, and optional attempt-memory expiry. They do not commit, push, merge, generate changelogs, publish release notes, or archive threads.
 - Attempt memory is a local bounded scratchpad. Repeated fingerprints are summarized, old entries can be pruned with `--max-age-days`, and run-scoped entries can be expired with `analytics closeout --expire-attempt-memory`.
 - PR/changelog output should carry the agent-authored Archive Summary; archive planning reuses that short block instead of replaying the transcript.
+- Archive planning fails closed when that content or section is missing and emits `present_archive_summary` immediately before `archive_thread`.
 - GitHub metadata verifies objective PR facts only.
 - Follow-up thread helpers emit `create_thread` app-action packets; create the actual Codex thread with app tools after checking the packet.
 - Child implementation lanes should use separate git worktrees by default when they write code, edit multiple files, or have uncertain ownership. Read-only review, exploration, summarization, and log-analysis lanes do not need worktrees by default.
