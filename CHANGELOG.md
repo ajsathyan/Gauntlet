@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now rejects legacy or non-four-word task titles and blocks archive actions until a visible Archive Summary is queued immediately before thread archival.
+
 - Gauntlet installs now remove workflow scripts deleted from the source payload, preventing retired orchestration helpers from lingering locally.
 
 - Gauntlet now uses one lean Research/Patch/Feature/Release workflow, folds selected Superpowers techniques into attributed native skills, and safely retires overlapping runtime skills.
