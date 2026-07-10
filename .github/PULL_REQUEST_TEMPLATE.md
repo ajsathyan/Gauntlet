@@ -1,23 +1,23 @@
-## Functional Changes
+## Problem
 
-- 
+<!-- Who is affected, what was insufficient before, and why it matters. -->
 
-## User Or Agent Impact
+## Solution
 
-- 
+<!-- Resulting behavior, important invariants/design choices, preserved behavior, and meaningful non-goals. Do not write a file/function tour. -->
 
-## Workflow Or Behavior Changes
+## Changelog
 
-- 
+<!-- One release-note bullet copied exactly into CHANGELOG.md under Unreleased. -->
 
-## Decisions And Tradeoffs
+- <!-- Exact changelog entry -->
 
-- 
+## Testing
 
-## Release Proof (near-launch only)
+<!-- `command` — PASS/FAIL — what it proves; include limitations or Cannot verify when relevant. -->
 
-- Near-launch only; otherwise write `N/A`. Include automated GitHub release tags, required checks, artifacts, release notes, dry-run/no-mutation proof, and rollback/support evidence when relevant:
+- <!-- Exact command, result, and what it proves -->
 
-## Follow-Ups
+## PR Note
 
-- 
+<!-- Material tradeoff, compatibility/recovery context, meaningful non-goal, or merge rationale. -->

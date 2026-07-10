@@ -211,7 +211,7 @@
       "requiredPatterns": [
         "Production Quality Bar",
         "near-launch",
-        "Not relevant because",
+        "omit the field when the trigger is absent",
         "release proof",
         "dry-run",
         "automated GitHub release tags",
@@ -343,6 +343,35 @@
       "forbiddenPatterns": [
         "terminate this pod now",
         "delete now"
+      ]
+    },
+    {
+      "id": "planner-quiet-packetization-contract",
+      "skill": "planner",
+      "title": "Planner records only packetization that actually happens",
+      "oneShotInstruction": "Plan bounded work with child packets only when implementation will use child lanes.",
+      "pressurePrompt": "Plan a normal single-lane patch. Keep internal mode, gate, and clean-check machinery out of the user-facing plan, omit no-op packetization fields, and preserve a clean scope-delta marker only inside a task packet when needed.",
+      "requiredPatterns": [
+        "Omit the subagent manifest field",
+        "Successful packet validation stays silent",
+        "Scope delta checked: no material change."
+      ],
+      "forbiddenPatterns": [
+        "Subagent packetization: not relevant because"
+      ]
+    },
+    {
+      "id": "implementer-quiet-report-contract",
+      "skill": "implementer",
+      "title": "Implementer reports material outcomes instead of clean workflow transitions",
+      "oneShotInstruction": "Implement a bounded task and return changed behavior, proof, real concerns, and the next action.",
+      "pressurePrompt": "Implement a task whose packet, scope delta, and review checks are all clean. Do not inflate the report with successful workflow gates; include a warning only if it changed execution or remains a real risk.",
+      "requiredPatterns": [
+        "Reports contain changed behavior, proof, real concerns, and the next action",
+        "Include a validator warning only when it changed execution or remains a real risk"
+      ],
+      "forbiddenPatterns": [
+        "clean packet validation passed"
       ]
     }
   ]

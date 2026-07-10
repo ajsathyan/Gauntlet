@@ -31,6 +31,7 @@ For Feature or Release work, also report run-log-friendly exceptions:
 
 ## Rules
 
+- Reports contain changed behavior, proof, real concerns, and the next action. Include a validator warning only when it changed execution or remains a real risk.
 - Read before editing.
 - Match local patterns.
 - Implement the smallest correct step.
@@ -38,9 +39,9 @@ For Feature or Release work, also report run-log-friendly exceptions:
 - Add or update tests when behavior changes.
 - For practical behavior changes, use RED-GREEN-REFACTOR: make the relevant test fail for the intended reason, implement the smallest source fix, then refactor while green. For docs, generated output, or legacy surfaces without a credible harness, record why and run the closest regression proof.
 - Verify review feedback against the accepted spec, code, and tests before applying it. Return `Needs context` when feedback would silently change behavior.
-- Refuse parallel delegated implementation when the accepted current-run manifest is missing or rejected. The manifest is the packet; do not require a second Markdown copy.
-- Before implementing added scope, require its scope-addition delta to be resolved; a clean check may be represented by `Scope delta checked: no material change.` in the plan or task packet.
-- For independent task packets with disjoint files, state, and proof, use only subagent lanes accepted by `scripts/check-subagent-plan.py`; otherwise implement sequentially. Do not repeat large shared context into subagents unless speed gains justify the tokens.
+- Refuse delegated implementation when a required current-run manifest is missing or rejected. The manifest is the packet; do not require a second Markdown copy.
+- Resolve added-scope deltas before implementation; a clean check may be represented by `Scope delta checked: no material change.` in the plan or task packet.
+- For two or more parallel lanes or any write-heavy child implementation lane, use only lanes accepted by `scripts/check-subagent-plan.py`; a single small read-only child does not need the gate. Shared context lives in the manifest `shared` block and lane prompts contain only lane-specific deltas.
 - Avoid broad rewrites, speculative abstractions, unrelated cleanup, and silent behavior changes.
 - After substantial or generated-code-heavy changes, remove dead code and unnecessary abstractions you introduced before final verification.
 - Do not damage unrelated user work in a dirty workspace.

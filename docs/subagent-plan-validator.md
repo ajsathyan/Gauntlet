@@ -1,24 +1,27 @@
 # Canonical Subagent Manifest
 
-Use `scripts/check-subagent-plan.py` only when a plan proposes two or more genuinely parallel lanes. `.gauntlet/subagent-plan.json` is the canonical lane contract; do not maintain separate Markdown task packets.
+Use `.gauntlet/subagent-plan.json` for two or more parallel lanes or any write-heavy child implementation lane. A single small read-only exploration/review lane does not need this gate. The manifest is the complete lane contract; do not maintain separate Markdown task packets.
 
 ## Schema 1.2
 
 ```json
 {
   "schemaVersion": "1.2",
-  "acceptedSource": "user-approved direction in the parent task",
-  "constraints": ["preserve unrelated work"],
+  "runId": "2026-07-10-checkout-policy",
+  "shared": {
+    "projectRoot": ".",
+    "acceptedSource": "user-approved direction in the parent task",
+    "constraints": ["Preserve unrelated work."],
+    "askUserPolicy": "Return Needs decision to the main task.",
+    "expectedReturn": "Verdict, evidence, residual risk, and one next action."
+  },
   "lanes": [
     {
       "id": "C1",
-      "status": "To Do",
-      "title": "p1-auto: [C1][To Do] Checkout policy",
       "skill": "implementer",
       "objective": "Implement the accepted checkout policy",
-      "projectRoot": ".",
       "worktreePath": ".worktrees/C1-checkout-policy",
-      "scope": "Checkout policy and tests",
+      "scope": "Checkout policy implementation and regression tests",
       "inScope": ["src/checkout/policy/**", "tests/checkout/policy/**"],
       "outOfScope": ["src/checkout/ui/**"],
       "filesRead": ["src/checkout/policy/**", "tests/checkout/policy/**"],
@@ -29,16 +32,15 @@ Use `scripts/check-subagent-plan.py` only when a plan proposes two or more genui
       "dependsOn": [],
       "consumes": ["accepted checkout policy"],
       "produces": ["checkout policy API", "regression tests"],
+      "laneConstraints": ["Preserve the current UI contract."],
       "proof": ["npm test -- checkout-policy"],
-      "inlineContext": "Read the accepted source and work only in owned paths.",
-      "expectedReturn": "Changed files, proof, blockers, and next action",
-      "askUserPolicy": "Return Needs decision to the orchestrator."
+      "contextDelta": "Use the existing policy boundary; do not redesign checkout UI."
     }
   ]
 }
 ```
 
-Shared `acceptedSource` and `constraints` may be declared once at the top. Lane-specific overrides are optional. `dependsOn` contains lane IDs only.
+Shared source, constraints, return contract, and ask-user policy live once in `shared`. Lane objects contain only ownership and lane-specific deltas. `dependsOn` contains lane IDs only. Native Codex state owns progress; the manifest does not require chat titles or status fields.
 
 ## Validation
 
@@ -46,8 +48,8 @@ Shared `acceptedSource` and `constraints` may be declared once at the top. Lane-
 scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --run-id "$RUN_ID"
 ```
 
-The validator rejects unsupported/legacy schemas, missing fields, unknown/self/cyclic dependencies, no ready lane, project-root mismatch, overlapping writes, shared mutable state, duplicate proof targets, secret-bearing or repeated context, and overbroad paths.
+The validator rejects unsupported/legacy schemas, duplicate packet fields such as `taskPacketRef`, missing fields, unknown/self/cyclic dependencies, no ready lane, project-root mismatch, overlapping writes, shared mutable state, duplicate proof targets, secret-bearing or repeated context, and overbroad paths. Warnings do not delay implementation unless they expose a real dependency, ownership conflict, or user decision.
 
-The first ready lane has no unresolved dependencies; a dependency is resolved when its lane status is `Done`. The manifest may be rendered into a child prompt, but rendered text is a view—not a second source of truth.
+The first ready lane has no unresolved dependencies; a dependency is resolved only when native orchestration reports it complete. Rendered child prompts are views of the manifest, never a second source of truth.
 
-Every accepted or rejected validation appends to `.gauntlet/subagent-plan-log.jsonl` and updates `.gauntlet/subagent-plan-summary.json`.
+Every validation appends to `.gauntlet/subagent-plan-log.jsonl` and updates `.gauntlet/subagent-plan-summary.json`. Successful validation is durable internal evidence; keep clean validation and summary counts out of chat.

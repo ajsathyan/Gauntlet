@@ -19,7 +19,7 @@ Execution mode: review | autonomous
 Decision gate: none | before unsafe side effect | before merge | before production change | custom
 ```
 
-Classify internally. Surface the classification only when it changes cost, scope, authority, verification, or a decision the user should make.
+Classify internally by selecting path, depth, proof scope, and triggered gates. Surface the classification only when it changes cost, scope, authority, verification, timing, or a decision the user should make.
 
 ### Research
 
@@ -64,6 +64,7 @@ Every non-default ceremony must declare its trigger, cap, artifact, and exit con
 
 ## User Attention And Titles
 
+- Routine workflow mechanics stay internal. User-visible updates contain a recommendation, changed assumption, meaningful result, blocker, decision, proof, or completed outcome.
 - Ask only about decisions that materially change product behavior, data, money, privacy, security, acceptance, cost appetite, or external side effects.
 - Set or update the thread title silently once the goal is stable. Do not ask the user to approve priority or title metadata.
 - Priorities remain consequence-based: p0 material Release harm; p1 substantial Feature/strategy; p2 consequential or Deep Patch; p3 normal Patch or bounded Research; p4 routine admin, low-durable exploration, or deliberately parked work.
@@ -71,6 +72,7 @@ Every non-default ceremony must declare its trigger, cap, artifact, and exit con
 - Do not print a no-op edge-case section. Surface edge cases only when they alter the plan, proof, or require a decision.
 - `review` means requirements or acceptable defaults still need the user. Self-review and QA are autonomous work.
 - A Decision Gate exists only for a named unresolved decision or unsafe side effect; never re-ask for already accepted behavior.
+- A clean check stays silent in chat. Do not record packetization when no child implementation lanes exist. Successful packet validation stays silent.
 
 Detailed collaboration and archive behavior lives in `$AGENT_HOME/gauntlet/docs/workflow-etiquette.md`.
 
@@ -112,6 +114,10 @@ Gauntlet selectively incorporates these Superpowers techniques; see the attribut
 
 See `$AGENT_HOME/gauntlet/docs/github-discipline.md` for detailed git/archive behavior.
 
+"Merge this," "land this," or "merge this to main" authorizes the complete safe closeout for the current scoped work: prepare the contextual handoff, update `CHANGELOG.md`, commit coherent changes, push the task branch, create or update one PR, wait for required checks and blocking review state, merge, delete the remote task branch, verify the default branch, and clean local branch/worktree state only when no unique work remains. Ask only when a new material decision or preservation risk appears.
+
+"Push to git" means push the current branch, not merge. Use `scripts/gauntlet.py merge prepare` before the handoff commit, `merge plan` for read-only preflight, and `merge execute` after the branch is clean and committed.
+
 ## Delegation
 
 Parallelism must beat its context cost.
@@ -125,15 +131,15 @@ Name the expected speedup or independent proof value before adding lanes.
 - Read-only review/exploration lanes do not need worktrees by default. Write-heavy lanes do.
 - Child agents return `Needs decision` to the main task instead of asking the user.
 
-When two or more parallel lanes are earned, `.gauntlet/subagent-plan.json` is the canonical lane contract. Validate it with:
+For two or more parallel lanes or any write-heavy child implementation lane, `.gauntlet/subagent-plan.json` is the canonical lane contract. A single small read-only child does not need the manifest gate. Validate before implementation with:
 
 ```sh
 $AGENT_HOME/gauntlet/scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --run-id "$RUN_ID"
 ```
 
-Do not maintain a second handwritten Markdown packet. Generate a child prompt from the canonical lane entry. The manifest owns lane id/status, objective, skill, source, scope, file/state ownership, typed `dependsOn` lane ids, consumes/produces, constraints, proof, return contract, and ask-user policy.
+Do not maintain a second handwritten Markdown packet. Generate the child prompt from its canonical lane entry. Shared context lives once in the manifest `shared` block; lanes contain only ownership and lane-specific deltas. Native Codex state owns child progress; do not require title/status churn.
 
-If the validator ran, report `.gauntlet/subagent-plan-summary.json` counts at closeout. Validate again only when material scope changes reshape lanes.
+Keep clean validation and summary counts out of chat. Validate again only when material scope changes reshape lanes.
 
 ## Triggered Gates
 

@@ -70,7 +70,7 @@ Research is a first-class path, not a pre-Release ceremony.
 
 Use delegation only when parallelism beats context cost.
 
-The canonical manifest contains shared accepted source/constraints plus complete lane entries. Each lane names objective, skill, ownership, typed dependencies, consumes/produces, proof, return contract, and ask-user policy. Do not create a second Markdown packet.
+Use the canonical manifest for two or more parallel lanes or any write-heavy child implementation lane. It contains shared accepted source/constraints plus complete lane entries. Each lane names objective, skill, ownership, typed dependencies, consumes/produces, proof, and its context delta. Do not create a second Markdown packet. A single small read-only child does not need this gate.
 
 Child behavior:
 
@@ -88,7 +88,7 @@ Main-task behavior:
 - waits 30–60 seconds or for meaningful state change instead of repeatedly polling unchanged state;
 - archives a child task after its report is integrated when the product supports it.
 
-Use statuses `To Do`, `In Progress`, `Blocked`, `In Review`, `Done`, and `Canceled`. `Blocked` requires a concrete missing decision, credential, interface, conflict, failed proof, or external state.
+Native Codex state owns child progress; do not require title or status churn. Use the stable lane id in the packet and report as the coordination handle.
 
 ## Execution
 
@@ -148,6 +148,8 @@ Use `--confirm-git-risk` only when the user explicitly accepts dirty, unpushed, 
 ## Git Discipline
 
 Use a branch for persisted work. Use a worktree for p0–p2, broad, dirty-worktree, or write-heavy delegated work. Preserve unrelated files. The main task owns integration and merge.
+
+"Merge this," "land this," or "merge this to main" authorizes the contextual changelog → commit → push → PR → checks → merge-commit → remote cleanup → default-branch verification flow for the current scope. Use `scripts/gauntlet.py merge prepare`, `merge plan`, and `merge execute`; ask only for a new material choice or preservation risk.
 
 See `docs/github-discipline.md` for the detailed beginner-friendly branch → coherent commits → PR → verification → merge-commit → cleanup path.
 

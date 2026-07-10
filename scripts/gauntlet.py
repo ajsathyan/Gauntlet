@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,6 +21,16 @@ EXIT_CODES = {"pass": 0, "warn": 0, "review": 2, "fail": 1}
 APP_ACTIONS = {"set_thread_title", "archive_thread", "create_thread"}
 PASSING_CHECK_CONCLUSIONS = {"SUCCESS", "SKIPPED", "NEUTRAL"}
 PASSING_STATUS_STATES = {"SUCCESS", "SKIPPED", "NEUTRAL"}
+REQUIRED_HANDOFF_FIELDS = {
+    "schemaVersion",
+    "title",
+    "problem",
+    "solution",
+    "changelog",
+    "testing",
+    "prNote",
+    "securityRisk",
+}
 TITLE_PATTERN = re.compile(r"^p[0-4](?:-auto)?: .+")
 SECTION_REQUIRED = [
     ("goal", ["goal"]),
@@ -742,6 +753,475 @@ def build_changelog_markdown(source_path, sections, pr, followups, findings):
         markdown_list(cannot_verify),
         "",
     ])
+
+
+def load_merge_handoff(path):
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def handoff_finding(code, message):
+    return {"code": code, "severity": "fail", "message": message}
+
+
+def validate_merge_handoff(data):
+    findings = []
+    if not isinstance(data, dict):
+        return [handoff_finding("invalid_handoff", "Merge handoff must be a JSON object.")]
+    missing = sorted(REQUIRED_HANDOFF_FIELDS - set(data))
+    for field in missing:
+        findings.append(handoff_finding("missing_handoff_field", f"Merge handoff is missing: {field}."))
+    if data.get("schemaVersion") != "1.0":
+        findings.append(handoff_finding("unsupported_handoff_schema", "Merge handoff schemaVersion must be 1.0."))
+
+    title = data.get("title")
+    if not isinstance(title, str) or not re.fullmatch(r"[^:\n]+: [^\n]+", title.strip()):
+        findings.append(handoff_finding("invalid_handoff_title", "Title must use '<area>: <behavioral outcome>'."))
+
+    problem = data.get("problem")
+    if not isinstance(problem, dict):
+        findings.append(handoff_finding("invalid_handoff_problem", "problem must be an object."))
+    else:
+        for field in ["context", "impact"]:
+            if not isinstance(problem.get(field), str) or not problem[field].strip():
+                findings.append(handoff_finding("missing_problem_framing", f"problem.{field} must be non-empty."))
+
+    solution = data.get("solution")
+    if not isinstance(solution, dict):
+        findings.append(handoff_finding("invalid_handoff_solution", "solution must be an object."))
+    else:
+        if not isinstance(solution.get("outcome"), str) or not solution["outcome"].strip():
+            findings.append(handoff_finding("missing_solution_outcome", "solution.outcome must be non-empty."))
+        for field in ["invariants", "preserved", "nonGoals"]:
+            value = solution.get(field, [])
+            if not isinstance(value, list) or not all(isinstance(item, str) and item.strip() for item in value):
+                findings.append(handoff_finding("invalid_solution_list", f"solution.{field} must be a list of non-empty strings."))
+
+    changelog = data.get("changelog")
+    if not isinstance(changelog, str) or not changelog.strip():
+        findings.append(handoff_finding("missing_changelog_entry", "changelog must be non-empty."))
+    elif "\n" in changelog or "\r" in changelog:
+        findings.append(handoff_finding("multiline_changelog_entry", "changelog must be a single line."))
+
+    testing = data.get("testing")
+    if not isinstance(testing, list) or not testing:
+        findings.append(handoff_finding("missing_testing_evidence", "testing must contain at least one result."))
+    else:
+        for index, item in enumerate(testing, 1):
+            if not isinstance(item, dict):
+                findings.append(handoff_finding("invalid_testing_evidence", f"testing item {index} must be an object."))
+                continue
+            for field in ["command", "result", "proves"]:
+                if not isinstance(item.get(field), str) or not item[field].strip():
+                    findings.append(handoff_finding("invalid_testing_evidence", f"testing item {index}.{field} must be non-empty."))
+
+    pr_note = data.get("prNote")
+    if not isinstance(pr_note, list) or not pr_note or not all(isinstance(item, str) and item.strip() for item in pr_note):
+        findings.append(handoff_finding("missing_pr_note", "prNote must contain at least one non-empty item."))
+
+    security_risk = data.get("securityRisk")
+    if security_risk is not None and (not isinstance(security_risk, str) or not security_risk.strip()):
+        findings.append(handoff_finding("invalid_security_risk", "securityRisk must be null or a non-empty string."))
+    if has_secret(json.dumps(data, sort_keys=True)):
+        findings.append(handoff_finding("secret_like_handoff", "Merge handoff contains secret-like content."))
+    return findings
+
+
+def render_pr_body(data):
+    solution = data["solution"]
+    solution_parts = [solution["outcome"].strip()]
+    for label, field in [("Invariants", "invariants"), ("Preserved", "preserved"), ("Non-goals", "nonGoals")]:
+        items = solution.get(field, [])
+        if items:
+            solution_parts.extend(["", f"{label}:", *[f"- {item.strip()}" for item in items]])
+
+    testing = [
+        f"- `{item['command'].strip()}` — **{item['result'].strip().upper()}** — {item['proves'].strip()}"
+        for item in data["testing"]
+    ]
+    lines = [
+        "## Problem",
+        "",
+        data["problem"]["context"].strip(),
+        "",
+        data["problem"]["impact"].strip(),
+        "",
+        "## Solution",
+        "",
+        *solution_parts,
+        "",
+        "## Changelog",
+        "",
+        f"- {data['changelog'].strip()}",
+        "",
+        "## Testing",
+        "",
+        *testing,
+        "",
+        "## PR Note",
+        "",
+        *[f"- {item.strip()}" for item in data["prNote"]],
+    ]
+    if data.get("securityRisk"):
+        lines.extend(["", "## Security / Risk", "", data["securityRisk"].strip()])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def ensure_unreleased_changelog(changelog_path, entry):
+    changelog_path = Path(changelog_path)
+    bullet = f"- {entry.strip()}"
+    if changelog_path.exists():
+        original = changelog_path.read_text(encoding="utf-8")
+    else:
+        original = ""
+    if any(line.rstrip() == bullet for line in original.splitlines()):
+        return False
+
+    if not original.strip():
+        updated = f"# Changelog\n\n## Unreleased\n\n{bullet}\n"
+    else:
+        lines = original.rstrip().splitlines()
+        heading_index = next(
+            (index for index, line in enumerate(lines) if line.strip().lower() == "## unreleased"),
+            None,
+        )
+        if heading_index is None:
+            updated = original.rstrip() + f"\n\n## Unreleased\n\n{bullet}\n"
+        else:
+            insert_at = heading_index + 1
+            while insert_at < len(lines) and not lines[insert_at].strip():
+                insert_at += 1
+            lines[insert_at:insert_at] = [bullet, ""]
+            updated = "\n".join(lines).rstrip() + "\n"
+    changelog_path.write_text(updated, encoding="utf-8")
+    return True
+
+
+def command_merge_prepare(args):
+    repo = Path(args.git_root).resolve()
+    handoff_path = Path(args.handoff)
+    if not handoff_path.is_absolute():
+        handoff_path = repo / handoff_path
+    body_path = Path(args.body_output)
+    if not body_path.is_absolute():
+        body_path = repo / body_path
+    changelog_path = repo / "CHANGELOG.md"
+    payload = {
+        "schemaVersion": "1.0",
+        "status": "pass",
+        "findings": [],
+        "title": None,
+        "bodyPath": str(body_path),
+        "changelogPath": str(changelog_path),
+        "changelogEntry": None,
+        "changelogChanged": False,
+    }
+    if not handoff_path.is_file():
+        add_finding(payload, "missing_handoff_file", "fail", f"Merge handoff does not exist: {handoff_path}")
+    else:
+        try:
+            data = load_merge_handoff(handoff_path)
+        except (json.JSONDecodeError, OSError) as error:
+            add_finding(payload, "invalid_handoff_file", "fail", str(error))
+            data = None
+        if data is not None:
+            payload["findings"].extend(validate_merge_handoff(data))
+            payload["title"] = data.get("title")
+            payload["changelogEntry"] = data.get("changelog")
+            if not payload["findings"]:
+                body_path.parent.mkdir(parents=True, exist_ok=True)
+                body_path.write_text(render_pr_body(data), encoding="utf-8")
+                payload["changelogChanged"] = ensure_unreleased_changelog(changelog_path, data["changelog"])
+    payload["status"] = status_for(payload)
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def repository_merge_settings(repo):
+    result = gh([
+        "repo",
+        "view",
+        "--json",
+        "defaultBranchRef,mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed",
+    ], repo)
+    if result.returncode != 0:
+        return None, result.stderr.strip() or result.stdout.strip()
+    return json.loads(result.stdout), None
+
+
+def merge_method_from_settings(settings):
+    if not settings:
+        return "merge"
+    if settings.get("mergeCommitAllowed"):
+        return "merge"
+    if settings.get("squashMergeAllowed"):
+        return "squash"
+    if settings.get("rebaseMergeAllowed"):
+        return "rebase"
+    return None
+
+
+def merge_input_path(repo, path):
+    path = Path(path)
+    return path if path.is_absolute() else repo / path
+
+
+def load_merge_inputs(args, payload):
+    repo = Path(args.git_root).resolve()
+    handoff_path = merge_input_path(repo, args.handoff)
+    body_path = merge_input_path(repo, args.body)
+    data = None
+    body = ""
+    if git(["rev-parse", "--is-inside-work-tree"], repo).returncode != 0:
+        add_finding(payload, "git_root_not_repo", "fail", f"Not a git repository: {repo}")
+    if not handoff_path.is_file():
+        add_finding(payload, "missing_handoff_file", "fail", f"Merge handoff does not exist: {handoff_path}")
+    else:
+        try:
+            data = load_merge_handoff(handoff_path)
+        except (json.JSONDecodeError, OSError) as error:
+            add_finding(payload, "invalid_handoff_file", "fail", str(error))
+        if data is not None:
+            payload["findings"].extend(validate_merge_handoff(data))
+    if not body_path.is_file():
+        add_finding(payload, "missing_pr_body", "fail", f"PR body does not exist: {body_path}")
+    else:
+        body = body_path.read_text(encoding="utf-8")
+    payload["handoffPath"] = str(handoff_path)
+    payload["bodyPath"] = str(body_path)
+    return repo, data, body
+
+
+def add_existing_pr_blockers(payload, pr):
+    if not pr:
+        return
+    if pr.get("state") != "OPEN":
+        add_finding(payload, "pull_request_not_open", "review", f"Pull request is {pr.get('state')}.")
+    if pr.get("isDraft"):
+        add_finding(payload, "pull_request_is_draft", "review", "Pull request is still a draft.")
+    if pr.get("reviewDecision") in {"CHANGES_REQUESTED", "REVIEW_REQUIRED"}:
+        add_finding(payload, "pull_request_review_pending", "review", f"Pull request review decision is {pr.get('reviewDecision')}.")
+    if pr.get("mergeable") not in {"MERGEABLE", "UNKNOWN"}:
+        add_finding(payload, "pull_request_not_mergeable", "review", f"Pull request mergeable state is {pr.get('mergeable')}.")
+    check_status, check_message = checks_state(pr.get("statusCheckRollup", []))
+    if check_status == "failing":
+        add_finding(payload, "pull_request_checks_failing", "review", check_message)
+
+
+def collect_merge_state(git_root, handoff, body):
+    repo = Path(git_root).resolve()
+    branch = branch_name(repo)
+    settings, settings_error = repository_merge_settings(repo)
+    pr, pr_error = current_pr(repo)
+    default_branch = ((settings or {}).get("defaultBranchRef") or {}).get("name") or "main"
+    default_counts = None
+    remote_default = f"origin/{default_branch}"
+    if git(["rev-parse", "--verify", remote_default], repo).returncode == 0:
+        counts = git(["rev-list", "--left-right", "--count", f"{remote_default}...HEAD"], repo)
+        if counts.returncode == 0 and len(counts.stdout.split()) == 2:
+            behind, ahead = [int(value) for value in counts.stdout.split()]
+            default_counts = {"behind": behind, "ahead": ahead}
+    return {
+        "repo": str(repo),
+        "branch": branch,
+        "dirty": dirty_paths(repo),
+        "handoff": handoff,
+        "body": body,
+        "settings": settings,
+        "settingsError": settings_error,
+        "defaultBranch": default_branch,
+        "defaultCounts": default_counts,
+        "pr": pr,
+        "prError": pr_error,
+    }
+
+
+def build_merge_plan(state):
+    payload = {
+        "schemaVersion": "1.0",
+        "status": "pass",
+        "findings": [],
+        "mergePlan": {"canMerge": False, "actions": [], "blockers": [], "warnings": []},
+        "branch": state.get("branch"),
+        "defaultBranch": state.get("defaultBranch"),
+        "pr": state.get("pr"),
+    }
+    handoff = state.get("handoff") or {}
+    branch = state.get("branch") or ""
+    if not branch or branch == state.get("defaultBranch") or branch in {"main", "master"}:
+        add_finding(payload, "task_branch_required", "fail", "Merge automation requires a named task branch, not the default branch.")
+    if state.get("dirty"):
+        add_finding(payload, "uncommitted_merge_work", "fail", "Commit or preserve all merge work before creating the PR: " + ", ".join(state["dirty"][:4]))
+
+    if handoff:
+        expected_body = render_pr_body(handoff)
+        if state.get("body") != expected_body:
+            add_finding(payload, "pr_body_out_of_date", "fail", "PR body does not match the current merge handoff; run merge prepare again.")
+        bullet = f"- {handoff.get('changelog', '').strip()}"
+        changelog_path = Path(state["repo"]) / "CHANGELOG.md"
+        changelog = changelog_path.read_text(encoding="utf-8") if changelog_path.is_file() else ""
+        if not bullet.strip("- ") or sum(line.rstrip() == bullet for line in changelog.splitlines()) != 1:
+            add_finding(payload, "changelog_mismatch", "fail", "CHANGELOG.md must contain the exact PR changelog entry once.")
+
+    counts = state.get("defaultCounts")
+    if counts and counts.get("behind"):
+        add_finding(payload, "branch_behind_default", "review", f"Task branch is behind origin/{state['defaultBranch']} by {counts['behind']} commit(s).")
+
+    if state.get("settingsError"):
+        add_finding(payload, "merge_settings_unverified", "warn", "Could not verify repository merge settings; using merge-commit fallback.")
+    merge_method = merge_method_from_settings(state.get("settings"))
+    if not merge_method:
+        add_finding(payload, "no_allowed_merge_method", "fail", "Repository reports no allowed pull-request merge method.")
+    add_existing_pr_blockers(payload, state.get("pr"))
+
+    payload["status"] = status_for(payload)
+    pr = state.get("pr")
+    pr_action = {
+        "type": "gh_pr_edit" if pr else "gh_pr_create",
+        "prNumber": pr.get("number") if pr else None,
+    }
+    actions = [
+        {"type": "git_push", "branch": branch},
+        pr_action,
+        {"type": "gh_pr_checks_watch", "prNumber": pr.get("number") if pr else None},
+        {"type": "gh_pr_merge", "prNumber": pr.get("number") if pr else None, "mergeMethod": merge_method},
+        {"type": "delete_remote_branch", "branch": branch},
+        {"type": "verify_default_branch", "branch": state.get("defaultBranch")},
+    ]
+    blockers = [item["code"] for item in payload["findings"] if item["severity"] in {"review", "fail"}]
+    warnings = [item["code"] for item in payload["findings"] if item["severity"] == "warn"]
+    payload["mergePlan"] = {
+        "canMerge": payload["status"] in {"pass", "warn"},
+        "actions": actions if payload["status"] in {"pass", "warn"} else [],
+        "blockers": blockers,
+        "warnings": warnings,
+    }
+    return payload
+
+
+def build_merge_payload(args):
+    shell = {"schemaVersion": "1.0", "status": "pass", "findings": []}
+    repo, data, body = load_merge_inputs(args, shell)
+    if shell["findings"]:
+        shell["status"] = status_for(shell)
+        shell["mergePlan"] = {"canMerge": False, "actions": [], "blockers": [item["code"] for item in shell["findings"]], "warnings": []}
+        return shell
+    state = collect_merge_state(repo, data, body)
+    return build_merge_plan(state)
+
+
+def refreshed_pr_is_mergeable(payload, pr):
+    if not pr:
+        add_finding(payload, "pull_request_missing_after_publish", "fail", "Could not find the pull request after publishing it.")
+        return False
+    before = len(payload["findings"])
+    add_existing_pr_blockers(payload, pr)
+    check_status, check_message = checks_state(pr.get("statusCheckRollup", []))
+    if check_status != "passing":
+        add_finding(payload, f"pull_request_checks_{check_status}", "fail", check_message)
+    return len(payload["findings"]) == before
+
+
+def wait_for_pr_checks(repo, timeout_seconds=60, poll_seconds=2):
+    deadline = time.monotonic() + timeout_seconds
+    last_error = None
+    while True:
+        pr, last_error = current_pr(repo)
+        if pr and pr.get("statusCheckRollup"):
+            return pr, None
+        if time.monotonic() >= deadline:
+            return pr, last_error or f"No PR status checks were reported within {timeout_seconds} seconds."
+        time.sleep(poll_seconds)
+
+
+def delete_remote_branch(repo, branch, git_runner=None):
+    git_runner = git_runner or git
+    probe = git_runner(["ls-remote", "--exit-code", "--heads", "origin", branch], repo)
+    if probe.returncode == 2:
+        return subprocess.CompletedProcess(probe.args, 0, probe.stdout, probe.stderr)
+    if probe.returncode != 0:
+        return probe
+
+    deletion = git_runner(["push", "origin", "--delete", branch], repo)
+    if deletion.returncode == 0:
+        return deletion
+
+    confirmation = git_runner(["ls-remote", "--exit-code", "--heads", "origin", branch], repo)
+    if confirmation.returncode == 2:
+        return subprocess.CompletedProcess(deletion.args, 0, deletion.stdout, deletion.stderr)
+    return deletion
+
+
+def execute_merge_plan(payload, git_root, handoff_path, body_path):
+    repo = Path(git_root).resolve()
+    executed = []
+    branch = payload.get("branch")
+    default_branch = payload.get("defaultBranch") or "main"
+    handoff = load_merge_handoff(handoff_path)
+    pr = payload.get("pr")
+    for action in payload.get("mergePlan", {}).get("actions", []):
+        action_type = action["type"]
+        if action_type == "git_push":
+            result = git(["push", "-u", "origin", f"HEAD:{branch}"], repo)
+        elif action_type == "gh_pr_create":
+            result = gh([
+                "pr", "create", "--title", handoff["title"], "--body-file", str(body_path),
+                "--base", default_branch, "--head", branch,
+            ], repo)
+        elif action_type == "gh_pr_edit":
+            result = gh(["pr", "edit", str(pr.get("number")), "--title", handoff["title"], "--body-file", str(body_path)], repo)
+        elif action_type == "gh_pr_checks_watch":
+            pr, checks_error = wait_for_pr_checks(repo)
+            if checks_error:
+                add_finding(payload, "pull_request_checks_missing", "fail", checks_error)
+                break
+            action["prNumber"] = pr.get("number")
+            result = gh(["pr", "checks", str(pr.get("number")), "--watch"], repo)
+        elif action_type == "gh_pr_merge":
+            pr, _ = current_pr(repo)
+            if not refreshed_pr_is_mergeable(payload, pr):
+                break
+            action["prNumber"] = pr.get("number")
+            method = action.get("mergeMethod") or "merge"
+            result = gh(["pr", "merge", str(pr.get("number")), f"--{method}"], repo)
+        elif action_type == "delete_remote_branch":
+            result = delete_remote_branch(repo, branch)
+        elif action_type == "verify_default_branch":
+            fetch = git(["fetch", "origin", default_branch], repo)
+            if fetch.returncode != 0:
+                result = fetch
+            else:
+                result = git(["merge-base", "--is-ancestor", "HEAD", f"origin/{default_branch}"], repo)
+        else:
+            add_finding(payload, "unknown_merge_action", "fail", f"Unknown merge action: {action_type}")
+            break
+        if result.returncode != 0:
+            add_finding(payload, f"{action_type}_failed", "fail", result.stderr.strip() or result.stdout.strip() or f"{action_type} failed")
+            break
+        executed.append(action)
+
+    payload["executedActions"] = executed
+    payload["pr"] = pr
+    payload["status"] = status_for(payload)
+    return payload
+
+
+def command_merge_plan(args):
+    payload = build_merge_payload(args)
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def command_merge_execute(args):
+    payload = build_merge_payload(args)
+    if payload["status"] not in {"pass", "warn"}:
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+    repo = Path(args.git_root).resolve()
+    handoff_path = merge_input_path(repo, args.handoff)
+    body_path = merge_input_path(repo, args.body)
+    payload = execute_merge_plan(payload, repo, handoff_path, body_path)
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
 
 
 def dirty_paths(repo):
@@ -1707,6 +2187,22 @@ def build_parser():
     archive_execute = archive_subcommands.add_parser("execute")
     add_archive_args(archive_execute)
     archive_execute.set_defaults(func=command_archive_execute)
+
+    merge = subcommands.add_parser("merge", help="Prepare or execute a contextual pull-request merge.")
+    merge_subcommands = merge.add_subparsers(dest="merge_command", required=True)
+    merge_prepare = merge_subcommands.add_parser("prepare")
+    merge_prepare.add_argument("--git-root", type=Path, default=Path.cwd())
+    merge_prepare.add_argument("--handoff", type=Path, required=True)
+    merge_prepare.add_argument("--body-output", type=Path, default=Path(".gauntlet/pr-body.md"))
+    merge_prepare.add_argument("--json", action="store_true")
+    merge_prepare.set_defaults(func=command_merge_prepare)
+    for name, func in [("plan", command_merge_plan), ("execute", command_merge_execute)]:
+        merge_command = merge_subcommands.add_parser(name)
+        merge_command.add_argument("--git-root", type=Path, default=Path.cwd())
+        merge_command.add_argument("--handoff", type=Path, required=True)
+        merge_command.add_argument("--body", type=Path, default=Path(".gauntlet/pr-body.md"))
+        merge_command.add_argument("--json", action="store_true")
+        merge_command.set_defaults(func=func)
 
     install = subcommands.add_parser("install", help="Installed-layout helpers.")
     install_subcommands = install.add_subparsers(dest="install_command", required=True)

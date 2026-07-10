@@ -11,15 +11,18 @@ LOG_NAME = "subagent-plan-log.jsonl"
 SUMMARY_NAME = "subagent-plan-summary.json"
 VALID_SCHEMA_VERSION = "1.2"
 VALID_STATE_ACCESS = {"none", "read-only", "mutates"}
-VALID_LANE_STATUS = {"To Do", "In Progress", "Blocked", "In Review", "Done", "Canceled"}
 OVERBROAD_PATHS = {"*", "**", "**/*", ".", "./", "/*"}
+REQUIRED_SHARED_FIELDS = [
+    "projectRoot",
+    "acceptedSource",
+    "constraints",
+    "askUserPolicy",
+    "expectedReturn",
+]
 REQUIRED_LANE_FIELDS = [
     "id",
-    "status",
-    "title",
     "skill",
     "objective",
-    "projectRoot",
     "worktreePath",
     "scope",
     "inScope",
@@ -32,10 +35,9 @@ REQUIRED_LANE_FIELDS = [
     "dependsOn",
     "consumes",
     "produces",
+    "laneConstraints",
     "proof",
-    "inlineContext",
-    "expectedReturn",
-    "askUserPolicy",
+    "contextDelta",
 ]
 LEGACY_DUPLICATE_FIELDS = {"dependencies", "taskPacketRef"}
 SECRET_PATTERNS = [
@@ -86,8 +88,8 @@ def path_overlap(left, right):
     return left.startswith(right_prefix) or right.startswith(left_prefix) or left_prefix.startswith(right_prefix) or right_prefix.startswith(left_prefix)
 
 
-def add_rejection(rejections, code, message, lane_id=None):
-    rejections.append({"code": code, "laneId": lane_id, "message": message})
+def add_finding(findings, code, message, lane_id=None):
+    findings.append({"code": code, "laneId": lane_id, "message": message})
 
 
 def require_list(value):
@@ -103,94 +105,163 @@ def is_overbroad_path(pattern):
     return normalized in OVERBROAD_PATHS
 
 
+def resolve_project_reference(project_root, reference):
+    if not isinstance(reference, str) or not reference.strip():
+        return None
+    path_part = reference.split("#", 1)[0].strip()
+    if not path_part or Path(path_part).is_absolute():
+        return None
+    candidate = (project_root / path_part).resolve()
+    try:
+        candidate.relative_to(project_root)
+    except ValueError:
+        return None
+    return candidate
+
+
+def dependency_names(lane):
+    return {normalize_text(item) for item in lane.get("dependsOn", []) if isinstance(item, str)}
+
+
+def dependency_orders(left, right):
+    left_id = normalize_text(left.get("id", ""))
+    right_id = normalize_text(right.get("id", ""))
+    left_dependencies = dependency_names(left)
+    right_dependencies = dependency_names(right)
+    return any(
+        dependency == right_id or dependency.startswith(f"{right_id} ")
+        for dependency in left_dependencies
+    ) or any(
+        dependency == left_id or dependency.startswith(f"{left_id} ")
+        for dependency in right_dependencies
+    )
+
+
 def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
     rejections = []
+    warnings = []
     if data.get("schemaVersion") != VALID_SCHEMA_VERSION:
-        add_rejection(
+        add_finding(
             rejections,
             "unsupported_schema_version",
             f"schemaVersion must be {VALID_SCHEMA_VERSION}",
         )
+
+    run_id = data.get("runId")
+    if not isinstance(run_id, str) or not run_id.strip():
+        add_finding(rejections, "missing_run_id", "plan must include a non-empty runId")
+
+    shared = data.get("shared")
+    if not isinstance(shared, dict):
+        add_finding(rejections, "missing_shared", "plan must include a shared object")
+        shared = {}
+    for field in REQUIRED_SHARED_FIELDS:
+        if field not in shared:
+            add_finding(rejections, "missing_shared_field", f"shared missing required field: {field}")
+
+    for field in ["projectRoot", "acceptedSource", "askUserPolicy", "expectedReturn"]:
+        if field in shared and not isinstance(shared[field], str):
+            add_finding(rejections, "invalid_shared_field_type", f"shared.{field} must be a string")
+        elif field in shared and not shared[field].strip():
+            add_finding(rejections, "empty_shared_field", f"shared.{field} must not be empty")
+    if "constraints" in shared and not require_list(shared["constraints"]):
+        add_finding(rejections, "invalid_shared_field_type", "shared.constraints must be a list of strings")
+
+    if isinstance(shared.get("projectRoot"), str) and shared["projectRoot"].strip():
+        declared_root = Path(shared["projectRoot"])
+        if not declared_root.is_absolute():
+            declared_root = project_root / declared_root
+        if declared_root.resolve() != project_root:
+            add_finding(
+                rejections,
+                "project_root_mismatch",
+                "shared.projectRoot must resolve to the validated project root",
+            )
+
+    if isinstance(shared.get("acceptedSource"), str) and shared["acceptedSource"].strip():
+        source_value = shared["acceptedSource"].strip()
+        if "/" in source_value or source_value.endswith((".md", ".json", ".yaml", ".yml")):
+            accepted_source = resolve_project_reference(project_root, source_value)
+            if accepted_source is None:
+                add_finding(
+                    rejections,
+                    "invalid_accepted_source",
+                    "path-like shared.acceptedSource must stay inside the project root",
+                )
+            elif not accepted_source.is_file():
+                add_finding(
+                    rejections,
+                    "accepted_source_missing",
+                    f"shared.acceptedSource does not exist: {source_value}",
+                )
+
+    shared_context = "\n".join([
+        *(shared.get("constraints", []) if isinstance(shared.get("constraints"), list) else []),
+        shared.get("askUserPolicy", "") if isinstance(shared.get("askUserPolicy"), str) else "",
+        shared.get("expectedReturn", "") if isinstance(shared.get("expectedReturn"), str) else "",
+    ])
+    if has_secret(shared_context):
+        add_finding(
+            rejections,
+            "secret_in_shared_context",
+            "shared context appears to contain a secret; redact or reference a safe source",
+        )
+
     lanes = data.get("lanes")
     if not isinstance(lanes, list):
-        add_rejection(rejections, "missing_lanes", "plan must include a lanes array")
-        return rejections
-    if len(lanes) < 2:
-        add_rejection(rejections, "not_enough_lanes", "parallel subagent plans need at least two lanes")
-
-    shared_source = data.get("acceptedSource")
-    if shared_source is not None and (not isinstance(shared_source, str) or not shared_source.strip()):
-        add_rejection(rejections, "invalid_field_type", "top-level acceptedSource must be a non-empty string")
-    shared_constraints = data.get("constraints")
-    if shared_constraints is not None and not require_list(shared_constraints):
-        add_rejection(rejections, "invalid_field_type", "top-level constraints must be a list of strings")
+        add_finding(rejections, "missing_lanes", "plan must include a lanes array")
+        return {"rejections": rejections, "warnings": warnings}
+    if not lanes:
+        add_finding(rejections, "missing_lanes", "plan must include at least one lane")
 
     seen_ids = set()
     contexts = {}
-    total_inline_words = 0
+    total_context_words = word_count(shared_context)
 
     for index, lane in enumerate(lanes):
         lane_id = lane.get("id") if isinstance(lane, dict) else f"lane-{index + 1}"
         if not isinstance(lane, dict):
-            add_rejection(rejections, "invalid_lane", "lane must be an object", lane_id)
+            add_finding(rejections, "invalid_lane", "lane must be an object", lane_id)
             continue
 
         for field in REQUIRED_LANE_FIELDS:
             if field not in lane:
-                add_rejection(rejections, "missing_field", f"lane missing required field: {field}", lane_id)
+                add_finding(rejections, "missing_field", f"lane missing required field: {field}", lane_id)
 
         for field in LEGACY_DUPLICATE_FIELDS:
             if field in lane:
-                add_rejection(
+                add_finding(
                     rejections,
                     "legacy_duplicate_field",
-                    f"{field} is not supported in schema 1.2; use the canonical manifest only",
+                    f"{field} is not supported in schema 1.2; the manifest is the canonical packet",
                     lane_id,
                 )
 
-        lane_source = lane.get("acceptedSource", shared_source)
-        if not isinstance(lane_source, str) or not lane_source.strip():
-            add_rejection(rejections, "missing_field", "acceptedSource is required at plan or lane level", lane_id)
-        lane_constraints = lane.get("constraints", shared_constraints)
-        if not require_list(lane_constraints):
-            add_rejection(rejections, "missing_field", "constraints are required at plan or lane level", lane_id)
-
         if not isinstance(lane.get("id"), str) or not lane.get("id").strip():
-            add_rejection(rejections, "invalid_id", "lane id must be a non-empty string", lane_id)
+            add_finding(rejections, "invalid_id", "lane id must be a non-empty string", lane_id)
         elif lane["id"] in seen_ids:
-            add_rejection(rejections, "duplicate_id", f"duplicate lane id: {lane['id']}", lane_id)
+            add_finding(rejections, "duplicate_id", f"duplicate lane id: {lane['id']}", lane_id)
         else:
             seen_ids.add(lane["id"])
 
         for field in [
-            "status",
-            "title",
             "skill",
             "objective",
-            "projectRoot",
             "worktreePath",
             "scope",
             "stateScope",
             "stateAccess",
-            "inlineContext",
-            "expectedReturn",
-            "askUserPolicy",
         ]:
             if field in lane and not isinstance(lane[field], str):
-                add_rejection(rejections, "invalid_field_type", f"{field} must be a string", lane_id)
+                add_finding(rejections, "invalid_field_type", f"{field} must be a string", lane_id)
             elif field in lane and not lane[field].strip():
-                add_rejection(rejections, "empty_field", f"{field} must not be empty", lane_id)
+                add_finding(rejections, "empty_field", f"{field} must not be empty", lane_id)
 
-        if lane.get("status") not in VALID_LANE_STATUS:
-            add_rejection(
-                rejections,
-                "invalid_lane_status",
-                f"status must be one of: {', '.join(sorted(VALID_LANE_STATUS))}",
-                lane_id,
-            )
+        if "contextDelta" in lane and not isinstance(lane["contextDelta"], str):
+            add_finding(rejections, "invalid_field_type", "contextDelta must be a string", lane_id)
 
         if lane.get("stateAccess") not in VALID_STATE_ACCESS:
-            add_rejection(
+            add_finding(
                 rejections,
                 "invalid_state_access",
                 f"stateAccess must be one of: {', '.join(sorted(VALID_STATE_ACCESS))}",
@@ -206,58 +277,58 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
             "dependsOn",
             "consumes",
             "produces",
+            "laneConstraints",
             "proof",
         ]:
             if field in lane and not require_list(lane[field]):
-                add_rejection(rejections, "invalid_field_type", f"{field} must be a list of strings", lane_id)
+                add_finding(rejections, "invalid_field_type", f"{field} must be a list of strings", lane_id)
         if isinstance(lane.get("proof"), list) and not lane["proof"]:
-            add_rejection(rejections, "missing_proof", "lane proof must not be empty", lane_id)
+            add_finding(rejections, "missing_proof", "lane proof must not be empty", lane_id)
 
-        if isinstance(lane.get("projectRoot"), str) and lane["projectRoot"].strip():
-            declared_root = Path(lane["projectRoot"])
-            if not declared_root.is_absolute():
-                declared_root = project_root / declared_root
-            if declared_root.resolve() != project_root:
-                add_rejection(
+        lane_context = "\n".join([
+            lane.get("contextDelta", "") if isinstance(lane.get("contextDelta"), str) else "",
+            *(lane.get("laneConstraints", []) if isinstance(lane.get("laneConstraints"), list) else []),
+        ])
+        lane_words = word_count(lane_context)
+        total_context_words += lane_words
+        contexts[lane_id] = lane_context
+        if has_secret(lane_context):
+            add_finding(
+                rejections,
+                "secret_in_lane_context",
+                "lane context appears to contain a secret; redact or reference a safe source",
+                lane_id,
+            )
+        if lane_words > max_inline_words:
+            add_finding(
+                warnings,
+                "lane_context_too_large",
+                f"lane context has {lane_words} words; advisory max is {max_inline_words}",
+                lane_id,
+            )
+
+        for pattern in lane.get("filesRead", []) if isinstance(lane.get("filesRead"), list) else []:
+            if is_overbroad_path(pattern):
+                add_finding(
+                    warnings,
+                    "overbroad_read_scope",
+                    f"filesRead contains broad path '{pattern}'; keep it only when whole-repo inspection is intended",
+                    lane_id,
+                )
+        for pattern in lane.get("filesWrite", []) if isinstance(lane.get("filesWrite"), list) else []:
+            if is_overbroad_path(pattern):
+                add_finding(
                     rejections,
-                    "project_root_mismatch",
-                    "lane projectRoot must resolve to the validated project root",
+                    "overbroad_write_scope",
+                    f"filesWrite contains overbroad path '{pattern}'; name bounded files or directories",
                     lane_id,
                 )
 
-        inline_words = word_count(lane.get("inlineContext", ""))
-        total_inline_words += inline_words
-        contexts[lane_id] = lane.get("inlineContext", "")
-        if has_secret(lane.get("inlineContext", "")):
-            add_rejection(
-                rejections,
-                "secret_in_inline_context",
-                "lane inlineContext appears to contain a secret; redact or summarize before dispatch",
-                lane_id,
-            )
-        if inline_words > max_inline_words:
-            add_rejection(
-                rejections,
-                "inline_context_too_large",
-                f"inlineContext has {inline_words} words; max is {max_inline_words}",
-                lane_id,
-            )
-
-        for field in ["filesRead", "filesWrite"]:
-            for pattern in lane.get(field, []) if isinstance(lane.get(field), list) else []:
-                if is_overbroad_path(pattern):
-                    add_rejection(
-                        rejections,
-                        "overbroad_scope",
-                        f"{field} contains overbroad path '{pattern}'; name bounded files or directories",
-                        lane_id,
-                    )
-
-    if total_inline_words > max_total_inline_words:
-        add_rejection(
-            rejections,
-            "total_inline_context_too_large",
-            f"total inlineContext has {total_inline_words} words; max is {max_total_inline_words}",
+    if total_context_words > max_total_inline_words:
+        add_finding(
+            warnings,
+            "total_context_too_large",
+            f"shared plus lane context has {total_context_words} words; advisory max is {max_total_inline_words}",
         )
 
     lane_by_id = {
@@ -268,9 +339,9 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
     for lane_id, lane in lane_by_id.items():
         for dependency in lane.get("dependsOn", []) if isinstance(lane.get("dependsOn"), list) else []:
             if dependency == lane_id:
-                add_rejection(rejections, "self_dependency", f"{lane_id} depends on itself", lane_id)
+                add_finding(rejections, "self_dependency", f"{lane_id} depends on itself", lane_id)
             elif dependency not in lane_by_id:
-                add_rejection(rejections, "unknown_dependency", f"{lane_id} depends on unknown lane: {dependency}", lane_id)
+                add_finding(rejections, "unknown_dependency", f"{lane_id} depends on unknown lane: {dependency}", lane_id)
 
     visiting = set()
     visited = set()
@@ -293,21 +364,9 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
     for lane_id in lane_by_id:
         visit(lane_id)
     if cycle_found:
-        add_rejection(rejections, "dependency_cycle", "lane dependsOn graph contains a cycle")
-
-    ready_lanes = []
-    for lane_id, lane in lane_by_id.items():
-        if lane.get("status") not in {"To Do", "In Progress", "In Review"}:
-            continue
-        unresolved = [
-            dependency
-            for dependency in lane.get("dependsOn", [])
-            if dependency not in lane_by_id or lane_by_id[dependency].get("status") != "Done"
-        ]
-        if not unresolved:
-            ready_lanes.append(lane_id)
-    if lane_by_id and not ready_lanes:
-        add_rejection(rejections, "no_ready_lane", "manifest has no ready lane without dependencies")
+        add_finding(rejections, "dependency_cycle", "lane dependsOn graph contains a cycle")
+    if lane_by_id and not any(not lane.get("dependsOn") for lane in lane_by_id.values()):
+        add_finding(rejections, "no_ready_lane", "manifest has no first-ready lane without dependencies")
 
     for left_index, left in enumerate(lanes if isinstance(lanes, list) else []):
         if not isinstance(left, dict):
@@ -321,7 +380,7 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
             for left_path in left.get("filesWrite", []) if isinstance(left.get("filesWrite"), list) else []:
                 for right_path in right.get("filesWrite", []) if isinstance(right.get("filesWrite"), list) else []:
                     if path_overlap(left_path, right_path):
-                        add_rejection(
+                        add_finding(
                             rejections,
                             "overlapping_writes",
                             f"{left_id} and {right_id} both write overlapping paths: {left_path} / {right_path}",
@@ -331,8 +390,9 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
                 left.get("stateScope")
                 and left.get("stateScope") == right.get("stateScope")
                 and "mutates" in {left.get("stateAccess"), right.get("stateAccess")}
+                and not dependency_orders(left, right)
             ):
-                add_rejection(
+                add_finding(
                     rejections,
                     "shared_mutable_state",
                     f"{left_id} and {right_id} share mutable stateScope: {left.get('stateScope')}",
@@ -342,8 +402,8 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
             right_proof = {normalize_text(item) for item in right.get("proof", []) if isinstance(item, str)}
             duplicates = sorted(item for item in left_proof & right_proof if item)
             if duplicates:
-                add_rejection(
-                    rejections,
+                add_finding(
+                    warnings,
                     "duplicate_proof_target",
                     f"{left_id} and {right_id} share proof target: {duplicates[0]}",
                 )
@@ -354,13 +414,13 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
             shingle_to_lanes[shingle].add(lane_id)
     duplicate_shingles = [lanes for lanes in shingle_to_lanes.values() if len(lanes) > 1]
     if duplicate_shingles:
-        add_rejection(
-            rejections,
-            "duplicated_inline_context",
-            f"inlineContext repeats long text across lanes ({len(duplicate_shingles)} repeated blocks)",
+        add_finding(
+            warnings,
+            "duplicated_lane_context",
+            f"lane context repeats long text across lanes ({len(duplicate_shingles)} repeated blocks); move common text to shared",
         )
 
-    return rejections
+    return {"rejections": rejections, "warnings": warnings}
 
 
 def read_log(log_path):
@@ -376,10 +436,13 @@ def read_log(log_path):
 def summarize(records, run_id=None):
     filtered = [record for record in records if not run_id or record.get("runId") == run_id]
     rejected = [record for record in filtered if record.get("status") == "rejected"]
-    codes = Counter()
-    for record in rejected:
+    rejection_codes = Counter()
+    warning_codes = Counter()
+    for record in filtered:
         for rejection in record.get("rejections", []):
-            codes[rejection.get("code", "unknown")] += 1
+            rejection_codes[rejection.get("code", "unknown")] += 1
+        for warning in record.get("warnings", []):
+            warning_codes[warning.get("code", "unknown")] += 1
     return {
         "schemaVersion": "1.0",
         "runId": run_id or "all",
@@ -387,7 +450,9 @@ def summarize(records, run_id=None):
         "acceptedPlans": sum(1 for record in filtered if record.get("status") == "accepted"),
         "rejectedPlans": len(rejected),
         "rejectionCount": sum(int(record.get("rejectionCount", 0)) for record in rejected),
-        "rejectionsByCode": dict(sorted(codes.items())),
+        "warningCount": sum(int(record.get("warningCount", 0)) for record in filtered),
+        "rejectionsByCode": dict(sorted(rejection_codes.items())),
+        "warningsByCode": dict(sorted(warning_codes.items())),
     }
 
 
@@ -402,7 +467,8 @@ def write_summary(project_root, records, run_id):
 def print_summary(summary):
     print(
         f"Subagent plans: {summary['checkedPlans']} checked, "
-        f"{summary['rejectedPlans']} rejected, {summary['rejectionCount']} rejection(s)."
+        f"{summary['rejectedPlans']} rejected, {summary['rejectionCount']} rejection(s), "
+        f"{summary['warningCount']} warning(s)."
     )
 
 
@@ -431,7 +497,15 @@ def main():
         raise SystemExit("plan path is required unless --stats is used")
 
     data = json.loads(args.plan.read_text(encoding="utf-8"))
-    rejections = validate_plan(data, project_root, args.max_inline_words, args.max_total_inline_words)
+    result = validate_plan(data, project_root, args.max_inline_words, args.max_total_inline_words)
+    rejections = result["rejections"]
+    warnings = result["warnings"]
+    if args.run_id and data.get("runId") != args.run_id:
+        add_finding(
+            rejections,
+            "run_id_mismatch",
+            f"plan runId must match --run-id ({args.run_id})",
+        )
     status = "rejected" if rejections else "accepted"
     record = {
         "schemaVersion": "1.0",
@@ -443,6 +517,8 @@ def main():
         "laneCount": len(data.get("lanes", [])) if isinstance(data.get("lanes"), list) else 0,
         "rejectionCount": len(rejections),
         "rejections": rejections,
+        "warningCount": len(warnings),
+        "warnings": warnings,
     }
 
     gauntlet_dir.mkdir(parents=True, exist_ok=True)
@@ -453,12 +529,18 @@ def main():
 
     if rejections:
         print(f"Subagent plan rejected: {len(rejections)} rejection(s); logged to {log_path.relative_to(project_root)}")
+        if warnings:
+            print(f"Advisory warnings: {len(warnings)}")
         print(f"Summary: {summary_path.relative_to(project_root)}")
         raise SystemExit(1)
 
-    print(f"Subagent plan accepted: {record['laneCount']} lane(s); logged to {log_path.relative_to(project_root)}")
-    print_summary(summary)
-    print(f"Summary: {summary_path.relative_to(project_root)}")
+    if warnings:
+        print(f"accepted with {len(warnings)} warning(s)")
+        for warning in warnings:
+            lane = f" [{warning['laneId']}]" if warning.get("laneId") else ""
+            print(f"- {warning['code']}{lane}: {warning['message']}")
+    else:
+        print("accepted")
 
 
 if __name__ == "__main__":
