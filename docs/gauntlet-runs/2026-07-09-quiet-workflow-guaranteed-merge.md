@@ -16,3 +16,4 @@
 
 - The first live PR run reached GitHub before Actions had registered any checks, so `gh pr checks --watch` exited instead of waiting. The merge helper now polls for the actual check-registration condition with a bounded timeout before handing off to GitHub's check watcher.
 - The first live merge completed remotely but GitHub CLI returned an error while trying to switch the linked feature worktree to `main` for local branch cleanup. Merge and remote-branch deletion are now separate actions, leaving local worktree cleanup to the verified final step.
+- GitHub's repository setting auto-deleted the second PR branch between Gauntlet's existence probe and explicit deletion. Remote cleanup now checks the postcondition after a failed delete and succeeds when the ref is already absent.
