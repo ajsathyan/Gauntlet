@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 SKILLS = ROOT / "skills" if (ROOT / "skills").exists() else ROOT.parent / "skills"
 AGENTS_MD = ROOT / "AGENTS.md" if (ROOT / "AGENTS.md").exists() else ROOT.parent / "AGENTS.md"
+ROUTER_MD = ROOT / "router" / "AGENTS.md" if (ROOT / "router" / "AGENTS.md").exists() else AGENTS_MD
 README_MD = ROOT / "README.md" if (ROOT / "README.md").exists() else ROOT.parent / "README.md"
 
 
@@ -85,22 +86,27 @@ def commit_all(root, message):
 
 def test_simplified_modes_and_depth_are_documented():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     readme = read(README_MD)
     planner = read(SKILLS / "planner" / "SKILL.md")
-    combined = "\n".join([agents, readme, planner])
+    combined = "\n".join([agents, router, readme, planner])
 
-    for label in ["Patch", "Feature", "Release"]:
-        assert_contains(combined, label, "mode docs")
+    for label in ["Research", "Patch", "Feature", "Release"]:
+        assert_contains(combined, label, "work path docs")
     for marker in [
-        "Mode: Patch | Feature | Release",
+        "Path: Research | Patch | Feature | Release",
         "Depth: Standard | Deep",
-        "Triggered gates:",
-        "Run Log",
-        "Panel Guard",
-        "Hygiene",
-        "TS Durability",
+        "Proof scope: smoke | delta | full | not relevant",
+        "Triggered Gates",
+        "architecture hygiene",
+        "TypeScript",
     ]:
         assert_contains(combined, marker, "simplified mode model")
+
+    if len(router.encode("utf-8")) >= 32768:
+        raise AssertionError("portable router must stay below the default 32 KiB instruction budget")
+    if ROUTER_MD != AGENTS_MD and router == agents:
+        raise AssertionError("portable router and repository contributor guide must be decoupled")
 
     for stale in ["### Deep Patch", "### Slice", "Deep Patch |", "| Deep Patch", "Slice |"]:
         assert_not_contains(combined, stale, "simplified mode model")
@@ -108,14 +114,14 @@ def test_simplified_modes_and_depth_are_documented():
 
 def test_v201_run_log_contract_replaces_default_review_brief():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     readme = read(README_MD)
     run_log = read(SKILLS / "run-log-builder" / "SKILL.md")
-    combined = "\n".join([agents, readme, run_log])
+    combined = "\n".join([agents, router, readme, run_log])
 
     for marker in [
         "v2.0.1",
         "Run Log",
-        "Decision Log Gate",
         "exceptions-first",
         "docs/gauntlet-runs/",
         "Assumptions",
@@ -161,7 +167,7 @@ def test_coverage_gap_and_design_lint_guidance_are_documented():
         "rule, reference, exemplar, lint, eval, coverage gap, or no change",
         "Reliable failure signal",
         "Resolved Gap Cleanup",
-        "remove it from `docs/coverage-gaps.md`",
+        "Remove a `GAP-###` entry from this file",
         "run log and git history are the archive",
         "new or updated gap IDs",
         "Added GAP-###: Short name",
@@ -208,10 +214,11 @@ def test_coverage_gap_and_design_lint_guidance_are_documented():
 
 def test_product_thinking_and_scope_routing_are_documented():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     readme = read(README_MD)
     black_box = read(SKILLS / "black-box-tester" / "SKILL.md")
     experience = read(SKILLS / "experience-reviewer" / "SKILL.md")
-    combined = "\n".join([agents, readme, black_box, experience])
+    combined = "\n".join([agents, router, readme, black_box, experience])
 
     for marker in [
         "v2.0.2",
@@ -224,19 +231,18 @@ def test_product_thinking_and_scope_routing_are_documented():
 
     for marker in [
         "Proof scope: smoke | delta | full | not relevant",
-        "Every non-default ceremony must declare its trigger, cap, artifact, and exit condition",
-        "Full checks are trigger-based",
-        "Feature delta",
-        "combined black-box and experience pass",
-        "Second Release issue-triager only when",
-        "Global install verification",
-        "Skill eval full suite",
+        "Run gates only when their trigger applies",
+        "bounded architecture hygiene",
+        "Substantial frontend work",
+        "Near-launch, private-beta, production-bound, hardened, or audited work",
+        "Meaningful skill or workflow changes",
     ]:
         assert_contains(combined, marker, "scope routing")
 
 
 def test_production_quality_bar_is_launch_gated():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     readme = read(README_MD)
     quality_bar = read(ROOT / "docs" / "production-quality-bar.md")
     pr_template_path = ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md"
@@ -251,6 +257,7 @@ def test_production_quality_bar_is_launch_gated():
     run_log = read(SKILLS / "run-log-builder" / "SKILL.md")
     combined = "\n".join([
         agents,
+        router,
         readme,
         quality_bar,
         planner,
@@ -321,22 +328,25 @@ def test_production_quality_bar_is_launch_gated():
 
 def test_subagent_parallelism_is_context_efficient():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     planner = read(SKILLS / "planner" / "SKILL.md")
     product = read(SKILLS / "product-architect" / "SKILL.md")
     implementer = read(SKILLS / "implementer" / "SKILL.md")
     validator_doc = read(ROOT / "docs" / "subagent-plan-validator.md")
 
     for marker in [
-        "Parallelism must beat its context cost.",
-        "Do not use subagents when each one would need the same large spec",
+        "Parallelism must beat its context cost",
+        "Delegate only independent files, state, contracts, or evidence lanes",
         "scripts/check-subagent-plan.py",
-        "expected speedup",
+        ".gauntlet/subagent-plan.json",
+        "Do not require a second prose packet",
+        "For two or more parallel lanes or any write-heavy child implementation lane",
     ]:
-        assert_contains(agents, marker, "subagent context-efficiency guard")
+        assert_contains("\n".join([agents, router]), marker, "subagent context-efficiency guard")
 
     for marker in [
         "For two or more parallel lanes or any write-heavy child implementation lane",
-        "Shared context lives in the manifest `shared` block",
+        "do not require or create a second Markdown packet",
     ]:
         assert_contains(implementer, marker, "implementer subagent guidance")
 
@@ -364,19 +374,24 @@ def test_subagent_parallelism_is_context_efficient():
         '"shared"',
         '"contextDelta"',
         "two or more parallel lanes or any write-heavy child implementation lane",
-        "Warnings do not delay implementation",
-        "Successful validation is durable internal evidence",
+        "Warnings delay work only when",
+        "Successful validation is internal evidence",
     ]:
         assert_contains(validator_doc, marker, "subagent validator reference")
 
 
-def test_kickoff_and_implementation_transition_gates_are_documented():
+def test_canonical_manifest_and_quiet_execution_are_documented():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
     planner = read(SKILLS / "planner" / "SKILL.md")
     implementer = read(SKILLS / "implementer" / "SKILL.md")
 
     for marker in [
+        "Quiet Execution",
+        "compact receipt",
+        "Do not write a second Markdown packet",
+        "accepted current-run manifest must validate before implementation",
         "no later than the third user-assistant exchange",
         "Research is never assigned `p4` merely because it is research",
         "If the priority is unchanged, say nothing about it",
@@ -384,22 +399,23 @@ def test_kickoff_and_implementation_transition_gates_are_documented():
         "before implementation, not merely before dispatch",
         "Scope delta checked: no material change.",
     ]:
-        assert_contains("\n".join([agents, etiquette]), marker, "implementation-transition guidance")
+        assert_contains("\n".join([agents, router, etiquette, planner, implementer]), marker, "canonical manifest guidance")
 
     for marker in [
-        "Omit the subagent manifest field",
-        "Successful packet validation stays silent",
+        "validated manifest lane is the bounded child contract",
+        "Successful validation stays silent",
         "Scope delta checked: no material change.",
         "before implementation",
     ]:
-        assert_contains(planner, marker, "planner implementation-transition gate")
+        assert_contains(planner, marker, "planner canonical manifest gate")
 
     for marker in [
-        "Refuse implementation",
-        "current-run manifest",
+        "refuse implementation",
+        "current-run schema",
+        "compact receipt",
         "Resolve added-scope deltas",
     ]:
-        assert_contains(implementer, marker, "implementer implementation-transition gate")
+        assert_contains(implementer, marker, "implementer quiet execution gate")
 
 
 def test_workflow_guidance_keeps_routine_controls_silent():
@@ -412,11 +428,10 @@ def test_workflow_guidance_keeps_routine_controls_silent():
     for marker in [
         "Routine workflow mechanics stay internal",
         "A clean check stays silent in chat",
-        "Successful packet validation stays silent",
-        "Do not record packetization when no child implementation lanes exist",
+        "Successful validation stays silent",
         "Native Codex state owns child progress; do not require title/status churn",
         "User-visible updates contain",
-        "Select mode, depth, proof scope, and triggered gates internally",
+        "Select mode, depth, verification scope",
     ]:
         assert_contains(combined, marker, "quiet workflow contract")
 
@@ -429,11 +444,12 @@ def test_workflow_guidance_keeps_routine_controls_silent():
 
 def test_skill_quality_bar_is_trigger_bounded():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     readme = read(README_MD)
     quality_bar = read(ROOT / "docs" / "skill-quality-bar.md")
     coverage = read(ROOT / "docs" / "coverage-gaps.md")
     plan = read(ROOT / "docs" / "skill-quality-implementation-plan.md")
-    combined = "\n".join([agents, readme, quality_bar, coverage, plan])
+    combined = "\n".join([agents, router, readme, quality_bar, coverage, plan])
 
     for marker in [
         "Skill Quality Bar",
@@ -460,7 +476,7 @@ def test_skill_quality_bar_is_trigger_bounded():
         "narrow accepted tweaks",
         "trigger, cap, artifact, and exit condition",
     ]:
-        assert_contains(agents, marker, "skill quality bar trigger bounds")
+        assert_contains(combined, marker, "skill quality bar trigger bounds")
 
     for marker in [
         "local analytics direction",
@@ -482,12 +498,8 @@ def test_skill_quality_bar_is_trigger_bounded():
 
 def complete_subagent_plan(project, lane_ids=("C1", "C2")):
     docs = project / "docs"
-    packets = project / ".gauntlet" / "packets"
     docs.mkdir(parents=True, exist_ok=True)
-    packets.mkdir(parents=True, exist_ok=True)
     (docs / "accepted-spec.md").write_text("# Accepted Spec\n")
-    for lane_id in lane_ids:
-        (packets / f"{lane_id}.md").write_text(f"# {lane_id} Task Packet\n")
     return {
         "schemaVersion": "1.2",
         "runId": "workflow-test",
@@ -518,7 +530,6 @@ def complete_subagent_plan(project, lane_ids=("C1", "C2")):
                 "laneConstraints": [],
                 "proof": [f"test-{lane_id}"],
                 "contextDelta": f"Only change the {lane_id} boundary.",
-                "taskPacketRef": f".gauntlet/packets/{lane_id}.md",
             }
             for lane_id in lane_ids
         ],
@@ -603,7 +614,7 @@ def test_subagent_plan_validator_v12_blocks_material_hazards():
         plan["shared"]["acceptedSource"] = "../outside.md"
         plan["lanes"][1]["filesWrite"] = plan["lanes"][0]["filesWrite"]
         plan["lanes"][1]["stateScope"] = plan["lanes"][0]["stateScope"]
-        plan["lanes"][0]["filesWrite"] = [*plan["lanes"][0]["filesWrite"], "**/*"]
+        plan["lanes"][0]["filesWrite"] = [*plan["lanes"][0]["filesWrite"], "**/*", "../outside/**"]
         plan["lanes"][1]["taskPacketRef"] = "../outside.md"
 
         result, record = run_subagent_plan(validator, project, plan, "v12-material-hazards")
@@ -616,8 +627,9 @@ def test_subagent_plan_validator_v12_blocks_material_hazards():
             "overlapping_writes",
             "shared_mutable_state",
             "overbroad_write_scope",
-            "invalid_task_packet_ref",
+            "legacy_packet_field",
             "invalid_accepted_source",
+            "path_outside_project",
         }
         if not expected.issubset(rejection_codes):
             raise AssertionError(f"missing blocking findings: expected {expected}, got {rejection_codes}")
@@ -690,52 +702,76 @@ def test_subagent_plan_validator_rejects_secret_and_overbroad_scope():
             raise AssertionError("broad read scope should be advisory")
 
 
-def test_subagent_plan_validator_requires_complete_lane_packets():
+def test_subagent_plan_validator_uses_canonical_manifest_and_quiet_receipts():
     validator = SCRIPTS / "check-subagent-plan.py"
 
     with tempfile.TemporaryDirectory() as tmp:
         project = Path(tmp) / "project"
         project.mkdir()
         data = complete_subagent_plan(project)
-        data["runId"] = "packet-fields"
-        for lane in data["lanes"]:
-            lane.pop("produces")
         plan = project / "subagent-plan.json"
-        plan.write_text(json.dumps(data))
 
-        incomplete = run([str(validator), str(project), str(plan), "--run-id", "packet-fields"], check=False)
-        if incomplete.returncode == 0:
-            raise AssertionError("incomplete lane packets should fail before implementation")
+        legacy = complete_subagent_plan(project)
+        legacy["schemaVersion"] = "1.1"
+        legacy["runId"] = "legacy-packets"
+        legacy["lanes"][0]["taskPacketRef"] = ".gauntlet/packets/C1.md"
+        plan.write_text(json.dumps(legacy))
+
+        legacy_result = run([str(validator), str(project), str(plan), "--run-id", "legacy-packets"], check=False)
+        if legacy_result.returncode == 0:
+            raise AssertionError("legacy packet manifests should fail with migration guidance")
         record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
-        if "missing_field" not in {rejection["code"] for rejection in record["rejections"]}:
-            raise AssertionError("incomplete lane packets should report missing_field")
+        if "legacy_schema_version" not in {rejection["code"] for rejection in record["rejections"]}:
+            raise AssertionError("schema 1.1 should report legacy_schema_version")
+        assert_contains(legacy_result.stdout, "Migration:", "legacy manifest migration")
+
+        data["runId"] = "packet-field"
+        data["lanes"][0]["taskPacketRef"] = ".gauntlet/packets/C1.md"
+        plan.write_text(json.dumps(data))
+        packet_field = run([str(validator), str(project), str(plan), "--run-id", "packet-field"], check=False)
+        if packet_field.returncode == 0:
+            raise AssertionError("taskPacketRef should fail because the manifest is the sole lane contract")
+        record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
+        if "legacy_packet_field" not in {rejection["code"] for rejection in record["rejections"]}:
+            raise AssertionError("taskPacketRef should report legacy_packet_field")
 
         data = complete_subagent_plan(project)
-        data["runId"] = "packet-files"
-        missing = project / data["lanes"][0]["taskPacketRef"]
-        missing.unlink()
+        data["runId"] = "unknown-field"
+        data["lanes"][0]["inlineContext"] = "This must not be silently dropped by rendering."
         plan.write_text(json.dumps(data))
-
-        missing_packet = run([str(validator), str(project), str(plan), "--run-id", "packet-files"], check=False)
-        if missing_packet.returncode == 0:
-            raise AssertionError("missing task packet references should fail before implementation")
+        unknown_field = run([str(validator), str(project), str(plan), "--run-id", "unknown-field"], check=False)
+        if unknown_field.returncode == 0:
+            raise AssertionError("unknown manifest fields should fail instead of being dropped")
         record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
-        if "task_packet_missing" not in {rejection["code"] for rejection in record["rejections"]}:
-            raise AssertionError("missing task packets should report task_packet_missing")
+        if "unknown_field" not in {rejection["code"] for rejection in record["rejections"]}:
+            raise AssertionError("unknown manifest fields should report unknown_field")
 
-        packet_dir = project / ".gauntlet" / "packets"
-        (packet_dir / "C1.md").write_text("# C1 Task Packet\n")
-        data["runId"] = "packet-accepted"
+        data = complete_subagent_plan(project)
+        data["runId"] = "canonical-render"
         plan.write_text(json.dumps(data))
 
-        accepted = run([str(validator), str(project), str(plan), "--run-id", "packet-accepted"], check=False)
-        if accepted.returncode != 0:
-            raise AssertionError(f"complete lane packets should pass:\n{accepted.stdout}\n{accepted.stderr}")
+        rendered = run([
+            str(validator),
+            str(project),
+            str(plan),
+            "--run-id",
+            "canonical-render",
+            "--render-lane",
+            "C1",
+        ])
+        rendered_data = json.loads(rendered.stdout)
+        if rendered_data["lane"]["id"] != "C1":
+            raise AssertionError(f"rendered wrong lane: {rendered_data}")
+        if "taskPacketRef" in rendered.stdout:
+            raise AssertionError("rendered canonical lane must not contain taskPacketRef")
+        if rendered_data["execution"]["routineNarration"] != "none":
+            raise AssertionError(f"rendered lane should suppress routine narration: {rendered_data}")
+        if set(rendered_data["receipt"]) != {"status", "changedFiles", "proof", "blocker"}:
+            raise AssertionError(f"rendered lane receipt contract mismatch: {rendered_data}")
 
 
 def test_guarded_panel_contract_is_uniform():
     files = {
-        "AGENTS.md": read(AGENTS_MD),
         "planner": read(SKILLS / "planner" / "SKILL.md"),
         "issue-triager": read(SKILLS / "issue-triager" / "SKILL.md"),
         "deep-code-reviewer": read(SKILLS / "deep-code-reviewer" / "SKILL.md"),
@@ -755,7 +791,6 @@ def test_guarded_panel_contract_is_uniform():
     for name, text in files.items():
         for marker in required:
             assert_contains(text, marker, name)
-    assert_contains(files["AGENTS.md"], "collapse", "AGENTS.md")
     assert_contains(files["planner"], "Do not union every idea", "planner")
 
 
@@ -1026,6 +1061,7 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
     agents = read(AGENTS_MD)
     readme = read(README_MD)
     speedups = read(ROOT / "docs" / "workflow-speedups.md")
+    planner = read(SKILLS / "planner" / "SKILL.md")
     combined = "\n".join([agents, readme, speedups])
 
     for marker in [
@@ -1042,7 +1078,6 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         "Cannot verify",
         "quality-check --surface",
         "deferred",
-        "stale",
         "dirty worktree",
     ]:
         assert_contains(combined, marker, "workflow speedup guidance")
@@ -1053,30 +1088,28 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         "Needs decision",
         "Native Codex state owns child progress",
         "Create a separate git worktree by default for write-heavy child chats",
-        "Child task packet shape",
+        "Archive the child chat after its receipt is integrated",
+        "Compact child receipt",
     ]:
         assert_contains(read(ROOT / "docs" / "workflow-etiquette.md"), marker, "delegation etiquette child lane guidance")
 
     for marker in [
         "separate git worktrees by default",
-        "main chat owns the child-lane ledger",
+        ".gauntlet/subagent-plan.json",
+        "compact machine receipts",
+        "do not print routine lane state",
         "Native Codex state owns child progress",
     ]:
         assert_contains(speedups, marker, "workflow speedup child lane guidance")
 
     for marker in [
-        "scripts/gauntlet.py memory lint",
-        "scripts/gauntlet.py changelog pr",
-        "scripts/gauntlet.py followup thread",
-        "check edge cases",
-        "Scope delta checked: no material change.",
+        "router/AGENTS.md",
+        ".gauntlet/subagent-plan.json",
         "before implementation",
-        "emit app-action packets",
-        "main chat as orchestrator",
-        "create a separate git worktree by default",
-        "Child lane id, objective, dependency note, and worktree path",
+        "provides no DAG, readiness, review, or completion state",
+        "Scope delta checked: no material change.",
     ]:
-        assert_contains(agents, marker, "active AGENTS workflow speedup routing")
+        assert_contains("\n".join([agents, read(ROUTER_MD), readme, planner]), marker, "workflow speedup routing")
 
 
 def test_contextual_merge_contract_is_documented():
@@ -1104,7 +1137,7 @@ def test_contextual_pr_template_changelog_and_run_log_contract():
     if not template_path.exists():
         return
     template = read(template_path)
-    required = ["## Problem", "## Solution", "## Changelog", "## Testing", "## PR Note"]
+    required = ["## Problem", "## Solution", "## Changelog", "## Testing"]
     for marker in required:
         assert_contains(template, marker, "contextual PR template")
     positions = [template.index(item) for item in required]
@@ -1115,6 +1148,7 @@ def test_contextual_pr_template_changelog_and_run_log_contract():
         "## User Or Agent Impact",
         "## Workflow Or Behavior Changes",
         "## Release Proof (near-launch only)",
+        "## PR Note",
     ]:
         assert_not_contains(template, obsolete, "contextual PR template")
 
@@ -1480,9 +1514,6 @@ def merge_handoff_fixture():
                 "proves": "Packet, conversation, handoff, and merge contracts pass together.",
             }
         ],
-        "prNote": [
-            "Child safeguards are retained; duplicate-context findings are advisory because the old blocker did not control actual dispatch prompts."
-        ],
         "securityRisk": None,
     }
 
@@ -1520,10 +1551,10 @@ def test_gauntlet_cli_merge_prepare_renders_contextual_handoff():
             raise AssertionError(f"first prepare should create changelog: {first_data}")
 
         body = body_path.read_text()
-        required = ["## Problem", "## Solution", "## Changelog", "## Testing", "## PR Note"]
+        required = ["## Problem", "## Solution", "## Changelog", "## Testing"]
         if [body.index(item) for item in required] != sorted(body.index(item) for item in required):
             raise AssertionError(f"PR body sections are out of order:\n{body}")
-        if "## Security / Risk" in body or "Files changed" in body:
+        if "## Security / Risk" in body or "## PR Note" in body or "Files changed" in body:
             raise AssertionError(f"PR body contains empty risk or a file tour:\n{body}")
         bullet = f"- {handoff['changelog']}"
         if bullet not in body:
@@ -2816,24 +2847,21 @@ def test_thread_changelog_captures_pr_history_and_followups():
 
 def test_workflow_etiquette_is_in_global_workflow():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
-    combined = "\n".join([agents, etiquette])
+    combined = "\n".join([agents, router, etiquette])
 
     for marker in [
-        "Workflow Etiquette",
-        "Execution Mode: review | autonomous",
-        "Decision Gate",
+        "Quiet Execution",
+        "Execution: review | autonomous",
+        "Decision gate:",
         "Archival Etiquette",
         "scripts/check-workflow-etiquette.py",
-        "scripts/gauntlet.py",
+        "{{GAUNTLET_ROOT}}/scripts/gauntlet.py",
         "confirm-git-risk",
-        "After selecting a kickoff label, call `set_thread_title` immediately",
-        "If the user supplies an alternate priority/title, call `set_thread_title` with the user's version",
-        "set_thread_title",
-        "set_thread_archived",
         "Archive Summary",
-        "Pass the PR changelog or closeout content to `scripts/gauntlet.py archive plan --content`",
-        "the final response includes files changed, proof/tests completed, and unresolved risks",
+        "compact machine receipts",
+        "final outcome and proof",
     ]:
         assert_contains(combined, marker, "workflow etiquette global guidance")
 
@@ -2897,24 +2925,31 @@ def assert_installed_gauntlet_layout(agent_home):
     installed_cli = agent_home / "gauntlet" / "scripts" / "gauntlet.py"
     if not installed_cli.exists() or not os.access(installed_cli, os.X_OK):
         raise AssertionError("installed Gauntlet CLI is missing or not executable")
+    router_source = agent_home / "gauntlet" / "router" / "AGENTS.md"
+    if not router_source.exists():
+        raise AssertionError("installed portable router source is missing")
+    assert_contains(read(router_source), "{{GAUNTLET_ROOT}}", "installed router source placeholder")
     installed_agents = read(agent_home / "gauntlet" / "AGENTS.md")
-    assert_contains(
-        installed_agents,
-        "$AGENT_HOME/gauntlet/docs/production-quality-bar.md",
-        "installed AGENTS production quality bar path",
-    )
-    assert_contains(
-        installed_agents,
-        "$AGENT_HOME/gauntlet/docs/ui-constitution.md",
-        "installed AGENTS frontend quality path",
-    )
+    installed_root = str(agent_home / "gauntlet")
+    installed_skills = str(agent_home / "skills")
     for marker in [
-        "no later than the third user-assistant exchange",
-        "Research is never assigned `p4` merely because it is research",
-        "Do not record packetization when no child implementation lanes exist",
-        "Scope delta checked: no material change.",
+        "Gauntlet Workflow Router",
+        installed_root,
+        installed_skills,
+        f"{installed_root}/docs/production-quality-bar.md",
+        f"{installed_root}/docs/ui-constitution.md",
+        f"{installed_root}/scripts/check-subagent-plan.py",
+        "Do not require a second prose packet",
+        "For two or more parallel lanes or any write-heavy child implementation lane",
+        "a request to open a PR does not authorize merging it",
+        f"{installed_root}/scripts/gauntlet.py merge prepare|plan|execute",
+        "compact machine receipts",
     ]:
-        assert_contains(installed_agents, marker, "installed implementation-transition guidance")
+        assert_contains(installed_agents, marker, "installed router guidance")
+    for unresolved in ["{{GAUNTLET_ROOT}}", "{{AGENT_HOME}}"]:
+        assert_not_contains(installed_agents, unresolved, "installed router path rendering")
+    if len(installed_agents.encode("utf-8")) >= 32768:
+        raise AssertionError("installed router exceeds the default 32 KiB instruction budget")
     run([str(installed_check)])
 
 
@@ -2930,33 +2965,144 @@ def test_codex_install_layout_supports_workflow_check():
 
 Keep this user-owned instruction across Gauntlet reinstalls.
 <!-- END PERSONAL HOUSE VOICE -->"""
-        (agent_home / "AGENTS.md").write_text(
-            "# Global Agent Coding Workflow\n\n"
+        user_content = (
+            "# My Global Instructions\n\n"
             f"{personal_block}\n\n"
-            "Stale Gauntlet workflow content.\n"
+            "Always preserve this unrelated company policy.\n"
         )
+        (agent_home / "AGENTS.md").write_text(user_content)
         run_install(agent_home, target="codex")
         assert_installed_gauntlet_layout(agent_home)
         installed_agents = read(agent_home / "AGENTS.md")
-        assert_contains(installed_agents, "Global Agent Coding Workflow", "Codex AGENTS install")
+        if not installed_agents.startswith(user_content):
+            raise AssertionError("Codex install must preserve every pre-existing user byte before the managed block")
+        assert_contains(installed_agents, "Gauntlet Workflow Router", "Codex AGENTS install")
         assert_contains(installed_agents, personal_block, "Codex personal house voice preservation")
+        if installed_agents.count("BEGIN GAUNTLET MANAGED BLOCK") != 1:
+            raise AssertionError("Codex install should create exactly one managed block")
         installed_mode = (agent_home / "AGENTS.md").stat().st_mode & 0o777
         if installed_mode != 0o644:
             raise AssertionError(f"Codex AGENTS install mode should be 0644, got {installed_mode:04o}")
-        for marker in [
-            "no later than the third user-assistant exchange",
-            "Research is never assigned `p4` merely because it is research",
-            "Do not record packetization when no child implementation lanes exist",
-            "Scope delta checked: no material change.",
-        ]:
-            assert_contains(installed_agents, marker, "Codex root implementation-transition guidance")
         if (agent_home / "CLAUDE.md").exists():
             raise AssertionError("Codex install should not create CLAUDE.md")
 
         run_install(agent_home, target="codex")
         reinstalled_agents = read(agent_home / "AGENTS.md")
-        if reinstalled_agents.count("BEGIN PERSONAL HOUSE VOICE") != 1:
-            raise AssertionError("Codex reinstall should preserve one personal house voice block")
+        if reinstalled_agents != installed_agents:
+            raise AssertionError("Codex reinstall should be byte-idempotent")
+
+        verify = run([
+            str(agent_home / "gauntlet" / "scripts" / "gauntlet.py"),
+            "install",
+            "verify",
+            "--agent-home",
+            str(agent_home),
+            "--target",
+            "codex",
+            "--json",
+        ])
+        if json.loads(verify.stdout)["status"] != "pass":
+            raise AssertionError(f"Codex install verify should pass: {verify.stdout}")
+
+        installed_env = os.environ.copy()
+        installed_env["AGENT_HOME"] = str(agent_home)
+        installed_env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
+        installed_reinstall = subprocess.run(
+            [str(agent_home / "gauntlet" / "scripts" / "install.sh"), "--target", "codex"],
+            cwd=agent_home / "gauntlet",
+            env=installed_env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if installed_reinstall.returncode != 0:
+            raise AssertionError(
+                "installed Gauntlet should support an idempotent self-reinstall:\n"
+                f"{installed_reinstall.stdout}\n{installed_reinstall.stderr}"
+            )
+        if read(agent_home / "AGENTS.md") != installed_agents:
+            raise AssertionError("installed self-reinstall should not change the managed Codex file")
+        if not (agent_home / "gauntlet" / "docs" / "workflow-etiquette.md").exists():
+            raise AssertionError("installed self-reinstall must not delete its own payload")
+
+        linked_home = Path(tmp) / "linked-agent-home"
+        linked_home.mkdir()
+        linked_target = Path(tmp) / "shared-global-agents.md"
+        linked_content = "# Shared global policy\n\nKeep this through linked installs.\n"
+        linked_target.write_text(linked_content)
+        linked_target.chmod(0o600)
+        (linked_home / "AGENTS.md").symlink_to(linked_target)
+
+        run_install(linked_home, target="codex")
+        if not (linked_home / "AGENTS.md").is_symlink():
+            raise AssertionError("Codex install must preserve an existing AGENTS.md symlink")
+        linked_installed = linked_target.read_text()
+        if not linked_installed.startswith(linked_content):
+            raise AssertionError("Codex install must preserve user bytes through an AGENTS.md symlink")
+        linked_mode = linked_target.stat().st_mode & 0o777
+        if linked_mode != 0o600:
+            raise AssertionError(f"Codex install must preserve existing permissions, got {linked_mode:04o}")
+        run_install(linked_home, target="codex")
+        if linked_target.read_text() != linked_installed:
+            raise AssertionError("linked Codex reinstall should be byte-idempotent")
+
+
+def test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks():
+    if not (ROOT / ".git").exists():
+        return
+
+    with tempfile.TemporaryDirectory() as tmp:
+        agent_home = Path(tmp) / "agent-home"
+        (agent_home / "gauntlet").mkdir(parents=True)
+        legacy = "# Legacy Gauntlet Router\n\nLegacy managed workflow body.\n"
+        personal = "<!-- BEGIN PERSONAL HOUSE VOICE -->\nKeep my voice.\n<!-- END PERSONAL HOUSE VOICE -->\n"
+        (agent_home / "gauntlet" / "AGENTS.md").write_text(legacy)
+        first_line_end = legacy.index("\n") + 1
+        (agent_home / "AGENTS.md").write_text(legacy[:first_line_end] + "\n" + personal + legacy[first_line_end:])
+
+        run_install(agent_home, target="codex")
+        migrated = read(agent_home / "AGENTS.md")
+        assert_contains(migrated, personal.strip(), "legacy personal block migration")
+        assert_contains(migrated, "BEGIN GAUNTLET MANAGED BLOCK", "legacy managed migration")
+        assert_not_contains(migrated, "Legacy managed workflow body.", "legacy body removal")
+
+        before = migrated
+        (agent_home / "AGENTS.md").write_text(before.replace("<!-- END GAUNTLET MANAGED BLOCK -->", ""))
+        malformed_before = (agent_home / "AGENTS.md").read_bytes()
+        env = os.environ.copy()
+        env["AGENT_HOME"] = str(agent_home)
+        env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
+        malformed = subprocess.run(
+            [str(SCRIPTS / "install.sh"), "--target", "codex"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if malformed.returncode == 0:
+            raise AssertionError("malformed managed markers must reject installation")
+        if (agent_home / "AGENTS.md").read_bytes() != malformed_before:
+            raise AssertionError("malformed managed markers must not mutate AGENTS.md")
+
+        (agent_home / "AGENTS.md").write_text(
+            "<!-- BEGIN GAUNTLET MANAGED BLOCK -->\n"
+            "<!-- BEGIN GAUNTLET MANAGED BLOCK -->\n"
+            "nested\n"
+            "<!-- END GAUNTLET MANAGED BLOCK -->\n"
+            "<!-- END GAUNTLET MANAGED BLOCK -->\n"
+        )
+        nested_before = (agent_home / "AGENTS.md").read_bytes()
+        nested = subprocess.run(
+            [str(SCRIPTS / "install.sh"), "--target", "codex"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if nested.returncode == 0 or (agent_home / "AGENTS.md").read_bytes() != nested_before:
+            raise AssertionError("nested managed markers must reject without mutation")
 
 
 def test_claude_install_layout_adapts_agents_without_overwriting_user_memory():
@@ -2996,7 +3142,9 @@ def test_install_docs_explain_codex_and_claude_targets():
         "CLAUDE.md",
         "scripts/gauntlet.py",
         "managed import block",
-        "does not overwrite unrelated existing Claude instructions",
+        "preserving unrelated instructions",
+        "reject malformed managed markers",
+        "router/AGENTS.md",
     ]:
         assert_contains(readme, marker, "install target docs")
 
@@ -3033,49 +3181,80 @@ def test_skill_evals_compare_all_arms():
         raise AssertionError("skill evals must support targeted --only-skill filtering")
 
 
-def test_skill_evals_include_behavior_and_metrics():
+def test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes():
     runner = SCRIPTS / "run-skill-evals.py"
-    fixture = ROOT / "evals" / "behavior-fixtures.json"
-    results = ROOT / "evals" / "results" / "workflow-behavior-check.json"
+    fixture = ROOT / "evals" / "scorer-smoke-fixtures.json"
+    results = ROOT / "evals" / "results" / "workflow-scorer-smoke-check.json"
+    orchestration_runner = SCRIPTS / "run-orchestration-evals.py"
+    orchestration_fixture = ROOT / "evals" / "orchestration-trace-fixtures.json"
+    orchestration_results = ROOT / "evals" / "results" / "workflow-orchestration-check.json"
 
-    for path in [runner, fixture]:
+    for path in [runner, fixture, orchestration_runner, orchestration_fixture]:
         if not path.exists():
-            raise AssertionError(f"missing behavior eval artifact: {path}")
+            raise AssertionError(f"missing scorer/eval artifact: {path}")
 
     with tempfile.TemporaryDirectory() as tmp:
-        prompts = Path(tmp) / "behavior-prompts"
+        prompts = Path(tmp) / "scorer-smoke-prompts"
         run([
             str(runner),
-            "--behavior-responses",
+            "--scorer-smoke-responses",
             str(fixture),
-            "--behavior-prompts-dir",
+            "--scorer-smoke-prompts-dir",
             str(prompts),
             "--results",
             str(results),
         ])
         data = json.loads(results.read_text())
-        if data.get("behaviorComparisonArms") != ["no_guidance", "one_shot", "current_skill", "new_skill"]:
-            raise AssertionError("behavior evals must compare no_guidance, one_shot, current_skill, and new_skill")
+        if data.get("scorerSmokeComparisonArms") != ["no_guidance", "one_shot", "current_skill", "new_skill"]:
+            raise AssertionError("scorer smoke must compare no_guidance, one_shot, current_skill, and new_skill")
+        if "behaviorComparisonArms" in data:
+            raise AssertionError("phrase scorer output must not be labeled behavioral")
         if not data.get("cases"):
-            raise AssertionError("behavior evals must include cases")
+            raise AssertionError("scorer smoke must include cases")
         for case in data["cases"]:
-            behavior = case.get("behavior")
-            if not behavior:
-                raise AssertionError(f"{case['id']} missing behavior results")
-            if behavior.get("minReps", 0) < 5:
-                raise AssertionError(f"{case['id']} must require at least five behavioral reps")
+            scorer_smoke = case.get("scorerSmoke")
+            if not scorer_smoke:
+                raise AssertionError(f"{case['id']} missing scorer-smoke results")
+            if scorer_smoke.get("minReps", 0) < 5:
+                raise AssertionError(f"{case['id']} must require at least five scorer-smoke reps")
             if not (prompts / case["id"] / "new_skill.md").exists():
-                raise AssertionError(f"{case['id']} missing generated behavior prompt")
-            new_behavior = behavior["arms"]["new_skill"]
-            if new_behavior["repsFound"] < behavior["minReps"]:
-                raise AssertionError(f"{case['id']} new_skill missing behavior reps")
-            if new_behavior["passRate"] < 1:
-                raise AssertionError(f"{case['id']} new_skill behavior reps should pass")
+                raise AssertionError(f"{case['id']} missing generated scorer-smoke prompt")
+            new_scorer = scorer_smoke["arms"]["new_skill"]
+            if new_scorer["repsFound"] < scorer_smoke["minReps"]:
+                raise AssertionError(f"{case['id']} new_skill missing scorer-smoke reps")
+            if new_scorer["passRate"] < 1:
+                raise AssertionError(f"{case['id']} new_skill scorer-smoke reps should pass")
             for arm_name, arm in case["arms"].items():
                 if arm.get("promptWordCount", 0) <= 0:
                     raise AssertionError(f"{case['id']} {arm_name} missing prompt word metric")
                 if arm.get("scoreElapsedMs", -1) < 0:
                     raise AssertionError(f"{case['id']} {arm_name} missing score speed metric")
+
+    run([
+        str(orchestration_runner),
+        "--pack",
+        str(orchestration_fixture),
+        "--results",
+        str(orchestration_results),
+    ])
+    outcomes = json.loads(orchestration_results.read_text())
+    if not outcomes.get("summary", {}).get("expectationsMatched"):
+        raise AssertionError(f"orchestration outcome expectations failed: {outcomes}")
+    pairs = {pair["id"]: pair for pair in outcomes.get("pairs", [])}
+    for required in [
+        "correct-outcome",
+        "missing-proof",
+        "authority-violation",
+        "verbose-output",
+        "phrase-echo-wrong-action",
+        "subjective-needs-judgment",
+    ]:
+        if required not in pairs:
+            raise AssertionError(f"missing orchestration outcome case: {required}")
+    if pairs["phrase-echo-wrong-action"]["arms"]["current"]["verdict"] != "fail":
+        raise AssertionError("phrase echo with the wrong observable action must fail")
+    if pairs["subjective-needs-judgment"]["arms"]["candidate"]["verdict"] != "cannot_verify":
+        raise AssertionError("uncalibrated subjective judgment must remain Cannot verify")
 
 
 def test_skill_linter_examples_and_noop_pruning():
@@ -3130,7 +3309,7 @@ def test_skill_changes_are_guarded_by_pre_commit():
             raise AssertionError("non-skill changes should skip skill evals")
 
     result = run([str(skill_check), "--changed-files", "skills/planner/SKILL.md"], cwd=ROOT)
-    for marker in ["Gauntlet skill changes detected", "targeted skill evals: planner", "skill evals:", "skill linter"]:
+    for marker in ["Gauntlet skill changes detected", "targeted skill evals: planner", "skill evals:", "orchestration trace evals:", "skill linter"]:
         assert_contains(result.stdout, marker, "skill change checks")
 
 
@@ -3142,14 +3321,14 @@ def main():
         test_product_thinking_and_scope_routing_are_documented,
         test_production_quality_bar_is_launch_gated,
         test_subagent_parallelism_is_context_efficient,
-        test_kickoff_and_implementation_transition_gates_are_documented,
+        test_canonical_manifest_and_quiet_execution_are_documented,
         test_workflow_guidance_keeps_routine_controls_silent,
         test_subagent_plan_validator_v12_accepts_shared_and_single_write_lane,
         test_subagent_plan_validator_v12_warns_for_context_efficiency,
         test_subagent_plan_validator_v12_blocks_material_hazards,
         test_subagent_plan_validator_logs_rejections,
         test_subagent_plan_validator_rejects_secret_and_overbroad_scope,
-        test_subagent_plan_validator_requires_complete_lane_packets,
+        test_subagent_plan_validator_uses_canonical_manifest_and_quiet_receipts,
         test_guarded_panel_contract_is_uniform,
         test_ts_durability_classifier_behavior,
         test_diff_intel_test_plan_and_review_pack_are_bounded,
@@ -3175,10 +3354,11 @@ def main():
         test_workflow_etiquette_is_in_global_workflow,
         test_promotion_scanner_is_release_wrapup_not_patch_gate,
         test_skill_evals_compare_all_arms,
-        test_skill_evals_include_behavior_and_metrics,
+        test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes,
         test_skill_linter_examples_and_noop_pruning,
         test_skill_changes_are_guarded_by_pre_commit,
         test_codex_install_layout_supports_workflow_check,
+        test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks,
         test_claude_install_layout_adapts_agents_without_overwriting_user_memory,
         test_install_docs_explain_codex_and_claude_targets,
     ]

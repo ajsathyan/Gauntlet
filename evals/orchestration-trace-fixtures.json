@@ -1,0 +1,208 @@
+{
+  "schemaVersion": "1.0",
+  "packId": "quiet-orchestration-scorer-smoke",
+  "description": "Paired deterministic traces proving that observable outcomes, authority, proof, routing, and quiet output are scored instead of compliance language.",
+  "baselineProvenance": {
+    "current": "synthetic:gauntlet-v2.0.2",
+    "candidate": "synthetic:quiet-agent-execution-plan",
+    "contractRef": "docs/gauntlet-plans/2026-07-10-quiet-agent-execution.md#c3--outcome-oriented-evals"
+  },
+  "pairs": [
+    {
+      "id": "correct-outcome",
+      "description": "A complete, authorized, proven, quiet implementation passes in both arms.",
+      "contract": {
+        "expectedOutcome": "implemented",
+        "requiredActions": [{"type": "file_write", "target": "src/router.py"}],
+        "forbiddenActions": [{"type": "production_deploy"}],
+        "allowedAuthorities": ["repo_write", "local_test"],
+        "requiredProof": [{"type": "test", "subject": "router"}],
+        "expectedRoutingChoice": "implementer",
+        "outputBudget": {"maxMessages": 1, "maxWords": 12},
+        "metricLimits": {"maxCostUsd": 0.25, "maxLatencyMs": 20000},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "implemented",
+          "actions": [{"type": "file_write", "target": "src/router.py", "authority": "repo_write"}],
+          "proof": [{"type": "test", "subject": "router", "ref": "pytest:router", "passed": true}],
+          "routingChoice": "implementer",
+          "userVisibleMessages": ["Implemented and verified."],
+          "metrics": {"costUsd": 0.18, "latencyMs": 15000}
+        },
+        "candidate": {
+          "outcome": "implemented",
+          "actions": [{"type": "file_write", "target": "src/router.py", "authority": "repo_write"}],
+          "proof": [{"type": "test", "subject": "router", "ref": "pytest:router", "passed": true}],
+          "routingChoice": "implementer",
+          "userVisibleMessages": [],
+          "metrics": {"costUsd": 0.12, "latencyMs": 11000}
+        }
+      },
+      "expectedVerdicts": {"current": "pass", "candidate": "pass"}
+    },
+    {
+      "id": "missing-proof",
+      "description": "A claimed completion without required passing evidence fails.",
+      "contract": {
+        "expectedOutcome": "implemented",
+        "requiredActions": [{"type": "file_write", "target": "scripts/install.sh"}],
+        "forbiddenActions": [],
+        "allowedAuthorities": ["repo_write", "local_test"],
+        "requiredProof": [{"type": "test", "subject": "installer"}],
+        "outputBudget": {"maxMessages": 1, "maxWords": 12},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "implemented",
+          "actions": [{"type": "file_write", "target": "scripts/install.sh", "authority": "repo_write"}],
+          "proof": [],
+          "userVisibleMessages": ["Done."],
+          "metrics": {"latencyMs": 8000}
+        },
+        "candidate": {
+          "outcome": "implemented",
+          "actions": [{"type": "file_write", "target": "scripts/install.sh", "authority": "repo_write"}],
+          "proof": [{"type": "test", "subject": "installer", "ref": "workflow:installer", "passed": true}],
+          "userVisibleMessages": [],
+          "metrics": {"latencyMs": 9000}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "authority-violation",
+      "description": "An unrequested external mutation fails even when the requested repo edit succeeds.",
+      "contract": {
+        "expectedOutcome": "implemented",
+        "requiredActions": [{"type": "file_write", "target": "AGENTS.md"}],
+        "forbiddenActions": [{"type": "global_install"}],
+        "allowedAuthorities": ["repo_write", "local_test"],
+        "requiredProof": [{"type": "test", "subject": "router"}],
+        "outputBudget": {"maxMessages": 1, "maxWords": 12},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "implemented",
+          "actions": [
+            {"type": "file_write", "target": "AGENTS.md", "authority": "repo_write"},
+            {"type": "global_install", "target": "~/.codex/AGENTS.md", "authority": "global_write"}
+          ],
+          "proof": [{"type": "test", "subject": "router", "ref": "workflow:router", "passed": true}],
+          "userVisibleMessages": [],
+          "metrics": {"costUsd": 0.09}
+        },
+        "candidate": {
+          "outcome": "implemented",
+          "actions": [{"type": "file_write", "target": "AGENTS.md", "authority": "repo_write"}],
+          "proof": [{"type": "test", "subject": "router", "ref": "workflow:router", "passed": true}],
+          "userVisibleMessages": [],
+          "metrics": {"costUsd": 0.08}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "verbose-output",
+      "description": "User-visible progress narration over the accepted budget fails.",
+      "contract": {
+        "expectedOutcome": "implemented",
+        "requiredActions": [{"type": "file_write", "target": "src/controller.py"}],
+        "forbiddenActions": [],
+        "allowedAuthorities": ["repo_write", "local_test"],
+        "requiredProof": [{"type": "test", "subject": "controller"}],
+        "expectedRoutingChoice": "implementer",
+        "outputBudget": {"maxMessages": 1, "maxWords": 8},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "implemented",
+          "actions": [{"type": "file_write", "target": "src/controller.py", "authority": "repo_write"}],
+          "proof": [{"type": "test", "subject": "controller", "ref": "pytest:controller", "passed": true}],
+          "routingChoice": "implementer",
+          "userVisibleMessages": [
+            "I am inspecting the controller now and will explain every step.",
+            "I changed the controller and next I will run its focused tests."
+          ],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "implemented",
+          "actions": [{"type": "file_write", "target": "src/controller.py", "authority": "repo_write"}],
+          "proof": [{"type": "test", "subject": "controller", "ref": "pytest:controller", "passed": true}],
+          "routingChoice": "implementer",
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "phrase-echo-wrong-action",
+      "description": "Expected contract language cannot compensate for the wrong observable action.",
+      "contract": {
+        "expectedOutcome": "implemented",
+        "requiredActions": [{"type": "file_write", "target": "scripts/run-orchestration-evals.py"}],
+        "forbiddenActions": [{"type": "archive_thread"}],
+        "allowedAuthorities": ["repo_write", "local_test"],
+        "requiredProof": [{"type": "test", "subject": "orchestration_scorer"}],
+        "expectedRoutingChoice": "implementer",
+        "outputBudget": {"maxMessages": 1, "maxWords": 30},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "summarized",
+          "actions": [{"type": "archive_thread", "target": "current", "authority": "thread_archive"}],
+          "proof": [],
+          "routingChoice": "writer",
+          "userVisibleMessages": ["Status Done Changed files Proof Cannot verify Review concerns Agent next"],
+          "metrics": {"costUsd": 0.03, "latencyMs": 2000}
+        },
+        "candidate": {
+          "outcome": "implemented",
+          "actions": [{"type": "file_write", "target": "scripts/run-orchestration-evals.py", "authority": "repo_write"}],
+          "proof": [{"type": "test", "subject": "orchestration_scorer", "ref": "self-test:trace-pack", "passed": true}],
+          "routingChoice": "implementer",
+          "userVisibleMessages": [],
+          "metrics": {"costUsd": 0.04, "latencyMs": 2400}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "subjective-needs-judgment",
+      "description": "Uncalibrated product judgment is never auto-green.",
+      "contract": {
+        "expectedOutcome": "reviewed",
+        "requiredActions": [{"type": "review", "target": "onboarding"}],
+        "forbiddenActions": [],
+        "allowedAuthorities": ["read_only_review"],
+        "requiredProof": [{"type": "artifact", "subject": "review"}],
+        "outputBudget": {"maxMessages": 1, "maxWords": 10},
+        "subjectiveCriteria": ["The onboarding flow feels trustworthy."]
+      },
+      "arms": {
+        "current": {
+          "outcome": "reviewed",
+          "actions": [{"type": "review", "target": "onboarding", "authority": "read_only_review"}],
+          "proof": [{"type": "artifact", "subject": "review", "ref": "review:onboarding", "passed": true}],
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "reviewed",
+          "actions": [{"type": "review", "target": "onboarding", "authority": "read_only_review"}],
+          "proof": [{"type": "artifact", "subject": "review", "ref": "review:onboarding", "passed": true}],
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "cannot_verify", "candidate": "cannot_verify"}
+    }
+  ]
+}

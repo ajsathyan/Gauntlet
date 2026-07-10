@@ -89,8 +89,8 @@ Rules:
 - For p3, run only when there is a concrete side-effect surface, state transition, user-facing behavior, or repeated prior miss.
 - For p0-p2, run by default before implementation, but keep it bounded.
 - Do not hide unclear requirements by calling them edge cases. If the uncertainty changes product behavior, data, money, privacy, security, or acceptance criteria, route it through Planning or Kickoff instead.
-- Run scope-addition delta foresight before implementing every genuine addition to accepted scope. Inspect the addition and its boundary with existing scope for new edge cases, invalidated assumptions, acceptance/proof changes, priority/execution changes, and packetization changes.
-- A clean scope-addition check records only `Scope delta checked: no material change.` in the plan/task packet and stays silent in chat. Material findings update the affected task packets, dependencies, acceptance criteria, and proof before implementation and are called out only when they change the plan or need a decision.
+- Run scope-addition delta foresight before implementing every genuine addition to accepted scope. Inspect the addition and its boundary with existing scope for new edge cases, invalidated assumptions, acceptance/proof changes, priority/execution changes, and manifest/lane changes.
+- A clean scope-addition check records only `Scope delta checked: no material change.` in the plan/task and stays silent in chat. Material findings update the affected plan, lanes, dependencies, acceptance criteria, and proof before implementation and are called out only when they change the plan or need a decision.
 - If the work depends on how domain entities relate and that relationship is not explicit in code, docs, tests, or prior accepted context, demote execution mode to `review`.
 - When latency matters, solidify the safe default or create a specific lane so future autonomous execution can move quickly without repeated ceremony.
 
@@ -116,14 +116,24 @@ Use when the work is broad, parallelizable, high-context, or likely to be implem
 
 This is the implementation-memory lane. It writes agent-native context so future agents or work lanes can execute without rereading the whole trace. It is separate from Foresight: Foresight asks "what edge cases could change the next move?" Delegation asks "what context should be indexed so work can be sliced and handed off cheaply?"
 
-Pre-implementation packetization gate:
+Default shape:
 
-- Every child implementation lane receives a bounded packet before implementation.
-- For two or more parallel lanes or any write-heavy child implementation lane, use schema `1.2` with a top-level shared block and lane-specific deltas. The referenced packets and accepted current-run `.gauntlet/subagent-plan.json` must exist before implementation, not merely before dispatch.
-- A single small read-only exploration or review child receives a bounded prompt but does not need the manifest gate.
-- Every validated lane packet covers lane id, skill/objective, project/worktree context, accepted source, in/out scope, ownership/avoidance, dependencies, consumes/produces, constraints, proof, expected return format, and ask-user policy.
-- Do not record packetization when no child implementation lanes exist. Successful packet validation stays silent; surface only blocking findings or warnings that change execution or remain a real risk.
-- If material scope changes add or reshape lanes, update packets and revalidate before implementing the affected scope.
+```text
+Delegation:
+- Implementation Memory: <path or not needed>
+- Canonical manifest: .gauntlet/subagent-plan.json
+- Use rule: cite exact accepted sections; do not inline the whole document
+- User-facing output: none unless a decision, unrecoverable blocker, host-required heartbeat, or final proof is due
+```
+
+Pre-implementation manifest gate:
+
+- A manifest is required for two or more parallel lanes or any write-heavy child implementation lane, including a single write-heavy lane. A single small read-only exploration or review child receives a bounded prompt but does not need the manifest gate.
+- When required, `.gauntlet/subagent-plan.json` covers lane id, skill/objective, shared project context, accepted source, worktree, in/out scope, ownership/avoidance, descriptive dependencies, consumes/produces, constraints, proof, compact receipt format, and ask-user policy.
+- The accepted current-run manifest must validate before implementation, not merely before dispatch. Write-heavy lane ownership, worktrees, and the first ready lane must also be named.
+- Do not write a second Markdown packet. Render child prompts from validated lane entries.
+- Successful validation stays silent; surface only blocking findings or warnings that change execution or remain a real risk.
+- If material scope changes add or reshape lanes, update the manifest and revalidate before implementing the affected scope.
 
 Trigger rules:
 
@@ -145,38 +155,38 @@ Implementation Memory contents:
 
 Child chat orchestration:
 
-- The main chat is the orchestrator. It owns the user-facing ledger, user questions, merge decisions, and final synthesis.
-- Child chats are bounded execution lanes. They receive a task packet, do the work, return a compact report, and do not ask the user directly.
+- The main chat is the orchestrator. It owns the accepted plan, user questions, merge decisions, and final synthesis.
+- Child chats are bounded execution lanes. They consume a validated lane from `.gauntlet/subagent-plan.json`, do the work, return a compact machine receipt, and do not ask the user directly.
 - If a child lane needs product clarification, credentials, risky scope expansion, or an unsafe side effect, it reports `Needs decision` to the main chat.
 - Native Codex state owns child progress; do not require title/status churn.
-- Use lane ids as stable packet/report handles when the main task needs to match a result to owned scope.
+- Use lane ids as stable manifest/receipt handles when the main task needs to match a result to owned scope.
+- Do not print a user-facing lane ledger unless the user explicitly requests it.
 
 Worktree defaults:
 
 - Create a separate git worktree by default for write-heavy child chats: implementation, broad refactors, multi-file edits, uncertain file ownership, or more than a tiny patch.
 - A read-only review, exploration, summarization, or log-analysis child lane does not need a worktree by default.
-- A tiny implementation lane with clearly disjoint files may share the current worktree, but the task packet must name owned and avoided files.
-- The child task packet should name the worktree path, branch, owned files, avoided files, dependencies, proof, and report format.
+- A tiny implementation lane with clearly disjoint files may share the current worktree, but its manifest lane must name owned and avoided files.
+- The canonical manifest lane names the worktree path, owned files, avoided files, dependencies, proof, constraints, and receipt format.
 - The main chat integrates or merges child work only after proof and ownership checks pass.
+- Archive the child chat after its receipt is integrated. If the lane is needed later, unarchive it or create a focused follow-up thread with the prior lane id and an updated manifest lane.
 
-Child task packet shape:
+Compact child receipt:
 
-```text
-Lane: [C1] Backend policy layer
-Worktree: ../project-C1-policy
-Owns: backend policy files and backend tests
-Avoids: dashboard UI, unrelated docs, unrelated dirty files
-Depends on: none
-Consumes: Implementation Memory sections <exact names>
-Produces: compact report with changed files, proof, blockers, and next action
-Ask-user policy: do not ask user directly; return Needs decision to the main chat
+```json
+{
+  "status": "Done",
+  "changedFiles": ["src/policy.ts", "tests/policy.test.ts"],
+  "proof": ["npm test -- policy"],
+  "blocker": null
+}
 ```
 
 Boundaries:
 
-- Implementation Memory is not a mandatory gate by itself. Packetization is mandatory only when the trigger above says it is required.
+- Implementation Memory is not a mandatory gate by itself. The manifest is mandatory only when the trigger above says it is required.
 - It is not a run log. Run logs capture decisions and exceptions after or during a run; Implementation Memory makes future implementation cheaper before or across runs.
-- It is not a task packet. Task packets should cite exact sections of Implementation Memory instead of copying the whole thing.
+- It is not the lane contract. Manifest lanes may cite exact sections instead of copying the whole body.
 - It should not contain secrets, raw private data, or unredacted operational state.
 - It must carry a stale-context warning when live systems, branch state, external APIs, or product decisions can drift.
 
@@ -198,34 +208,33 @@ Bad fit examples:
 
 Use while implementation is in progress.
 
-The goal is not silence. The goal is senior-engineer communication: brief updates when judgment changes, risk changes, verification changes, or user attention is useful. Mechanical progress should move through tools, scripts, logs, or artifacts instead of chat narration.
+The default is quiet autonomous execution. Mechanical progress and recoverable failures move through tools or machine artifacts, not chat narration. User-facing text is reserved for a required decision, an unrecoverable failure, a host-required terse heartbeat, or the final outcome and proof.
 
 Print in chat:
 
-- Decisions and plan changes.
-- New edge cases, blockers, warnings, or tradeoffs.
-- Failed or surprising verification.
-- User decisions needed.
-- Short status updates during long work.
+- Decisions that require the user.
+- An unrecoverable blocker or unsafe next step.
+- A host-required one-sentence heartbeat during long work.
 - Final outcome, verification, residual risk, and unresolved follow-ups.
 
 Keep quiet or move to tools:
 
 - Routine file reads, searches, formatting, linting, and test command setup.
 - Repeated command output that adds no new decision.
-- Generated packet/log content unless the user asked to see it.
+- Generated manifest, receipt, trace, or log content unless the user asked to see it.
 - Mechanical extraction that can be done by CLI.
+- Safe materially different recovery attempts.
 
 Downsides to watch:
 
-- Too-quiet execution can hide drift until the end, making the user feel surprised by decisions.
-- Too many terse updates can become cryptic. If a decision matters, include the reason.
-- If everything is hidden in artifacts, the chat stops functioning as the shared working surface.
-- Tool automation can make a wrong assumption faster; surface assumptions before side-effectful work.
+- Quiet execution must not hide a decision that changes behavior, acceptance, authority, risk, or cost.
+- Tool automation can make a wrong assumption faster; stop before unsafe or unauthorized side effects.
+- Machine receipts are integration evidence, not a substitute for changed-behavior proof.
 
 Execution mode boundaries:
 
 - In `autonomous`, continue through reversible local choices, routine implementation decisions, and expected verification fixes without waiting for the user.
+- Retry silently only while the next attempt is safe and materially different. Stop when it would repeat the same failure fingerprint, require new authority, risk destructive external state, or exceed the accepted appetite.
 - In `review`, keep the trace legible because the user may need to clarify goals, requirements, domain relationships, or acceptable defaults before the agent can safely continue autonomously.
 - At a `Decision Gate`, stop only for the named major unresolved decision, safety failure, or new material assumption; do not re-open already-settled requirements.
 - Do not use `review` for ordinary agent self-review, fixture inspection, code review, or QA. Those can run autonomously unless they reveal a requirement or domain assumption that needs the user.
@@ -377,6 +386,8 @@ Block or ask conditions:
 - Squash-merge or branch state cannot be reconciled.
 - Any uncertainty about whether the work is attributable to this thread.
 
+Use `--allow-dirty` only for explicitly named parked files that are unrelated to archive execution. Use `--confirm-git-risk` only after the user explicitly authorizes continuing despite unpushed, unmerged, or dirty work; it must not be inferred from `archive anyway`.
+
 Delegation and Continuity interaction:
 
 - If the title already starts with `/^p[0-4](-auto)?:/`, skip Kickoff naming during archive.
@@ -394,8 +405,8 @@ Default behavior:
 - Use a separate worktree when the workspace is dirty, the task is p0-p2, the work is broad, or child implementation lanes need isolated writes.
 - Use PRs as memory and proof bundles, even for solo builders.
 - Preserve useful checkpoint commits with merge commits. Squash, rebase, or direct-push to `main` only when the user or repo explicitly asks.
-- Let the main chat own the final branch, PR, user questions, child-lane ledger, and merge decision.
-- Let child chats return reports; child implementation lanes may use isolated branches or worktrees, but should not direct-push to `main`.
+- Let the main chat own the final branch, PR, user questions, canonical manifest state, and merge decision.
+- Let child chats return compact receipts; child implementation lanes may use isolated branches or worktrees, but should not direct-push to `main`.
 
 "Merge this," "land this," or "merge this to main" authorizes the complete safe closeout: prepare the contextual handoff, update `CHANGELOG.md`, commit coherent work, push the task branch, create or update one pull request, wait for required checks and blocking review state, merge, delete the remote branch, verify the default branch, and clean local state only when no unique work remains.
 
@@ -493,7 +504,7 @@ Promotion candidates:
 
 Recommended destination:
 
-Keep this document as draft reference guidance. Promote only the trigger rules into `AGENTS.md` if later runs show the reference is repeatedly needed and consistently saves rework. If Delegation earns promotion, place the operational guidance in `docs/workflow-speedups.md`, add a planner template, and let review/task packets cite Implementation Memory sections instead of copying the body.
+Keep this document as reference guidance. The global router carries only trigger and authority invariants; detailed delegation stays here and in `docs/subagent-plan-validator.md`. Manifest lanes cite accepted sources instead of copying their bodies.
 
 Verification needed before stronger promotion:
 
@@ -515,8 +526,8 @@ Do not infer:
 - Planning Etiquette receipt: max 3 bullets plus one plan-delta line.
 - Kickoff Etiquette: max one label, one execution mode, one read, one signals line.
 - Foresight Etiquette: max 4 edge cases.
-- Delegation Etiquette: one path, one Lane Index or Scan Index line, one use rule in chat; Implementation Memory can be longer, but task packets should cite sections.
-- Execution Etiquette: brief decision/status updates only; routine mechanical output stays in tools or artifacts.
+- Delegation Etiquette: one validated manifest path; no user-facing lane ledger or duplicate packet.
+- Execution Etiquette: decisions, unrecoverable blockers, host-required terse heartbeat, and final proof only.
 - Assumptions Made: max 3 bullets.
 - Continuity Etiquette: one Pause Work Packet only when pausing or reentry would otherwise lose meaningful context.
 - Follow-Up Etiquette: max one topic, strength, why, known context, and suggested opener.

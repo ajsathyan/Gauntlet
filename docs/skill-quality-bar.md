@@ -19,6 +19,7 @@ Run this cheap check for every meaningful skill or workflow-guidance change. It 
 | Progressive disclosure | Keeps always-loaded guidance short and points to heavier references only when needed. | Protects token budget while preserving deeper help for complex edits. |
 | Practical explanation | Explains the user-facing value of the change, not just the internal mechanism. | Helps AJS and future users decide whether the process earns its cost. |
 | Cheap harness mechanics | Prefer checkable schemas, bounded attempt notes, local proof commands, and `Cannot verify` slots where useful. | Makes failures easier to debug without turning every Patch into a ceremony. |
+| Eval claim scope | Labels text coverage, scorer smoke, deterministic outcomes, and subjective judgment as separate proof layers. | Prevents phrase checks from being reported as agent behavior. |
 
 If a proposed skill change cannot pass the baseline bar, rewrite it before adding more process.
 
@@ -30,11 +31,26 @@ Use this section only when the work is high-impact: new Gauntlet role skills, ma
 | --- | --- | --- |
 | Two-attempt Deep planning | A skill or workflow rule could materially change future implementation quality, risk routing, or user trust. | A short comparison of missed blockers, dependency order, proof requirements, first ready task, deferrals, and rejected alternatives. |
 | Forward-test scenario | The skill is new, rewritten, or correcting an observed failure mode. | A minimal pressure scenario showing the desired behavior and the proof that the skill now steers it. |
+| Negative outcome canary | The change claims behavioral or orchestration improvement. | A wrong action, missing proof, authority violation, or other observable failure that contains expected language and must still fail. |
+| Trigger-overlap check | The change alters skill or mode routing. | Paired cases at the routing boundary, including the expected choice and a plausible wrong choice. |
+| Completion and authority trace | The change alters autonomous execution or delegation. | Observable required/forbidden actions, proof, authority, and quiet-output budgets; claimed completion alone is insufficient. |
+| Baseline provenance | A current-versus-candidate comparison informs a durable decision. | The release, commit, fixture-pack version, and shared contract used by both arms. |
 | Adversarial skill review | The skill touches safety, release, privacy, data integrity, broad orchestration, or repeated prior misses. | Findings by severity, `Cannot verify`, and the one next action. |
 | Impact proof review | The skill claims to improve reliability, speed, autonomy, or review quality. | A concrete proof path or a deferred analytics question, not invented certainty. |
 | Parallel reviewer lanes | Review dimensions are independent and the expected value beats context cost. | A validated `.gauntlet/subagent-plan.json` and role reports using the shared report contract. |
 
 Do not run the escalation bar for ordinary Patch work, copy edits, local-only docs, or accepted narrow skill tweaks unless the user asks.
+
+## Eval Layers
+
+Use the cheapest layer that can support the claim, and name that layer in the result:
+
+1. **Text coverage** checks whether required guidance exists in the skill. It does not show that an agent followed it.
+2. **Scorer smoke** feeds synthetic responses through a scorer. A phrase-echo fixture may pass here because this layer proves scorer wiring only.
+3. **Deterministic outcome traces** score observable outcomes, actions, authority, proof, routing, output budget, and recorded cost or latency. Include a negative canary for the failure being prevented.
+4. **Calibrated judgment** is required for subjective criteria such as product quality or trust. Until its judgments are calibrated against human labels, return `Cannot verify`; never treat deterministic success or expected phrases as a substitute.
+
+Paired current-versus-candidate traces must use the same contract. Record baseline provenance before using the comparison for release or workflow policy. Prefer machine receipts and externally visible artifacts over agent explanations of what they did.
 
 ## Harness Mechanics For Skills
 

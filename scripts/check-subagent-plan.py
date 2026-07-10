@@ -38,8 +38,11 @@ REQUIRED_LANE_FIELDS = [
     "laneConstraints",
     "proof",
     "contextDelta",
-    "taskPacketRef",
 ]
+LEGACY_PACKET_FIELDS = {"taskPacketRef"}
+ALLOWED_PLAN_FIELDS = {"schemaVersion", "runId", "shared", "lanes"}
+ALLOWED_SHARED_FIELDS = set(REQUIRED_SHARED_FIELDS)
+ALLOWED_LANE_FIELDS = set(REQUIRED_LANE_FIELDS)
 SECRET_PATTERNS = [
     re.compile(r"(?i)\b[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*['\"]?[^\s'\"`]+"),
     re.compile(r"(?i)\b(sk|pk|rk)-(live|test)-[A-Za-z0-9_-]{8,}"),
@@ -64,7 +67,11 @@ def shingle_words(text, size=10):
 
 def static_prefix(pattern):
     pattern = str(pattern).strip()
-    wildcard_positions = [position for position in [pattern.find("*"), pattern.find("?"), pattern.find("[")] if position != -1]
+    wildcard_positions = [
+        position
+        for position in [pattern.find("*"), pattern.find("?"), pattern.find("[")]
+        if position != -1
+    ]
     if wildcard_positions:
         cutoff = min(wildcard_positions)
         slash = pattern.rfind("/", 0, cutoff)
@@ -85,7 +92,12 @@ def path_overlap(left, right):
     right_prefix = static_prefix(right)
     if not left_prefix or not right_prefix:
         return False
-    return left.startswith(right_prefix) or right.startswith(left_prefix) or left_prefix.startswith(right_prefix) or right_prefix.startswith(left_prefix)
+    return (
+        left.startswith(right_prefix)
+        or right.startswith(left_prefix)
+        or left_prefix.startswith(right_prefix)
+        or right_prefix.startswith(left_prefix)
+    )
 
 
 def add_finding(findings, code, message, lane_id=None):
@@ -101,8 +113,23 @@ def has_secret(text):
 
 
 def is_overbroad_path(pattern):
+    return str(pattern or "").strip() in OVERBROAD_PATHS
+
+
+def escapes_project(pattern):
     normalized = str(pattern or "").strip()
-    return normalized in OVERBROAD_PATHS
+    if not normalized:
+        return False
+    path = Path(normalized)
+    windows_absolute = re.match(r"^[A-Za-z]:[\\/]", normalized) is not None
+    windows_parent = "..\\" in normalized or normalized.endswith("\\..")
+    return (
+        path.is_absolute()
+        or windows_absolute
+        or normalized.startswith("~")
+        or ".." in path.parts
+        or windows_parent
+    )
 
 
 def resolve_project_reference(project_root, reference):
@@ -124,6 +151,7 @@ def dependency_names(lane):
 
 
 def dependency_orders(left, right):
+    """Recognize a declared ordering hint without treating dependencies as a typed DAG."""
     left_id = normalize_text(left.get("id", ""))
     right_id = normalize_text(right.get("id", ""))
     left_dependencies = dependency_names(left)
@@ -140,7 +168,27 @@ def dependency_orders(left, right):
 def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
     rejections = []
     warnings = []
-    if data.get("schemaVersion") != VALID_SCHEMA_VERSION:
+    if not isinstance(data, dict):
+        add_finding(rejections, "invalid_plan", "plan must be an object")
+        return {"rejections": rejections, "warnings": warnings}
+
+    for field in data:
+        if field in LEGACY_PACKET_FIELDS:
+            add_finding(
+                rejections,
+                "legacy_packet_field",
+                f"{field} is not supported; render the child prompt from the canonical manifest",
+            )
+        elif field not in ALLOWED_PLAN_FIELDS:
+            add_finding(rejections, "unknown_field", f"plan contains unknown field: {field}")
+
+    if data.get("schemaVersion") == "1.1":
+        add_finding(
+            rejections,
+            "legacy_schema_version",
+            "schemaVersion 1.1 is legacy; migrate to 1.2 and use the manifest as the sole lane source",
+        )
+    elif data.get("schemaVersion") != VALID_SCHEMA_VERSION:
         add_finding(
             rejections,
             "unsupported_schema_version",
@@ -155,6 +203,15 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
     if not isinstance(shared, dict):
         add_finding(rejections, "missing_shared", "plan must include a shared object")
         shared = {}
+    for field in shared:
+        if field in LEGACY_PACKET_FIELDS:
+            add_finding(
+                rejections,
+                "legacy_packet_field",
+                f"shared.{field} is not supported; render the child prompt from the canonical manifest",
+            )
+        elif field not in ALLOWED_SHARED_FIELDS:
+            add_finding(rejections, "unknown_field", f"shared contains unknown field: {field}")
     for field in REQUIRED_SHARED_FIELDS:
         if field not in shared:
             add_finding(rejections, "missing_shared_field", f"shared missing required field: {field}")
@@ -193,11 +250,13 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
                 f"shared.acceptedSource does not exist: {shared['acceptedSource']}",
             )
 
-    shared_context = "\n".join([
-        *(shared.get("constraints", []) if isinstance(shared.get("constraints"), list) else []),
-        shared.get("askUserPolicy", "") if isinstance(shared.get("askUserPolicy"), str) else "",
-        shared.get("expectedReturn", "") if isinstance(shared.get("expectedReturn"), str) else "",
-    ])
+    shared_context = "\n".join(
+        [
+            *(shared.get("constraints", []) if isinstance(shared.get("constraints"), list) else []),
+            shared.get("askUserPolicy", "") if isinstance(shared.get("askUserPolicy"), str) else "",
+            shared.get("expectedReturn", "") if isinstance(shared.get("expectedReturn"), str) else "",
+        ]
+    )
     if has_secret(shared_context):
         add_finding(
             rejections,
@@ -225,6 +284,17 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
         for field in REQUIRED_LANE_FIELDS:
             if field not in lane:
                 add_finding(rejections, "missing_field", f"lane missing required field: {field}", lane_id)
+        for field in LEGACY_PACKET_FIELDS:
+            if field in lane:
+                add_finding(
+                    rejections,
+                    "legacy_packet_field",
+                    f"{field} is not supported; render the child prompt from the canonical manifest",
+                    lane_id,
+                )
+        for field in lane:
+            if field not in ALLOWED_LANE_FIELDS and field not in LEGACY_PACKET_FIELDS:
+                add_finding(rejections, "unknown_field", f"lane contains unknown field: {field}", lane_id)
 
         if not isinstance(lane.get("id"), str) or not lane.get("id").strip():
             add_finding(rejections, "invalid_id", "lane id must be a non-empty string", lane_id)
@@ -233,20 +303,11 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
         else:
             seen_ids.add(lane["id"])
 
-        for field in [
-            "skill",
-            "objective",
-            "worktreePath",
-            "scope",
-            "stateScope",
-            "stateAccess",
-            "taskPacketRef",
-        ]:
+        for field in ["skill", "objective", "worktreePath", "scope", "stateScope", "stateAccess"]:
             if field in lane and not isinstance(lane[field], str):
                 add_finding(rejections, "invalid_field_type", f"{field} must be a string", lane_id)
             elif field in lane and not lane[field].strip():
                 add_finding(rejections, "empty_field", f"{field} must not be empty", lane_id)
-
         if "contextDelta" in lane and not isinstance(lane["contextDelta"], str):
             add_finding(rejections, "invalid_field_type", "contextDelta must be a string", lane_id)
 
@@ -275,27 +336,21 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
         if isinstance(lane.get("proof"), list) and not lane["proof"]:
             add_finding(rejections, "missing_proof", "lane proof must not be empty", lane_id)
 
-        if isinstance(lane.get("taskPacketRef"), str) and lane["taskPacketRef"].strip():
-            packet_path = resolve_project_reference(project_root, lane["taskPacketRef"])
-            if packet_path is None:
-                add_finding(
-                    rejections,
-                    "invalid_task_packet_ref",
-                    "taskPacketRef must be a relative path inside the project root",
-                    lane_id,
-                )
-            elif not packet_path.is_file():
-                add_finding(
-                    rejections,
-                    "task_packet_missing",
-                    f"taskPacketRef does not exist: {lane['taskPacketRef']}",
-                    lane_id,
-                )
+        rendered_metadata = {key: value for key, value in lane.items() if key != "contextDelta"}
+        if has_secret(json.dumps(rendered_metadata, ensure_ascii=False)):
+            add_finding(
+                rejections,
+                "secret_in_lane_contract",
+                "lane contract appears to contain a secret; redact or summarize before dispatch",
+                lane_id,
+            )
 
-        lane_context = "\n".join([
-            lane.get("contextDelta", "") if isinstance(lane.get("contextDelta"), str) else "",
-            *(lane.get("laneConstraints", []) if isinstance(lane.get("laneConstraints"), list) else []),
-        ])
+        lane_context = "\n".join(
+            [
+                lane.get("contextDelta", "") if isinstance(lane.get("contextDelta"), str) else "",
+                *(lane.get("laneConstraints", []) if isinstance(lane.get("laneConstraints"), list) else []),
+            ]
+        )
         lane_words = word_count(lane_context)
         total_context_words += lane_words
         contexts[lane_id] = lane_context
@@ -323,6 +378,13 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
                     lane_id,
                 )
         for pattern in lane.get("filesWrite", []) if isinstance(lane.get("filesWrite"), list) else []:
+            if escapes_project(pattern):
+                add_finding(
+                    rejections,
+                    "path_outside_project",
+                    f"filesWrite must stay project-relative: {pattern}",
+                    lane_id,
+                )
             if is_overbroad_path(pattern):
                 add_finding(
                     rejections,
@@ -330,7 +392,6 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
                     f"filesWrite contains overbroad path '{pattern}'; name bounded files or directories",
                     lane_id,
                 )
-
     if total_context_words > max_total_inline_words:
         add_finding(
             warnings,
@@ -338,7 +399,7 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
             f"shared plus lane context has {total_context_words} words; advisory max is {max_total_inline_words}",
         )
 
-    for left_index, left in enumerate(lanes if isinstance(lanes, list) else []):
+    for left_index, left in enumerate(lanes):
         if not isinstance(left, dict):
             continue
         for right in lanes[left_index + 1 :]:
@@ -382,7 +443,7 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
     for lane_id, context in contexts.items():
         for shingle in shingle_words(context):
             shingle_to_lanes[shingle].add(lane_id)
-    duplicate_shingles = [lanes for lanes in shingle_to_lanes.values() if len(lanes) > 1]
+    duplicate_shingles = [lane_ids for lane_ids in shingle_to_lanes.values() if len(lane_ids) > 1]
     if duplicate_shingles:
         add_finding(
             warnings,
@@ -391,6 +452,41 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
         )
 
     return {"rejections": rejections, "warnings": warnings}
+
+
+def render_lane(data, lane_id, max_render_chars):
+    lane = next(
+        (item for item in data.get("lanes", []) if isinstance(item, dict) and item.get("id") == lane_id),
+        None,
+    )
+    if lane is None:
+        raise ValueError(f"lane not found: {lane_id}")
+
+    prompt = {
+        "schemaVersion": "1.0",
+        "shared": data["shared"],
+        "lane": {key: lane[key] for key in REQUIRED_LANE_FIELDS},
+        "execution": {
+            "routineNarration": "none",
+            "safeRetry": "silent only when the next attempt is safe and materially different",
+            "stopOn": [
+                "repeated failure fingerprint",
+                "new authority required",
+                "destructive external-state risk",
+                "accepted appetite exceeded",
+            ],
+        },
+        "receipt": {
+            "status": "Done | Done with concerns | Blocked | Needs decision",
+            "changedFiles": [],
+            "proof": [],
+            "blocker": None,
+        },
+    }
+    output = json.dumps(prompt, ensure_ascii=False, separators=(",", ":")) + "\n"
+    if len(output) > max_render_chars:
+        raise ValueError(f"rendered lane has {len(output)} characters; max is {max_render_chars}")
+    return output
 
 
 def read_log(log_path):
@@ -447,9 +543,11 @@ def main():
     parser.add_argument("project_root", type=Path)
     parser.add_argument("plan", type=Path, nargs="?")
     parser.add_argument("--run-id", default=None)
-    parser.add_argument("--stats", action="store_true", help="Print rejection totals from the log instead of validating a plan.")
+    parser.add_argument("--stats", action="store_true", help="Print finding totals from the log instead of validating a plan.")
     parser.add_argument("--max-inline-words", type=int, default=180)
     parser.add_argument("--max-total-inline-words", type=int, default=600)
+    parser.add_argument("--render-lane", metavar="LANE_ID", help="Render one compact child prompt after validation.")
+    parser.add_argument("--max-render-chars", type=int, default=12000)
     args = parser.parse_args()
 
     project_root = args.project_root.resolve()
@@ -471,16 +569,21 @@ def main():
     rejections = result["rejections"]
     warnings = result["warnings"]
     if args.run_id and data.get("runId") != args.run_id:
-        add_finding(
-            rejections,
-            "run_id_mismatch",
-            f"plan runId must match --run-id ({args.run_id})",
-        )
+        add_finding(rejections, "run_id_mismatch", f"plan runId must match --run-id ({args.run_id})")
+
+    rendered_lane = None
+    if args.render_lane and not rejections:
+        try:
+            rendered_lane = render_lane(data, args.render_lane, args.max_render_chars)
+        except ValueError as error:
+            add_finding(rejections, "lane_render_failed", str(error), args.render_lane)
+
     status = "rejected" if rejections else "accepted"
+    record_run_id = args.run_id or data.get("runId") or "manual"
     record = {
         "schemaVersion": "1.0",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "runId": args.run_id or "manual",
+        "runId": record_run_id,
         "projectRoot": str(project_root),
         "planPath": str(args.plan),
         "status": status,
@@ -495,14 +598,26 @@ def main():
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")
     records = read_log(log_path)
-    summary_path, summary = write_summary(project_root, records, record["runId"])
+    summary_path, summary = write_summary(project_root, records, record_run_id)
 
     if rejections:
         print(f"Subagent plan rejected: {len(rejections)} rejection(s); logged to {log_path.relative_to(project_root)}")
-        if warnings:
-            print(f"Advisory warnings: {len(warnings)}")
+        migration = next(
+            (
+                finding["message"]
+                for finding in rejections
+                if finding["code"] in {"legacy_schema_version", "legacy_packet_field"}
+            ),
+            None,
+        )
+        if migration:
+            print(f"Migration: {migration}")
         print(f"Summary: {summary_path.relative_to(project_root)}")
         raise SystemExit(1)
+
+    if rendered_lane is not None:
+        print(rendered_lane, end="")
+        return
 
     if warnings:
         print(f"accepted with {len(warnings)} warning(s)")

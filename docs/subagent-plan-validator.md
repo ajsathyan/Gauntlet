@@ -1,12 +1,12 @@
-# Subagent Plan Validator
+# Canonical Subagent Manifest
 
-Use the manifest for two or more parallel lanes or any write-heavy child implementation lane, including a single write-heavy lane. Every child implementation lane still receives a bounded packet; a single small read-only exploration or review lane does not need this manifest gate.
+Use the manifest for two or more parallel lanes or any write-heavy child implementation lane, including a single write-heavy lane. A single small read-only exploration or review lane does not need this gate.
 
-The accepted current-run manifest and referenced task packets must exist before implementation. Runtime interception is not the proof boundary, so validation happens before work begins rather than immediately before dispatch.
+`.gauntlet/subagent-plan.json` is the sole lane contract. Do not maintain a second Markdown task packet. The validator checks the accepted current-run manifest before implementation, and `--render-lane` creates the bounded child prompt directly from it.
 
-## Manifest
+## Schema 1.2
 
-Schema `1.2` stores common context once. Lane objects contain only ownership and lane-specific deltas:
+Schema `1.2` stores common context once. Lane objects contain ownership and lane-specific deltas:
 
 ```json
 {
@@ -17,7 +17,7 @@ Schema `1.2` stores common context once. Lane objects contain only ownership and
     "acceptedSource": "docs/specs/checkout-policy.md",
     "constraints": ["Preserve unrelated work."],
     "askUserPolicy": "Return Needs decision to the main task.",
-    "expectedReturn": "Verdict, evidence, residual risk, and one next action."
+    "expectedReturn": "Compact status, changed files, proof, and blocker only."
   },
   "lanes": [
     {
@@ -38,43 +38,38 @@ Schema `1.2` stores common context once. Lane objects contain only ownership and
       "produces": ["checkout policy behavior", "policy regression proof"],
       "laneConstraints": ["Preserve the current UI contract."],
       "proof": ["npm test -- checkout-policy"],
-      "contextDelta": "Use the existing policy boundary; do not redesign checkout UI.",
-      "taskPacketRef": ".gauntlet/packets/C1.md"
+      "contextDelta": "Use the existing policy boundary; do not redesign checkout UI."
     }
   ]
 }
 ```
 
-`stateAccess` is `none`, `read-only`, or `mutates`. `taskPacketRef` and `shared.acceptedSource` must be relative paths inside the project root and must exist before validation. Native Codex state owns child progress; the manifest does not require chat titles or status choreography.
+`stateAccess` is `none`, `read-only`, or `mutates`. `shared.acceptedSource` must be a relative file path inside the project root and must exist before validation. `contextDelta` is required but may be empty when the shared accepted source fully defines the lane. Native Codex state owns progress; the manifest does not require chat titles or status choreography.
 
-`contextDelta` is required as a schema slot but may be an empty string when the shared accepted source fully defines the lane. Do not invent lane prose merely to populate it.
+`dependencies` remains a descriptive string list in this version. It may declare a simple ordering safety hint, but it does not provide typed DAG, readiness, cycle, review, or completion enforcement.
+
+Schema 1.1 and `taskPacketRef` fail with a migration message because a packet file is no longer accepted as proof of a complete handoff.
 
 ## Findings
 
-Validation blocks implementation when the packet is unsafe or non-executable:
+Validation blocks implementation for unsupported, incomplete, or unknown schema fields; accepted-source or write-ownership paths outside the project; project-root escapes; overlapping write ownership; unordered shared mutable state; secrets; and overbroad write ownership. Strict fields keep the renderer from silently dropping lane context.
 
-- Unsupported or incomplete schema.
-- Missing or invalid accepted-source and task-packet references.
-- Invalid project root or a reference that escapes it.
-- Overlapping write ownership.
-- Shared mutable state without an explicit lane dependency.
-- Secrets in shared or lane context.
-- Overbroad write ownership.
+Repeated or oversized lane context, duplicate proof targets, and broad read scope are advisory. Warnings delay work only when they expose a real dependency, ownership conflict, or user decision.
 
-These context-efficiency findings are advisory:
-
-- Repeated lane context that belongs in `shared`.
-- Oversized lane or total context.
-- Duplicate proof targets.
-- Overbroad read scope.
-
-Warnings do not delay implementation unless they reveal a real dependency, ownership conflict, or user decision. Move common safety language to `shared` instead of paraphrasing it independently in every lane.
-
-## Commands
+## Validate and render
 
 ```sh
 scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --run-id "$RUN_ID"
+scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --run-id "$RUN_ID" --render-lane C1
 scripts/check-subagent-plan.py "$PROJECT_ROOT" --stats --run-id "$RUN_ID"
 ```
 
-Every attempt is appended to `.gauntlet/subagent-plan-log.jsonl`; the current-run rollup is written to `.gauntlet/subagent-plan-summary.json`. Successful validation is durable internal evidence and is not a chat or final-summary event. Warnings are surfaced only when they materially change execution or remain a real risk.
+Rendering happens only after validation passes. The compact JSON prompt contains shared context, the selected lane, a no-narration and bounded silent-retry policy, and this receipt shape:
+
+```json
+{"status":"Done","changedFiles":[],"proof":[],"blocker":null}
+```
+
+The renderer defaults to 12,000 characters and fails closed when `--max-render-chars` is exceeded. A rendered prompt is an ephemeral view, not another source of truth.
+
+Every validation appends to `.gauntlet/subagent-plan-log.jsonl` and updates `.gauntlet/subagent-plan-summary.json`. Successful validation is internal evidence, not a required chat update.

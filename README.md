@@ -5,7 +5,7 @@ A product-thinking harness for AI coding agents.
 <p>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-3fb950?style=for-the-badge"></a>
   <a href="https://github.com/ajsathyan/Gauntlet/releases/tag/v2.0.2"><img alt="Version" src="https://img.shields.io/badge/version-v2.0.2-111827?style=for-the-badge"></a>
-  <a href="AGENTS.md"><img alt="Workflow" src="https://img.shields.io/badge/workflow-global-0969da?style=for-the-badge"></a>
+  <a href="router/AGENTS.md"><img alt="Workflow" src="https://img.shields.io/badge/workflow-global-0969da?style=for-the-badge"></a>
   <a href="skills"><img alt="Role skills" src="https://img.shields.io/badge/role_skills-11-8957e5?style=for-the-badge"></a>
   <a href="docs/coverage-gaps.md"><img alt="Coverage gaps" src="https://img.shields.io/badge/coverage_gaps-pending-f778ba?style=for-the-badge"></a>
 </p>
@@ -187,7 +187,8 @@ Goal:
 Make the Gauntlet workflow available across all my projects, not just one repo.
 
 Use the repo's files as the source of truth:
-- AGENTS.md is the global workflow/router.
+- router/AGENTS.md is the compact portable global workflow/router.
+- AGENTS.md is the contributor guide for this repository.
 - skills/ contains reusable role skills.
 - docs/ contains run-log, coverage-gap, and design-lint guidance.
 - scripts/ contains the installer, durability classifier, workflow speedup helpers, skill evals, and skill checks.
@@ -228,7 +229,7 @@ Already cloned the repo?
 
 `./scripts/install.sh` defaults to `--target codex`, which installs Gauntlet into `$HOME/.codex` unless `AGENT_HOME` or `GAUNTLET_AGENT_HOME` is set. For Claude Code, use `./scripts/install.sh --target claude` or `GAUNTLET_INSTALL_TARGET=claude ./scripts/install.sh`; this installs into `$HOME/.claude` by default.
 
-The Codex target writes `AGENTS.md` at the agent home. The Claude Code target writes or updates `CLAUDE.md` with a Gauntlet managed import block pointing at the installed Gauntlet `AGENTS.md`, because Claude Code reads `CLAUDE.md` rather than `AGENTS.md`. The Claude target preserves existing content and does not overwrite unrelated existing Claude instructions.
+The Codex target writes or replaces one Gauntlet managed block inside the agent-home `AGENTS.md`, preserving unrelated instructions outside the block. The Claude Code target writes or updates `CLAUDE.md` with a managed import block pointing at the installed portable router because Claude Code reads `CLAUDE.md` rather than `AGENTS.md`. Both targets reject malformed managed markers and replace their own block idempotently.
 
 Both targets install only the Gauntlet files that live in this repository: the global workflow, Gauntlet role skills, docs, scripts, and eval fixtures. They do not import personal skills or instructions from elsewhere on your machine.
 
@@ -238,7 +239,8 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 
 | File Or Directory | Purpose |
 | --- | --- |
-| [AGENTS.md](AGENTS.md) | Global router for task tiers, intake, stage selection, role skills, run logs, stop conditions, and completion rules. Installed as root `AGENTS.md` for Codex and as `gauntlet/AGENTS.md` for all targets. |
+| [router/AGENTS.md](router/AGENTS.md) | Compact portable global router installed into the target agent home with rendered stable Gauntlet paths. |
+| [AGENTS.md](AGENTS.md) | Repository contributor guide for changing and proving Gauntlet itself; it is not installed as the portable router. |
 | `CLAUDE.md` | Claude Code adapter created by `--target claude`; imports the installed Gauntlet `AGENTS.md` through a managed block while preserving existing Claude instructions. |
 | [skills/intake/SKILL.md](skills/intake/SKILL.md) | Turns rough intent into an implementable spec. |
 | [skills/product-architect/SKILL.md](skills/product-architect/SKILL.md) | Shapes Feature work around workflow, IA, activation, retention, growth, trust, and handoff. |
@@ -255,7 +257,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [docs/github-discipline.md](docs/github-discipline.md) | Beginner-friendly branch, worktree, commit, PR, merge, child-chat, and solo-builder defaults. |
 | [docs/ui-constitution.md](docs/ui-constitution.md) | Bounded frontend quality gate for prototypes and product UI. |
 | [docs/production-quality-bar.md](docs/production-quality-bar.md) | Near-launch quality gate for boundaries, invariants, durable state, state machines, release proof, threat/redaction, feedback loops, and decision-oriented UI. |
-| [docs/workflow-speedups.md](docs/workflow-speedups.md) | Advisory changed-surface, test-planning, review-packet, and subagent packet guidance. |
+| [docs/workflow-speedups.md](docs/workflow-speedups.md) | Advisory changed-surface, test-planning, review-packet, and canonical subagent-manifest guidance. |
 | [docs/promotion-scanner.md](docs/promotion-scanner.md) | Trigger policy and gap-routing guidance for promotion scans. |
 | [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
 | [scripts/gauntlet.py](scripts/gauntlet.py) | Small deterministic CLI for local analytics, closeout facts, bounded attempt memory, release-candidate summaries, archive planning/execution, install verification, follow-up packets, Implementation Memory linting, PR/changelog drafts, and saved diagram lookup. |
@@ -264,12 +266,14 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [scripts/diff-intel.py](scripts/diff-intel.py) | Writes advisory changed-file, package-root, risk-trigger, dirty-worktree, confidence, and `Cannot verify` intel. |
 | [scripts/test-plan.py](scripts/test-plan.py) | Recommends focused and broader verification commands from diff intel without defaulting to huge suites. |
 | [scripts/review-pack.py](scripts/review-pack.py) | Generates a bounded, redacted review packet from current diff intel, optional Implementation Memory Scan Index context, and existing test-plan summaries. |
-| [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill evals, including targeted changed-skill runs. |
+| [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill-text coverage and explicitly labeled scorer-smoke checks. |
+| [scripts/run-orchestration-evals.py](scripts/run-orchestration-evals.py) | Scores paired orchestration traces from observable outcome, action, authority, proof, routing, output-budget, cost, and latency evidence. |
 | [scripts/lint-skills.py](scripts/lint-skills.py) | Lints skill frontmatter, word budget, contract slots, optional examples, and bounded subagent guidance. |
 | [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill evals and linting when staged Gauntlet skill files change. |
 | [scripts/install-git-hooks.sh](scripts/install-git-hooks.sh) | Installs the pre-commit hook that enforces skill-change checks. |
 | [evals/skill-evals.json](evals/skill-evals.json) | Pressure scenarios for skill contract coverage. |
-| [evals/behavior-fixtures.json](evals/behavior-fixtures.json) | Five-rep smoke fixtures for behavioral skill-eval scoring and metrics. |
+| [evals/scorer-smoke-fixtures.json](evals/scorer-smoke-fixtures.json) | Five-rep fixtures that prove the phrase scorer and metrics path—not agent behavior. |
+| [evals/orchestration-trace-fixtures.json](evals/orchestration-trace-fixtures.json) | Paired observable trace cases including missing-proof, authority, verbosity, phrase-echo, and subjective-judgment canaries. |
 | [evals/baselines/current/skills](evals/baselines/current/skills) | Frozen current-skill baseline used by the three-arm evals. |
 
 ## 🧠 Inspiration
@@ -284,11 +288,12 @@ Gauntlet combines those ideas into a product-thinking harness: define the featur
 
 | File | Purpose |
 | --- | --- |
-| [AGENTS.md](AGENTS.md) | Global workflow instructions. |
+| [router/AGENTS.md](router/AGENTS.md) | Portable global workflow router. |
+| [AGENTS.md](AGENTS.md) | Contributor guidance for this repository. |
 | [skills/](skills) | Role-specific reusable instructions. |
 | [docs/](docs) | Coverage gaps, UI constitution, Production Quality Bar, workflow speedups, promotion scanner, design lint candidates, and historical plans. |
 | [scripts/](scripts) | Installer, durability classifier, workflow speedup helpers, workflow checks, skill evals, and skill linter. |
-| [evals/](evals) | Skill eval definitions, behavior fixtures, and baselines. |
+| [evals/](evals) | Skill coverage, scorer-smoke, orchestration-trace fixtures, and baselines. |
 | [LICENSE](LICENSE) | MIT license. |
 
 ## 📄 License

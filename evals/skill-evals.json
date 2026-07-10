@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0",
-  "description": "Deterministic pressure evals for Gauntlet skills. Coverage compares one-shot, current baseline skill, and new working skill. Behavioral scoring can also compare no-guidance, one-shot, current, and new response reps.",
+  "description": "Deterministic pressure evals for Gauntlet skills. Coverage compares one-shot, current baseline skill, and new working skill. Scorer smoke exercises the phrase matcher but does not claim agent behavior.",
   "cases": [
     {
       "id": "intake-packet-contract",
@@ -303,14 +303,14 @@
       ]
     },
     {
-      "id": "planner-quiet-packetization-contract",
+      "id": "planner-quiet-manifest-contract",
       "skill": "planner",
-      "title": "Planner records only packetization that actually happens",
-      "oneShotInstruction": "Plan bounded work with child packets only when implementation will use child lanes.",
-      "pressurePrompt": "Plan a normal single-lane patch. Keep internal mode, gate, and clean-check machinery out of the user-facing plan, omit no-op packetization fields, and preserve a clean scope-delta marker only inside a task packet when needed.",
+      "title": "Planner emits manifests only for gated child lanes",
+      "oneShotInstruction": "Plan bounded child lanes only when implementation will actually use them.",
+      "pressurePrompt": "Plan a normal single-lane patch. Keep internal mode, gate, and clean-check machinery out of the user-facing plan, omit no-op manifest fields, and preserve a clean scope-delta marker only inside the plan when needed.",
       "requiredPatterns": [
-        "Omit the subagent manifest field",
-        "Successful packet validation stays silent",
+        "omit when no gated child lane exists",
+        "Successful validation stays silent",
         "Scope delta checked: no material change."
       ],
       "forbiddenPatterns": [
@@ -324,8 +324,8 @@
       "oneShotInstruction": "Implement a bounded task and return changed behavior, proof, real concerns, and the next action.",
       "pressurePrompt": "Implement a task whose packet, scope delta, and review checks are all clean. Do not inflate the report with successful workflow gates; include a warning only if it changed execution or remains a real risk.",
       "requiredPatterns": [
-        "Reports contain changed behavior, proof, real concerns, and the next action",
-        "Include a validator warning only when it changed execution or remains a real risk"
+        "reports contain changed behavior, proof, real concerns, and the next action",
+        "Keep clean validation, mode/gate selection, scope-delta checks, review transitions, and hygiene transitions out of the report"
       ],
       "forbiddenPatterns": [
         "clean packet validation passed"

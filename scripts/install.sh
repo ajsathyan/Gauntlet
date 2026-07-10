@@ -89,150 +89,286 @@ if [ -z "$AGENT_HOME" ]; then
   esac
 fi
 
+AGENT_HOME="$(python3 - "$AGENT_HOME" <<'PY'
+import os
+import sys
+
+print(os.path.abspath(os.path.expanduser(sys.argv[1])))
+PY
+)"
+
+MANAGED_BEGIN='<!-- BEGIN GAUNTLET MANAGED BLOCK -->'
+MANAGED_END='<!-- END GAUNTLET MANAGED BLOCK -->'
+
+validate_managed_file() {
+  local target_file="$1"
+  [ -f "$target_file" ] || return 0
+  python3 - "$target_file" "$MANAGED_BEGIN" "$MANAGED_END" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+begin = sys.argv[2].encode()
+end = sys.argv[3].encode()
+data = path.read_bytes()
+begin_count = data.count(begin)
+end_count = data.count(end)
+valid = begin_count == end_count and begin_count <= 1
+if begin_count == 1 and end_count == 1:
+    begin_at = data.find(begin)
+    end_at = data.find(end)
+    begin_after = begin_at + len(begin)
+    end_after = end_at + len(end)
+    begin_is_line = (begin_at == 0 or data[begin_at - 1:begin_at] == b"\n") and (
+        begin_after == len(data) or data[begin_after:begin_after + 1] == b"\n" or data[begin_after:begin_after + 2] == b"\r\n"
+    )
+    end_is_line = (end_at == 0 or data[end_at - 1:end_at] == b"\n") and (
+        end_after == len(data) or data[end_after:end_after + 1] == b"\n" or data[end_after:end_after + 2] == b"\r\n"
+    )
+    valid = valid and begin_at < end_at and begin_is_line and end_is_line
+if not valid:
+    print(f"Malformed Gauntlet managed block in {path}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
+write_managed_file() {
+  local target_file="$1"
+  local block_file="$2"
+  local legacy_reference="${3:-}"
+  python3 - "$target_file" "$block_file" "$MANAGED_BEGIN" "$MANAGED_END" "$legacy_reference" <<'PY'
+from pathlib import Path
+import os
+import sys
+import tempfile
+
+target = Path(sys.argv[1])
+write_target = target.resolve() if target.is_symlink() else target
+block = Path(sys.argv[2]).read_bytes()
+begin = sys.argv[3].encode()
+end = sys.argv[4].encode()
+legacy_reference = Path(sys.argv[5]) if sys.argv[5] else None
+data = target.read_bytes() if target.exists() else b""
+begin_count = data.count(begin)
+end_count = data.count(end)
+valid = begin_count == end_count and begin_count <= 1
+if begin_count == 1 and end_count == 1:
+    begin_at = data.find(begin)
+    end_at = data.find(end)
+    begin_after = begin_at + len(begin)
+    end_after = end_at + len(end)
+    begin_is_line = (begin_at == 0 or data[begin_at - 1:begin_at] == b"\n") and (
+        begin_after == len(data) or data[begin_after:begin_after + 1] == b"\n" or data[begin_after:begin_after + 2] == b"\r\n"
+    )
+    end_is_line = (end_at == 0 or data[end_at - 1:end_at] == b"\n") and (
+        end_after == len(data) or data[end_after:end_after + 1] == b"\n" or data[end_after:end_after + 2] == b"\r\n"
+    )
+    valid = valid and begin_at < end_at and begin_is_line and end_is_line
+if not valid:
+    print(f"Malformed Gauntlet managed block in {target}", file=sys.stderr)
+    raise SystemExit(1)
+start = data.find(begin)
+if start >= 0:
+    finish = data.find(end, start) + len(end)
+    output = data[:start] + block + data[finish:]
+else:
+    preserved = data
+    if legacy_reference and legacy_reference.is_file():
+        legacy = legacy_reference.read_bytes()
+        if data == legacy:
+            preserved = b""
+        else:
+            personal_begin = b"<!-- BEGIN PERSONAL HOUSE VOICE -->"
+            personal_end = b"<!-- END PERSONAL HOUSE VOICE -->"
+            if data.count(personal_begin) == 1 and data.count(personal_end) == 1:
+                personal_at = data.find(personal_begin)
+                personal_finish = data.find(personal_end, personal_at) + len(personal_end)
+                if data[personal_finish:personal_finish + 2] == b"\r\n":
+                    personal_finish += 2
+                elif data[personal_finish:personal_finish + 1] == b"\n":
+                    personal_finish += 1
+                personal = data[personal_at:personal_finish]
+                first_line_end = legacy.find(b"\n")
+                if first_line_end >= 0:
+                    expected = legacy[:first_line_end + 1] + b"\n" + personal + legacy[first_line_end + 1:]
+                    if data == expected:
+                        preserved = personal
+    separator = b"" if not preserved else (b"\n" if preserved.endswith(b"\n") else b"\n\n")
+    output = preserved + separator + block
+
+if target.exists() and output == data:
+    raise SystemExit(0)
+
+write_target.parent.mkdir(parents=True, exist_ok=True)
+mode = write_target.stat().st_mode & 0o777 if write_target.exists() else 0o644
+fd, temporary = tempfile.mkstemp(prefix=f".{write_target.name}.", dir=write_target.parent)
+try:
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(output)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.chmod(temporary, mode)
+    os.replace(temporary, write_target)
+finally:
+    if os.path.exists(temporary):
+        os.unlink(temporary)
+PY
+}
+
+render_router() {
+  local output_file="$1"
+  python3 - "$ROOT/router/AGENTS.md" "$output_file" "$AGENT_HOME" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+source = Path(sys.argv[1]).read_text()
+output = Path(sys.argv[2])
+agent_home = sys.argv[3]
+replacements = {
+    "{{AGENT_HOME}}": agent_home,
+    "{{GAUNTLET_ROOT}}": str(Path(agent_home) / "gauntlet"),
+}
+rendered = source
+for placeholder, value in replacements.items():
+    if placeholder not in rendered:
+        print(f"Portable router is missing {placeholder}", file=sys.stderr)
+        raise SystemExit(1)
+    rendered = rendered.replace(placeholder, value)
+if "{{" in rendered or "}}" in rendered:
+    print("Portable router contains an unresolved install placeholder", file=sys.stderr)
+    raise SystemExit(1)
+if len(rendered.encode()) >= 32768:
+    print("Rendered portable router exceeds the 32 KiB discovery budget", file=sys.stderr)
+    raise SystemExit(1)
+for line in rendered.splitlines():
+    if re.search(r"(?<!/)(?<![A-Za-z0-9_.-])(docs|scripts)/", line):
+        print(f"Portable router contains a downstream-relative Gauntlet path: {line}", file=sys.stderr)
+        raise SystemExit(1)
+output.write_text(rendered)
+PY
+}
+
+# Reject malformed target state before installing or removing any payload files.
+case "$TARGET" in
+  codex)
+    validate_managed_file "$AGENT_HOME/AGENTS.md"
+    ;;
+  claude)
+    validate_managed_file "$AGENT_HOME/CLAUDE.md"
+    ;;
+esac
+
 write_claude_adapter() {
   local claude_file="$AGENT_HOME/CLAUDE.md"
   local block_file
-  local output_file
   block_file="$(mktemp)"
-  output_file="$(mktemp)"
 
-  cat > "$block_file" <<EOF
-<!-- BEGIN GAUNTLET MANAGED BLOCK -->
-@${AGENT_HOME}/gauntlet/AGENTS.md
+  {
+    printf '%s\n' "$MANAGED_BEGIN"
+    printf '@%s/gauntlet/AGENTS.md\n\n' "$AGENT_HOME"
+    printf '%s\n\n' '## Gauntlet Adapter For Claude Code'
+    printf '%s\n' '- Imported Gauntlet AGENTS.md is the workflow source of truth.'
+    printf '%s\n' "- Gauntlet role skill files are installed in ${AGENT_HOME}/skills. When Gauntlet names a role skill, read that skill's SKILL.md before using it."
+    printf '%s\n' '- Codex-specific thread, app, or skill actions should be mapped to available Claude Code, Git, or GitHub equivalents when possible.'
+    printf '%s' "$MANAGED_END"
+  } > "$block_file"
 
-## Gauntlet Adapter For Claude Code
-
-- Imported Gauntlet AGENTS.md is the workflow source of truth.
-- Gauntlet role skill files are installed in ${AGENT_HOME}/skills. When Gauntlet names a role skill, read that skill's SKILL.md before using it.
-- Codex-specific thread, app, or skill actions should be mapped to available Claude Code, Git, or GitHub equivalents when possible.
-<!-- END GAUNTLET MANAGED BLOCK -->
-EOF
-
-  if [ -f "$claude_file" ]; then
-    awk -v block_file="$block_file" '
-      BEGIN {
-        while ((getline line < block_file) > 0) {
-          block = block line ORS
-        }
-        in_block = 0
-        replaced = 0
-      }
-      /<!-- BEGIN GAUNTLET MANAGED BLOCK -->/ {
-        if (!replaced) {
-          printf "%s", block
-          replaced = 1
-        }
-        in_block = 1
-        next
-      }
-      /<!-- END GAUNTLET MANAGED BLOCK -->/ {
-        if (in_block) {
-          in_block = 0
-          next
-        }
-      }
-      !in_block {
-        print
-      }
-      END {
-        if (!replaced) {
-          if (NR > 0) {
-            print ""
-          }
-          printf "%s", block
-        }
-      }
-    ' "$claude_file" > "$output_file"
-    mv "$output_file" "$claude_file"
-  else
-    {
-      printf "# Claude Code Global Instructions\n\n"
-      cat "$block_file"
-    } > "$claude_file"
-    rm -f "$output_file"
-  fi
-
+  write_managed_file "$claude_file" "$block_file"
   rm -f "$block_file"
 }
 
 write_codex_agents() {
   local codex_file="$AGENT_HOME/AGENTS.md"
-  local personal_file
-  local base_file
-  local output_file
-  personal_file="$(mktemp)"
-  base_file="$(mktemp)"
-  output_file="$(mktemp)"
+  local router_file="$1"
+  local legacy_reference="$2"
+  local block_file
+  block_file="$(mktemp)"
 
-  if [ -f "$codex_file" ]; then
-    awk '
-      /<!-- BEGIN PERSONAL HOUSE VOICE -->/ { in_block = 1 }
-      in_block { print }
-      /<!-- END PERSONAL HOUSE VOICE -->/ { if (in_block) exit }
-    ' "$codex_file" > "$personal_file"
-  fi
+  {
+    printf '%s\n' "$MANAGED_BEGIN"
+    cat "$router_file"
+    printf '%s' "$MANAGED_END"
+  } > "$block_file"
 
-  awk '
-    /<!-- BEGIN PERSONAL HOUSE VOICE -->/ { in_block = 1; next }
-    /<!-- END PERSONAL HOUSE VOICE -->/ { in_block = 0; next }
-    !in_block { print }
-  ' "$ROOT/AGENTS.md" > "$base_file"
-
-  if [ -s "$personal_file" ]; then
-    awk -v personal_file="$personal_file" '
-      BEGIN {
-        while ((getline line < personal_file) > 0) {
-          personal = personal line ORS
-        }
-      }
-      NR == 1 {
-        print
-        print ""
-        printf "%s", personal
-        next
-      }
-      { print }
-    ' "$base_file" > "$output_file"
-    mv "$output_file" "$codex_file"
-  else
-    mv "$base_file" "$codex_file"
-    rm -f "$output_file"
-  fi
-
-  chmod 0644 "$codex_file"
-
-  rm -f "$personal_file" "$base_file" "$output_file"
+  write_managed_file "$codex_file" "$block_file" "$legacy_reference"
+  rm -f "$block_file"
 }
 
-mkdir -p "$AGENT_HOME/skills" "$AGENT_HOME/gauntlet"
-cp "$ROOT/README.md" "$AGENT_HOME/gauntlet/README.md"
-cp "$ROOT/AGENTS.md" "$AGENT_HOME/gauntlet/AGENTS.md"
-rm -rf "$AGENT_HOME/skills/review-brief-builder"
-cp -R "$SKILLS_SRC/." "$AGENT_HOME/skills/"
-rm -rf "$AGENT_HOME/gauntlet/docs"
-cp -R "$ROOT/docs" "$AGENT_HOME/gauntlet/"
-cp -R "$ROOT/scripts" "$AGENT_HOME/gauntlet/"
-mkdir -p "$AGENT_HOME/gauntlet/evals"
-rsync -a --delete \
-  --exclude '/generated-prompts/' \
-  --exclude '/results/' \
-  "$ROOT/evals/" "$AGENT_HOME/gauntlet/evals/"
-rm -rf "$AGENT_HOME/gauntlet/templates"
-rm -f "$AGENT_HOME/gauntlet/review-brief.html"
-rm -f "$AGENT_HOME/gauntlet/review-brief-data.json"
-rm -f "$AGENT_HOME/gauntlet/review-brief-data.schema.json"
-rm -f "$AGENT_HOME/gauntlet/scripts/serve-notes.sh"
-rm -f "$AGENT_HOME/gauntlet/scripts/check-review-brief.py"
-rm -f "$AGENT_HOME/gauntlet/scripts/embed-review-brief-data.py"
-rm -f "$AGENT_HOME/gauntlet/scripts/init-review-brief.sh"
-rm -f "$AGENT_HOME/gauntlet/scripts/require-review-brief-started.sh"
-rm -f "$AGENT_HOME/gauntlet/scripts/serve-review-brief.sh"
-rm -f "$AGENT_HOME/gauntlet/scripts/start-review-brief.sh"
-rm -f "$AGENT_HOME/gauntlet/scripts/validate-review-brief-data.py"
+rendered_router="$(mktemp)"
+legacy_installed_router=""
+if [ "$TARGET" = "codex" ] && [ -f "$AGENT_HOME/gauntlet/AGENTS.md" ]; then
+  legacy_installed_router="$(mktemp)"
+  cp "$AGENT_HOME/gauntlet/AGENTS.md" "$legacy_installed_router"
+fi
+cleanup_install() {
+  rm -f "$rendered_router"
+  if [ -n "$legacy_installed_router" ]; then
+    rm -f "$legacy_installed_router"
+  fi
+}
+trap cleanup_install EXIT
+render_router "$rendered_router"
 
+mkdir -p "$AGENT_HOME/skills" "$AGENT_HOME/gauntlet"
+source_is_installed_payload="$(python3 - "$ROOT" "$AGENT_HOME/gauntlet" <<'PY'
+import os
+import sys
+
+print("1" if os.path.realpath(sys.argv[1]) == os.path.realpath(sys.argv[2]) else "0")
+PY
+)"
+
+if [ "$source_is_installed_payload" != "1" ]; then
+  cp "$ROOT/README.md" "$AGENT_HOME/gauntlet/README.md"
+  mkdir -p "$AGENT_HOME/gauntlet/router"
+  cp "$ROOT/router/AGENTS.md" "$AGENT_HOME/gauntlet/router/AGENTS.md"
+  rm -rf "$AGENT_HOME/skills/review-brief-builder"
+  cp -R "$SKILLS_SRC/." "$AGENT_HOME/skills/"
+  rm -rf "$AGENT_HOME/gauntlet/docs"
+  cp -R "$ROOT/docs" "$AGENT_HOME/gauntlet/"
+  cp -R "$ROOT/scripts" "$AGENT_HOME/gauntlet/"
+  mkdir -p "$AGENT_HOME/gauntlet/evals"
+  rsync -a --delete \
+    --exclude '/generated-prompts/' \
+    --exclude '/results/' \
+    "$ROOT/evals/" "$AGENT_HOME/gauntlet/evals/"
+  rm -rf "$AGENT_HOME/gauntlet/templates"
+  rm -f "$AGENT_HOME/gauntlet/review-brief.html"
+  rm -f "$AGENT_HOME/gauntlet/review-brief-data.json"
+  rm -f "$AGENT_HOME/gauntlet/review-brief-data.schema.json"
+  rm -f "$AGENT_HOME/gauntlet/scripts/serve-notes.sh"
+  rm -f "$AGENT_HOME/gauntlet/scripts/check-review-brief.py"
+  rm -f "$AGENT_HOME/gauntlet/scripts/embed-review-brief-data.py"
+  rm -f "$AGENT_HOME/gauntlet/scripts/init-review-brief.sh"
+  rm -f "$AGENT_HOME/gauntlet/scripts/require-review-brief-started.sh"
+  rm -f "$AGENT_HOME/gauntlet/scripts/serve-review-brief.sh"
+  rm -f "$AGENT_HOME/gauntlet/scripts/start-review-brief.sh"
+  rm -f "$AGENT_HOME/gauntlet/scripts/validate-review-brief-data.py"
+fi
+
+cp "$rendered_router" "$AGENT_HOME/gauntlet/AGENTS.md"
+chmod 0644 "$AGENT_HOME/gauntlet/AGENTS.md"
+
+for required_path in \
+  "$AGENT_HOME/gauntlet/AGENTS.md" \
+  "$AGENT_HOME/gauntlet/docs/workflow-etiquette.md" \
+  "$AGENT_HOME/gauntlet/scripts/gauntlet.py" \
+  "$AGENT_HOME/gauntlet/scripts/check-subagent-plan.py" \
+  "$AGENT_HOME/skills/intake/SKILL.md" \
+  "$AGENT_HOME/skills/planner/SKILL.md" \
+  "$AGENT_HOME/skills/implementer/SKILL.md"
+do
+  if [ ! -s "$required_path" ]; then
+    echo "Gauntlet install payload is incomplete: $required_path" >&2
+    exit 1
+  fi
+done
+
+# Activate the router only after the installed payload is complete.
 case "$TARGET" in
   codex)
-    write_codex_agents
+    write_codex_agents "$rendered_router" "$legacy_installed_router"
     ;;
   claude)
     write_claude_adapter
