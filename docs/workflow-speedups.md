@@ -16,6 +16,9 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 | Release-candidate impact summary | `scripts/gauntlet.py analytics summarize --project-root "$PROJECT_ROOT" --baseline "$BASELINE" --candidate "$CANDIDATE"` |
 | Bounded attempt memory | `scripts/gauntlet.py attempt-memory add --project-root "$PROJECT_ROOT" --run-id "$RUN_ID" --kind proof_failure --fingerprint "$FINGERPRINT" --summary "$SUMMARY"` |
 | PR/changelog draft | `scripts/gauntlet.py changelog pr --implementation-memory "$MEMORY_PATH" --git-root "$PROJECT_ROOT"` |
+| Contextual merge handoff | `scripts/gauntlet.py merge prepare --git-root "$PROJECT_ROOT" --handoff .gauntlet/merge-handoff.json --body-output .gauntlet/pr-body.md --json` |
+| Merge preflight | `scripts/gauntlet.py merge plan --git-root "$PROJECT_ROOT" --handoff .gauntlet/merge-handoff.json --body .gauntlet/pr-body.md --json` |
+| Authorized merge execution | `scripts/gauntlet.py merge execute --git-root "$PROJECT_ROOT" --handoff .gauntlet/merge-handoff.json --body .gauntlet/pr-body.md --json` |
 | Archive Summary display | `scripts/gauntlet.py archive plan --content "$CHANGELOG_OR_CLOSEOUT" --title "$THREAD_TITLE" --git-root "$PROJECT_ROOT"` |
 | Follow-up note | `scripts/gauntlet.py followup note ...` |
 | Follow-up thread packet | `scripts/gauntlet.py followup thread --content "$FOLLOWUP_FILE" --title "$THREAD_TITLE" --json` |
@@ -33,7 +36,7 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 - GitHub metadata verifies objective PR facts only.
 - Follow-up thread helpers emit `create_thread` app-action packets; create the actual Codex thread with app tools after checking the packet.
 - Child implementation lanes should use separate git worktrees by default when they write code, edit multiple files, or have uncertain ownership. Read-only review, exploration, summarization, and log-analysis lanes do not need worktrees by default.
-- Child thread titles should preserve the Gauntlet priority prefix and add lane/status tags, such as `p1-auto: [C1][In Progress] Backend policy layer`.
 - `.gauntlet/subagent-plan.json` is the canonical child-lane contract; render prompts from validated lane entries instead of writing separate packets.
-- The main chat owns user questions, merge decisions, and final synthesis. Child chats return compact machine receipts and archive after integration; do not print routine lane state for the user.
+- Native Codex state owns child progress; use stable lane ids only in manifest entries and returned receipts when the main task needs a coordination handle.
+- The main chat owns user questions, merge decisions, and final synthesis. Child chats return compact machine receipts, do not direct-push to `main`, and do not print routine lane state for the user.
 - Keep `quality-check --surface ...`, `.gitignore` suggestions, broad worktree dependency classification, Mermaid rendering, and multi-repo attribution deferred until repeated runs prove a low-risk mechanical loop.

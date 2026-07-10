@@ -5,7 +5,7 @@ description: Use when executing ready task packets against an accepted spec whil
 
 # Implementer
 
-Turn one ready task packet into working, maintainable code.
+Execute one accepted packet. Preserve unrelated work and prove behavior.
 
 ## Delegated Lane Receipt
 
@@ -19,38 +19,31 @@ Use `Done`, `Done with concerns`, `Blocked`, or `Needs decision` for `status`. K
 
 ## Implementation Packet
 
-Read the task packet, then return:
+Non-delegated reports contain changed behavior, proof, real concerns, and the next action:
 
-If a field is outside accepted scope, write `Not relevant because...` instead of expanding the task. Optional example: read `examples/implementation-report.md` only when output shape is ambiguous.
+Optional example: read `examples/implementation-report.md` only when the output shape is ambiguous.
 
 - Status: `Done`, `Done with concerns`, `Blocked`, or `Needs context`
-- Changed files
-- Behavior changed
-- Proof: commands, screenshots, benchmarks, logs, manual checks, what they prove, and what they do not prove
-- Cannot verify: missing proof, why it matters, and who can check it
-- Review concerns: human judgment, missing proof, or reopened attention
-- User-work note: unrelated dirty files noticed and preserved
+- Changed files and behavior
+- Proof: evidence, what it proves, and its limits
+- `Cannot verify`: material missing proof, why, and who can check it
+- Review concerns: remaining human judgment or missing proof
+- User-work note: unrelated dirty files preserved
 - Next action
 
-For Feature or Release work, also report run-log-friendly exceptions:
-
-- Material assumptions, decisions, deviations, and tradeoffs
-- Failed, skipped, partial, or unavailable proof
-- Things that went wrong and follow-ups
-- Coverage gap candidate when reusable guidance is missing
+For Feature or Release work, add only exceptions that occurred: material decisions, deviations, proof gaps, failures, follow-ups, or a reusable coverage gap.
 
 ## Rules
 
-- Read before editing.
-- Match local patterns.
-- Implement the smallest correct step.
-- Keep interfaces narrow and behavior explicit.
-- Add or update tests when behavior changes.
-- Refuse delegated implementation when an accepted current-run manifest is missing or rejected. The manifest is the lane contract; do not require or create a second Markdown packet.
-- Before implementing added scope, require its scope-addition delta to be resolved; a clean check may be represented by `Scope delta checked: no material change.` in the plan or task packet.
-- For independent manifest lanes with disjoint files, state, and proof, use only subagent lanes accepted by `scripts/check-subagent-plan.py`; otherwise implement sequentially. Do not repeat large shared context into subagents unless speed gains justify the tokens.
-- Retry a delegated-lane failure silently only when the next attempt is safe, materially different, and inside accepted authority and appetite. Stop and return the compact receipt when the failure fingerprint would repeat, new authority is required, destructive external state is at risk, or the accepted appetite would be exceeded.
+- Read first, match local patterns, implement the smallest correct step, and test behavior changes.
+- Every delegated lane requires a bounded prompt. For two or more parallel lanes or any write-heavy child implementation lane, refuse implementation when the current-run schema `1.2` manifest is missing, rejected, or has a blocking finding.
+- A single small read-only child does not need the manifest gate.
+- The manifest is the lane contract; do not require or create a second Markdown packet.
+- Shared accepted context lives at plan level or in an accepted source reference; rendered lane prompts contain only the validated lane view.
+- For independent manifest lanes with disjoint files, state, and proof, use only lanes accepted by `scripts/check-subagent-plan.py`; otherwise implement sequentially. Do not repeat large shared context unless speed gains justify the tokens.
+- Keep clean validation, mode/gate selection, scope-delta checks, review transitions, and hygiene transitions out of the report.
+- Resolve added-scope deltas first. A clean plan/task may retain `Scope delta checked: no material change.`
+- Retry a delegated-lane failure silently only when the next attempt is safe, materially different, and inside accepted authority and appetite. Stop and return the compact receipt when the failure fingerprint would repeat, new authority is required, destructive external state is at risk, or the appetite would be exceeded.
 - Avoid broad rewrites, speculative abstractions, unrelated cleanup, and silent behavior changes.
-- After substantial or generated-code-heavy changes, remove dead code and unnecessary abstractions you introduced before final verification.
-- Do not damage unrelated user work in a dirty workspace.
-- Done requires required proof to pass or be explicitly Not Applicable with rationale; code alone is not done.
+- Remove current-change dead code and unnecessary abstractions before final verification.
+- Done requires required proof to pass or be explicitly unavailable with its consequence stated; code alone is not done.

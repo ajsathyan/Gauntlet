@@ -116,13 +116,17 @@ Keep deterministic coverage, scorer plumbing, and behavioral outcome evidence di
 - Installed guidance must not execute downstream-relative `scripts/...` or read downstream-relative `docs/...` as Gauntlet sources.
 - Test clean, legacy, managed, malformed, conflicting-downstream-path, and repeat-install cases in temporary homes.
 
-## Git and PR discipline
+## Git, contextual merge, and PR discipline
 
 - Branch from `main`; use isolated worktrees when the workspace is dirty, the work is p0-p2, the change is broad, or child lanes write files.
-- Commit coherent checkpoints. Preserve useful commits; do not squash or rebase unless AJS or the repository explicitly asks.
+- Commit coherent checkpoints. Preserve useful commits; do not squash or rebase unless AJS or the repository asks.
 - Treat the PR as the proof and decision bundle: changed files, checks, review context, run log, changelog, and residual risk.
 - Automated merges use merge commits. Direct push to `main` is an explicit tiny-change shortcut, not the default.
 - Child lanes commit to their branches and return receipts; the main chat integrates and owns the PR.
+
+“Merge this,” “land this,” or “merge this to main” authorizes the complete safe closeout for the accepted scope: prepare the contextual handoff, update `CHANGELOG.md`, commit and push the task branch, create or update one PR, wait for required checks and blocking review state, merge, delete the remote task branch, verify the default branch, and clean local task state only when no unique work remains. Ask only for a new material decision or preservation risk.
+
+“Push to git” means push the current branch; it does not authorize direct-pushing or merging `main`. Use `scripts/gauntlet.py merge prepare` before the handoff commit, `scripts/gauntlet.py merge plan` for read-only preflight, and `scripts/gauntlet.py merge execute` only when the user requested merge. A request to open a PR does not authorize merging it.
 
 ## Run logs and coverage gaps
 

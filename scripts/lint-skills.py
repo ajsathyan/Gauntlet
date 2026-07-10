@@ -57,8 +57,6 @@ def lint_skill(path, max_words):
         failures.append("missing Cannot verify slot")
     if not any(marker in body for marker in ["Output Contract", "Intake Packet", "Product Packet", "Gauntlet Task Packet", "Ready Item", "Implementation Packet"]):
         failures.append("missing explicit packet or output contract")
-    if "Not relevant because" not in body:
-        failures.append("missing Not relevant because default")
     if "Optional example:" not in body:
         failures.append("missing Optional example reference")
     if not examples:
@@ -82,7 +80,6 @@ def lint_skill(path, max_words):
         "wordCount": words,
         "description": description,
         "optionalExamples": examples,
-        "hasNotRelevantDefault": "Not relevant because" in body,
         "failures": failures,
         "warnings": warnings,
     }
@@ -116,7 +113,6 @@ def main():
                 "wordCount": 0,
                 "description": "",
                 "optionalExamples": [],
-                "hasNotRelevantDefault": False,
                 "failures": [str(error)],
                 "warnings": [],
             }
