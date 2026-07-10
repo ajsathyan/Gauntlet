@@ -543,6 +543,7 @@ def test_subagent_plan_validator_v12_accepts_shared_and_single_write_lane():
         project = Path(tmp) / "project"
         project.mkdir()
         plan = complete_subagent_plan(project, lane_ids=("C1",))
+        plan["lanes"][0]["contextDelta"] = ""
 
         result, record = run_subagent_plan(validator, project, plan, "v12-single-write")
 

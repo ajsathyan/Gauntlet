@@ -47,6 +47,8 @@ Schema `1.2` stores common context once. Lane objects contain only ownership and
 
 `stateAccess` is `none`, `read-only`, or `mutates`. `taskPacketRef` and `shared.acceptedSource` must be relative paths inside the project root and must exist before validation. Native Codex state owns child progress; the manifest does not require chat titles or status choreography.
 
+`contextDelta` is required as a schema slot but may be an empty string when the shared accepted source fully defines the lane. Do not invent lane prose merely to populate it.
+
 ## Findings
 
 Validation blocks implementation when the packet is unsafe or non-executable:

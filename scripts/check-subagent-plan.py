@@ -240,13 +240,15 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
             "scope",
             "stateScope",
             "stateAccess",
-            "contextDelta",
             "taskPacketRef",
         ]:
             if field in lane and not isinstance(lane[field], str):
                 add_finding(rejections, "invalid_field_type", f"{field} must be a string", lane_id)
             elif field in lane and not lane[field].strip():
                 add_finding(rejections, "empty_field", f"{field} must not be empty", lane_id)
+
+        if "contextDelta" in lane and not isinstance(lane["contextDelta"], str):
+            add_finding(rejections, "invalid_field_type", "contextDelta must be a string", lane_id)
 
         if lane.get("stateAccess") not in VALID_STATE_ACCESS:
             add_finding(
