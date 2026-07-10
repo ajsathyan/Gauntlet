@@ -327,6 +327,7 @@ if [ "$source_is_installed_payload" != "1" ]; then
   cp -R "$SKILLS_SRC/." "$AGENT_HOME/skills/"
   rm -rf "$AGENT_HOME/gauntlet/docs"
   cp -R "$ROOT/docs" "$AGENT_HOME/gauntlet/"
+  rm -rf "$AGENT_HOME/gauntlet/scripts"
   cp -R "$ROOT/scripts" "$AGENT_HOME/gauntlet/"
   mkdir -p "$AGENT_HOME/gauntlet/evals"
   rsync -a --delete \

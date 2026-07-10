@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet installs now remove workflow scripts deleted from the source payload, preventing retired orchestration helpers from lingering locally.
+
 - Gauntlet now uses one lean Research/Patch/Feature/Release workflow, folds selected Superpowers techniques into attributed native skills, and safely retires overlapping runtime skills.
 
 - Gauntlet now installs a compact path-safe global router inside a preservation-safe managed block, coordinates bounded child lanes through native Codex state with quiet receipts, and separates scorer smoke from observable orchestration outcome checks.
