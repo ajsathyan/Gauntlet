@@ -329,6 +329,7 @@ def test_subagent_parallelism_is_context_efficient():
     planner = read(SKILLS / "planner" / "SKILL.md")
     product = read(SKILLS / "product-architect" / "SKILL.md")
     implementer = read(SKILLS / "implementer" / "SKILL.md")
+    validator_doc = read(ROOT / "docs" / "subagent-plan-validator.md")
 
     for marker in [
         "Parallelism must beat its context cost.",
@@ -363,6 +364,16 @@ def test_subagent_parallelism_is_context_efficient():
         "Consider onboarding, activation, retention, and growth only when tied to accepted scope or a real next action.",
         "product-architect soft scope rule",
     )
+
+    for marker in [
+        '"schemaVersion": "1.2"',
+        '"shared"',
+        '"contextDelta"',
+        "two or more parallel lanes or any write-heavy child implementation lane",
+        "Warnings do not delay implementation",
+        "Successful validation is durable internal evidence",
+    ]:
+        assert_contains(validator_doc, marker, "subagent validator reference")
 
 
 def test_kickoff_and_implementation_transition_gates_are_documented():
@@ -449,6 +460,148 @@ def test_skill_quality_bar_is_trigger_bounded():
         assert_contains(plan, marker, "skill quality analytics plan")
 
 
+def complete_subagent_plan(project, lane_ids=("C1", "C2")):
+    docs = project / "docs"
+    packets = project / ".gauntlet" / "packets"
+    docs.mkdir(parents=True, exist_ok=True)
+    packets.mkdir(parents=True, exist_ok=True)
+    (docs / "accepted-spec.md").write_text("# Accepted Spec\n")
+    for lane_id in lane_ids:
+        (packets / f"{lane_id}.md").write_text(f"# {lane_id} Task Packet\n")
+    return {
+        "schemaVersion": "1.2",
+        "runId": "workflow-test",
+        "shared": {
+            "projectRoot": ".",
+            "acceptedSource": "docs/accepted-spec.md",
+            "constraints": ["Preserve unrelated work."],
+            "askUserPolicy": "Return Needs decision to the main task.",
+            "expectedReturn": "Verdict, evidence, residual risk, and one next action.",
+        },
+        "lanes": [
+            {
+                "id": lane_id,
+                "skill": "implementer",
+                "objective": f"Implement bounded lane {lane_id}",
+                "worktreePath": f".worktrees/{lane_id}",
+                "scope": f"Implement {lane_id}",
+                "inScope": [f"src/{lane_id}/**"],
+                "outOfScope": ["src/shared/**"],
+                "filesRead": [f"src/{lane_id}/**"],
+                "filesWrite": [f"src/{lane_id}/**"],
+                "filesAvoid": ["src/shared/**"],
+                "stateScope": lane_id,
+                "stateAccess": "mutates",
+                "dependencies": [],
+                "consumes": ["accepted spec"],
+                "produces": [f"{lane_id} patch"],
+                "laneConstraints": [],
+                "proof": [f"test-{lane_id}"],
+                "contextDelta": f"Only change the {lane_id} boundary.",
+                "taskPacketRef": f".gauntlet/packets/{lane_id}.md",
+            }
+            for lane_id in lane_ids
+        ],
+    }
+
+
+def run_subagent_plan(validator, project, data, run_id, *extra_args):
+    data["runId"] = run_id
+    plan = project / f"{run_id}.json"
+    plan.write_text(json.dumps(data))
+    result = run(
+        [str(validator), str(project), str(plan), "--run-id", run_id, *extra_args],
+        check=False,
+    )
+    log = project / ".gauntlet" / "subagent-plan-log.jsonl"
+    record = json.loads(log.read_text().splitlines()[-1]) if log.exists() else {}
+    return result, record
+
+
+def test_subagent_plan_validator_v12_accepts_shared_and_single_write_lane():
+    validator = SCRIPTS / "check-subagent-plan.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        project.mkdir()
+        plan = complete_subagent_plan(project, lane_ids=("C1",))
+
+        result, record = run_subagent_plan(validator, project, plan, "v12-single-write")
+
+        if result.returncode != 0:
+            raise AssertionError(f"schema 1.2 single write lane should pass:\n{result.stdout}\n{result.stderr}")
+        if result.stdout.strip() != "accepted":
+            raise AssertionError(f"clean acceptance should stay quiet: {result.stdout!r}")
+        if record.get("status") != "accepted" or record.get("warningCount") != 0:
+            raise AssertionError(f"clean schema 1.2 record is incomplete: {record}")
+
+
+def test_subagent_plan_validator_v12_warns_for_context_efficiency():
+    validator = SCRIPTS / "check-subagent-plan.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        project.mkdir()
+        plan = complete_subagent_plan(project)
+        repeated = "shared repeated context must move to the shared packet block " * 20
+        for lane in plan["lanes"]:
+            lane["contextDelta"] = repeated
+            lane["proof"] = ["python3 -m unittest"]
+        plan["lanes"][0]["filesRead"] = ["**/*"]
+
+        result, record = run_subagent_plan(
+            validator,
+            project,
+            plan,
+            "v12-warnings",
+            "--max-inline-words",
+            "25",
+            "--max-total-inline-words",
+            "40",
+        )
+
+        if result.returncode != 0 or record.get("status") != "accepted":
+            raise AssertionError(f"efficiency findings must not block: {record}")
+        warning_codes = {finding["code"] for finding in record.get("warnings", [])}
+        expected = {
+            "duplicated_lane_context",
+            "lane_context_too_large",
+            "total_context_too_large",
+            "duplicate_proof_target",
+            "overbroad_read_scope",
+        }
+        if not expected.issubset(warning_codes):
+            raise AssertionError(f"missing advisory findings: expected {expected}, got {warning_codes}")
+
+
+def test_subagent_plan_validator_v12_blocks_material_hazards():
+    validator = SCRIPTS / "check-subagent-plan.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        project.mkdir()
+        plan = complete_subagent_plan(project)
+        plan["shared"]["constraints"] = ["Use OPENAI_API_KEY=sk-live-secret-value while working."]
+        plan["shared"]["acceptedSource"] = "../outside.md"
+        plan["lanes"][1]["filesWrite"] = plan["lanes"][0]["filesWrite"]
+        plan["lanes"][1]["stateScope"] = plan["lanes"][0]["stateScope"]
+        plan["lanes"][0]["filesWrite"] = [*plan["lanes"][0]["filesWrite"], "**/*"]
+        plan["lanes"][1]["taskPacketRef"] = "../outside.md"
+
+        result, record = run_subagent_plan(validator, project, plan, "v12-material-hazards")
+
+        if result.returncode == 0 or record.get("status") != "rejected":
+            raise AssertionError(f"material hazards must block: {record}")
+        rejection_codes = {finding["code"] for finding in record.get("rejections", [])}
+        expected = {
+            "secret_in_shared_context",
+            "overlapping_writes",
+            "shared_mutable_state",
+            "overbroad_write_scope",
+            "invalid_task_packet_ref",
+            "invalid_accepted_source",
+        }
+        if not expected.issubset(rejection_codes):
+            raise AssertionError(f"missing blocking findings: expected {expected}, got {rejection_codes}")
+
+
 def test_subagent_plan_validator_logs_rejections():
     validator = SCRIPTS / "check-subagent-plan.py"
     if not validator.exists() or not os.access(validator, os.X_OK):
@@ -457,34 +610,13 @@ def test_subagent_plan_validator_logs_rejections():
     with tempfile.TemporaryDirectory() as tmp:
         project = Path(tmp) / "project"
         project.mkdir()
+        data = complete_subagent_plan(project)
+        data["runId"] = "workflow-test"
+        data["lanes"][1]["filesWrite"] = data["lanes"][0]["filesWrite"]
+        data["lanes"][1]["stateScope"] = data["lanes"][0]["stateScope"]
+        data["shared"]["constraints"] = ["Use OPENAI_API_KEY=sk-live-secret-value while working."]
         plan = project / "subagent-plan.json"
-        plan.write_text(json.dumps({
-            "schemaVersion": "1.0",
-            "lanes": [
-                {
-                    "id": "ui-review",
-                    "skill": "experience-reviewer",
-                    "scope": "Review checkout UI",
-                    "filesRead": ["src/checkout/**"],
-                    "filesWrite": ["src/checkout/page.tsx"],
-                    "stateScope": "checkout-session",
-                    "stateAccess": "mutates",
-                    "proof": ["npm test"],
-                    "inlineContext": "shared checkout context " * 90,
-                },
-                {
-                    "id": "browser-proof",
-                    "skill": "black-box-tester",
-                    "scope": "Exercise checkout UI",
-                    "filesRead": ["src/checkout/**"],
-                    "filesWrite": ["src/checkout/page.tsx"],
-                    "stateScope": "checkout-session",
-                    "stateAccess": "mutates",
-                    "proof": ["npm test"],
-                    "inlineContext": "shared checkout context " * 90,
-                },
-            ],
-        }))
+        plan.write_text(json.dumps(data))
 
         result = run([str(validator), str(project), str(plan), "--run-id", "workflow-test"], check=False)
         if result.returncode == 0:
@@ -500,7 +632,7 @@ def test_subagent_plan_validator_logs_rejections():
             raise AssertionError("subagent summary was not written")
         record = json.loads(log_path.read_text().splitlines()[-1])
         summary = json.loads(summary_path.read_text())
-        if record["status"] != "rejected" or record["rejectionCount"] < 4:
+        if record["status"] != "rejected" or record["rejectionCount"] < 3:
             raise AssertionError("subagent rejection record missing expected failures")
         if summary["runId"] != "workflow-test" or summary["rejectedPlans"] != 1:
             raise AssertionError("subagent summary should track rejected plans for the run")
@@ -515,34 +647,13 @@ def test_subagent_plan_validator_rejects_secret_and_overbroad_scope():
     with tempfile.TemporaryDirectory() as tmp:
         project = Path(tmp) / "project"
         project.mkdir()
+        data = complete_subagent_plan(project)
+        data["runId"] = "secret-test"
+        data["shared"]["constraints"] = ["Use OPENAI_API_KEY=sk-live-secret-value while reviewing."]
+        data["lanes"][0]["filesRead"] = ["**/*"]
+        data["lanes"][0]["filesWrite"] = ["**/*"]
         plan = project / "subagent-plan.json"
-        plan.write_text(json.dumps({
-            "schemaVersion": "1.0",
-            "lanes": [
-                {
-                    "id": "all-repo-review",
-                    "skill": "deep-code-reviewer",
-                    "scope": "Review everything",
-                    "filesRead": ["**/*"],
-                    "filesWrite": [],
-                    "stateScope": "repo",
-                    "stateAccess": "read-only",
-                    "proof": ["manual review"],
-                    "inlineContext": "Use OPENAI_API_KEY=sk-live-secret-value while reviewing.",
-                },
-                {
-                    "id": "docs-review",
-                    "skill": "deep-code-reviewer",
-                    "scope": "Review docs",
-                    "filesRead": ["docs/**"],
-                    "filesWrite": [],
-                    "stateScope": "docs",
-                    "stateAccess": "read-only",
-                    "proof": ["manual docs review"],
-                    "inlineContext": "Short context.",
-                },
-            ],
-        }))
+        plan.write_text(json.dumps(data))
 
         result = run([str(validator), str(project), str(plan), "--run-id", "secret-test"], check=False)
         if result.returncode == 0:
@@ -550,9 +661,12 @@ def test_subagent_plan_validator_rejects_secret_and_overbroad_scope():
 
         record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
         codes = {rejection["code"] for rejection in record["rejections"]}
-        for code in ["secret_in_inline_context", "overbroad_scope"]:
+        for code in ["secret_in_shared_context", "overbroad_write_scope"]:
             if code not in codes:
                 raise AssertionError(f"subagent validator missing {code} rejection")
+        warning_codes = {warning["code"] for warning in record["warnings"]}
+        if "overbroad_read_scope" not in warning_codes:
+            raise AssertionError("broad read scope should be advisory")
 
 
 def test_subagent_plan_validator_requires_complete_lane_packets():
@@ -561,21 +675,12 @@ def test_subagent_plan_validator_requires_complete_lane_packets():
     with tempfile.TemporaryDirectory() as tmp:
         project = Path(tmp) / "project"
         project.mkdir()
+        data = complete_subagent_plan(project)
+        data["runId"] = "packet-fields"
+        for lane in data["lanes"]:
+            lane.pop("produces")
         plan = project / "subagent-plan.json"
-        incomplete_lanes = []
-        for lane_id in ["C1", "C2"]:
-            incomplete_lanes.append({
-                "id": lane_id,
-                "skill": "implementer",
-                "scope": f"Implement {lane_id}",
-                "filesRead": [f"src/{lane_id}/**"],
-                "filesWrite": [f"src/{lane_id}/**"],
-                "stateScope": lane_id,
-                "stateAccess": "mutates",
-                "proof": [f"test-{lane_id}"],
-                "inlineContext": f"Short context for {lane_id}.",
-            })
-        plan.write_text(json.dumps({"schemaVersion": "1.1", "lanes": incomplete_lanes}))
+        plan.write_text(json.dumps(data))
 
         incomplete = run([str(validator), str(project), str(plan), "--run-id", "packet-fields"], check=False)
         if incomplete.returncode == 0:
@@ -584,36 +689,11 @@ def test_subagent_plan_validator_requires_complete_lane_packets():
         if "missing_field" not in {rejection["code"] for rejection in record["rejections"]}:
             raise AssertionError("incomplete lane packets should report missing_field")
 
-        complete_lanes = []
-        for lane_id in ["C1", "C2"]:
-            complete_lanes.append({
-                "id": lane_id,
-                "status": "To Do",
-                "title": f"p2-auto: [{lane_id}][To Do] Implement lane",
-                "skill": "implementer",
-                "objective": f"Implement bounded lane {lane_id}",
-                "projectRoot": ".",
-                "worktreePath": ".",
-                "acceptedSource": "docs/accepted-spec.md",
-                "scope": f"Implement {lane_id}",
-                "inScope": [f"src/{lane_id}/**"],
-                "outOfScope": ["src/shared/**"],
-                "filesRead": [f"src/{lane_id}/**"],
-                "filesWrite": [f"src/{lane_id}/**"],
-                "filesAvoid": ["src/shared/**"],
-                "stateScope": lane_id,
-                "stateAccess": "mutates",
-                "dependencies": [],
-                "consumes": ["accepted spec"],
-                "produces": [f"{lane_id} patch"],
-                "constraints": ["preserve unrelated work"],
-                "proof": [f"test-{lane_id}"],
-                "inlineContext": f"Short context for {lane_id}.",
-                "taskPacketRef": f".gauntlet/packets/{lane_id}.md",
-                "expectedReturn": "Compact implementation report",
-                "askUserPolicy": "Return Needs decision to the orchestrator.",
-            })
-        plan.write_text(json.dumps({"schemaVersion": "1.1", "lanes": complete_lanes}))
+        data = complete_subagent_plan(project)
+        data["runId"] = "packet-files"
+        missing = project / data["lanes"][0]["taskPacketRef"]
+        missing.unlink()
+        plan.write_text(json.dumps(data))
 
         missing_packet = run([str(validator), str(project), str(plan), "--run-id", "packet-files"], check=False)
         if missing_packet.returncode == 0:
@@ -623,9 +703,9 @@ def test_subagent_plan_validator_requires_complete_lane_packets():
             raise AssertionError("missing task packets should report task_packet_missing")
 
         packet_dir = project / ".gauntlet" / "packets"
-        packet_dir.mkdir(parents=True)
-        for lane_id in ["C1", "C2"]:
-            (packet_dir / f"{lane_id}.md").write_text(f"# {lane_id} Task Packet\n")
+        (packet_dir / "C1.md").write_text("# C1 Task Packet\n")
+        data["runId"] = "packet-accepted"
+        plan.write_text(json.dumps(data))
 
         accepted = run([str(validator), str(project), str(plan), "--run-id", "packet-accepted"], check=False)
         if accepted.returncode != 0:
@@ -2636,6 +2716,9 @@ def main():
         test_production_quality_bar_is_launch_gated,
         test_subagent_parallelism_is_context_efficient,
         test_kickoff_and_implementation_transition_gates_are_documented,
+        test_subagent_plan_validator_v12_accepts_shared_and_single_write_lane,
+        test_subagent_plan_validator_v12_warns_for_context_efficiency,
+        test_subagent_plan_validator_v12_blocks_material_hazards,
         test_subagent_plan_validator_logs_rejections,
         test_subagent_plan_validator_rejects_secret_and_overbroad_scope,
         test_subagent_plan_validator_requires_complete_lane_packets,
