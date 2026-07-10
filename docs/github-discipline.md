@@ -86,6 +86,10 @@ Human or agent judgment should remain conversational:
 
 ## Changelog And Closeout
 
-Gauntlet's closeout helpers deliberately do not auto-commit, auto-push, auto-merge, auto-generate changelogs, publish release notes, or archive threads by default.
+"Merge this," "land this," or "merge this to main" authorizes the complete safe closeout for the current scoped work: prepare the contextual handoff, update `CHANGELOG.md`, commit coherent local changes, push the task branch, create or update one pull request, wait for required checks and blocking review state, merge, delete the remote branch, verify the default branch, and remove local branch/worktree state only when no unique work remains.
 
-Use `scripts/gauntlet.py changelog pr --implementation-memory "$MEMORY_PATH" --git-root "$PROJECT_ROOT"` only when an explicit PR/changelog draft is requested. Reuse that output during archive planning by passing it to `scripts/gauntlet.py archive plan --content`.
+"push to git" means push the current branch. It does not imply direct-push to `main` or merge.
+
+Use `scripts/gauntlet.py merge prepare` before committing the changelog, `scripts/gauntlet.py merge plan` for a read-only preflight, and `scripts/gauntlet.py merge execute` after the worktree is clean. The helper creates or updates one PR, waits for checks, refreshes PR state, merges through repository policy, deletes the remote branch, and verifies the landed commit on the default branch. It does not create commits; the main task owns coherent commit boundaries.
+
+The older `scripts/gauntlet.py changelog pr --implementation-memory "$MEMORY_PATH" --git-root "$PROJECT_ROOT"` remains available for explicit legacy drafts and archive summaries.

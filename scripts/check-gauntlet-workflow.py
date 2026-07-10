@@ -1086,6 +1086,26 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         assert_contains(agents, marker, "active AGENTS workflow speedup routing")
 
 
+def test_contextual_merge_contract_is_documented():
+    agents = read(AGENTS_MD)
+    etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
+    github = read(ROOT / "docs" / "github-discipline.md")
+    combined = "\n".join([agents, etiquette, github])
+    for marker in [
+        '"Merge this," "land this," or "merge this to main" authorizes',
+        "prepare the contextual handoff",
+        "update `CHANGELOG.md`",
+        "create or update one pull request",
+        "wait for required checks",
+        "verify the default branch",
+        '"push to git" means push the current branch',
+        "scripts/gauntlet.py merge prepare",
+        "scripts/gauntlet.py merge plan",
+        "scripts/gauntlet.py merge execute",
+    ]:
+        assert_contains(combined, marker, "contextual merge contract")
+
+
 def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions():
     checker = SCRIPTS / "check-workflow-etiquette.py"
     if not checker.exists() or not os.access(checker, os.X_OK):
@@ -1403,6 +1423,302 @@ def test_workflow_etiquette_checker_builds_archive_action_plan():
             raise AssertionError(f"archive anyway should still plan archive: {anyway_data}")
         if not any(finding["code"] == "strong_followup_archived_anyway" for finding in anyway_data["findings"]):
             raise AssertionError(f"archive anyway warning missing: {anyway_data}")
+
+
+def merge_handoff_fixture():
+    return {
+        "schemaVersion": "1.0",
+        "title": "workflow: generate contextual merge handoffs",
+        "problem": {
+            "context": "Gauntlet's useful controls are exposed as conversation ceremony.",
+            "impact": "The user has to read process narration and manually reconstruct merge context.",
+        },
+        "solution": {
+            "outcome": "Keep material controls internal and make merge handoffs automatic.",
+            "invariants": [
+                "Child ownership and proof controls remain enforced.",
+                "The PR changelog line exactly matches CHANGELOG.md.",
+            ],
+            "preserved": ["Quick local prototype development remains the default."],
+            "nonGoals": ["No new child thread provenance machinery."],
+        },
+        "changelog": "Gauntlet now keeps routine workflow controls out of the conversation and automatically creates contextual PR and changelog handoffs when merging work.",
+        "testing": [
+            {
+                "command": "python3 scripts/check-gauntlet-workflow.py",
+                "result": "PASS",
+                "proves": "Packet, conversation, handoff, and merge contracts pass together.",
+            }
+        ],
+        "prNote": [
+            "Child safeguards are retained; duplicate-context findings are advisory because the old blocker did not control actual dispatch prompts."
+        ],
+        "securityRisk": None,
+    }
+
+
+def test_gauntlet_cli_merge_prepare_renders_contextual_handoff():
+    cli = SCRIPTS / "gauntlet.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / "README.md").write_text("# Repo\n")
+        commit_all(repo, "baseline")
+        handoff = merge_handoff_fixture()
+        handoff_path = repo / ".gauntlet" / "merge-handoff.json"
+        body_path = repo / ".gauntlet" / "pr-body.md"
+        handoff_path.parent.mkdir(parents=True)
+        handoff_path.write_text(json.dumps(handoff))
+
+        first = run([
+            str(cli),
+            "merge",
+            "prepare",
+            "--git-root",
+            str(repo),
+            "--handoff",
+            str(handoff_path),
+            "--body-output",
+            str(body_path),
+            "--json",
+        ], cwd=repo, check=False)
+        if first.returncode != 0:
+            raise AssertionError(f"merge prepare should pass:\n{first.stdout}\n{first.stderr}")
+        first_data = json.loads(first.stdout)
+        if first_data["status"] != "pass" or not first_data["changelogChanged"]:
+            raise AssertionError(f"first prepare should create changelog: {first_data}")
+
+        body = body_path.read_text()
+        required = ["## Problem", "## Solution", "## Changelog", "## Testing", "## PR Note"]
+        if [body.index(item) for item in required] != sorted(body.index(item) for item in required):
+            raise AssertionError(f"PR body sections are out of order:\n{body}")
+        if "## Security / Risk" in body or "Files changed" in body:
+            raise AssertionError(f"PR body contains empty risk or a file tour:\n{body}")
+        bullet = f"- {handoff['changelog']}"
+        if bullet not in body:
+            raise AssertionError(f"PR body missing exact changelog bullet:\n{body}")
+        changelog = (repo / "CHANGELOG.md").read_text()
+        if changelog.count(bullet) != 1:
+            raise AssertionError(f"CHANGELOG should contain one exact entry:\n{changelog}")
+
+        second = run([
+            str(cli),
+            "merge",
+            "prepare",
+            "--git-root",
+            str(repo),
+            "--handoff",
+            str(handoff_path),
+            "--body-output",
+            str(body_path),
+            "--json",
+        ], cwd=repo)
+        second_data = json.loads(second.stdout)
+        if second_data["changelogChanged"] or (repo / "CHANGELOG.md").read_text().count(bullet) != 1:
+            raise AssertionError(f"merge prepare must be idempotent: {second_data}")
+
+        handoff["securityRisk"] = "A failed merge leaves the branch intact for recovery."
+        handoff_path.write_text(json.dumps(handoff))
+        run([
+            str(cli), "merge", "prepare", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body-output", str(body_path), "--json",
+        ], cwd=repo)
+        if "## Security / Risk" not in body_path.read_text():
+            raise AssertionError("material security/risk text should add the optional section")
+
+        handoff["changelog"] = "invalid\nmultiline entry"
+        handoff_path.write_text(json.dumps(handoff))
+        invalid = run([
+            str(cli), "merge", "prepare", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body-output", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if invalid.returncode != 1:
+            raise AssertionError(f"multiline changelog should fail: {invalid.stdout}")
+
+
+def prepare_merge_fixture(cli, repo):
+    (repo / ".gitignore").write_text("/.gauntlet/\n")
+    handoff = merge_handoff_fixture()
+    handoff_path = repo / ".gauntlet" / "merge-handoff.json"
+    body_path = repo / ".gauntlet" / "pr-body.md"
+    handoff_path.parent.mkdir(parents=True, exist_ok=True)
+    handoff_path.write_text(json.dumps(handoff))
+    prepared = run([
+        str(cli), "merge", "prepare", "--git-root", str(repo),
+        "--handoff", str(handoff_path), "--body-output", str(body_path), "--json",
+    ], cwd=repo)
+    if json.loads(prepared.stdout)["status"] != "pass":
+        raise AssertionError(f"merge fixture preparation failed: {prepared.stdout}")
+    return handoff_path, body_path
+
+
+def write_merge_fake_gh(path, log_path, state_path, check_conclusion="SUCCESS"):
+    path.write_text(
+        "\n".join([
+            "#!/usr/bin/env bash",
+            "set -euo pipefail",
+            "printf '%s\\n' \"$*\" >> \"$GH_LOG\"",
+            "if [ \"$1\" = \"repo\" ] && [ \"$2\" = \"view\" ]; then",
+            "  printf '%s\\n' '{\"defaultBranchRef\":{\"name\":\"main\"},\"mergeCommitAllowed\":true,\"squashMergeAllowed\":true,\"rebaseMergeAllowed\":true}'",
+            "  exit 0",
+            "fi",
+            "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then",
+            "  if [ ! -f \"$GH_STATE\" ]; then exit 1; fi",
+            f"  printf '%s\\n' '{{\"number\":7,\"state\":\"OPEN\",\"isDraft\":false,\"mergeable\":\"MERGEABLE\",\"mergedAt\":null,\"statusCheckRollup\":[{{\"__typename\":\"CheckRun\",\"name\":\"gauntlet\",\"status\":\"COMPLETED\",\"conclusion\":\"{check_conclusion}\"}}],\"url\":\"https://example.test/pr/7\",\"baseRefName\":\"main\",\"headRefName\":\"codex/merge-flow\",\"reviewDecision\":\"\"}}'",
+            "  exit 0",
+            "fi",
+            "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"create\" ]; then",
+            "  touch \"$GH_STATE\"",
+            "  printf '%s\\n' 'https://example.test/pr/7'",
+            "  exit 0",
+            "fi",
+            "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then exit 0; fi",
+            "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"checks\" ]; then exit 0; fi",
+            "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"merge\" ]; then",
+            "  git push origin HEAD:main >/dev/null",
+            "  exit 0",
+            "fi",
+            "exit 1",
+        ]) + "\n"
+    )
+    path.chmod(0o755)
+    return {"GAUNTLET_GH": str(path), "GH_LOG": str(log_path), "GH_STATE": str(state_path)}
+
+
+def test_gauntlet_cli_merge_plan_requires_clean_task_branch():
+    cli = SCRIPTS / "gauntlet.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / "README.md").write_text("# Repo\n")
+        commit_all(repo, "baseline")
+        handoff_path, body_path = prepare_merge_fixture(cli, repo)
+        commit_all(repo, "changelog")
+
+        on_main = run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if on_main.returncode != 1:
+            raise AssertionError(f"merge plan on main should fail: {on_main.stdout}")
+        if "task_branch_required" not in {item["code"] for item in json.loads(on_main.stdout)["findings"]}:
+            raise AssertionError(f"main-branch blocker missing: {on_main.stdout}")
+
+        git(["checkout", "-b", "codex/merge-flow"], cwd=repo)
+        (repo / "feature.txt").write_text("feature\n")
+        commit_all(repo, "feature")
+        (repo / "dirty.txt").write_text("dirty\n")
+        dirty = run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if dirty.returncode != 1:
+            raise AssertionError(f"dirty merge plan should fail: {dirty.stdout}")
+        if "uncommitted_merge_work" not in {item["code"] for item in json.loads(dirty.stdout)["findings"]}:
+            raise AssertionError(f"dirty-work blocker missing: {dirty.stdout}")
+        (repo / "dirty.txt").unlink()
+
+        gh_log = Path(tmp) / "gh.log"
+        state = Path(tmp) / "gh-state"
+        fake_gh = Path(tmp) / "gh"
+        env = write_merge_fake_gh(fake_gh, gh_log, state)
+        plan_result = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if plan_result.returncode != 0:
+            raise AssertionError(f"clean merge plan should pass:\n{plan_result.stdout}\n{plan_result.stderr}")
+        data = json.loads(plan_result.stdout)
+        action_types = [action["type"] for action in data["mergePlan"]["actions"]]
+        expected = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch"]
+        if action_types != expected:
+            raise AssertionError(f"new-PR merge action order mismatch: {action_types}")
+
+        state.touch()
+        existing_result = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        existing_actions = [action["type"] for action in json.loads(existing_result.stdout)["mergePlan"]["actions"]]
+        expected_existing = ["git_push", "gh_pr_edit", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch"]
+        if existing_result.returncode != 0 or existing_actions != expected_existing:
+            raise AssertionError(f"existing PR should be updated, not duplicated: {existing_result.stdout}")
+
+        original_body = body_path.read_text()
+        body_path.write_text("## Changelog\n\n- wrong entry\n")
+        mismatch = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if mismatch.returncode != 1 or "pr_body_out_of_date" not in {item["code"] for item in json.loads(mismatch.stdout)["findings"]}:
+            raise AssertionError(f"stale PR body should block merge: {mismatch.stdout}")
+
+        body_path.write_text(original_body)
+        (repo / "CHANGELOG.md").write_text("# Changelog\n\n## Unreleased\n\n- wrong entry\n")
+        changelog_mismatch = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if changelog_mismatch.returncode != 1 or "changelog_mismatch" not in {item["code"] for item in json.loads(changelog_mismatch.stdout)["findings"]}:
+            raise AssertionError(f"mismatched changelog should block merge: {changelog_mismatch.stdout}")
+
+        failing_gh = Path(tmp) / "gh-failing"
+        failing_log = Path(tmp) / "gh-failing.log"
+        failing_env = write_merge_fake_gh(failing_gh, failing_log, state, check_conclusion="FAILURE")
+        (repo / "CHANGELOG.md").write_text(f"# Changelog\n\n## Unreleased\n\n- {merge_handoff_fixture()['changelog']}\n")
+        git(["add", "CHANGELOG.md"], cwd=repo)
+        git(["commit", "--amend", "--no-edit"], cwd=repo)
+        failing = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **failing_env})
+        if failing.returncode != 2 or "pull_request_checks_failing" not in {item["code"] for item in json.loads(failing.stdout)["findings"]}:
+            raise AssertionError(f"failing PR checks should block merge: {failing.stdout}")
+
+
+def test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main():
+    cli = SCRIPTS / "gauntlet.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        remote = Path(tmp) / "remote.git"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / "README.md").write_text("# Repo\n")
+        (repo / ".gitignore").write_text("/.gauntlet/\n")
+        commit_all(repo, "baseline")
+        git(["init", "--bare", str(remote)], cwd=tmp)
+        git(["remote", "add", "origin", str(remote)], cwd=repo)
+        git(["push", "-u", "origin", "main"], cwd=repo)
+        git(["checkout", "-b", "codex/merge-flow"], cwd=repo)
+        (repo / "feature.txt").write_text("feature\n")
+        handoff_path, body_path = prepare_merge_fixture(cli, repo)
+        commit_all(repo, "feature with changelog")
+
+        gh_log = Path(tmp) / "gh.log"
+        state = Path(tmp) / "gh-state"
+        fake_gh = Path(tmp) / "gh"
+        env = write_merge_fake_gh(fake_gh, gh_log, state)
+        result = subprocess.run([
+            str(cli), "merge", "execute", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if result.returncode != 0:
+            raise AssertionError(f"merge execute should pass:\n{result.stdout}\n{result.stderr}")
+        data = json.loads(result.stdout)
+        executed = [action["type"] for action in data["executedActions"]]
+        expected = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch"]
+        if executed != expected:
+            raise AssertionError(f"executed merge order mismatch: {executed}")
+        git(["fetch", "origin", "main"], cwd=repo)
+        ancestor = git(["merge-base", "--is-ancestor", "HEAD", "origin/main"], cwd=repo)
+        if ancestor.returncode != 0:
+            raise AssertionError("merge execute did not verify the feature commit on origin/main")
+        log = gh_log.read_text()
+        for marker in ["pr create", "pr checks 7 --watch", "pr merge 7 --merge --delete-branch"]:
+            if marker not in log:
+                raise AssertionError(f"missing GitHub action {marker}:\n{log}")
 
 
 def test_gauntlet_cli_archive_plans_and_executes_github_merge():
@@ -2764,9 +3080,13 @@ def main():
         test_docs_only_diff_gets_no_runtime_test_commands,
         test_workflow_helpers_filter_artifacts_and_find_python_tests,
         test_workflow_speedup_helpers_are_documented_as_advisory,
+        test_contextual_merge_contract_is_documented,
         test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions,
         test_workflow_etiquette_checker_pauses_archive_on_followups_and_git_state,
         test_workflow_etiquette_checker_builds_archive_action_plan,
+        test_gauntlet_cli_merge_prepare_renders_contextual_handoff,
+        test_gauntlet_cli_merge_plan_requires_clean_task_branch,
+        test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main,
         test_gauntlet_cli_archive_plans_and_executes_github_merge,
         test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk,
         test_gauntlet_cli_small_helper_commands,

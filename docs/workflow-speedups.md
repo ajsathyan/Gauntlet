@@ -16,6 +16,9 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 | Release-candidate impact summary | `scripts/gauntlet.py analytics summarize --project-root "$PROJECT_ROOT" --baseline "$BASELINE" --candidate "$CANDIDATE"` |
 | Bounded attempt memory | `scripts/gauntlet.py attempt-memory add --project-root "$PROJECT_ROOT" --run-id "$RUN_ID" --kind proof_failure --fingerprint "$FINGERPRINT" --summary "$SUMMARY"` |
 | PR/changelog draft | `scripts/gauntlet.py changelog pr --implementation-memory "$MEMORY_PATH" --git-root "$PROJECT_ROOT"` |
+| Contextual merge handoff | `scripts/gauntlet.py merge prepare --git-root "$PROJECT_ROOT" --handoff .gauntlet/merge-handoff.json --body-output .gauntlet/pr-body.md --json` |
+| Merge preflight | `scripts/gauntlet.py merge plan --git-root "$PROJECT_ROOT" --handoff .gauntlet/merge-handoff.json --body .gauntlet/pr-body.md --json` |
+| Authorized merge execution | `scripts/gauntlet.py merge execute --git-root "$PROJECT_ROOT" --handoff .gauntlet/merge-handoff.json --body .gauntlet/pr-body.md --json` |
 | Archive Summary display | `scripts/gauntlet.py archive plan --content "$CHANGELOG_OR_CLOSEOUT" --title "$THREAD_TITLE" --git-root "$PROJECT_ROOT"` |
 | Follow-up note | `scripts/gauntlet.py followup note ...` |
 | Follow-up thread packet | `scripts/gauntlet.py followup thread --content "$FOLLOWUP_FILE" --title "$THREAD_TITLE" --json` |

@@ -117,6 +117,10 @@ Use `docs/github-discipline.md` for the beginner-friendly reference. Keep the ac
 - Direct push to `main` is an explicit shortcut for tiny, low-risk solo changes, not the default taught workflow.
 - When dirty files are present, identify whether they belong to the current task. Preserve unrelated dirty work; isolate new work or ask before including, overwriting, abandoning, or archiving over it.
 
+"Merge this," "land this," or "merge this to main" authorizes the complete safe closeout for the current scoped work: prepare the contextual handoff, update `CHANGELOG.md`, commit coherent local changes, push the task branch, create or update one pull request, wait for required checks and blocking review state, merge, delete the remote task branch, verify the default branch, and clean local branch/worktree state only when no unique work remains. Ask only when a new material decision or preservation risk appears.
+
+"push to git" means push the current branch. It does not mean direct-push to `main` or merge. Use `scripts/gauntlet.py merge prepare` before the handoff commit, `scripts/gauntlet.py merge plan` for a read-only preflight, and `scripts/gauntlet.py merge execute` after the branch is clean and committed.
+
 When the user asks to archive a Codex thread:
 
 1. If the thread title already starts with `/^p[0-4](-auto)?:/`, skip naming.

@@ -397,6 +397,10 @@ Default behavior:
 - Let the main chat own the final branch, PR, user questions, child-lane ledger, and merge decision.
 - Let child chats return reports; child implementation lanes may use isolated branches or worktrees, but should not direct-push to `main`.
 
+"Merge this," "land this," or "merge this to main" authorizes the complete safe closeout: prepare the contextual handoff, update `CHANGELOG.md`, commit coherent work, push the task branch, create or update one pull request, wait for required checks and blocking review state, merge, delete the remote branch, verify the default branch, and clean local state only when no unique work remains.
+
+"push to git" means push the current branch, not direct-push or merge. Use `scripts/gauntlet.py merge prepare` to render the handoff and changelog, `scripts/gauntlet.py merge plan` to inspect safety, and `scripts/gauntlet.py merge execute` for the authorized external lifecycle.
+
 Code-owned checks should stay objective: dirty state, upstream state, default-branch detection, PR presence, PR checks, review state, mergeability, and accepted merge command shape. Repo-culture choices and history preferences stay conversational unless the repo has explicit rules.
 
 ## Implementation Stance
@@ -416,6 +420,7 @@ Code-owned checks:
 
 - Use `scripts/check-workflow-etiquette.py` for kickoff/archive etiquette validation.
 - Use `scripts/gauntlet.py archive plan|execute` for archive checks, safe git actions, and app-action packets.
+- Use `scripts/gauntlet.py merge prepare|plan|execute` for contextual PR handoffs and safe landing.
 - Pass the PR changelog or closeout content to `scripts/gauntlet.py archive plan --content` whenever available; the helper prints the Archive Summary even when archive is blocked.
 - Use `scripts/gauntlet.py install verify` after install/global workflow changes.
 - Use the command table in `docs/workflow-speedups.md` for diff/test/review packets, Implementation Memory linting, PR/changelog drafts, follow-up notes, and follow-up thread packets.
