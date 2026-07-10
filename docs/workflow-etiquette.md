@@ -6,7 +6,7 @@ Purpose: keep agent collaboration legible without turning planning into ceremony
 
 Terminology:
 
-- Use `Verification Scope` in user-visible chat. It maps to Gauntlet's older `Proof Scope` wording, but is easier to understand because it answers "how much do we verify?"
+- Use `Verification Scope` in internal plans when its breadth changes proof or cost. It maps to Gauntlet's older `Proof Scope` wording.
 - Use `Edge Cases` for Foresight. Avoid new labels such as "watch points" unless a specific repo already uses them.
 - Use `Execution Mode` as an execution posture, not a new Gauntlet mode. Default is `review`; use `autonomous` only when the user asks for autonomous work or the task is safe enough to recommend it.
 - Use `review` when goals, requirements, domain relationships, or acceptable defaults still need human clarification before the agent can safely work autonomously. Do not use it for ordinary agent self-review or QA; the agent can do those autonomously.
@@ -37,24 +37,9 @@ Rules:
 
 ### Kickoff Etiquette
 
-Use when the work becomes clear and implementation is about to begin.
+Use when the work becomes clear and implementation is about to begin. Select mode, depth, verification scope, execution mode, decision gate, priority, and title internally. Apply the thread title as soon as classification is responsible; do not turn clean classification into a chat receipt.
 
-It sets the thread priority and title:
-
-```text
-Mode: <Patch|Feature|Release>
-Depth: <Standard|Deep>
-Verification Scope: <smoke|delta|full|not relevant>
-Execution Mode: <review|autonomous>
-Decision Gate: <none|before blocked archive|before unsafe side effect|before merge|before production change|custom>
-Suggested thread label: p#: four word goal
-
-My read: <one sentence>
-Signals: <short evidence list>
-Edge Cases From This Ask:
-- Need user decision: <none or exact question>
-- Safe defaults I will apply: <bounded defaults>
-```
+Routine workflow mechanics stay internal. User-visible updates contain a recommendation, changed assumption, meaningful result, blocker, decision, proof, or completed outcome. A clean check stays silent in chat.
 
 Priority mapping:
 
@@ -66,20 +51,18 @@ Priority mapping:
 
 Research is never assigned `p4` merely because it is research. Classify it by the consequence and durable decision it supports: `p0` for Release-class harm, `p1` for substantial product or strategic direction, `p2` for consequential implementation decisions, and `p3` for normal bounded research. When uncertain, default bounded research to `p3`; do not inflate priority merely because research is broad or time-consuming.
 
-Blocking rule:
+Application rule:
 
-- `p0`, `p1`, `p2`: ask the user to confirm or change the priority/title before implementation.
-- `p3`, `p4`: non-blocking. End with `I'll use this.`
-- If the user responds affirmatively or continues without objecting to a suggested priority/title, treat the label as accepted and apply it. Do not require a separate explicit "yes".
-- After selecting a kickoff label, call `set_thread_title` immediately; the label is an app action, not just planning text.
+- For `p0`, `p1`, and `p2`, ask about priority only when the consequence class changes scope, risk appetite, proof, execution authorization, or another expectation the user should choose.
+- For `p3` and `p4`, apply the label without blocking or announcing routine naming.
+- After selecting a kickoff label, call `set_thread_title` immediately. Title application is internal unless it fails or the label changes the work.
 - If the user supplies an alternate priority/title, call `set_thread_title` with the user's version and continue from that label.
 - For an unlabeled task, suggest the priority/title on the first substantive response when classification is responsible and no later than the third user-assistant exchange. Existing valid `p0` through `p4` labels, with optional `-auto`, are not reopened merely to repeat naming ceremony.
-- Before implementation, include `Edge Cases From This Ask` for p0-p2 work and p3 work with side effects, state changes, user-facing behavior, or a repeated prior miss.
-- Split edge cases into `Need user decision` and `Safe defaults I will apply`; ask only for edge cases that change product behavior, data/money/privacy/security risk, or acceptance criteria.
+- Before implementation, check edge cases for p0-p2 work and p3 work with side effects, state changes, user-facing behavior, or a repeated prior miss. Surface only cases that change behavior, risk, acceptance criteria, or a user decision.
 
 Execution Mode rule:
 
-- If the user asks for "do this autonomously", "do it without me watching", or similar, suggest `Execution Mode: autonomous` unless the task has stop-condition risk.
+- If the user asks for "do this autonomously", "do it without me watching", or similar, use autonomous execution unless the task has stop-condition risk.
 - Use `Decision Gate` when code or local fixture work can proceed autonomously, but a major unresolved decision, safety failure, or new material assumption must be handled before the next step.
 - Durable external actions include renaming or archiving real threads, creating follow-up threads, pushing or merging git branches, changing production/external services, deleting or mutating durable data, or changing global policy/install behavior. If one of these actions is the accepted requirement and its deterministic safety checks pass, execute it instead of pausing just because it is durable.
 - If execution mode is `autonomous`, title the thread as `p#-auto: four word goal`.
@@ -96,17 +79,7 @@ User override always wins.
 
 Use before implementation for p0-p3 when the plan can plausibly miss high-impact edge cases.
 
-This is the lightweight premortem lane: imagine the work failed, regressed, confused users, created weird state, or caused avoidable rework. Name only the edge cases that should change implementation, verification, or scope.
-
-Default shape:
-
-```text
-Foresight:
-- Edge Cases From This Ask: <2-4 cases that change implementation or verification>
-- Need user decision: <none or exact question>
-- Safe defaults I will apply: <bounded defaults>
-- Verification Focus: <smallest check that covers them>
-```
+This is the lightweight premortem lane: imagine the work failed, regressed, confused users, created weird state, or caused avoidable rework. Name only edge cases that change implementation, verification, scope, or a user decision. Keep clean reasoning in the plan rather than narrating a Foresight heading.
 
 Rules:
 
@@ -143,22 +116,13 @@ Use when the work is broad, parallelizable, high-context, or likely to be implem
 
 This is the implementation-memory lane. It writes agent-native context so future agents or work lanes can execute without rereading the whole trace. It is separate from Foresight: Foresight asks "what edge cases could change the next move?" Delegation asks "what context should be indexed so work can be sliced and handed off cheaply?"
 
-Default shape:
-
-```text
-Delegation:
-- Implementation Memory: <path or not needed>
-- Lane Index: <lane ids or read-first sections>
-- Use rule: cite exact sections; do not inline the whole doc
-- Child ledger: [C1][Status] lane - dependency/worktree note
-```
-
 Pre-implementation packetization gate:
 
-- At implementation transition, record `Subagent packetization: required` or `Subagent packetization: not relevant because...`.
-- Packetization is required when the user asks for subagents, the accepted plan proposes parallel lanes, or multiple agent/child-chat lanes will implement the work.
-- When required, every lane needs a referenced accepted packet covering lane id/title/status, skill/objective, project/worktree context, accepted source, in/out scope, ownership/avoidance, dependencies, consumes/produces, constraints, proof, expected return format, and ask-user policy.
-- The referenced packets and accepted current-run `.gauntlet/subagent-plan.json` must exist before implementation, not merely before dispatch. Write-heavy lane ownership and worktrees, the lane ledger, and the first ready lane must also be named.
+- Every child implementation lane receives a bounded packet before implementation.
+- For two or more parallel lanes or any write-heavy child implementation lane, use schema `1.2` with a top-level shared block and lane-specific deltas. The referenced packets and accepted current-run `.gauntlet/subagent-plan.json` must exist before implementation, not merely before dispatch.
+- A single small read-only exploration or review child receives a bounded prompt but does not need the manifest gate.
+- Every validated lane packet covers lane id, skill/objective, project/worktree context, accepted source, in/out scope, ownership/avoidance, dependencies, consumes/produces, constraints, proof, expected return format, and ask-user policy.
+- Do not record packetization when no child implementation lanes exist. Successful packet validation stays silent; surface only blocking findings or warnings that change execution or remain a real risk.
 - If material scope changes add or reshape lanes, update packets and revalidate before implementing the affected scope.
 
 Trigger rules:
@@ -184,18 +148,8 @@ Child chat orchestration:
 - The main chat is the orchestrator. It owns the user-facing ledger, user questions, merge decisions, and final synthesis.
 - Child chats are bounded execution lanes. They receive a task packet, do the work, return a compact report, and do not ask the user directly.
 - If a child lane needs product clarification, credentials, risky scope expansion, or an unsafe side effect, it reports `Needs decision` to the main chat.
-- Child chat titles keep the normal Gauntlet priority prefix and add lane/status tags: `p#-auto: [C1][In Progress] Backend policy layer`.
-- Use lane ids as stable handles: `[C1]`, `[C2]`, `[C3]`. Reuse the same lane id when resuming or unarchiving a lane.
-- Use only these statuses: `To Do`, `In Progress`, `Blocked`, `In Review`, `Done`, and `Canceled`.
-- Use `Blocked` only for a concrete blocker such as a missing interface, user decision, credential, merge conflict, failed proof, or external state. Work that has not started should stay `To Do` with a dependency note, such as `depends on C1/C2`.
-- Keep a compact main-chat ledger:
-
-```text
-Child lanes:
-[C1][In Progress] Backend policy layer - worktree: ../project-C1-policy; owns policy API/tests
-[C2][Blocked] Dashboard Policy UI - needs C1 interface
-[C3][To Do] Proof regression tests - depends on C1/C2 changed surfaces
-```
+- Native Codex state owns child progress; do not require title/status churn.
+- Use lane ids as stable packet/report handles when the main task needs to match a result to owned scope.
 
 Worktree defaults:
 
@@ -204,14 +158,11 @@ Worktree defaults:
 - A tiny implementation lane with clearly disjoint files may share the current worktree, but the task packet must name owned and avoided files.
 - The child task packet should name the worktree path, branch, owned files, avoided files, dependencies, proof, and report format.
 - The main chat integrates or merges child work only after proof and ownership checks pass.
-- Archive the child chat after its report is integrated into the main-chat ledger. If the lane is needed later, unarchive it or create a focused follow-up thread with the prior lane id and a fresh packet.
 
 Child task packet shape:
 
 ```text
 Lane: [C1] Backend policy layer
-Status: To Do
-Thread title: p1-auto: [C1][To Do] Backend policy layer
 Worktree: ../project-C1-policy
 Owns: backend policy files and backend tests
 Avoids: dashboard UI, unrelated docs, unrelated dirty files
@@ -446,6 +397,10 @@ Default behavior:
 - Let the main chat own the final branch, PR, user questions, child-lane ledger, and merge decision.
 - Let child chats return reports; child implementation lanes may use isolated branches or worktrees, but should not direct-push to `main`.
 
+"Merge this," "land this," or "merge this to main" authorizes the complete safe closeout: prepare the contextual handoff, update `CHANGELOG.md`, commit coherent work, push the task branch, create or update one pull request, wait for required checks and blocking review state, merge, delete the remote branch, verify the default branch, and clean local state only when no unique work remains.
+
+"push to git" means push the current branch, not direct-push or merge. Use `scripts/gauntlet.py merge prepare` to render the handoff and changelog, `scripts/gauntlet.py merge plan` to inspect safety, and `scripts/gauntlet.py merge execute` for the authorized external lifecycle.
+
 Code-owned checks should stay objective: dirty state, upstream state, default-branch detection, PR presence, PR checks, review state, mergeability, and accepted merge command shape. Repo-culture choices and history preferences stay conversational unless the repo has explicit rules.
 
 ## Implementation Stance
@@ -465,6 +420,7 @@ Code-owned checks:
 
 - Use `scripts/check-workflow-etiquette.py` for kickoff/archive etiquette validation.
 - Use `scripts/gauntlet.py archive plan|execute` for archive checks, safe git actions, and app-action packets.
+- Use `scripts/gauntlet.py merge prepare|plan|execute` for contextual PR handoffs and safe landing.
 - Pass the PR changelog or closeout content to `scripts/gauntlet.py archive plan --content` whenever available; the helper prints the Archive Summary even when archive is blocked.
 - Use `scripts/gauntlet.py install verify` after install/global workflow changes.
 - Use the command table in `docs/workflow-speedups.md` for diff/test/review packets, Implementation Memory linting, PR/changelog drafts, follow-up notes, and follow-up thread packets.

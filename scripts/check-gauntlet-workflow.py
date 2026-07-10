@@ -313,35 +313,29 @@ def test_production_quality_bar_is_launch_gated():
         "run-log-builder": run_log,
     }.items():
         assert_contains(text, "Production Quality Bar", name)
-        assert_contains(text, "Not relevant because", name)
-
-    if pr_template_path.exists():
-        for marker in [
-            "Release Proof (near-launch only)",
-            "automated GitHub release tags",
-            "dry-run/no-mutation",
-        ]:
-            assert_contains(pr_template, marker, "production quality bar PR template")
-
+        if name == "planner":
+            assert_contains(text, "omit the field when the trigger is absent", name)
+        else:
+            assert_contains(text, "Not relevant because", name)
 
 def test_subagent_parallelism_is_context_efficient():
     agents = read(AGENTS_MD)
     planner = read(SKILLS / "planner" / "SKILL.md")
     product = read(SKILLS / "product-architect" / "SKILL.md")
     implementer = read(SKILLS / "implementer" / "SKILL.md")
+    validator_doc = read(ROOT / "docs" / "subagent-plan-validator.md")
 
     for marker in [
         "Parallelism must beat its context cost.",
         "Do not use subagents when each one would need the same large spec",
         "scripts/check-subagent-plan.py",
-        "subagent-plan-summary.json",
         "expected speedup",
     ]:
         assert_contains(agents, marker, "subagent context-efficiency guard")
 
     for marker in [
-        "For independent task packets with disjoint files, state, and proof",
-        "Do not repeat large shared context into subagents",
+        "For two or more parallel lanes or any write-heavy child implementation lane",
+        "Shared context lives in the manifest `shared` block",
     ]:
         assert_contains(implementer, marker, "implementer subagent guidance")
 
@@ -364,6 +358,16 @@ def test_subagent_parallelism_is_context_efficient():
         "product-architect soft scope rule",
     )
 
+    for marker in [
+        '"schemaVersion": "1.2"',
+        '"shared"',
+        '"contextDelta"',
+        "two or more parallel lanes or any write-heavy child implementation lane",
+        "Warnings do not delay implementation",
+        "Successful validation is durable internal evidence",
+    ]:
+        assert_contains(validator_doc, marker, "subagent validator reference")
+
 
 def test_kickoff_and_implementation_transition_gates_are_documented():
     agents = read(AGENTS_MD)
@@ -375,25 +379,51 @@ def test_kickoff_and_implementation_transition_gates_are_documented():
         "no later than the third user-assistant exchange",
         "Research is never assigned `p4` merely because it is research",
         "If the priority is unchanged, say nothing about it",
-        "Subagent packetization: required",
+        "two or more parallel lanes or any write-heavy child implementation lane",
         "before implementation, not merely before dispatch",
         "Scope delta checked: no material change.",
     ]:
         assert_contains("\n".join([agents, etiquette]), marker, "implementation-transition guidance")
 
     for marker in [
-        "Subagent packetization: required",
+        "Omit the subagent manifest field",
+        "Successful packet validation stays silent",
         "Scope delta checked: no material change.",
         "before implementation",
     ]:
         assert_contains(planner, marker, "planner implementation-transition gate")
 
     for marker in [
-        "Refuse delegated implementation",
+        "Refuse implementation",
         "current-run manifest",
-        "scope-addition delta",
+        "Resolve added-scope deltas",
     ]:
         assert_contains(implementer, marker, "implementer implementation-transition gate")
+
+
+def test_workflow_guidance_keeps_routine_controls_silent():
+    agents = read(AGENTS_MD)
+    etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
+    planner = read(SKILLS / "planner" / "SKILL.md")
+    implementer = read(SKILLS / "implementer" / "SKILL.md")
+    combined = "\n".join([agents, etiquette, planner, implementer])
+
+    for marker in [
+        "Routine workflow mechanics stay internal",
+        "A clean check stays silent in chat",
+        "Successful packet validation stays silent",
+        "Do not record packetization when no child implementation lanes exist",
+        "Native Codex state owns child progress; do not require title/status churn",
+        "User-visible updates contain",
+        "Select mode, depth, proof scope, and triggered gates internally",
+    ]:
+        assert_contains(combined, marker, "quiet workflow contract")
+
+    for obsolete in [
+        "Title child chats with the normal priority prefix plus lane/status tags",
+        "Subagent packetization: not relevant because",
+    ]:
+        assert_not_contains(combined, obsolete, "quiet workflow contract")
 
 
 def test_skill_quality_bar_is_trigger_bounded():
@@ -449,6 +479,149 @@ def test_skill_quality_bar_is_trigger_bounded():
         assert_contains(plan, marker, "skill quality analytics plan")
 
 
+def complete_subagent_plan(project, lane_ids=("C1", "C2")):
+    docs = project / "docs"
+    packets = project / ".gauntlet" / "packets"
+    docs.mkdir(parents=True, exist_ok=True)
+    packets.mkdir(parents=True, exist_ok=True)
+    (docs / "accepted-spec.md").write_text("# Accepted Spec\n")
+    for lane_id in lane_ids:
+        (packets / f"{lane_id}.md").write_text(f"# {lane_id} Task Packet\n")
+    return {
+        "schemaVersion": "1.2",
+        "runId": "workflow-test",
+        "shared": {
+            "projectRoot": ".",
+            "acceptedSource": "docs/accepted-spec.md",
+            "constraints": ["Preserve unrelated work."],
+            "askUserPolicy": "Return Needs decision to the main task.",
+            "expectedReturn": "Verdict, evidence, residual risk, and one next action.",
+        },
+        "lanes": [
+            {
+                "id": lane_id,
+                "skill": "implementer",
+                "objective": f"Implement bounded lane {lane_id}",
+                "worktreePath": f".worktrees/{lane_id}",
+                "scope": f"Implement {lane_id}",
+                "inScope": [f"src/{lane_id}/**"],
+                "outOfScope": ["src/shared/**"],
+                "filesRead": [f"src/{lane_id}/**"],
+                "filesWrite": [f"src/{lane_id}/**"],
+                "filesAvoid": ["src/shared/**"],
+                "stateScope": lane_id,
+                "stateAccess": "mutates",
+                "dependencies": [],
+                "consumes": ["accepted spec"],
+                "produces": [f"{lane_id} patch"],
+                "laneConstraints": [],
+                "proof": [f"test-{lane_id}"],
+                "contextDelta": f"Only change the {lane_id} boundary.",
+                "taskPacketRef": f".gauntlet/packets/{lane_id}.md",
+            }
+            for lane_id in lane_ids
+        ],
+    }
+
+
+def run_subagent_plan(validator, project, data, run_id, *extra_args):
+    data["runId"] = run_id
+    plan = project / f"{run_id}.json"
+    plan.write_text(json.dumps(data))
+    result = run(
+        [str(validator), str(project), str(plan), "--run-id", run_id, *extra_args],
+        check=False,
+    )
+    log = project / ".gauntlet" / "subagent-plan-log.jsonl"
+    record = json.loads(log.read_text().splitlines()[-1]) if log.exists() else {}
+    return result, record
+
+
+def test_subagent_plan_validator_v12_accepts_shared_and_single_write_lane():
+    validator = SCRIPTS / "check-subagent-plan.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        project.mkdir()
+        plan = complete_subagent_plan(project, lane_ids=("C1",))
+        plan["lanes"][0]["contextDelta"] = ""
+
+        result, record = run_subagent_plan(validator, project, plan, "v12-single-write")
+
+        if result.returncode != 0:
+            raise AssertionError(f"schema 1.2 single write lane should pass:\n{result.stdout}\n{result.stderr}")
+        if result.stdout.strip() != "accepted":
+            raise AssertionError(f"clean acceptance should stay quiet: {result.stdout!r}")
+        if record.get("status") != "accepted" or record.get("warningCount") != 0:
+            raise AssertionError(f"clean schema 1.2 record is incomplete: {record}")
+
+
+def test_subagent_plan_validator_v12_warns_for_context_efficiency():
+    validator = SCRIPTS / "check-subagent-plan.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        project.mkdir()
+        plan = complete_subagent_plan(project)
+        repeated = "shared repeated context must move to the shared packet block " * 20
+        for lane in plan["lanes"]:
+            lane["contextDelta"] = repeated
+            lane["proof"] = ["python3 -m unittest"]
+        plan["lanes"][0]["filesRead"] = ["**/*"]
+
+        result, record = run_subagent_plan(
+            validator,
+            project,
+            plan,
+            "v12-warnings",
+            "--max-inline-words",
+            "25",
+            "--max-total-inline-words",
+            "40",
+        )
+
+        if result.returncode != 0 or record.get("status") != "accepted":
+            raise AssertionError(f"efficiency findings must not block: {record}")
+        warning_codes = {finding["code"] for finding in record.get("warnings", [])}
+        expected = {
+            "duplicated_lane_context",
+            "lane_context_too_large",
+            "total_context_too_large",
+            "duplicate_proof_target",
+            "overbroad_read_scope",
+        }
+        if not expected.issubset(warning_codes):
+            raise AssertionError(f"missing advisory findings: expected {expected}, got {warning_codes}")
+
+
+def test_subagent_plan_validator_v12_blocks_material_hazards():
+    validator = SCRIPTS / "check-subagent-plan.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        project.mkdir()
+        plan = complete_subagent_plan(project)
+        plan["shared"]["constraints"] = ["Use OPENAI_API_KEY=sk-live-secret-value while working."]
+        plan["shared"]["acceptedSource"] = "../outside.md"
+        plan["lanes"][1]["filesWrite"] = plan["lanes"][0]["filesWrite"]
+        plan["lanes"][1]["stateScope"] = plan["lanes"][0]["stateScope"]
+        plan["lanes"][0]["filesWrite"] = [*plan["lanes"][0]["filesWrite"], "**/*"]
+        plan["lanes"][1]["taskPacketRef"] = "../outside.md"
+
+        result, record = run_subagent_plan(validator, project, plan, "v12-material-hazards")
+
+        if result.returncode == 0 or record.get("status") != "rejected":
+            raise AssertionError(f"material hazards must block: {record}")
+        rejection_codes = {finding["code"] for finding in record.get("rejections", [])}
+        expected = {
+            "secret_in_shared_context",
+            "overlapping_writes",
+            "shared_mutable_state",
+            "overbroad_write_scope",
+            "invalid_task_packet_ref",
+            "invalid_accepted_source",
+        }
+        if not expected.issubset(rejection_codes):
+            raise AssertionError(f"missing blocking findings: expected {expected}, got {rejection_codes}")
+
+
 def test_subagent_plan_validator_logs_rejections():
     validator = SCRIPTS / "check-subagent-plan.py"
     if not validator.exists() or not os.access(validator, os.X_OK):
@@ -457,34 +630,13 @@ def test_subagent_plan_validator_logs_rejections():
     with tempfile.TemporaryDirectory() as tmp:
         project = Path(tmp) / "project"
         project.mkdir()
+        data = complete_subagent_plan(project)
+        data["runId"] = "workflow-test"
+        data["lanes"][1]["filesWrite"] = data["lanes"][0]["filesWrite"]
+        data["lanes"][1]["stateScope"] = data["lanes"][0]["stateScope"]
+        data["shared"]["constraints"] = ["Use OPENAI_API_KEY=sk-live-secret-value while working."]
         plan = project / "subagent-plan.json"
-        plan.write_text(json.dumps({
-            "schemaVersion": "1.0",
-            "lanes": [
-                {
-                    "id": "ui-review",
-                    "skill": "experience-reviewer",
-                    "scope": "Review checkout UI",
-                    "filesRead": ["src/checkout/**"],
-                    "filesWrite": ["src/checkout/page.tsx"],
-                    "stateScope": "checkout-session",
-                    "stateAccess": "mutates",
-                    "proof": ["npm test"],
-                    "inlineContext": "shared checkout context " * 90,
-                },
-                {
-                    "id": "browser-proof",
-                    "skill": "black-box-tester",
-                    "scope": "Exercise checkout UI",
-                    "filesRead": ["src/checkout/**"],
-                    "filesWrite": ["src/checkout/page.tsx"],
-                    "stateScope": "checkout-session",
-                    "stateAccess": "mutates",
-                    "proof": ["npm test"],
-                    "inlineContext": "shared checkout context " * 90,
-                },
-            ],
-        }))
+        plan.write_text(json.dumps(data))
 
         result = run([str(validator), str(project), str(plan), "--run-id", "workflow-test"], check=False)
         if result.returncode == 0:
@@ -500,7 +652,7 @@ def test_subagent_plan_validator_logs_rejections():
             raise AssertionError("subagent summary was not written")
         record = json.loads(log_path.read_text().splitlines()[-1])
         summary = json.loads(summary_path.read_text())
-        if record["status"] != "rejected" or record["rejectionCount"] < 4:
+        if record["status"] != "rejected" or record["rejectionCount"] < 3:
             raise AssertionError("subagent rejection record missing expected failures")
         if summary["runId"] != "workflow-test" or summary["rejectedPlans"] != 1:
             raise AssertionError("subagent summary should track rejected plans for the run")
@@ -515,34 +667,13 @@ def test_subagent_plan_validator_rejects_secret_and_overbroad_scope():
     with tempfile.TemporaryDirectory() as tmp:
         project = Path(tmp) / "project"
         project.mkdir()
+        data = complete_subagent_plan(project)
+        data["runId"] = "secret-test"
+        data["shared"]["constraints"] = ["Use OPENAI_API_KEY=sk-live-secret-value while reviewing."]
+        data["lanes"][0]["filesRead"] = ["**/*"]
+        data["lanes"][0]["filesWrite"] = ["**/*"]
         plan = project / "subagent-plan.json"
-        plan.write_text(json.dumps({
-            "schemaVersion": "1.0",
-            "lanes": [
-                {
-                    "id": "all-repo-review",
-                    "skill": "deep-code-reviewer",
-                    "scope": "Review everything",
-                    "filesRead": ["**/*"],
-                    "filesWrite": [],
-                    "stateScope": "repo",
-                    "stateAccess": "read-only",
-                    "proof": ["manual review"],
-                    "inlineContext": "Use OPENAI_API_KEY=sk-live-secret-value while reviewing.",
-                },
-                {
-                    "id": "docs-review",
-                    "skill": "deep-code-reviewer",
-                    "scope": "Review docs",
-                    "filesRead": ["docs/**"],
-                    "filesWrite": [],
-                    "stateScope": "docs",
-                    "stateAccess": "read-only",
-                    "proof": ["manual docs review"],
-                    "inlineContext": "Short context.",
-                },
-            ],
-        }))
+        plan.write_text(json.dumps(data))
 
         result = run([str(validator), str(project), str(plan), "--run-id", "secret-test"], check=False)
         if result.returncode == 0:
@@ -550,9 +681,12 @@ def test_subagent_plan_validator_rejects_secret_and_overbroad_scope():
 
         record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
         codes = {rejection["code"] for rejection in record["rejections"]}
-        for code in ["secret_in_inline_context", "overbroad_scope"]:
+        for code in ["secret_in_shared_context", "overbroad_write_scope"]:
             if code not in codes:
                 raise AssertionError(f"subagent validator missing {code} rejection")
+        warning_codes = {warning["code"] for warning in record["warnings"]}
+        if "overbroad_read_scope" not in warning_codes:
+            raise AssertionError("broad read scope should be advisory")
 
 
 def test_subagent_plan_validator_requires_complete_lane_packets():
@@ -561,21 +695,12 @@ def test_subagent_plan_validator_requires_complete_lane_packets():
     with tempfile.TemporaryDirectory() as tmp:
         project = Path(tmp) / "project"
         project.mkdir()
+        data = complete_subagent_plan(project)
+        data["runId"] = "packet-fields"
+        for lane in data["lanes"]:
+            lane.pop("produces")
         plan = project / "subagent-plan.json"
-        incomplete_lanes = []
-        for lane_id in ["C1", "C2"]:
-            incomplete_lanes.append({
-                "id": lane_id,
-                "skill": "implementer",
-                "scope": f"Implement {lane_id}",
-                "filesRead": [f"src/{lane_id}/**"],
-                "filesWrite": [f"src/{lane_id}/**"],
-                "stateScope": lane_id,
-                "stateAccess": "mutates",
-                "proof": [f"test-{lane_id}"],
-                "inlineContext": f"Short context for {lane_id}.",
-            })
-        plan.write_text(json.dumps({"schemaVersion": "1.1", "lanes": incomplete_lanes}))
+        plan.write_text(json.dumps(data))
 
         incomplete = run([str(validator), str(project), str(plan), "--run-id", "packet-fields"], check=False)
         if incomplete.returncode == 0:
@@ -584,36 +709,11 @@ def test_subagent_plan_validator_requires_complete_lane_packets():
         if "missing_field" not in {rejection["code"] for rejection in record["rejections"]}:
             raise AssertionError("incomplete lane packets should report missing_field")
 
-        complete_lanes = []
-        for lane_id in ["C1", "C2"]:
-            complete_lanes.append({
-                "id": lane_id,
-                "status": "To Do",
-                "title": f"p2-auto: [{lane_id}][To Do] Implement lane",
-                "skill": "implementer",
-                "objective": f"Implement bounded lane {lane_id}",
-                "projectRoot": ".",
-                "worktreePath": ".",
-                "acceptedSource": "docs/accepted-spec.md",
-                "scope": f"Implement {lane_id}",
-                "inScope": [f"src/{lane_id}/**"],
-                "outOfScope": ["src/shared/**"],
-                "filesRead": [f"src/{lane_id}/**"],
-                "filesWrite": [f"src/{lane_id}/**"],
-                "filesAvoid": ["src/shared/**"],
-                "stateScope": lane_id,
-                "stateAccess": "mutates",
-                "dependencies": [],
-                "consumes": ["accepted spec"],
-                "produces": [f"{lane_id} patch"],
-                "constraints": ["preserve unrelated work"],
-                "proof": [f"test-{lane_id}"],
-                "inlineContext": f"Short context for {lane_id}.",
-                "taskPacketRef": f".gauntlet/packets/{lane_id}.md",
-                "expectedReturn": "Compact implementation report",
-                "askUserPolicy": "Return Needs decision to the orchestrator.",
-            })
-        plan.write_text(json.dumps({"schemaVersion": "1.1", "lanes": complete_lanes}))
+        data = complete_subagent_plan(project)
+        data["runId"] = "packet-files"
+        missing = project / data["lanes"][0]["taskPacketRef"]
+        missing.unlink()
+        plan.write_text(json.dumps(data))
 
         missing_packet = run([str(validator), str(project), str(plan), "--run-id", "packet-files"], check=False)
         if missing_packet.returncode == 0:
@@ -623,9 +723,9 @@ def test_subagent_plan_validator_requires_complete_lane_packets():
             raise AssertionError("missing task packets should report task_packet_missing")
 
         packet_dir = project / ".gauntlet" / "packets"
-        packet_dir.mkdir(parents=True)
-        for lane_id in ["C1", "C2"]:
-            (packet_dir / f"{lane_id}.md").write_text(f"# {lane_id} Task Packet\n")
+        (packet_dir / "C1.md").write_text("# C1 Task Packet\n")
+        data["runId"] = "packet-accepted"
+        plan.write_text(json.dumps(data))
 
         accepted = run([str(validator), str(project), str(plan), "--run-id", "packet-accepted"], check=False)
         if accepted.returncode != 0:
@@ -947,23 +1047,19 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         assert_contains(combined, marker, "workflow speedup guidance")
 
     for marker in [
-        "p#-auto: [C1][In Progress]",
         "main chat is the orchestrator",
         "do not ask the user directly",
         "Needs decision",
-        "`To Do`, `In Progress`, `Blocked`, `In Review`, `Done`, and `Canceled`",
-        "Use `Blocked` only for a concrete blocker",
+        "Native Codex state owns child progress",
         "Create a separate git worktree by default for write-heavy child chats",
-        "Archive the child chat after its report is integrated",
         "Child task packet shape",
     ]:
         assert_contains(read(ROOT / "docs" / "workflow-etiquette.md"), marker, "delegation etiquette child lane guidance")
 
     for marker in [
         "separate git worktrees by default",
-        "p1-auto: [C1][In Progress]",
         "main chat owns the child-lane ledger",
-        "archive after their reports are integrated",
+        "Native Codex state owns child progress",
     ]:
         assert_contains(speedups, marker, "workflow speedup child lane guidance")
 
@@ -971,17 +1067,72 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         "scripts/gauntlet.py memory lint",
         "scripts/gauntlet.py changelog pr",
         "scripts/gauntlet.py followup thread",
-        "Edge Cases From This Ask",
-        "Need user decision",
-        "Safe defaults I will apply",
+        "check edge cases",
+        "Scope delta checked: no material change.",
         "before implementation",
         "emit app-action packets",
-        "p#-auto: [C1][In Progress]",
         "main chat as orchestrator",
         "create a separate git worktree by default",
-        "Child lane id, title, status, dependency note, and worktree path",
+        "Child lane id, objective, dependency note, and worktree path",
     ]:
         assert_contains(agents, marker, "active AGENTS workflow speedup routing")
+
+
+def test_contextual_merge_contract_is_documented():
+    agents = read(AGENTS_MD)
+    etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
+    github = read(ROOT / "docs" / "github-discipline.md")
+    combined = "\n".join([agents, etiquette, github])
+    for marker in [
+        '"Merge this," "land this," or "merge this to main" authorizes',
+        "prepare the contextual handoff",
+        "update `CHANGELOG.md`",
+        "create or update one pull request",
+        "wait for required checks",
+        "verify the default branch",
+        '"push to git" means push the current branch',
+        "scripts/gauntlet.py merge prepare",
+        "scripts/gauntlet.py merge plan",
+        "scripts/gauntlet.py merge execute",
+    ]:
+        assert_contains(combined, marker, "contextual merge contract")
+
+
+def test_contextual_pr_template_changelog_and_run_log_contract():
+    template_path = ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md"
+    if not template_path.exists():
+        return
+    template = read(template_path)
+    required = ["## Problem", "## Solution", "## Changelog", "## Testing", "## PR Note"]
+    for marker in required:
+        assert_contains(template, marker, "contextual PR template")
+    positions = [template.index(item) for item in required]
+    if positions != sorted(positions):
+        raise AssertionError("contextual PR template sections are out of order")
+    for obsolete in [
+        "## Functional Changes",
+        "## User Or Agent Impact",
+        "## Workflow Or Behavior Changes",
+        "## Release Proof (near-launch only)",
+    ]:
+        assert_not_contains(template, obsolete, "contextual PR template")
+
+    changelog = read(ROOT / "CHANGELOG.md")
+    entry = "- Gauntlet now keeps routine workflow controls out of the conversation and automatically creates contextual PR and changelog handoffs when merging work."
+    if changelog.count(entry) != 1:
+        raise AssertionError("CHANGELOG must contain the exact contextual merge entry once")
+
+    run_log = read(ROOT / "docs" / "gauntlet-runs" / "2026-07-09-quiet-workflow-guaranteed-merge.md")
+    for marker in [
+        "nine attempts across seven unique validator runs",
+        "148 tokens",
+        "+7.7%",
+        "866 repeated exact-sentence tokens",
+        "2,143 instruction tokens",
+        "total billed or cached child context was unavailable",
+    ]:
+        assert_contains(run_log, marker, "quiet workflow run log")
+    assert_not_contains(run_log, "All tests passed", "exceptions-only run log")
 
 
 def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions():
@@ -1022,6 +1173,21 @@ def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumption
             raise AssertionError("auto title should parse as autonomous")
         if data["effectiveExecutionMode"] != "autonomous":
             raise AssertionError("auto kickoff should report effective execution mode")
+
+        quiet = Path(tmp) / "quiet.md"
+        quiet.write_text("Implementation can proceed without a user decision.\n")
+        quiet_result = run([
+            str(checker),
+            "--title",
+            "p2-auto: fix archive closeout",
+            "--content",
+            str(quiet),
+            "--require-kickoff",
+            "--json",
+        ])
+        quiet_data = json.loads(quiet_result.stdout)
+        if quiet_data["status"] != "pass":
+            raise AssertionError(f"substantive kickoff without procedural headings should pass: {quiet_data}")
 
         legacy = run([str(checker), "--title", "p2 - fix archive closeout", "--json"])
         legacy_data = json.loads(legacy.stdout)
@@ -1286,6 +1452,321 @@ def test_workflow_etiquette_checker_builds_archive_action_plan():
             raise AssertionError(f"archive anyway should still plan archive: {anyway_data}")
         if not any(finding["code"] == "strong_followup_archived_anyway" for finding in anyway_data["findings"]):
             raise AssertionError(f"archive anyway warning missing: {anyway_data}")
+
+
+def merge_handoff_fixture():
+    return {
+        "schemaVersion": "1.0",
+        "title": "workflow: generate contextual merge handoffs",
+        "problem": {
+            "context": "Gauntlet's useful controls are exposed as conversation ceremony.",
+            "impact": "The user has to read process narration and manually reconstruct merge context.",
+        },
+        "solution": {
+            "outcome": "Keep material controls internal and make merge handoffs automatic.",
+            "invariants": [
+                "Child ownership and proof controls remain enforced.",
+                "The PR changelog line exactly matches CHANGELOG.md.",
+            ],
+            "preserved": ["Quick local prototype development remains the default."],
+            "nonGoals": ["No new child thread provenance machinery."],
+        },
+        "changelog": "Gauntlet now keeps routine workflow controls out of the conversation and automatically creates contextual PR and changelog handoffs when merging work.",
+        "testing": [
+            {
+                "command": "python3 scripts/check-gauntlet-workflow.py",
+                "result": "PASS",
+                "proves": "Packet, conversation, handoff, and merge contracts pass together.",
+            }
+        ],
+        "prNote": [
+            "Child safeguards are retained; duplicate-context findings are advisory because the old blocker did not control actual dispatch prompts."
+        ],
+        "securityRisk": None,
+    }
+
+
+def test_gauntlet_cli_merge_prepare_renders_contextual_handoff():
+    cli = SCRIPTS / "gauntlet.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / "README.md").write_text("# Repo\n")
+        commit_all(repo, "baseline")
+        handoff = merge_handoff_fixture()
+        handoff_path = repo / ".gauntlet" / "merge-handoff.json"
+        body_path = repo / ".gauntlet" / "pr-body.md"
+        handoff_path.parent.mkdir(parents=True)
+        handoff_path.write_text(json.dumps(handoff))
+
+        first = run([
+            str(cli),
+            "merge",
+            "prepare",
+            "--git-root",
+            str(repo),
+            "--handoff",
+            str(handoff_path),
+            "--body-output",
+            str(body_path),
+            "--json",
+        ], cwd=repo, check=False)
+        if first.returncode != 0:
+            raise AssertionError(f"merge prepare should pass:\n{first.stdout}\n{first.stderr}")
+        first_data = json.loads(first.stdout)
+        if first_data["status"] != "pass" or not first_data["changelogChanged"]:
+            raise AssertionError(f"first prepare should create changelog: {first_data}")
+
+        body = body_path.read_text()
+        required = ["## Problem", "## Solution", "## Changelog", "## Testing", "## PR Note"]
+        if [body.index(item) for item in required] != sorted(body.index(item) for item in required):
+            raise AssertionError(f"PR body sections are out of order:\n{body}")
+        if "## Security / Risk" in body or "Files changed" in body:
+            raise AssertionError(f"PR body contains empty risk or a file tour:\n{body}")
+        bullet = f"- {handoff['changelog']}"
+        if bullet not in body:
+            raise AssertionError(f"PR body missing exact changelog bullet:\n{body}")
+        changelog = (repo / "CHANGELOG.md").read_text()
+        if changelog.count(bullet) != 1:
+            raise AssertionError(f"CHANGELOG should contain one exact entry:\n{changelog}")
+
+        second = run([
+            str(cli),
+            "merge",
+            "prepare",
+            "--git-root",
+            str(repo),
+            "--handoff",
+            str(handoff_path),
+            "--body-output",
+            str(body_path),
+            "--json",
+        ], cwd=repo)
+        second_data = json.loads(second.stdout)
+        if second_data["changelogChanged"] or (repo / "CHANGELOG.md").read_text().count(bullet) != 1:
+            raise AssertionError(f"merge prepare must be idempotent: {second_data}")
+
+        handoff["securityRisk"] = "A failed merge leaves the branch intact for recovery."
+        handoff_path.write_text(json.dumps(handoff))
+        run([
+            str(cli), "merge", "prepare", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body-output", str(body_path), "--json",
+        ], cwd=repo)
+        if "## Security / Risk" not in body_path.read_text():
+            raise AssertionError("material security/risk text should add the optional section")
+
+        handoff["changelog"] = "invalid\nmultiline entry"
+        handoff_path.write_text(json.dumps(handoff))
+        invalid = run([
+            str(cli), "merge", "prepare", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body-output", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if invalid.returncode != 1:
+            raise AssertionError(f"multiline changelog should fail: {invalid.stdout}")
+
+
+def prepare_merge_fixture(cli, repo):
+    (repo / ".gitignore").write_text("/.gauntlet/\n")
+    handoff = merge_handoff_fixture()
+    handoff_path = repo / ".gauntlet" / "merge-handoff.json"
+    body_path = repo / ".gauntlet" / "pr-body.md"
+    handoff_path.parent.mkdir(parents=True, exist_ok=True)
+    handoff_path.write_text(json.dumps(handoff))
+    prepared = run([
+        str(cli), "merge", "prepare", "--git-root", str(repo),
+        "--handoff", str(handoff_path), "--body-output", str(body_path), "--json",
+    ], cwd=repo)
+    if json.loads(prepared.stdout)["status"] != "pass":
+        raise AssertionError(f"merge fixture preparation failed: {prepared.stdout}")
+    return handoff_path, body_path
+
+
+def write_merge_fake_gh(path, log_path, state_path, check_conclusion="SUCCESS", empty_checks_once=False):
+    path.write_text(
+        "\n".join([
+            "#!/usr/bin/env bash",
+            "set -euo pipefail",
+            "printf '%s\\n' \"$*\" >> \"$GH_LOG\"",
+            "if [ \"$1\" = \"repo\" ] && [ \"$2\" = \"view\" ]; then",
+            "  printf '%s\\n' '{\"defaultBranchRef\":{\"name\":\"main\"},\"mergeCommitAllowed\":true,\"squashMergeAllowed\":true,\"rebaseMergeAllowed\":true}'",
+            "  exit 0",
+            "fi",
+            "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then",
+            "  if [ ! -f \"$GH_STATE\" ]; then exit 1; fi",
+            "  if [ \"${GH_EMPTY_CHECKS_ONCE:-0}\" = \"1\" ] && [ ! -f \"${GH_STATE}.empty-served\" ]; then",
+            "    touch \"${GH_STATE}.empty-served\"",
+            "    printf '%s\\n' '{\"number\":7,\"state\":\"OPEN\",\"isDraft\":false,\"mergeable\":\"MERGEABLE\",\"mergedAt\":null,\"statusCheckRollup\":[],\"url\":\"https://example.test/pr/7\",\"baseRefName\":\"main\",\"headRefName\":\"codex/merge-flow\",\"reviewDecision\":\"\"}'",
+            "    exit 0",
+            "  fi",
+            "  touch \"${GH_STATE}.checks-ready\"",
+            f"  printf '%s\\n' '{{\"number\":7,\"state\":\"OPEN\",\"isDraft\":false,\"mergeable\":\"MERGEABLE\",\"mergedAt\":null,\"statusCheckRollup\":[{{\"__typename\":\"CheckRun\",\"name\":\"gauntlet\",\"status\":\"COMPLETED\",\"conclusion\":\"{check_conclusion}\"}}],\"url\":\"https://example.test/pr/7\",\"baseRefName\":\"main\",\"headRefName\":\"codex/merge-flow\",\"reviewDecision\":\"\"}}'",
+            "  exit 0",
+            "fi",
+            "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"create\" ]; then",
+            "  touch \"$GH_STATE\"",
+            "  printf '%s\\n' 'https://example.test/pr/7'",
+            "  exit 0",
+            "fi",
+            "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then exit 0; fi",
+            "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"checks\" ]; then",
+            "  if [ \"${GH_EMPTY_CHECKS_ONCE:-0}\" = \"1\" ] && [ ! -f \"${GH_STATE}.checks-ready\" ]; then",
+            "    printf '%s\\n' 'no checks reported' >&2",
+            "    exit 1",
+            "  fi",
+            "  exit 0",
+            "fi",
+            "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"merge\" ]; then",
+            "  git push origin HEAD:main >/dev/null",
+            "  exit 0",
+            "fi",
+            "exit 1",
+        ]) + "\n"
+    )
+    path.chmod(0o755)
+    return {
+        "GAUNTLET_GH": str(path),
+        "GH_LOG": str(log_path),
+        "GH_STATE": str(state_path),
+        "GH_EMPTY_CHECKS_ONCE": "1" if empty_checks_once else "0",
+    }
+
+
+def test_gauntlet_cli_merge_plan_requires_clean_task_branch():
+    cli = SCRIPTS / "gauntlet.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / "README.md").write_text("# Repo\n")
+        commit_all(repo, "baseline")
+        handoff_path, body_path = prepare_merge_fixture(cli, repo)
+        commit_all(repo, "changelog")
+
+        on_main = run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if on_main.returncode != 1:
+            raise AssertionError(f"merge plan on main should fail: {on_main.stdout}")
+        if "task_branch_required" not in {item["code"] for item in json.loads(on_main.stdout)["findings"]}:
+            raise AssertionError(f"main-branch blocker missing: {on_main.stdout}")
+
+        git(["checkout", "-b", "codex/merge-flow"], cwd=repo)
+        (repo / "feature.txt").write_text("feature\n")
+        commit_all(repo, "feature")
+        (repo / "dirty.txt").write_text("dirty\n")
+        dirty = run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if dirty.returncode != 1:
+            raise AssertionError(f"dirty merge plan should fail: {dirty.stdout}")
+        if "uncommitted_merge_work" not in {item["code"] for item in json.loads(dirty.stdout)["findings"]}:
+            raise AssertionError(f"dirty-work blocker missing: {dirty.stdout}")
+        (repo / "dirty.txt").unlink()
+
+        gh_log = Path(tmp) / "gh.log"
+        state = Path(tmp) / "gh-state"
+        fake_gh = Path(tmp) / "gh"
+        env = write_merge_fake_gh(fake_gh, gh_log, state)
+        plan_result = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if plan_result.returncode != 0:
+            raise AssertionError(f"clean merge plan should pass:\n{plan_result.stdout}\n{plan_result.stderr}")
+        data = json.loads(plan_result.stdout)
+        action_types = [action["type"] for action in data["mergePlan"]["actions"]]
+        expected = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch"]
+        if action_types != expected:
+            raise AssertionError(f"new-PR merge action order mismatch: {action_types}")
+
+        state.touch()
+        existing_result = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        existing_actions = [action["type"] for action in json.loads(existing_result.stdout)["mergePlan"]["actions"]]
+        expected_existing = ["git_push", "gh_pr_edit", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch"]
+        if existing_result.returncode != 0 or existing_actions != expected_existing:
+            raise AssertionError(f"existing PR should be updated, not duplicated: {existing_result.stdout}")
+
+        original_body = body_path.read_text()
+        body_path.write_text("## Changelog\n\n- wrong entry\n")
+        mismatch = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if mismatch.returncode != 1 or "pr_body_out_of_date" not in {item["code"] for item in json.loads(mismatch.stdout)["findings"]}:
+            raise AssertionError(f"stale PR body should block merge: {mismatch.stdout}")
+
+        body_path.write_text(original_body)
+        (repo / "CHANGELOG.md").write_text("# Changelog\n\n## Unreleased\n\n- wrong entry\n")
+        changelog_mismatch = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if changelog_mismatch.returncode != 1 or "changelog_mismatch" not in {item["code"] for item in json.loads(changelog_mismatch.stdout)["findings"]}:
+            raise AssertionError(f"mismatched changelog should block merge: {changelog_mismatch.stdout}")
+
+        failing_gh = Path(tmp) / "gh-failing"
+        failing_log = Path(tmp) / "gh-failing.log"
+        failing_env = write_merge_fake_gh(failing_gh, failing_log, state, check_conclusion="FAILURE")
+        (repo / "CHANGELOG.md").write_text(f"# Changelog\n\n## Unreleased\n\n- {merge_handoff_fixture()['changelog']}\n")
+        git(["add", "CHANGELOG.md"], cwd=repo)
+        git(["commit", "--amend", "--no-edit"], cwd=repo)
+        failing = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **failing_env})
+        if failing.returncode != 2 or "pull_request_checks_failing" not in {item["code"] for item in json.loads(failing.stdout)["findings"]}:
+            raise AssertionError(f"failing PR checks should block merge: {failing.stdout}")
+
+
+def test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main():
+    cli = SCRIPTS / "gauntlet.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        remote = Path(tmp) / "remote.git"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / "README.md").write_text("# Repo\n")
+        (repo / ".gitignore").write_text("/.gauntlet/\n")
+        commit_all(repo, "baseline")
+        git(["init", "--bare", str(remote)], cwd=tmp)
+        git(["remote", "add", "origin", str(remote)], cwd=repo)
+        git(["push", "-u", "origin", "main"], cwd=repo)
+        git(["checkout", "-b", "codex/merge-flow"], cwd=repo)
+        (repo / "feature.txt").write_text("feature\n")
+        handoff_path, body_path = prepare_merge_fixture(cli, repo)
+        commit_all(repo, "feature with changelog")
+
+        gh_log = Path(tmp) / "gh.log"
+        state = Path(tmp) / "gh-state"
+        fake_gh = Path(tmp) / "gh"
+        env = write_merge_fake_gh(fake_gh, gh_log, state, empty_checks_once=True)
+        result = subprocess.run([
+            str(cli), "merge", "execute", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if result.returncode != 0:
+            raise AssertionError(f"merge execute should pass:\n{result.stdout}\n{result.stderr}")
+        data = json.loads(result.stdout)
+        executed = [action["type"] for action in data["executedActions"]]
+        expected = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch"]
+        if executed != expected:
+            raise AssertionError(f"executed merge order mismatch: {executed}")
+        git(["fetch", "origin", "main"], cwd=repo)
+        ancestor = git(["merge-base", "--is-ancestor", "HEAD", "origin/main"], cwd=repo)
+        if ancestor.returncode != 0:
+            raise AssertionError("merge execute did not verify the feature commit on origin/main")
+        log = gh_log.read_text()
+        for marker in ["pr create", "pr checks 7 --watch", "pr merge 7 --merge --delete-branch"]:
+            if marker not in log:
+                raise AssertionError(f"missing GitHub action {marker}:\n{log}")
+        if log.count("pr view") < 3:
+            raise AssertionError(f"merge execute did not poll for delayed check registration:\n{log}")
 
 
 def test_gauntlet_cli_archive_plans_and_executes_github_merge():
@@ -2402,7 +2883,7 @@ def assert_installed_gauntlet_layout(agent_home):
     for marker in [
         "no later than the third user-assistant exchange",
         "Research is never assigned `p4` merely because it is research",
-        "Subagent packetization: required",
+        "Do not record packetization when no child implementation lanes exist",
         "Scope delta checked: no material change.",
     ]:
         assert_contains(installed_agents, marker, "installed implementation-transition guidance")
@@ -2437,7 +2918,7 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         for marker in [
             "no later than the third user-assistant exchange",
             "Research is never assigned `p4` merely because it is research",
-            "Subagent packetization: required",
+            "Do not record packetization when no child implementation lanes exist",
             "Scope delta checked: no material change.",
         ]:
             assert_contains(installed_agents, marker, "Codex root implementation-transition guidance")
@@ -2569,7 +3050,7 @@ def test_skill_evals_include_behavior_and_metrics():
                     raise AssertionError(f"{case['id']} {arm_name} missing score speed metric")
 
 
-def test_skill_linter_examples_and_na_defaults():
+def test_skill_linter_examples_and_noop_pruning():
     linter = SCRIPTS / "lint-skills.py"
     evals = ROOT / "evals" / "skill-evals.json"
     if not linter.exists():
@@ -2594,8 +3075,6 @@ def test_skill_linter_examples_and_na_defaults():
             raise AssertionError(f"{skill['name']} exceeds 500 words")
         if not skill.get("optionalExamples"):
             raise AssertionError(f"{skill['name']} missing optional examples")
-        if not skill.get("hasNotRelevantDefault"):
-            raise AssertionError(f"{skill['name']} missing Not relevant because default")
 
 
 def test_skill_changes_are_guarded_by_pre_commit():
@@ -2636,6 +3115,10 @@ def main():
         test_production_quality_bar_is_launch_gated,
         test_subagent_parallelism_is_context_efficient,
         test_kickoff_and_implementation_transition_gates_are_documented,
+        test_workflow_guidance_keeps_routine_controls_silent,
+        test_subagent_plan_validator_v12_accepts_shared_and_single_write_lane,
+        test_subagent_plan_validator_v12_warns_for_context_efficiency,
+        test_subagent_plan_validator_v12_blocks_material_hazards,
         test_subagent_plan_validator_logs_rejections,
         test_subagent_plan_validator_rejects_secret_and_overbroad_scope,
         test_subagent_plan_validator_requires_complete_lane_packets,
@@ -2645,9 +3128,14 @@ def main():
         test_docs_only_diff_gets_no_runtime_test_commands,
         test_workflow_helpers_filter_artifacts_and_find_python_tests,
         test_workflow_speedup_helpers_are_documented_as_advisory,
+        test_contextual_merge_contract_is_documented,
+        test_contextual_pr_template_changelog_and_run_log_contract,
         test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions,
         test_workflow_etiquette_checker_pauses_archive_on_followups_and_git_state,
         test_workflow_etiquette_checker_builds_archive_action_plan,
+        test_gauntlet_cli_merge_prepare_renders_contextual_handoff,
+        test_gauntlet_cli_merge_plan_requires_clean_task_branch,
+        test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main,
         test_gauntlet_cli_archive_plans_and_executes_github_merge,
         test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk,
         test_gauntlet_cli_small_helper_commands,
@@ -2659,7 +3147,7 @@ def main():
         test_promotion_scanner_is_release_wrapup_not_patch_gate,
         test_skill_evals_compare_all_arms,
         test_skill_evals_include_behavior_and_metrics,
-        test_skill_linter_examples_and_na_defaults,
+        test_skill_linter_examples_and_noop_pruning,
         test_skill_changes_are_guarded_by_pre_commit,
         test_codex_install_layout_supports_workflow_check,
         test_claude_install_layout_adapts_agents_without_overwriting_user_memory,
