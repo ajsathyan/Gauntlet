@@ -1083,7 +1083,8 @@ def build_merge_plan(state):
         {"type": "git_push", "branch": branch},
         pr_action,
         {"type": "gh_pr_checks_watch", "prNumber": pr.get("number") if pr else None},
-        {"type": "gh_pr_merge", "prNumber": pr.get("number") if pr else None, "mergeMethod": merge_method, "deleteBranch": True},
+        {"type": "gh_pr_merge", "prNumber": pr.get("number") if pr else None, "mergeMethod": merge_method},
+        {"type": "delete_remote_branch", "branch": branch},
         {"type": "verify_default_branch", "branch": state.get("defaultBranch")},
     ]
     blockers = [item["code"] for item in payload["findings"] if item["severity"] in {"review", "fail"}]
@@ -1163,7 +1164,15 @@ def execute_merge_plan(payload, git_root, handoff_path, body_path):
                 break
             action["prNumber"] = pr.get("number")
             method = action.get("mergeMethod") or "merge"
-            result = gh(["pr", "merge", str(pr.get("number")), f"--{method}", "--delete-branch"], repo)
+            result = gh(["pr", "merge", str(pr.get("number")), f"--{method}"], repo)
+        elif action_type == "delete_remote_branch":
+            remote_branch = git(["ls-remote", "--exit-code", "--heads", "origin", branch], repo)
+            if remote_branch.returncode == 0:
+                result = git(["push", "origin", "--delete", branch], repo)
+            elif remote_branch.returncode == 2:
+                result = subprocess.CompletedProcess(remote_branch.args, 0, remote_branch.stdout, remote_branch.stderr)
+            else:
+                result = remote_branch
         elif action_type == "verify_default_branch":
             fetch = git(["fetch", "origin", default_branch], repo)
             if fetch.returncode != 0:
