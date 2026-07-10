@@ -9,7 +9,7 @@ from pathlib import Path
 
 LOG_NAME = "subagent-plan-log.jsonl"
 SUMMARY_NAME = "subagent-plan-summary.json"
-VALID_SCHEMA_VERSION = "1.1"
+VALID_SCHEMA_VERSION = "1.2"
 VALID_STATE_ACCESS = {"none", "read-only", "mutates"}
 VALID_LANE_STATUS = {"To Do", "In Progress", "Blocked", "In Review", "Done", "Canceled"}
 OVERBROAD_PATHS = {"*", "**", "**/*", ".", "./", "/*"}
@@ -21,7 +21,6 @@ REQUIRED_LANE_FIELDS = [
     "objective",
     "projectRoot",
     "worktreePath",
-    "acceptedSource",
     "scope",
     "inScope",
     "outOfScope",
@@ -33,13 +32,11 @@ REQUIRED_LANE_FIELDS = [
     "dependencies",
     "consumes",
     "produces",
-    "constraints",
     "proof",
     "inlineContext",
-    "taskPacketRef",
-    "expectedReturn",
     "askUserPolicy",
 ]
+LEGACY_PACKET_FIELDS = {"taskPacketRef"}
 SECRET_PATTERNS = [
     re.compile(r"(?i)\b[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*['\"]?[^\s'\"`]+"),
     re.compile(r"(?i)\b(sk|pk|rk)-(live|test)-[A-Za-z0-9_-]{8,}"),
@@ -105,34 +102,29 @@ def is_overbroad_path(pattern):
     return normalized in OVERBROAD_PATHS
 
 
-def resolve_project_reference(project_root, reference):
-    if not isinstance(reference, str) or not reference.strip():
-        return None
-    path_part = reference.split("#", 1)[0].strip()
-    if not path_part or Path(path_part).is_absolute():
-        return None
-    candidate = (project_root / path_part).resolve()
-    try:
-        candidate.relative_to(project_root)
-    except ValueError:
-        return None
-    return candidate
-
-
 def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
     rejections = []
-    if data.get("schemaVersion") != VALID_SCHEMA_VERSION:
+    if data.get("schemaVersion") == "1.1":
         add_rejection(
             rejections,
-            "unsupported_schema_version",
-            f"schemaVersion must be {VALID_SCHEMA_VERSION}",
+            "legacy_schema_version",
+            "schemaVersion 1.1 is legacy; migrate to 1.2, remove taskPacketRef, and use the manifest as the sole lane source",
         )
+    elif data.get("schemaVersion") != VALID_SCHEMA_VERSION:
+        add_rejection(rejections, "unsupported_schema_version", f"schemaVersion must be {VALID_SCHEMA_VERSION}")
     lanes = data.get("lanes")
     if not isinstance(lanes, list):
         add_rejection(rejections, "missing_lanes", "plan must include a lanes array")
         return rejections
     if len(lanes) < 2:
         add_rejection(rejections, "not_enough_lanes", "parallel subagent plans need at least two lanes")
+
+    shared_source = data.get("acceptedSource")
+    if shared_source is not None and (not isinstance(shared_source, str) or not shared_source.strip()):
+        add_rejection(rejections, "invalid_field_type", "top-level acceptedSource must be a non-empty string")
+    shared_constraints = data.get("constraints")
+    if shared_constraints is not None and not require_list(shared_constraints):
+        add_rejection(rejections, "invalid_field_type", "top-level constraints must be a list of strings")
 
     seen_ids = set()
     contexts = {}
@@ -148,6 +140,32 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
             if field not in lane:
                 add_rejection(rejections, "missing_field", f"lane missing required field: {field}", lane_id)
 
+        for field in LEGACY_PACKET_FIELDS:
+            if field in lane:
+                add_rejection(
+                    rejections,
+                    "legacy_packet_field",
+                    f"{field} is not supported in schema 1.2; remove the Markdown packet reference and render the lane from the manifest",
+                    lane_id,
+                )
+
+        lane_source = lane.get("acceptedSource", shared_source)
+        if not isinstance(lane_source, str) or not lane_source.strip():
+            add_rejection(rejections, "missing_field", "acceptedSource is required at plan or lane level", lane_id)
+        lane_constraints = lane.get("constraints", shared_constraints)
+        if not require_list(lane_constraints):
+            add_rejection(rejections, "missing_field", "constraints are required at plan or lane level", lane_id)
+        rendered_metadata = {key: value for key, value in lane.items() if key != "inlineContext"}
+        rendered_metadata["acceptedSource"] = lane_source
+        rendered_metadata["constraints"] = lane_constraints
+        if has_secret(json.dumps(rendered_metadata, ensure_ascii=False)):
+            add_rejection(
+                rejections,
+                "secret_in_lane_contract",
+                "rendered lane fields appear to contain a secret; redact or summarize before dispatch",
+                lane_id,
+            )
+
         if not isinstance(lane.get("id"), str) or not lane.get("id").strip():
             add_rejection(rejections, "invalid_id", "lane id must be a non-empty string", lane_id)
         elif lane["id"] in seen_ids:
@@ -162,13 +180,10 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
             "objective",
             "projectRoot",
             "worktreePath",
-            "acceptedSource",
             "scope",
             "stateScope",
             "stateAccess",
             "inlineContext",
-            "taskPacketRef",
-            "expectedReturn",
             "askUserPolicy",
         ]:
             if field in lane and not isinstance(lane[field], str):
@@ -201,7 +216,6 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
             "dependencies",
             "consumes",
             "produces",
-            "constraints",
             "proof",
         ]:
             if field in lane and not require_list(lane[field]):
@@ -218,23 +232,6 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
                     rejections,
                     "project_root_mismatch",
                     "lane projectRoot must resolve to the validated project root",
-                    lane_id,
-                )
-
-        if isinstance(lane.get("taskPacketRef"), str) and lane["taskPacketRef"].strip():
-            packet_path = resolve_project_reference(project_root, lane["taskPacketRef"])
-            if packet_path is None:
-                add_rejection(
-                    rejections,
-                    "invalid_task_packet_ref",
-                    "taskPacketRef must be a relative path inside the project root",
-                    lane_id,
-                )
-            elif not packet_path.is_file():
-                add_rejection(
-                    rejections,
-                    "task_packet_missing",
-                    f"taskPacketRef does not exist: {lane['taskPacketRef']}",
                     lane_id,
                 )
 
@@ -327,6 +324,65 @@ def validate_plan(data, project_root, max_inline_words, max_total_inline_words):
     return rejections
 
 
+def render_lane(data, lane_id, max_render_chars):
+    lane = next((item for item in data.get("lanes", []) if item.get("id") == lane_id), None)
+    if lane is None:
+        raise ValueError(f"lane not found: {lane_id}")
+
+    rendered_lane = {
+        key: lane[key]
+        for key in [
+            "id",
+            "status",
+            "title",
+            "skill",
+            "objective",
+            "projectRoot",
+            "worktreePath",
+            "scope",
+            "inScope",
+            "outOfScope",
+            "filesRead",
+            "filesWrite",
+            "filesAvoid",
+            "stateScope",
+            "stateAccess",
+            "dependencies",
+            "consumes",
+            "produces",
+            "proof",
+            "inlineContext",
+            "askUserPolicy",
+        ]
+    }
+    rendered_lane["acceptedSource"] = lane.get("acceptedSource", data.get("acceptedSource"))
+    rendered_lane["constraints"] = lane.get("constraints", data.get("constraints"))
+    prompt = {
+        "schemaVersion": "1.0",
+        "lane": rendered_lane,
+        "execution": {
+            "routineNarration": "none",
+            "safeRetry": "silent only when the next attempt is safe and materially different",
+            "stopOn": [
+                "repeated failure fingerprint",
+                "new authority required",
+                "destructive external-state risk",
+                "accepted appetite exceeded",
+            ],
+        },
+        "receipt": {
+            "status": "Done | Done with concerns | Blocked | Needs decision",
+            "changedFiles": [],
+            "proof": [],
+            "blocker": None,
+        },
+    }
+    output = json.dumps(prompt, ensure_ascii=False, separators=(",", ":")) + "\n"
+    if len(output) > max_render_chars:
+        raise ValueError(f"rendered lane has {len(output)} characters; max is {max_render_chars}")
+    return output
+
+
 def read_log(log_path):
     if not log_path.exists():
         return []
@@ -378,6 +434,8 @@ def main():
     parser.add_argument("--stats", action="store_true", help="Print rejection totals from the log instead of validating a plan.")
     parser.add_argument("--max-inline-words", type=int, default=180)
     parser.add_argument("--max-total-inline-words", type=int, default=600)
+    parser.add_argument("--render-lane", metavar="LANE_ID", help="Render one compact child prompt after validation.")
+    parser.add_argument("--max-render-chars", type=int, default=12000)
     args = parser.parse_args()
 
     project_root = args.project_root.resolve()
@@ -396,6 +454,12 @@ def main():
 
     data = json.loads(args.plan.read_text(encoding="utf-8"))
     rejections = validate_plan(data, project_root, args.max_inline_words, args.max_total_inline_words)
+    rendered_lane = None
+    if args.render_lane and not rejections:
+        try:
+            rendered_lane = render_lane(data, args.render_lane, args.max_render_chars)
+        except ValueError as error:
+            add_rejection(rejections, "lane_render_failed", str(error), args.render_lane)
     status = "rejected" if rejections else "accepted"
     record = {
         "schemaVersion": "1.0",
@@ -417,8 +481,22 @@ def main():
 
     if rejections:
         print(f"Subagent plan rejected: {len(rejections)} rejection(s); logged to {log_path.relative_to(project_root)}")
+        migration = next(
+            (
+                rejection["message"]
+                for rejection in rejections
+                if rejection["code"] in {"legacy_schema_version", "legacy_packet_field"}
+            ),
+            None,
+        )
+        if migration:
+            print(f"Migration: {migration}")
         print(f"Summary: {summary_path.relative_to(project_root)}")
         raise SystemExit(1)
+
+    if rendered_lane is not None:
+        print(rendered_lane, end="")
+        return
 
     print(f"Subagent plan accepted: {record['laneCount']} lane(s); logged to {log_path.relative_to(project_root)}")
     print_summary(summary)

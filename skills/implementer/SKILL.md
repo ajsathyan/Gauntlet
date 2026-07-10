@@ -7,6 +7,16 @@ description: Use when executing ready task packets against an accepted spec whil
 
 Turn one ready task packet into working, maintainable code.
 
+## Delegated Lane Receipt
+
+When dispatched from a validated subagent manifest, do not narrate routine work. Return exactly one compact receipt and no surrounding prose:
+
+```json
+{"status":"Done","changedFiles":["path"],"proof":["command: result"],"blocker":null}
+```
+
+Use `Done`, `Done with concerns`, `Blocked`, or `Needs decision` for `status`. Keep `changedFiles` and `proof` as short arrays. Use `null` for `blocker` unless integration cannot continue.
+
 ## Implementation Packet
 
 Read the task packet, then return:
@@ -36,9 +46,10 @@ For Feature or Release work, also report run-log-friendly exceptions:
 - Implement the smallest correct step.
 - Keep interfaces narrow and behavior explicit.
 - Add or update tests when behavior changes.
-- Refuse delegated implementation when required lane packets or an accepted current-run manifest are missing. Return the exact missing packet or validator evidence to the orchestrator.
+- Refuse delegated implementation when an accepted current-run manifest is missing or rejected. The manifest is the lane contract; do not require or create a second Markdown packet.
 - Before implementing added scope, require its scope-addition delta to be resolved; a clean check may be represented by `Scope delta checked: no material change.` in the plan or task packet.
 - For independent task packets with disjoint files, state, and proof, use only subagent lanes accepted by `scripts/check-subagent-plan.py`; otherwise implement sequentially. Do not repeat large shared context into subagents unless speed gains justify the tokens.
+- Retry a delegated-lane failure silently only when the next attempt is safe, materially different, and inside accepted authority and appetite. Stop and return the compact receipt when the failure fingerprint would repeat, new authority is required, destructive external state is at risk, or the accepted appetite would be exceeded.
 - Avoid broad rewrites, speculative abstractions, unrelated cleanup, and silent behavior changes.
 - After substantial or generated-code-heavy changes, remove dead code and unnecessary abstractions you introduced before final verification.
 - Do not damage unrelated user work in a dirty workspace.
