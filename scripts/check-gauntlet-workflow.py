@@ -1137,7 +1137,7 @@ def test_contextual_pr_template_changelog_and_run_log_contract():
     if not template_path.exists():
         return
     template = read(template_path)
-    required = ["## Problem", "## Solution", "## Changelog", "## Testing", "## PR Note"]
+    required = ["## Problem", "## Solution", "## Changelog", "## Testing"]
     for marker in required:
         assert_contains(template, marker, "contextual PR template")
     positions = [template.index(item) for item in required]
@@ -1148,6 +1148,7 @@ def test_contextual_pr_template_changelog_and_run_log_contract():
         "## User Or Agent Impact",
         "## Workflow Or Behavior Changes",
         "## Release Proof (near-launch only)",
+        "## PR Note",
     ]:
         assert_not_contains(template, obsolete, "contextual PR template")
 
@@ -1513,9 +1514,6 @@ def merge_handoff_fixture():
                 "proves": "Packet, conversation, handoff, and merge contracts pass together.",
             }
         ],
-        "prNote": [
-            "Child safeguards are retained; duplicate-context findings are advisory because the old blocker did not control actual dispatch prompts."
-        ],
         "securityRisk": None,
     }
 
@@ -1553,10 +1551,10 @@ def test_gauntlet_cli_merge_prepare_renders_contextual_handoff():
             raise AssertionError(f"first prepare should create changelog: {first_data}")
 
         body = body_path.read_text()
-        required = ["## Problem", "## Solution", "## Changelog", "## Testing", "## PR Note"]
+        required = ["## Problem", "## Solution", "## Changelog", "## Testing"]
         if [body.index(item) for item in required] != sorted(body.index(item) for item in required):
             raise AssertionError(f"PR body sections are out of order:\n{body}")
-        if "## Security / Risk" in body or "Files changed" in body:
+        if "## Security / Risk" in body or "## PR Note" in body or "Files changed" in body:
             raise AssertionError(f"PR body contains empty risk or a file tour:\n{body}")
         bullet = f"- {handoff['changelog']}"
         if bullet not in body:

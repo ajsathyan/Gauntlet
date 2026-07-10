@@ -28,7 +28,6 @@ REQUIRED_HANDOFF_FIELDS = {
     "solution",
     "changelog",
     "testing",
-    "prNote",
     "securityRisk",
 }
 TITLE_PATTERN = re.compile(r"^p[0-4](?:-auto)?: .+")
@@ -814,10 +813,6 @@ def validate_merge_handoff(data):
                 if not isinstance(item.get(field), str) or not item[field].strip():
                     findings.append(handoff_finding("invalid_testing_evidence", f"testing item {index}.{field} must be non-empty."))
 
-    pr_note = data.get("prNote")
-    if not isinstance(pr_note, list) or not pr_note or not all(isinstance(item, str) and item.strip() for item in pr_note):
-        findings.append(handoff_finding("missing_pr_note", "prNote must contain at least one non-empty item."))
-
     security_risk = data.get("securityRisk")
     if security_risk is not None and (not isinstance(security_risk, str) or not security_risk.strip()):
         findings.append(handoff_finding("invalid_security_risk", "securityRisk must be null or a non-empty string."))
@@ -856,10 +851,6 @@ def render_pr_body(data):
         "## Testing",
         "",
         *testing,
-        "",
-        "## PR Note",
-        "",
-        *[f"- {item.strip()}" for item in data["prNote"]],
     ]
     if data.get("securityRisk"):
         lines.extend(["", "## Security / Risk", "", data["securityRisk"].strip()])

@@ -104,7 +104,6 @@ The contextual PR body is reviewer memory, not a file tour:
 2. `## Solution`: resulting behavior, important invariants/design choices, preserved behavior, and meaningful non-goals.
 3. `## Changelog`: one release-note bullet copied exactly into `CHANGELOG.md` under `Unreleased`.
 4. `## Testing`: exact commands/results, what they prove, and any limitation or `Cannot verify` item.
-5. `## PR Note`: the material tradeoff, compatibility/recovery context, non-goal, or merge rationale future maintainers need.
-6. `## Security / Risk`: include only for a concrete material risk; omit empty boilerplate.
+5. `## Security / Risk`: include only for a concrete material risk; omit empty boilerplate.
 
 Build this framing from the user goal and accepted decisions. Use the diff only to fact-check completeness.
