@@ -866,7 +866,7 @@ def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumption
                 "Depth: Standard",
                 "Verification Scope: delta",
                 "Execution Mode: autonomous",
-                "Suggested thread label: p2-auto: fix archive closeout",
+                "Suggested thread label: p2-auto: fix deterministic archive closeout",
                 "",
                 "Assumptions Made:",
                 "- Assumptions made: local fixtures cover archive examples.",
@@ -878,7 +878,7 @@ def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumption
         result = run([
             str(checker),
             "--title",
-            "p2-auto: fix archive closeout",
+            "p2-auto: fix deterministic archive closeout",
             "--content",
             str(content),
             "--require-kickoff",
@@ -899,7 +899,7 @@ def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumption
         quiet_result = run([
             str(checker),
             "--title",
-            "p2-auto: fix archive closeout",
+            "p2-auto: fix deterministic archive closeout",
             "--content",
             str(quiet),
             "--require-kickoff",
@@ -950,14 +950,14 @@ def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumption
                 "Depth: Standard",
                 "Verification Scope: smoke",
                 "Execution Mode: reviewed",
-                "Suggested thread label: p3: fix archive closeout",
+                "Suggested thread label: p3: fix deterministic archive closeout",
                 "",
             ])
         )
         legacy_review_result = run([
             str(checker),
             "--title",
-            "p3: fix archive closeout",
+            "p3: fix deterministic archive closeout",
             "--content",
             str(legacy_review),
             "--require-kickoff",
@@ -975,6 +975,47 @@ def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumption
         if not any(finding["code"] == "malformed_title" for finding in json.loads(malformed.stdout)["findings"]):
             raise AssertionError(f"malformed title finding missing: {malformed.stdout}")
 
+        multiline = run([
+            str(checker),
+            "--title",
+            "p2-auto:\nharden deterministic archive workflow",
+            "--json",
+        ], check=False)
+        if multiline.returncode != 1:
+            raise AssertionError(f"multiline title should fail: {multiline.stdout}")
+
+        for invalid_title, actual_words in [
+            ("p2-auto: fix archive closeout", 3),
+            ("p2-auto: fix deterministic archive closeout flow", 5),
+        ]:
+            wrong_word_count = run(
+                [str(checker), "--title", invalid_title, "--json"],
+                check=False,
+            )
+            if wrong_word_count.returncode != 1:
+                raise AssertionError(
+                    f"{actual_words}-word title should fail with exit 1: {wrong_word_count.stdout}"
+                )
+            wrong_word_data = json.loads(wrong_word_count.stdout)
+            finding = next(
+                (
+                    item
+                    for item in wrong_word_data["findings"]
+                    if item["code"] == "title_goal_word_count"
+                ),
+                None,
+            )
+            if not finding or finding.get("actualWordCount") != actual_words:
+                raise AssertionError(
+                    f"title word-count finding missing deterministic count: {wrong_word_data}"
+                )
+
+        exact_title = run(
+            [str(checker), "--title", "p2-auto: harden deterministic archive workflow", "--json"]
+        )
+        if json.loads(exact_title.stdout)["status"] != "pass":
+            raise AssertionError(f"four-word title should pass: {exact_title.stdout}")
+
         missing_auto = Path(tmp) / "missing-auto.md"
         missing_auto.write_text(
             "\n".join([
@@ -982,14 +1023,14 @@ def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumption
                 "Depth: Standard",
                 "Verification Scope: smoke",
                 "Execution Mode: autonomous",
-                "Suggested thread label: p3-auto: fix archive closeout",
+                "Suggested thread label: p3-auto: fix deterministic archive closeout",
                 "",
             ])
         )
         auto_result = run([
             str(checker),
             "--title",
-            "p3-auto: fix archive closeout",
+            "p3-auto: fix deterministic archive closeout",
             "--content",
             str(missing_auto),
             "--require-kickoff",
@@ -1144,6 +1185,25 @@ def test_workflow_etiquette_checker_builds_archive_action_plan():
             raise AssertionError(f"malformed suggested title should fail: {malformed_suggestion.stdout}")
         if json.loads(malformed_suggestion.stdout).get("archivePlan", {}).get("canArchive"):
             raise AssertionError(f"malformed suggestion must not be executable: {malformed_suggestion.stdout}")
+
+        wrong_word_suggestion = run([
+            str(checker),
+            "--title",
+            "Indexed implementation context docs",
+            "--suggested-title",
+            "p1-auto: formalize etiquette checks",
+            "--archive",
+            "--json",
+        ], check=False)
+        wrong_word_suggestion_data = json.loads(wrong_word_suggestion.stdout)
+        if wrong_word_suggestion.returncode != 1:
+            raise AssertionError(
+                f"three-word archive suggestion should fail: {wrong_word_suggestion.stdout}"
+            )
+        if wrong_word_suggestion_data.get("archivePlan", {}).get("actions"):
+            raise AssertionError(
+                f"invalid archive suggestion must emit no actions: {wrong_word_suggestion_data}"
+            )
 
         strong = Path(tmp) / "strong.md"
         strong.write_text(
@@ -1567,7 +1627,7 @@ def test_gauntlet_cli_archive_plans_and_executes_github_merge():
                 "archive",
                 "plan",
                 "--title",
-                "p2-auto: fix archive closeout",
+                "p2-auto: fix deterministic archive closeout",
                 "--git-root",
                 str(repo),
                 "--allow-dirty",
@@ -1589,7 +1649,7 @@ def test_gauntlet_cli_archive_plans_and_executes_github_merge():
                 "archive",
                 "execute",
                 "--title",
-                "p2-auto: fix archive closeout",
+                "p2-auto: fix deterministic archive closeout",
                 "--git-root",
                 str(repo),
                 "--allow-dirty",
@@ -1632,7 +1692,7 @@ def test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk():
             "archive",
             "plan",
             "--title",
-            "p3: tidy archive flow",
+            "p3: tidy deterministic archive flow",
             "--git-root",
             str(repo),
             "--archive-anyway",
@@ -1651,7 +1711,7 @@ def test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk():
             "archive",
             "plan",
             "--title",
-            "p3: tidy archive flow",
+            "p3: tidy deterministic archive flow",
             "--git-root",
             str(repo),
             "--confirm-git-risk",
@@ -1668,7 +1728,7 @@ def test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk():
             "archive",
             "plan",
             "--title",
-            "p3: tidy archive flow",
+            "p3: tidy deterministic archive flow",
             "--git-root",
             str(repo),
             "--allow-dirty",
@@ -1927,7 +1987,7 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
             "archive",
             "plan",
             "--title",
-            "p2-auto: build changelog helpers",
+            "p2-auto: build deterministic changelog helpers",
             "--content",
             str(changelog_output),
             "--git-root",
@@ -1950,7 +2010,7 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
             "archive",
             "plan",
             "--title",
-            "p2-auto: build changelog helpers",
+            "p2-auto: build deterministic changelog helpers",
             "--content",
             str(changelog_output),
             "--git-root",
@@ -1971,7 +2031,7 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
             "archive",
             "plan",
             "--title",
-            "p2-auto: build changelog helpers",
+            "p2-auto: build deterministic changelog helpers",
             "--content",
             "-",
             "--git-root",
@@ -2043,7 +2103,7 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
             "--content",
             str(followup_content),
             "--title",
-            "p2-auto: build followup shortcut",
+            "p2-auto: build deterministic followup shortcut",
             "--cwd",
             str(repo),
             "--source-thread",
@@ -2056,7 +2116,7 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
         actions = thread_data.get("actions", [])
         if len(actions) != 1 or actions[0].get("type") != "create_thread":
             raise AssertionError(f"follow-up helper should emit one create_thread action: {thread_data}")
-        if actions[0].get("title") != "p2-auto: build followup shortcut":
+        if actions[0].get("title") != "p2-auto: build deterministic followup shortcut":
             raise AssertionError(f"follow-up helper should preserve selected title: {thread_data}")
         assert_contains(actions[0].get("message", ""), "Build a shortcut", "follow-up thread message")
         assert_contains(actions[0].get("message", ""), "Source thread: thread-123", "follow-up thread source")
@@ -2079,6 +2139,54 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
         if not any(finding["code"] == "malformed_thread_title" for finding in malformed_data["findings"]):
             raise AssertionError(f"malformed follow-up title finding missing: {malformed_data}")
 
+        wrong_word_thread = run([
+            str(cli),
+            "followup",
+            "thread",
+            "--content",
+            str(followup_content),
+            "--title",
+            "p2-auto: build followup shortcut",
+            "--json",
+        ], cwd=repo, check=False)
+        wrong_word_thread_data = json.loads(wrong_word_thread.stdout)
+        if wrong_word_thread.returncode != 1:
+            raise AssertionError(
+                f"three-word follow-up title should fail: {wrong_word_thread.stdout}"
+            )
+        if wrong_word_thread_data.get("actions"):
+            raise AssertionError(
+                f"invalid follow-up title must not emit actions: {wrong_word_thread_data}"
+            )
+        if not any(
+            finding["code"] == "title_goal_word_count"
+            for finding in wrong_word_thread_data["findings"]
+        ):
+            raise AssertionError(
+                f"follow-up word-count finding missing: {wrong_word_thread_data}"
+            )
+
+        legacy_thread = run([
+            str(cli),
+            "followup",
+            "thread",
+            "--content",
+            str(followup_content),
+            "--title",
+            "p2 - build deterministic followup shortcut",
+            "--json",
+        ], cwd=repo, check=False)
+        legacy_thread_data = json.loads(legacy_thread.stdout)
+        if legacy_thread.returncode != 1 or legacy_thread_data.get("actions"):
+            raise AssertionError(
+                f"legacy format must not create new thread actions: {legacy_thread_data}"
+            )
+        if not any(
+            finding["code"] == "legacy_thread_title"
+            for finding in legacy_thread_data["findings"]
+        ):
+            raise AssertionError(f"legacy thread finding missing: {legacy_thread_data}")
+
         no_followup = repo / "no-followup.md"
         no_followup.write_text("No follow-up block here.\n", encoding="utf-8")
         missing_followup = run([
@@ -2088,7 +2196,7 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
             "--content",
             str(no_followup),
             "--title",
-            "p2-auto: build followup shortcut",
+            "p2-auto: build deterministic followup shortcut",
             "--json",
         ], cwd=repo, check=False)
         if missing_followup.returncode != 1:
@@ -2106,7 +2214,7 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
             "--content",
             str(repo / "missing-followup.md"),
             "--title",
-            "p2-auto: build followup shortcut",
+            "p2-auto: build deterministic followup shortcut",
             "--json",
         ], cwd=repo, check=False)
         if missing_followup_file.returncode != 1:
@@ -2135,7 +2243,7 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
             "--content",
             str(secret_followup),
             "--title",
-            "p2-auto: build followup shortcut",
+            "p2-auto: build deterministic followup shortcut",
             "--json",
         ], cwd=repo, check=False)
         if secret_followup_result.returncode != 1:

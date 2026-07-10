@@ -27,6 +27,8 @@ p#: four word goal
 p#-auto: four word goal
 ```
 
+The goal is exactly four whitespace-delimited words. Gauntlet-owned thread actions must validate this shape before emitting `set_thread_title` or `create_thread`; a raw host rename remains outside Gauntlet's interception boundary.
+
 Use `-auto` when the agent can proceed through reversible local choices without the user watching. A Decision Gate may still name the next unsafe or unresolved boundary.
 
 Priority remains consequence-based:

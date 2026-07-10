@@ -12,6 +12,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from thread_titles import parse_thread_title
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
@@ -30,7 +32,6 @@ REQUIRED_HANDOFF_FIELDS = {
     "testing",
     "securityRisk",
 }
-TITLE_PATTERN = re.compile(r"^p[0-4](?:-auto)?: .+")
 SECTION_REQUIRED = [
     ("goal", ["goal"]),
     ("scope", ["scope"]),
@@ -595,12 +596,14 @@ def parse_followups(text):
     return followups
 
 
-def add_finding(payload, code, severity, message):
-    payload.setdefault("findings", []).append({
+def add_finding(payload, code, severity, message, **details):
+    finding = {
         "code": code,
         "severity": severity,
         "message": message,
-    })
+    }
+    finding.update(details)
+    payload.setdefault("findings", []).append(finding)
 
 
 def status_for(payload):
@@ -2022,8 +2025,32 @@ def command_followup_thread(args):
         "findings": [],
         "actions": [],
     }
-    if not TITLE_PATTERN.match(args.title):
-        add_finding(payload, "malformed_thread_title", "fail", "Thread title must start with p0-p4 or p#-auto, followed by a colon.")
+    parsed_title = parse_thread_title(args.title)
+    if parsed_title["format"] == "malformed":
+        if parsed_title.get("reason") == "goal_word_count":
+            add_finding(
+                payload,
+                "title_goal_word_count",
+                "fail",
+                "Thread title goal must contain exactly four whitespace-delimited words; "
+                f"found {parsed_title['actualWordCount']}.",
+                actualWordCount=parsed_title["actualWordCount"],
+                requiredWordCount=parsed_title["requiredWordCount"],
+            )
+        else:
+            add_finding(
+                payload,
+                "malformed_thread_title",
+                "fail",
+                "Thread title must use 'p#: four word goal' or 'p#-auto: four word goal'.",
+            )
+    elif parsed_title["format"] == "legacy":
+        add_finding(
+            payload,
+            "legacy_thread_title",
+            "fail",
+            "New thread actions require 'p#: four word goal' or 'p#-auto: four word goal'; legacy 'p# -' is read-only migration input.",
+        )
 
     followup, findings = followup_from_args(args)
     for finding in findings:
