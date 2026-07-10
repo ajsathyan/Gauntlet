@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0",
-  "description": "Deterministic pressure evals for Gauntlet skills. Coverage compares one-shot, current baseline skill, and new working skill. Behavioral scoring can also compare no-guidance, one-shot, current, and new response reps.",
+  "description": "Deterministic pressure evals for Gauntlet skills. Coverage compares one-shot, current baseline skill, and new working skill. Scorer smoke exercises the phrase matcher but does not claim agent behavior.",
   "cases": [
     {
       "id": "intake-packet-contract",
