@@ -36,7 +36,7 @@ This gives solo builders and AI-assisted teams a durable trail: what changed, wh
 The main chat owns the final Git story:
 
 - Selects or creates the task branch.
-- Tracks canonical manifest state and user decisions without printing a routine lane ledger.
+- Tracks child-lane decisions and integration state without printing a routine lane ledger.
 - Integrates child implementation work.
 - Opens or updates the final PR.
 - Decides whether checks and review are enough to merge.
@@ -92,7 +92,7 @@ Human or agent judgment should remain conversational:
 
 Use `scripts/gauntlet.py merge prepare` before committing the changelog, `scripts/gauntlet.py merge plan` for a read-only preflight, and `scripts/gauntlet.py merge execute` after the worktree is clean. The helper creates or updates one PR, waits for checks, refreshes PR state, merges through repository policy, deletes the remote branch, and verifies the landed commit on the default branch. It does not create commits; the main task owns coherent commit boundaries.
 
-The older `scripts/gauntlet.py changelog pr --implementation-memory "$MEMORY_PATH" --git-root "$PROJECT_ROOT"` remains available for explicit legacy drafts and archive summaries.
+For explicit standalone drafts, use `scripts/gauntlet.py changelog pr --accepted-spec "$SPEC_PATH" --plan "$PLAN_PATH" --git-root "$PROJECT_ROOT"`. The hidden `--implementation-memory` alias remains migration-only.
 
 ## Commit And PR Framing
 

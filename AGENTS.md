@@ -18,13 +18,14 @@ Use repository-relative `docs/...` and `scripts/...` paths only for work inside 
 ## Choose the lightest responsible path
 
 ```text
-Mode: Patch | Feature | Release
+Path: Research | Patch | Feature | Release
 Depth: Standard | Deep
 Proof scope: smoke | delta | full | not relevant
 Execution mode: review | autonomous
 Decision gate: none | before unsafe side effect | before merge | before production change | custom
 ```
 
+- Research: bounded investigation, comparison, audit, recommendation, or implementation discovery without requested code changes.
 - Patch: small, clear, low-risk changes with an obvious proof path.
 - Feature: user-facing workflow, product, IA, onboarding, activation, retention, growth, or design-heavy work.
 - Release: broad, production-bound, weakly tested, destructive, security/privacy-sensitive, billing, auth, migration, concurrency, public API, or data-integrity work.
@@ -55,18 +56,16 @@ For genuine scope additions, check the added scope and its boundary with accepte
 - Stop when recovery would repeat the same failure fingerprint, require new authority, risk destructive external state, or exceed the accepted appetite.
 - Do not ask AJS to inspect subagent packets, reports, ledgers, traces, or progress prose.
 
-## Subagents and canonical manifests
+## Subagents and bounded dispatch
 
 Use subagents only when the user asks, the accepted plan names independent lanes, or separate file/state/proof ownership clearly beats the context cost.
 
 - The main chat owns the accepted plan, user decisions, final branch, integration, PR, merge decision, and final synthesis.
 - Write-heavy lanes use isolated worktrees unless a tiny disjoint patch clearly does not need one.
-- `.gauntlet/subagent-plan.json` is the canonical lane contract. Do not create a second Markdown packet.
-- Validate the manifest with `scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --run-id "$RUN_ID"` before implementation lanes start.
-- Render child prompts from validated lane entries; rendered prompts are views, not another source of truth.
+- Dispatch children directly from bounded task packets in the canonical plan. Each prompt names objective, scope and ownership, dependencies, constraints, proof, return contract, and ask-user policy.
+- Native Codex state and main-chat messages own live coordination.
 - Keep files, mutable state, and proof targets disjoint. Avoid splitting one tightly coupled decision tree across lanes.
 - Children report `Needs decision` to the orchestrator instead of asking AJS directly.
-- Typed dependency/readiness, review-state, WIP-capacity, and runtime-controller enforcement are deferred until representative use earns them.
 
 ## Implementation
 
@@ -98,10 +97,13 @@ Use the Production Quality Bar only for near-launch, private-beta, production-bo
 Use the narrowest Gauntlet role skill that adds value:
 
 - `intake`, `product-architect`, `planner`, `issue-triager`, `implementer`;
+- `researcher`, `debugger`;
 - `adversarial-reviewer`, `black-box-tester`, `experience-reviewer`, `deep-code-reviewer`;
 - `run-log-builder`, `promotion-scanner`, and `ian-xiaohei-illustrations` when their triggers apply.
 
 Domain/tool skills may add concrete capability without imposing a second planning or execution lifecycle.
+
+Selected techniques adapted from Jesse Vincent's Superpowers are tracked in `docs/upstream-superpowers.md`; Gauntlet owns the runtime behavior and Superpowers remains disabled as a lifecycle.
 
 For meaningful skill, router, eval, or workflow changes, apply `docs/skill-quality-bar.md`: behavior delta, trigger clarity, completion criterion, output contract, positive steering, no-op pruning, progressive disclosure, practical explanation, cheap harness mechanics, negative cases, authority/completion checks, and baseline provenance.
 

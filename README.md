@@ -6,7 +6,7 @@ A product-thinking harness for AI coding agents.
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-3fb950?style=for-the-badge"></a>
   <a href="https://github.com/ajsathyan/Gauntlet/releases/tag/v2.0.2"><img alt="Version" src="https://img.shields.io/badge/version-v2.0.2-111827?style=for-the-badge"></a>
   <a href="router/AGENTS.md"><img alt="Workflow" src="https://img.shields.io/badge/workflow-global-0969da?style=for-the-badge"></a>
-  <a href="skills"><img alt="Role skills" src="https://img.shields.io/badge/role_skills-11-8957e5?style=for-the-badge"></a>
+  <a href="skills"><img alt="Role skills" src="https://img.shields.io/badge/role_skills-13-8957e5?style=for-the-badge"></a>
   <a href="docs/coverage-gaps.md"><img alt="Coverage gaps" src="https://img.shields.io/badge/coverage_gaps-pending-f778ba?style=for-the-badge"></a>
 </p>
 
@@ -22,7 +22,7 @@ A product-thinking harness for AI coding agents.
   <a href="#-install">Install</a>
 </p>
 
-Gauntlet helps AI coding agents turn rough asks into thought-through, consistent features. Instead of treating every task as "prompt, wait, inspect, prompt again," it gives teams a shared vocabulary for deciding what kind of product thinking, implementation proof, review, and durable memory the work deserves.
+Gauntlet helps AI coding agents turn rough asks into thought-through features, evidence-backed research, and verified changes. It is the single workflow authority; domain/tool skills may add capabilities without imposing a second lifecycle.
 
 Coding agents make implementation cheaper, but they make product judgment, coherence, and review more important. Gauntlet v2.0.2 keeps the workflow strict where the feature shape or risk demands it and lighter where ceremony gets in the way: durable context is now an exceptions-first Markdown run log plus pending coverage gaps, not a separate review product.
 
@@ -44,14 +44,14 @@ Gauntlet v2.0.2 sharpens the harness around outcomes:
 
 Gauntlet v2.0.1 replaces the default review surface with a small **Run Log** and a candidate **Coverage Gap** loop inspired by repo-local product-design guidance patterns.
 
-The workflow is built around Patch, Feature, and Release modes; Standard and Deep depth; smoke, delta, and full proof scopes; run logs; release panel guardrails; architecture hygiene; TypeScript durability classification; the Production Quality Bar; targeted skill-change evals; and design lint candidates. The intent is still not to add process everywhere. It is to apply just enough structure that agent-built features stay coherent, verifiable, and easier to pick up later.
+The workflow is built around Research, Patch, Feature, and Release paths; Standard and Deep depth; smoke, delta, and full proof scopes; one accepted source and canonical plan; run logs; architecture hygiene; TypeScript durability classification; and triggered quality gates.
 
 ## ✨ At A Glance
 
 | Capability | What You Get |
 | --- | --- |
 | Intake | Turns rough intent into scope, boundaries, acceptance criteria, assumptions, and proof. |
-| Build stages | Routes work through Patch, Feature, or Release based on scope and risk, with Standard or Deep depth chosen separately. |
+| Work paths | Routes work through Research, Patch, Feature, or Release based on intent and risk, with Standard or Deep depth chosen separately. |
 | Product-thinking loop | Shapes rough asks into coherent product features before implementation and checks consistency after. |
 | Scoped role skills | Adds product architecture, planning, triage, implementation, black-box testing, experience review, and deep code review only at smoke, delta, or full scope when useful. |
 | Run logs | Writes a tiny exceptions-first Markdown receipt for material Feature/Release work: assumptions, decisions, skipped checks, failures, `Cannot verify`, and follow-ups. |
@@ -67,6 +67,7 @@ The workflow is built around Patch, Feature, and Release modes; Standard and Dee
 
 | Stage | Best For | What It Optimizes |
 | --- | --- | --- |
+| Research | Audits, comparisons, recommendations, and implementation discovery | Evidence quality without implementation gates. |
 | Patch | Small, focused changes | Speed and low overhead. |
 | Feature | High-fidelity product features and workflows | Coherent product thinking, implementation, and consistency checks. |
 | Release | Production-bound or risky changes | Deeper verification, review, and regression control. |
@@ -75,6 +76,7 @@ The workflow is built around Patch, Feature, and Release modes; Standard and Dee
 
 | Signal | Recommended Stage |
 | --- | --- |
+| Investigation, audit, comparison, or recommendation without a requested code change | Research |
 | Clear copy, config, polish, or narrow bug fix | Patch |
 | Small code surface where the best answer matters | Patch with Deep depth |
 | Product workflow, onboarding, activation, retention, growth, IA, or design-heavy work | Feature |
@@ -243,6 +245,8 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [AGENTS.md](AGENTS.md) | Repository contributor guide for changing and proving Gauntlet itself; it is not installed as the portable router. |
 | `CLAUDE.md` | Claude Code adapter created by `--target claude`; imports the installed Gauntlet `AGENTS.md` through a managed block while preserving existing Claude instructions. |
 | [skills/intake/SKILL.md](skills/intake/SKILL.md) | Turns rough intent into an implementable spec. |
+| [skills/researcher/SKILL.md](skills/researcher/SKILL.md) | Produces bounded evidence-backed research without importing implementation ceremony. |
+| [skills/debugger/SKILL.md](skills/debugger/SKILL.md) | Reproduces and isolates root cause before a fix is implemented. |
 | [skills/product-architect/SKILL.md](skills/product-architect/SKILL.md) | Shapes Feature work around workflow, IA, activation, retention, growth, trust, and handoff. |
 | [skills/planner/SKILL.md](skills/planner/SKILL.md) | Converts accepted specs into bounded implementation steps. |
 | [skills/issue-triager/SKILL.md](skills/issue-triager/SKILL.md) | Routes plans, findings, test failures, bugs, and open questions into ready tasks. |
@@ -253,19 +257,22 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [skills/deep-code-reviewer/SKILL.md](skills/deep-code-reviewer/SKILL.md) | Reviews correctness, maintainability, tests, integration risk, and regression risk. |
 | [skills/run-log-builder/SKILL.md](skills/run-log-builder/SKILL.md) | Creates exceptions-first run logs and pending coverage-gap candidates. |
 | [skills/promotion-scanner/SKILL.md](skills/promotion-scanner/SKILL.md) | Produces bounded Promotion Briefs for repeated manual or agent loops without recommending live operational actions. |
+| [docs/upstream-superpowers.md](docs/upstream-superpowers.md) | Attributes adapted techniques and explains selective upstream update review and runtime retirement. |
 | [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
 | [docs/github-discipline.md](docs/github-discipline.md) | Beginner-friendly branch, worktree, commit, PR, merge, child-chat, and solo-builder defaults. |
 | [docs/ui-constitution.md](docs/ui-constitution.md) | Bounded frontend quality gate for prototypes and product UI. |
 | [docs/production-quality-bar.md](docs/production-quality-bar.md) | Near-launch quality gate for boundaries, invariants, durable state, state machines, release proof, threat/redaction, feedback loops, and decision-oriented UI. |
-| [docs/workflow-speedups.md](docs/workflow-speedups.md) | Advisory changed-surface, test-planning, review-packet, and canonical subagent-manifest guidance. |
+| [docs/workflow-speedups.md](docs/workflow-speedups.md) | Advisory changed-surface, test-planning, review-packet, and child-dispatch guidance. |
 | [docs/promotion-scanner.md](docs/promotion-scanner.md) | Trigger policy and gap-routing guidance for promotion scans. |
 | [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
-| [scripts/gauntlet.py](scripts/gauntlet.py) | Small deterministic CLI for local analytics, closeout facts, bounded attempt memory, release-candidate summaries, archive planning/execution, install verification, follow-up packets, Implementation Memory linting, PR/changelog drafts, and saved diagram lookup. |
+| [scripts/gauntlet.py](scripts/gauntlet.py) | Deterministic CLI for merge/archive actions, analytics, install verification, follow-up packets, compatibility memory linting, and PR/changelog drafts. |
 | [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals. |
 | [scripts/classify-ts-durability.sh](scripts/classify-ts-durability.sh) | Classifies whether TypeScript durability standards are required for the current work. |
 | [scripts/diff-intel.py](scripts/diff-intel.py) | Writes advisory changed-file, package-root, risk-trigger, dirty-worktree, confidence, and `Cannot verify` intel. |
 | [scripts/test-plan.py](scripts/test-plan.py) | Recommends focused and broader verification commands from diff intel without defaulting to huge suites. |
-| [scripts/review-pack.py](scripts/review-pack.py) | Generates a bounded, redacted review packet from current diff intel, optional Implementation Memory Scan Index context, and existing test-plan summaries. |
+| [scripts/review-pack.py](scripts/review-pack.py) | Generates a bounded, redacted review packet from diff intel, accepted spec/plan context, and test-plan summaries. |
+| [scripts/check-superpowers-sync.py](scripts/check-superpowers-sync.py) | Reports upstream Superpowers technique changes and affected Gauntlet destinations. |
+| [scripts/retire-superpowers.py](scripts/retire-superpowers.py) | Reversibly retires allowlisted active Superpowers skills and disables the plugin. |
 | [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill-text coverage and explicitly labeled scorer-smoke checks. |
 | [scripts/run-orchestration-evals.py](scripts/run-orchestration-evals.py) | Scores paired orchestration traces from observable outcome, action, authority, proof, routing, output-budget, cost, and latency evidence. |
 | [scripts/lint-skills.py](scripts/lint-skills.py) | Lints skill frontmatter, word budget, contract slots, optional examples, and bounded subagent guidance. |
@@ -283,6 +290,8 @@ Gauntlet is partly inspired by Simon Last's framing of agent work as a higher-th
 It is also influenced by Vercel's product-design guidance pattern: accepted decisions live near the code, repeated mechanical checks graduate into linters, missing standards stay visible as coverage gaps, and humans approve what becomes guidance.
 
 Gauntlet combines those ideas into a product-thinking harness: define the feature clearly, choose the right build stage and proof scope, let the agent keep moving, and leave small durable repo memory behind.
+
+Selected techniques are adapted from Jesse Vincent's [Superpowers](https://github.com/obra/superpowers) under MIT. The version/hash update map lives in [docs/upstream-superpowers.md](docs/upstream-superpowers.md); Superpowers is not a runtime dependency.
 
 ## 📚 Repository Files
 

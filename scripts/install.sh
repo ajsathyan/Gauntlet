@@ -354,7 +354,6 @@ for required_path in \
   "$AGENT_HOME/gauntlet/AGENTS.md" \
   "$AGENT_HOME/gauntlet/docs/workflow-etiquette.md" \
   "$AGENT_HOME/gauntlet/scripts/gauntlet.py" \
-  "$AGENT_HOME/gauntlet/scripts/check-subagent-plan.py" \
   "$AGENT_HOME/skills/intake/SKILL.md" \
   "$AGENT_HOME/skills/planner/SKILL.md" \
   "$AGENT_HOME/skills/implementer/SKILL.md"

@@ -22,7 +22,7 @@ Return fields in this order. Use `None` only when the field truly does not apply
 If a field is outside accepted scope, write `Not relevant because...` instead of expanding intake. Optional example: read `examples/intake-packet.md` only when output shape is ambiguous.
 
 - Tier and reason
-- Recommended mode and depth
+- Recommended path and depth: Research, Patch, Feature, or Release
 - Goal
 - In scope
 - Out of scope
@@ -39,6 +39,8 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 ## Rules
 
 - Ask up to five questions; for minor gaps, make an assumption and record it.
+- Keep intake in the conversation or canonical plan. Do not create a second permanent intake artifact unless the user explicitly asks for a spec document.
+- Research intake bounds the question, evidence, freshness, and consequence; it does not force a Patch, Feature, or Release mode before implementation exists.
 - For optimization, security, reliability, or audit work, separate scope from depth and clarify whether the user wants an acceptable improvement or the best improvement worth searching for when cost changes.
 - For follow-ups, run delta intake: changed assumptions, new acceptance criteria, and new proof.
 - Stop and ask when a missing answer could cause data loss, security/privacy exposure, billing impact, incompatible product behavior, or work beyond the stated appetite.

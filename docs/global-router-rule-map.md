@@ -26,8 +26,8 @@ This map prevents the compact global router from becoming a silent rule deletion
 | Frontend Quality Gate | Keep + move | Substantial frontend work uses bounded code/browser/experience proof. | UI references and reviewer skills |
 | Intake Gate | Keep + move | Establish scope, acceptance, proof, constraints, and material questions before substantial work. | `intake` |
 | Role Skills | Keep + move | Route to the narrowest role skill that adds concrete value. | `skills/*/SKILL.md` |
-| Subagent Handoff Packet | Replace | One validated JSON manifest is the lane source of truth. | `scripts/check-subagent-plan.py`, `docs/subagent-plan-validator.md` |
-| Role Report Contract | Replace | Child agents return `status`, `changedFiles`, `proof`, and `blocker`; no routine prose. | `implementer`, manifest renderer |
+| Subagent Handoff Packet | Keep + simplify | The main task dispatches one bounded packet per child and coordinates through native state. | `planner`, `implementer`, `docs/workflow-etiquette.md` |
+| Role Report Contract | Replace | Child agents return `status`, `changedFiles`, `proof`, and `blocker`; no routine prose. | `implementer` |
 | Subagent output/progress | Replace | Silent safe recovery; surface decisions, unrecoverable failure, host-required terse heartbeat, or final proof only. | Router quiet-execution contract |
 | System-Level Explanation Visuals | Move | Use diagrams/illustrations only when they materially improve understanding. | Diagram and illustration skills |
 | Product Features | Move | Product workflow, first value, progress, states, and next action belong to product/experience roles. | `product-architect`, `experience-reviewer` |
@@ -36,7 +36,7 @@ This map prevents the compact global router from becoming a silent rule deletion
 
 ## Explicit deletions
 
-- Delete the second Markdown subagent packet and its existence-only validation.
+- Delete duplicate subagent packets and routine lane ledgers that merely mirror native state.
 - Delete detailed procedures duplicated between the global and repository `AGENTS.md` files.
 - Delete downstream-relative Gauntlet `docs/...` and `scripts/...` references from installed guidance.
 - Delete claims that phrase-presence fixture scoring proves behavioral compliance.

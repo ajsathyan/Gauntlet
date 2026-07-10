@@ -1,6 +1,6 @@
 # Gauntlet v2 Skill Audit
 
-Updated for v2.0.2: exceptions-first run logs, coverage-gap candidates, canonical lane manifests, three-arm skill coverage, explicit scorer smoke, observable orchestration traces, `Cannot verify` slots, conditional subagent guidance, skill linting, and token-efficiency review.
+Updated for v2.0.2: exceptions-first run logs, coverage-gap candidates, direct child dispatch, three-arm skill coverage, explicit scorer smoke, observable orchestration traces, `Cannot verify` slots, conditional subagent guidance, skill linting, and token-efficiency review.
 
 ## Eval Method
 
@@ -55,7 +55,7 @@ Latest deterministic target: all `new_skill` coverage arms pass; `one_shot` and 
 | Skill | Current Decision |
 | --- | --- |
 | `intake` | Keep packet shape. |
-| `planner` | Keep bounded main-plan tasks; use one canonical manifest instead of duplicate subagent packets. |
+| `planner` | Keep bounded main-plan tasks and dispatch child packets directly from the canonical plan. |
 | `product-architect` | Route non-obvious rationale to run logs, not product UI. |
 | `implementer` | Return compact machine receipts for delegated lanes and run-log-friendly exceptions only when material. |
 | `adversarial-reviewer` | Report concrete risk and optional coverage gap candidates. |

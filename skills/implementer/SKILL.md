@@ -9,7 +9,7 @@ Execute one accepted packet. Preserve unrelated work and prove behavior.
 
 ## Delegated Lane Receipt
 
-When dispatched from a validated subagent manifest, do not narrate routine work. Return exactly one compact receipt and no surrounding prose:
+When dispatched as a child lane, do not narrate routine work. Return exactly one compact receipt and no surrounding prose:
 
 ```json
 {"status":"Done","changedFiles":["path"],"proof":["command: result"],"blocker":null}
@@ -36,14 +36,19 @@ For Feature or Release work, add only exceptions that occurred: material decisio
 ## Rules
 
 - Read first, match local patterns, implement the smallest correct step, and test behavior changes.
-- Every delegated lane requires a bounded prompt. For two or more parallel lanes or any write-heavy child implementation lane, refuse implementation when the current-run schema `1.2` manifest is missing, rejected, or has a blocking finding.
-- A single small read-only child does not need the manifest gate.
-- The manifest is the lane contract; do not require or create a second Markdown packet.
-- Shared accepted context lives at plan level or in an accepted source reference; rendered lane prompts contain only the validated lane view.
-- For independent manifest lanes with disjoint files, state, and proof, use only lanes accepted by `scripts/check-subagent-plan.py`; otherwise implement sequentially. Do not repeat large shared context unless speed gains justify the tokens.
+- For practical behavior changes, use RED-GREEN-REFACTOR: observe the relevant test fail for the intended reason, implement the smallest source fix, then refactor while green. When no credible harness exists, record why and run the closest regression proof.
+- Verify review feedback against the accepted spec, code, and tests before applying it; return `Needs decision` when it would silently change behavior.
+- Every delegated lane requires one bounded task packet naming objective, ownership, dependencies, constraints, proof, return contract, and ask-user policy.
+- Native Codex state and main-task messages own live coordination.
+- Shared accepted context lives in the canonical plan; child prompts contain only the context needed for their lane.
+- Run parallel only when lanes have disjoint files, state, and proof; otherwise implement sequentially. Do not repeat large shared context unless speed gains justify the tokens.
 - Keep clean validation, mode/gate selection, scope-delta checks, review transitions, and hygiene transitions out of the report.
 - Resolve added-scope deltas first. A clean plan/task may retain `Scope delta checked: no material change.`
 - Retry a delegated-lane failure silently only when the next attempt is safe, materially different, and inside accepted authority and appetite. Stop and return the compact receipt when the failure fingerprint would repeat, new authority is required, destructive external state is at risk, or the appetite would be exceeded.
 - Avoid broad rewrites, speculative abstractions, unrelated cleanup, and silent behavior changes.
 - Remove current-change dead code and unnecessary abstractions before final verification.
 - Done requires required proof to pass or be explicitly unavailable with its consequence stated; code alone is not done.
+
+## Attribution
+
+RED-GREEN-REFACTOR, evidence-before-completion, and verify-before-applying-review guidance are adapted from Jesse Vincent's Superpowers `test-driven-development`, `verification-before-completion`, and `receiving-code-review` skills, version 5.1.3 (MIT). See `docs/upstream-superpowers.md`.

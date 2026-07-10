@@ -16,7 +16,6 @@ Optional example: `examples/task-packet.md`.
 - Scope pressure, deferrals, and risks/unknowns
 - Verification plan
 - Parallelizable lanes: independent tasks that can go to subagents, or omit when none
-- Subagent manifest and dispatch source: `.gauntlet/subagent-plan.json`, or omit when no gated child lane exists
 - Scope-addition delta: material change or `Scope delta checked: no material change.`
 - Ordered **Gauntlet Task Packet** list
 - First ready task
@@ -37,18 +36,15 @@ Each main-plan task gets an end-to-end packet:
 
 ## Child Implementation Lanes
 
-- The validated manifest lane is the bounded child contract. Do not write a second Markdown packet.
-- For two or more parallel lanes or any write-heavy child implementation lane, write schema `1.2` in `.gauntlet/subagent-plan.json` with shared accepted context and lane-specific deltas. Validate it before implementation, not merely before dispatch.
-- Render the child prompt with `scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --render-lane "$LANE_ID"`; rendered text is a view, not another source of truth.
-- A single small read-only child gets a bounded prompt without the manifest gate.
-- Successful validation stays silent. Surface only a material finding or blocker.
+- Give each child one bounded task packet from the canonical plan. Include objective, skill, ownership, dependencies, consumes/produces contracts, constraints, proof, return contract, and ask-user policy.
+- Dispatch and coordinate through native Codex state and main-task messages.
 - Use subagents only for independent lanes.
 
 ## Rules
 
 - Use end-to-end steps unless files, state, and proof are independent enough to split.
 - Convert uncertainty into probes, assumptions, or `Cannot verify` items.
-- Share inherited `acceptedSource` and `constraints` at plan level. `dependencies` remains descriptive; it provides no DAG, readiness, review, or completion state.
+- Keep shared context in the canonical plan and send each child only the context it needs. Name dependencies explicitly and keep at least one first-ready lane.
 - Before added scope, run delta foresight. Keep `Scope delta checked: no material change.` inside the affected plan/task; material findings update scope and proof.
 - Compare or adversarially check consequential performance, security, reliability, and hot-path work.
 - Do not split tightly coupled state or one decision tree across child lanes.
@@ -58,3 +54,7 @@ Each main-plan task gets an end-to-end packet:
 - For TypeScript work, include the TS Durability gate only when the classifier says `durabilityRequired: true` or the user explicitly asks.
 - Trigger the Production Quality Bar only for near-launch, private-beta, production-bound, hardened, or audited work. When triggered, include release proof such as dry-run/no-mutation evidence, automated GitHub release tags, and explicit deferrals; omit the field when the trigger is absent.
 - Stop planning once the first build step and first meaningful proof path are obvious.
+
+## Attribution
+
+End-to-end task sizing, explicit interfaces, and execution checkpoints are adapted from Jesse Vincent's Superpowers `writing-plans` and `executing-plans` skills, version 5.1.3 (MIT). Gauntlet omits prewritten production code, micro-step ceremony, and duplicate plan documents. See `docs/upstream-superpowers.md`.

@@ -2,6 +2,8 @@
 
 Gauntlet is the workflow authority for coding, product, research, review, and release work in this environment. Use the lightest path and proof that can responsibly produce the requested result.
 
+Selected engineering techniques are adapted from Jesse Vincent's Superpowers under MIT with reviewed versions, source hashes, destinations, and update steps in `{{GAUNTLET_ROOT}}/docs/upstream-superpowers.md`. Superpowers is not a runtime workflow dependency.
+
 Installed Gauntlet root: `{{GAUNTLET_ROOT}}`
 
 Resolve Gauntlet references and commands from that absolute root. Never resolve a Gauntlet command against a downstream repository's similarly named files.
@@ -37,6 +39,8 @@ Before substantial implementation, establish the goal, scope, non-goals, affecte
 Use the relevant installed Gauntlet skill from `{{AGENT_HOME}}/skills/<skill>/SKILL.md` when its trigger applies. The core roles are:
 
 - `intake`: turn rough intent into an implementable spec.
+- `researcher`: produce bounded evidence-backed research without importing implementation ceremony.
+- `debugger`: reproduce, isolate, and prove root cause before a fix.
 - `product-architect`: shape user-facing workflow, information architecture, first value, trust, and meaningful metrics.
 - `planner`: turn an accepted spec into bounded implementation tasks.
 - `implementer`: execute accepted tasks with scoped changes and proof.
@@ -46,7 +50,7 @@ Use the relevant installed Gauntlet skill from `{{AGENT_HOME}}/skills/<skill>/SK
 - `experience-reviewer`: review workflow clarity, states, accessibility, trust, and next action.
 - `deep-code-reviewer`: review correctness, maintainability, tests, integration, and regression risk.
 - `run-log-builder`: capture material decisions, exceptions, and coverage gaps.
-- `promotion-scanner`: evaluate repeated manual or agent work for promotion after Release or live-ops evidence, not ordinary Patch work.
+- `promotion-scanner`: evaluate repeated manual or agent work only on explicit request or repeated durable evidence, not ordinary wrap-up.
 
 Do not invoke a second overlapping lifecycle when Gauntlet already owns the workflow. Domain and tool skills remain welcome when they add a concrete capability without replacing the accepted Gauntlet path.
 
@@ -82,7 +86,7 @@ Archive behavior is authority-sensitive: use the installed archive planner and e
 
 Parallelism must beat its context cost. Delegate only independent files, state, contracts, or evidence lanes with separate proof paths. The main task owns user decisions, integration, synthesis, the final branch, and the pull request.
 
-For two or more parallel lanes or any write-heavy child implementation lane, keep one canonical `.gauntlet/subagent-plan.json` and validate it with `python3 {{GAUNTLET_ROOT}}/scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --run-id "$RUN_ID"`. Do not require a second prose packet. Write-heavy lanes use isolated worktrees unless a tiny disjoint change makes that unnecessary.
+Dispatch children directly from bounded task packets in the canonical plan. Each prompt names objective, ownership, dependencies, constraints, proof, return contract, and ask-user policy. Native Codex state and main-task messages own live coordination. Write-heavy lanes use isolated worktrees unless a tiny disjoint change makes that unnecessary.
 
 Child agents return compact machine receipts. Keep routine coordination, status narration, and internal reports out of user-facing chat. Surface only:
 

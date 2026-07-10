@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import hashlib
 import importlib.util
 import json
 import os
@@ -223,7 +224,7 @@ def test_product_thinking_and_scope_routing_are_documented():
     for marker in [
         "v2.0.2",
         "product-thinking harness for AI coding agents",
-        "thought-through, consistent features",
+        "thought-through features",
         "coherent product features",
         "Token efficiency",
     ]:
@@ -332,90 +333,58 @@ def test_subagent_parallelism_is_context_efficient():
     planner = read(SKILLS / "planner" / "SKILL.md")
     product = read(SKILLS / "product-architect" / "SKILL.md")
     implementer = read(SKILLS / "implementer" / "SKILL.md")
-    validator_doc = read(ROOT / "docs" / "subagent-plan-validator.md")
+    combined = "\n".join([agents, router, planner, implementer])
 
     for marker in [
         "Parallelism must beat its context cost",
         "Delegate only independent files, state, contracts, or evidence lanes",
-        "scripts/check-subagent-plan.py",
-        ".gauntlet/subagent-plan.json",
-        "Do not require a second prose packet",
-        "For two or more parallel lanes or any write-heavy child implementation lane",
+        "bounded task packets",
+        "Native Codex state",
+        "main-task messages",
     ]:
-        assert_contains("\n".join([agents, router]), marker, "subagent context-efficiency guard")
-
-    for marker in [
-        "For two or more parallel lanes or any write-heavy child implementation lane",
-        "do not require or create a second Markdown packet",
-    ]:
-        assert_contains(implementer, marker, "implementer subagent guidance")
+        assert_contains(combined, marker, "subagent context-efficiency guard")
 
     assert_contains(
         planner,
         "Use end-to-end steps unless files, state, and proof are independent enough to split.",
         "planner firm end-to-end rule",
     )
-    assert_contains(planner, ".gauntlet/subagent-plan.json", "planner subagent manifest")
-    assert_not_contains(planner, "Prefer end-to-end steps over component piles.", "planner soft end-to-end rule")
-
     assert_contains(
         product,
         "Include onboarding, activation, retention, or growth only when accepted scope or a real next action makes them relevant.",
         "product-architect firm scope rule",
     )
-    assert_not_contains(
-        product,
-        "Consider onboarding, activation, retention, and growth only when tied to accepted scope or a real next action.",
-        "product-architect soft scope rule",
-    )
-
-    for marker in [
-        '"schemaVersion": "1.2"',
-        '"shared"',
-        '"contextDelta"',
-        "two or more parallel lanes or any write-heavy child implementation lane",
-        "Warnings delay work only when",
-        "Successful validation is internal evidence",
-    ]:
-        assert_contains(validator_doc, marker, "subagent validator reference")
 
 
-def test_canonical_manifest_and_quiet_execution_are_documented():
+def test_direct_dispatch_and_quiet_execution_are_documented():
     agents = read(AGENTS_MD)
     router = read(ROUTER_MD)
     etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
     planner = read(SKILLS / "planner" / "SKILL.md")
     implementer = read(SKILLS / "implementer" / "SKILL.md")
+    combined = "\n".join([agents, router, etiquette, planner, implementer])
 
     for marker in [
         "Quiet Execution",
         "compact receipt",
-        "Do not write a second Markdown packet",
-        "accepted current-run manifest must validate before implementation",
-        "no later than the third user-assistant exchange",
-        "Research is never assigned `p4` merely because it is research",
-        "If the priority is unchanged, say nothing about it",
-        "two or more parallel lanes or any write-heavy child implementation lane",
-        "before implementation, not merely before dispatch",
+        "bounded task packet",
+        "objective",
+        "ownership",
+        "dependencies",
+        "constraints",
+        "proof",
+        "return contract",
+        "ask-user policy",
         "Scope delta checked: no material change.",
     ]:
-        assert_contains("\n".join([agents, router, etiquette, planner, implementer]), marker, "canonical manifest guidance")
+        assert_contains(combined, marker, "direct dispatch guidance")
 
     for marker in [
-        "validated manifest lane is the bounded child contract",
-        "Successful validation stays silent",
-        "Scope delta checked: no material change.",
-        "before implementation",
-    ]:
-        assert_contains(planner, marker, "planner canonical manifest gate")
-
-    for marker in [
-        "refuse implementation",
-        "current-run schema",
-        "compact receipt",
+        "one bounded task packet",
+        "Native Codex state",
         "Resolve added-scope deltas",
     ]:
-        assert_contains(implementer, marker, "implementer quiet execution gate")
+        assert_contains(implementer, marker, "implementer direct dispatch contract")
 
 
 def test_workflow_guidance_keeps_routine_controls_silent():
@@ -426,12 +395,11 @@ def test_workflow_guidance_keeps_routine_controls_silent():
     combined = "\n".join([agents, etiquette, planner, implementer])
 
     for marker in [
-        "Routine workflow mechanics stay internal",
-        "A clean check stays silent in chat",
-        "Successful validation stays silent",
-        "Native Codex state owns child progress; do not require title/status churn",
-        "User-visible updates contain",
-        "Select mode, depth, verification scope",
+        "Keep routine reads, searches, formatting, command setup, generated packets, and unchanged polls in tools or artifacts",
+        "Classify path, depth, verification, execution posture, and priority internally",
+        "Native Codex state owns child progress; do not require title or status churn",
+        "Surface:",
+        "changed judgment, scope, risk, or verification",
     ]:
         assert_contains(combined, marker, "quiet workflow contract")
 
@@ -494,280 +462,6 @@ def test_skill_quality_bar_is_trigger_bounded():
         "cloc",
     ]:
         assert_contains(plan, marker, "skill quality analytics plan")
-
-
-def complete_subagent_plan(project, lane_ids=("C1", "C2")):
-    docs = project / "docs"
-    docs.mkdir(parents=True, exist_ok=True)
-    (docs / "accepted-spec.md").write_text("# Accepted Spec\n")
-    return {
-        "schemaVersion": "1.2",
-        "runId": "workflow-test",
-        "shared": {
-            "projectRoot": ".",
-            "acceptedSource": "docs/accepted-spec.md",
-            "constraints": ["Preserve unrelated work."],
-            "askUserPolicy": "Return Needs decision to the main task.",
-            "expectedReturn": "Verdict, evidence, residual risk, and one next action.",
-        },
-        "lanes": [
-            {
-                "id": lane_id,
-                "skill": "implementer",
-                "objective": f"Implement bounded lane {lane_id}",
-                "worktreePath": f".worktrees/{lane_id}",
-                "scope": f"Implement {lane_id}",
-                "inScope": [f"src/{lane_id}/**"],
-                "outOfScope": ["src/shared/**"],
-                "filesRead": [f"src/{lane_id}/**"],
-                "filesWrite": [f"src/{lane_id}/**"],
-                "filesAvoid": ["src/shared/**"],
-                "stateScope": lane_id,
-                "stateAccess": "mutates",
-                "dependencies": [],
-                "consumes": ["accepted spec"],
-                "produces": [f"{lane_id} patch"],
-                "laneConstraints": [],
-                "proof": [f"test-{lane_id}"],
-                "contextDelta": f"Only change the {lane_id} boundary.",
-            }
-            for lane_id in lane_ids
-        ],
-    }
-
-
-def run_subagent_plan(validator, project, data, run_id, *extra_args):
-    data["runId"] = run_id
-    plan = project / f"{run_id}.json"
-    plan.write_text(json.dumps(data))
-    result = run(
-        [str(validator), str(project), str(plan), "--run-id", run_id, *extra_args],
-        check=False,
-    )
-    log = project / ".gauntlet" / "subagent-plan-log.jsonl"
-    record = json.loads(log.read_text().splitlines()[-1]) if log.exists() else {}
-    return result, record
-
-
-def test_subagent_plan_validator_v12_accepts_shared_and_single_write_lane():
-    validator = SCRIPTS / "check-subagent-plan.py"
-    with tempfile.TemporaryDirectory() as tmp:
-        project = Path(tmp) / "project"
-        project.mkdir()
-        plan = complete_subagent_plan(project, lane_ids=("C1",))
-        plan["lanes"][0]["contextDelta"] = ""
-
-        result, record = run_subagent_plan(validator, project, plan, "v12-single-write")
-
-        if result.returncode != 0:
-            raise AssertionError(f"schema 1.2 single write lane should pass:\n{result.stdout}\n{result.stderr}")
-        if result.stdout.strip() != "accepted":
-            raise AssertionError(f"clean acceptance should stay quiet: {result.stdout!r}")
-        if record.get("status") != "accepted" or record.get("warningCount") != 0:
-            raise AssertionError(f"clean schema 1.2 record is incomplete: {record}")
-
-
-def test_subagent_plan_validator_v12_warns_for_context_efficiency():
-    validator = SCRIPTS / "check-subagent-plan.py"
-    with tempfile.TemporaryDirectory() as tmp:
-        project = Path(tmp) / "project"
-        project.mkdir()
-        plan = complete_subagent_plan(project)
-        repeated = "shared repeated context must move to the shared packet block " * 20
-        for lane in plan["lanes"]:
-            lane["contextDelta"] = repeated
-            lane["proof"] = ["python3 -m unittest"]
-        plan["lanes"][0]["filesRead"] = ["**/*"]
-
-        result, record = run_subagent_plan(
-            validator,
-            project,
-            plan,
-            "v12-warnings",
-            "--max-inline-words",
-            "25",
-            "--max-total-inline-words",
-            "40",
-        )
-
-        if result.returncode != 0 or record.get("status") != "accepted":
-            raise AssertionError(f"efficiency findings must not block: {record}")
-        warning_codes = {finding["code"] for finding in record.get("warnings", [])}
-        expected = {
-            "duplicated_lane_context",
-            "lane_context_too_large",
-            "total_context_too_large",
-            "duplicate_proof_target",
-            "overbroad_read_scope",
-        }
-        if not expected.issubset(warning_codes):
-            raise AssertionError(f"missing advisory findings: expected {expected}, got {warning_codes}")
-
-
-def test_subagent_plan_validator_v12_blocks_material_hazards():
-    validator = SCRIPTS / "check-subagent-plan.py"
-    with tempfile.TemporaryDirectory() as tmp:
-        project = Path(tmp) / "project"
-        project.mkdir()
-        plan = complete_subagent_plan(project)
-        plan["shared"]["constraints"] = ["Use OPENAI_API_KEY=sk-live-secret-value while working."]
-        plan["shared"]["acceptedSource"] = "../outside.md"
-        plan["lanes"][1]["filesWrite"] = plan["lanes"][0]["filesWrite"]
-        plan["lanes"][1]["stateScope"] = plan["lanes"][0]["stateScope"]
-        plan["lanes"][0]["filesWrite"] = [*plan["lanes"][0]["filesWrite"], "**/*", "../outside/**"]
-        plan["lanes"][1]["taskPacketRef"] = "../outside.md"
-
-        result, record = run_subagent_plan(validator, project, plan, "v12-material-hazards")
-
-        if result.returncode == 0 or record.get("status") != "rejected":
-            raise AssertionError(f"material hazards must block: {record}")
-        rejection_codes = {finding["code"] for finding in record.get("rejections", [])}
-        expected = {
-            "secret_in_shared_context",
-            "overlapping_writes",
-            "shared_mutable_state",
-            "overbroad_write_scope",
-            "legacy_packet_field",
-            "invalid_accepted_source",
-            "path_outside_project",
-        }
-        if not expected.issubset(rejection_codes):
-            raise AssertionError(f"missing blocking findings: expected {expected}, got {rejection_codes}")
-
-
-def test_subagent_plan_validator_logs_rejections():
-    validator = SCRIPTS / "check-subagent-plan.py"
-    if not validator.exists() or not os.access(validator, os.X_OK):
-        raise AssertionError("missing executable subagent plan validator")
-
-    with tempfile.TemporaryDirectory() as tmp:
-        project = Path(tmp) / "project"
-        project.mkdir()
-        data = complete_subagent_plan(project)
-        data["runId"] = "workflow-test"
-        data["lanes"][1]["filesWrite"] = data["lanes"][0]["filesWrite"]
-        data["lanes"][1]["stateScope"] = data["lanes"][0]["stateScope"]
-        data["shared"]["constraints"] = ["Use OPENAI_API_KEY=sk-live-secret-value while working."]
-        plan = project / "subagent-plan.json"
-        plan.write_text(json.dumps(data))
-
-        result = run([str(validator), str(project), str(plan), "--run-id", "workflow-test"], check=False)
-        if result.returncode == 0:
-            raise AssertionError("invalid subagent plan should fail")
-        for marker in ["Subagent plan rejected", "rejection(s)", ".gauntlet/subagent-plan-log.jsonl"]:
-            assert_contains(result.stdout, marker, "subagent rejection output")
-
-        log_path = project / ".gauntlet" / "subagent-plan-log.jsonl"
-        summary_path = project / ".gauntlet" / "subagent-plan-summary.json"
-        if not log_path.exists():
-            raise AssertionError("subagent rejection log was not written")
-        if not summary_path.exists():
-            raise AssertionError("subagent summary was not written")
-        record = json.loads(log_path.read_text().splitlines()[-1])
-        summary = json.loads(summary_path.read_text())
-        if record["status"] != "rejected" or record["rejectionCount"] < 3:
-            raise AssertionError("subagent rejection record missing expected failures")
-        if summary["runId"] != "workflow-test" or summary["rejectedPlans"] != 1:
-            raise AssertionError("subagent summary should track rejected plans for the run")
-
-        stats = run([str(validator), str(project), "--stats", "--run-id", "workflow-test"])
-        assert_contains(stats.stdout, "Subagent plans: 1 checked, 1 rejected", "subagent stats output")
-
-
-def test_subagent_plan_validator_rejects_secret_and_overbroad_scope():
-    validator = SCRIPTS / "check-subagent-plan.py"
-
-    with tempfile.TemporaryDirectory() as tmp:
-        project = Path(tmp) / "project"
-        project.mkdir()
-        data = complete_subagent_plan(project)
-        data["runId"] = "secret-test"
-        data["shared"]["constraints"] = ["Use OPENAI_API_KEY=sk-live-secret-value while reviewing."]
-        data["lanes"][0]["filesRead"] = ["**/*"]
-        data["lanes"][0]["filesWrite"] = ["**/*"]
-        plan = project / "subagent-plan.json"
-        plan.write_text(json.dumps(data))
-
-        result = run([str(validator), str(project), str(plan), "--run-id", "secret-test"], check=False)
-        if result.returncode == 0:
-            raise AssertionError("secret-bearing overbroad subagent plan should fail")
-
-        record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
-        codes = {rejection["code"] for rejection in record["rejections"]}
-        for code in ["secret_in_shared_context", "overbroad_write_scope"]:
-            if code not in codes:
-                raise AssertionError(f"subagent validator missing {code} rejection")
-        warning_codes = {warning["code"] for warning in record["warnings"]}
-        if "overbroad_read_scope" not in warning_codes:
-            raise AssertionError("broad read scope should be advisory")
-
-
-def test_subagent_plan_validator_uses_canonical_manifest_and_quiet_receipts():
-    validator = SCRIPTS / "check-subagent-plan.py"
-
-    with tempfile.TemporaryDirectory() as tmp:
-        project = Path(tmp) / "project"
-        project.mkdir()
-        data = complete_subagent_plan(project)
-        plan = project / "subagent-plan.json"
-
-        legacy = complete_subagent_plan(project)
-        legacy["schemaVersion"] = "1.1"
-        legacy["runId"] = "legacy-packets"
-        legacy["lanes"][0]["taskPacketRef"] = ".gauntlet/packets/C1.md"
-        plan.write_text(json.dumps(legacy))
-
-        legacy_result = run([str(validator), str(project), str(plan), "--run-id", "legacy-packets"], check=False)
-        if legacy_result.returncode == 0:
-            raise AssertionError("legacy packet manifests should fail with migration guidance")
-        record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
-        if "legacy_schema_version" not in {rejection["code"] for rejection in record["rejections"]}:
-            raise AssertionError("schema 1.1 should report legacy_schema_version")
-        assert_contains(legacy_result.stdout, "Migration:", "legacy manifest migration")
-
-        data["runId"] = "packet-field"
-        data["lanes"][0]["taskPacketRef"] = ".gauntlet/packets/C1.md"
-        plan.write_text(json.dumps(data))
-        packet_field = run([str(validator), str(project), str(plan), "--run-id", "packet-field"], check=False)
-        if packet_field.returncode == 0:
-            raise AssertionError("taskPacketRef should fail because the manifest is the sole lane contract")
-        record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
-        if "legacy_packet_field" not in {rejection["code"] for rejection in record["rejections"]}:
-            raise AssertionError("taskPacketRef should report legacy_packet_field")
-
-        data = complete_subagent_plan(project)
-        data["runId"] = "unknown-field"
-        data["lanes"][0]["inlineContext"] = "This must not be silently dropped by rendering."
-        plan.write_text(json.dumps(data))
-        unknown_field = run([str(validator), str(project), str(plan), "--run-id", "unknown-field"], check=False)
-        if unknown_field.returncode == 0:
-            raise AssertionError("unknown manifest fields should fail instead of being dropped")
-        record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
-        if "unknown_field" not in {rejection["code"] for rejection in record["rejections"]}:
-            raise AssertionError("unknown manifest fields should report unknown_field")
-
-        data = complete_subagent_plan(project)
-        data["runId"] = "canonical-render"
-        plan.write_text(json.dumps(data))
-
-        rendered = run([
-            str(validator),
-            str(project),
-            str(plan),
-            "--run-id",
-            "canonical-render",
-            "--render-lane",
-            "C1",
-        ])
-        rendered_data = json.loads(rendered.stdout)
-        if rendered_data["lane"]["id"] != "C1":
-            raise AssertionError(f"rendered wrong lane: {rendered_data}")
-        if "taskPacketRef" in rendered.stdout:
-            raise AssertionError("rendered canonical lane must not contain taskPacketRef")
-        if rendered_data["execution"]["routineNarration"] != "none":
-            raise AssertionError(f"rendered lane should suppress routine narration: {rendered_data}")
-        if set(rendered_data["receipt"]) != {"status", "changedFiles", "proof", "blocker"}:
-            raise AssertionError(f"rendered lane receipt contract mismatch: {rendered_data}")
 
 
 def test_guarded_panel_contract_is_uniform():
@@ -914,35 +608,29 @@ def test_diff_intel_test_plan_and_review_pack_are_bounded():
         if not any(item["tier"] == "broader" and item["command"] == "npm test" for item in plan["commands"]):
             raise AssertionError("durable/security diffs should recommend broader npm test with rationale")
 
-        implementation_memory = project / "docs" / "implementation-memory.md"
-        implementation_memory.write_text(
+        accepted_spec = project / "docs" / "accepted-spec.md"
+        accepted_spec.write_text(
             "\n".join([
-                "# Implementation Memory",
+                "# Accepted Spec",
                 "",
                 "## Goal",
                 "",
                 "Build a safer session path.",
-                "",
-                "## Scan Index",
-                "",
-                "- Search: `rg session-token src/auth`",
-                "- Read first: `src/auth/session.ts`",
-                "",
-                "## Private Raw Notes",
-                "",
-                "This section should not be copied into the review pack.",
-                "",
             ]),
             encoding="utf-8",
         )
+        canonical_plan = project / "docs" / "canonical-plan.md"
+        canonical_plan.write_text("# Canonical Plan\n\n- Search: `rg session-token src/auth`\n", encoding="utf-8")
 
         run([
             str(review_pack),
             str(project),
             "--diff-intel",
             str(intel_path),
-            "--implementation-memory",
-            "docs/implementation-memory.md",
+            "--accepted-spec",
+            "docs/accepted-spec.md",
+            "--plan",
+            "docs/canonical-plan.md",
         ])
         packet = (project / ".gauntlet" / "review-pack.md").read_text()
         for marker in [
@@ -951,14 +639,15 @@ def test_diff_intel_test_plan_and_review_pack_are_bounded():
             "src/auth/session.ts",
             "Test Plan Summary",
             "npm run typecheck",
-            "Implementation Memory",
-            "docs/implementation-memory.md",
+            "Accepted Spec",
+            "docs/accepted-spec.md",
+            "Canonical Plan",
+            "docs/canonical-plan.md",
             "rg session-token src/auth",
             "Expected Return Format",
             "Cannot verify",
         ]:
             assert_contains(packet, marker, "review packet")
-        assert_not_contains(packet, "This section should not be copied", "review packet implementation memory excerpt")
         assert_not_contains(packet, "\n- - ", "review packet list formatting")
         assert_contains(packet, "[REDACTED_SECRET]", "review packet redaction")
         assert_not_contains(packet, "sk-live-secret-value", "review packet secret redaction")
@@ -1068,10 +757,9 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         "diff-intel.py",
         "test-plan.py",
         "review-pack.py",
-        "gauntlet.py memory lint",
         "gauntlet.py changelog pr",
         "gauntlet.py followup thread",
-        "Implementation Memory remains the source",
+        "accepted spec and canonical plan remain the sources",
         "create_thread",
         "advisory",
         "confidence",
@@ -1083,30 +771,25 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         assert_contains(combined, marker, "workflow speedup guidance")
 
     for marker in [
-        "main chat is the orchestrator",
-        "do not ask the user directly",
-        "Needs decision",
-        "Native Codex state owns child progress",
-        "Create a separate git worktree by default for write-heavy child chats",
-        "Archive the child chat after its receipt is integrated",
-        "Compact child receipt",
+        "reports `Needs decision` to the main task instead of asking the user",
+        "Native Codex state owns child progress; do not require title or status churn",
+        "archives a child task after its report is integrated",
+        "returns a compact Role Report",
     ]:
         assert_contains(read(ROOT / "docs" / "workflow-etiquette.md"), marker, "delegation etiquette child lane guidance")
 
     for marker in [
         "separate git worktrees by default",
-        ".gauntlet/subagent-plan.json",
-        "compact machine receipts",
-        "do not print routine lane state",
+        "Child chats return compact reports and archive after integration",
         "Native Codex state owns child progress",
     ]:
         assert_contains(speedups, marker, "workflow speedup child lane guidance")
 
     for marker in [
         "router/AGENTS.md",
-        ".gauntlet/subagent-plan.json",
-        "before implementation",
-        "provides no DAG, readiness, review, or completion state",
+        "one bounded task packet",
+        "Native Codex state",
+        "main-task messages",
         "Scope delta checked: no material change.",
     ]:
         assert_contains("\n".join([agents, read(ROUTER_MD), readme, planner]), marker, "workflow speedup routing")
@@ -1202,8 +885,10 @@ def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumption
             "--json",
         ])
         data = json.loads(result.stdout)
-        if data["status"] != "pass":
-            raise AssertionError(f"valid autonomous kickoff should pass: {data}")
+        if data["status"] != "warn":
+            raise AssertionError(f"legacy five-field kickoff should warn without blocking: {data}")
+        if not any(finding["code"] == "kickoff_check_deprecated" for finding in data["findings"]):
+            raise AssertionError(f"legacy kickoff warning missing: {data}")
         if data["parsedTitle"]["executionMode"] != "autonomous":
             raise AssertionError("auto title should parse as autonomous")
         if data["effectiveExecutionMode"] != "autonomous":
@@ -1221,8 +906,8 @@ def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumption
             "--json",
         ])
         quiet_data = json.loads(quiet_result.stdout)
-        if quiet_data["status"] != "pass":
-            raise AssertionError(f"substantive kickoff without procedural headings should pass: {quiet_data}")
+        if quiet_data["status"] != "warn":
+            raise AssertionError(f"deprecated require-kickoff mode should warn without blocking: {quiet_data}")
 
         legacy = run([str(checker), "--title", "p2 - fix archive closeout", "--json"])
         legacy_data = json.loads(legacy.stdout)
@@ -2203,7 +1888,7 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
                 str(cli),
                 "changelog",
                 "pr",
-                "--implementation-memory",
+                "--accepted-spec",
                 str(memory),
                 "--git-root",
                 str(repo),
@@ -2221,6 +1906,8 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
         changelog_data = json.loads(changelog.stdout)
         if changelog_data["status"] != "pass":
             raise AssertionError(f"verified changelog should pass: {changelog_data}")
+        if changelog_data.get("source") != str(memory) or changelog_data.get("sources") != [str(memory)]:
+            raise AssertionError(f"changelog should preserve the legacy string source and add sources: {changelog_data}")
         for marker in [
             "Build changelog and follow-up helpers for Gauntlet.",
             "## Archive Summary",
@@ -2330,6 +2017,8 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
         unverified_data = json.loads(unverified.stdout)
         if unverified_data["status"] != "warn":
             raise AssertionError(f"missing gh should warn while producing markdown: {unverified_data}")
+        if unverified_data.get("source") != str(memory) or unverified_data.get("sources") != [str(memory)]:
+            raise AssertionError(f"legacy changelog input should preserve the source string contract: {unverified_data}")
         if not any(finding["code"] == "cannot_verify_pr_metadata" for finding in unverified_data["findings"]):
             raise AssertionError(f"missing gh should produce Cannot verify finding: {unverified_data}")
         assert_contains(unverified_data["markdown"], "Cannot verify", "unverified PR changelog")
@@ -2855,7 +2544,7 @@ def test_workflow_etiquette_is_in_global_workflow():
         "Quiet Execution",
         "Execution: review | autonomous",
         "Decision gate:",
-        "Archival Etiquette",
+        "## Archive",
         "scripts/check-workflow-etiquette.py",
         "{{GAUNTLET_ROOT}}/scripts/gauntlet.py",
         "confirm-git-risk",
@@ -2878,7 +2567,7 @@ def test_promotion_scanner_is_release_wrapup_not_patch_gate():
     for marker in [
         "promotion-scanner",
         "Promotion Brief",
-        "Release or live-ops wrap-up",
+        "explicit user request",
         "repeated manual verification",
         "stale vs latest evidence",
         "repo code",
@@ -2889,7 +2578,7 @@ def test_promotion_scanner_is_release_wrapup_not_patch_gate():
         "No live operational actions",
         "Do not infer",
         "secrets/redaction",
-        "Do not run for ordinary Patch",
+        "Do not run automatically for ordinary Patch",
         "GAP-###",
         "Gauntlet-general missing guidance",
     ]:
@@ -2938,9 +2627,8 @@ def assert_installed_gauntlet_layout(agent_home):
         installed_skills,
         f"{installed_root}/docs/production-quality-bar.md",
         f"{installed_root}/docs/ui-constitution.md",
-        f"{installed_root}/scripts/check-subagent-plan.py",
-        "Do not require a second prose packet",
-        "For two or more parallel lanes or any write-heavy child implementation lane",
+        "bounded task packets",
+        "Native Codex state",
         "a request to open a PR does not authorize merging it",
         f"{installed_root}/scripts/gauntlet.py merge prepare|plan|execute",
         "compact machine receipts",
@@ -3313,6 +3001,98 @@ def test_skill_changes_are_guarded_by_pre_commit():
         assert_contains(result.stdout, marker, "skill change checks")
 
 
+def test_superpowers_sources_are_attributed_and_retirement_is_allowlisted():
+    attribution = ROOT / "docs" / "upstream-superpowers.md"
+    manifest_path = ROOT / "docs" / "upstream-superpowers.json"
+    sync = SCRIPTS / "check-superpowers-sync.py"
+    retire = SCRIPTS / "retire-superpowers.py"
+    for path in [attribution, manifest_path, sync, retire]:
+        if not path.exists():
+            raise AssertionError(f"missing Superpowers migration artifact: {path}")
+
+    attribution_text = read(attribution)
+    for marker in ["Jesse Vincent", "obra/superpowers", "MIT", "5.1.3", "adapted concepts, not vendored text"]:
+        assert_contains(attribution_text, marker, "Superpowers attribution")
+
+    manifest = json.loads(read(manifest_path))
+    if manifest.get("upstream", {}).get("repository") != "https://github.com/obra/superpowers":
+        raise AssertionError("Superpowers upstream repository is not pinned")
+    if not manifest.get("techniques") or not manifest.get("retiredSkills"):
+        raise AssertionError("Superpowers mapping needs techniques and retiredSkills")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source = root / "source"
+        (source / "skills" / "systematic-debugging").mkdir(parents=True)
+        source_text = "root-cause-first\n"
+        source_skill = source / "skills" / "systematic-debugging" / "SKILL.md"
+        source_skill.write_text(source_text)
+        (source / ".codex-plugin").mkdir()
+        (source / ".codex-plugin" / "plugin.json").write_text(json.dumps({"version": "5.1.3"}))
+        fixture_manifest = root / "manifest.json"
+        fixture_manifest.write_text(json.dumps({
+            "schemaVersion": "1.0",
+            "upstream": {"repository": "https://github.com/obra/superpowers", "reviewedVersion": "5.1.3"},
+            "techniques": [{
+                "sourceSkill": "systematic-debugging",
+                "sourcePath": "skills/systematic-debugging/SKILL.md",
+                "reviewedSha256": hashlib.sha256(source_text.encode()).hexdigest(),
+                "destinations": ["skills/debugger/SKILL.md"],
+            }],
+            "retiredSkills": ["brainstorming", "using-superpowers"],
+        }))
+        current = run([str(sync), "--source", str(source), "--manifest", str(fixture_manifest), "--json"])
+        if json.loads(current.stdout)["status"] != "pass":
+            raise AssertionError(f"matching upstream map should pass: {current.stdout}")
+        source_skill.write_text("changed upstream\n")
+        changed = run([str(sync), "--source", str(source), "--manifest", str(fixture_manifest), "--json"], check=False)
+        if changed.returncode == 0 or json.loads(changed.stdout)["status"] != "review":
+            raise AssertionError(f"changed upstream source should require review: {changed.stdout}")
+
+        active = root / "active-skills"
+        (active / "brainstorming").mkdir(parents=True)
+        (active / "using-superpowers").mkdir()
+        (active / "personal-skill").mkdir()
+        config = root / "config.toml"
+        config.write_text('[plugins."superpowers@openai-curated"]\nenabled = true\n')
+        archive = root / "retired"
+        dry_run = run([
+            str(retire), "--active-skills", str(active), "--config", str(config),
+            "--archive", str(archive), "--manifest", str(fixture_manifest), "--json",
+        ])
+        if not (active / "brainstorming").exists() or json.loads(dry_run.stdout)["applied"]:
+            raise AssertionError("retirement must be dry-run by default")
+        applied = run([
+            str(retire), "--active-skills", str(active), "--config", str(config),
+            "--archive", str(archive), "--manifest", str(fixture_manifest), "--apply", "--json",
+        ])
+        applied_data = json.loads(applied.stdout)
+        if applied_data["status"] != "pass" or not applied_data["applied"]:
+            raise AssertionError(f"Superpowers retirement should apply cleanly: {applied.stdout}")
+        if (active / "brainstorming").exists() or (active / "using-superpowers").exists():
+            raise AssertionError("allowlisted Superpowers skills should leave the active directory")
+        if not (active / "personal-skill").exists():
+            raise AssertionError("unrelated skills must be preserved")
+        assert_contains(config.read_text(), "enabled = false", "disabled Superpowers plugin")
+
+        for label, config_text in {
+            "missing-section": '[plugins."another-plugin"]\nenabled = true\n',
+            "missing-enabled-key": '[plugins."superpowers@openai-curated"]\nmode = "manual"\n',
+        }.items():
+            unsafe_active = root / f"unsafe-active-{label}"
+            (unsafe_active / "brainstorming").mkdir(parents=True)
+            unsafe_config = root / f"unsafe-{label}.toml"
+            unsafe_config.write_text(config_text)
+            unsafe_result = run([
+                str(retire), "--active-skills", str(unsafe_active), "--config", str(unsafe_config),
+                "--archive", str(root / f"unsafe-archive-{label}"), "--manifest", str(fixture_manifest), "--apply", "--json",
+            ], check=False)
+            if unsafe_result.returncode == 0:
+                raise AssertionError(f"retirement should stop when plugin disablement is unresolved: {label}")
+            if not (unsafe_active / "brainstorming").exists() or unsafe_config.read_text() != config_text:
+                raise AssertionError(f"unverified plugin disablement must preserve skills and config: {label}")
+
+
 def main():
     tests = [
         test_simplified_modes_and_depth_are_documented,
@@ -3321,14 +3101,8 @@ def main():
         test_product_thinking_and_scope_routing_are_documented,
         test_production_quality_bar_is_launch_gated,
         test_subagent_parallelism_is_context_efficient,
-        test_canonical_manifest_and_quiet_execution_are_documented,
+        test_direct_dispatch_and_quiet_execution_are_documented,
         test_workflow_guidance_keeps_routine_controls_silent,
-        test_subagent_plan_validator_v12_accepts_shared_and_single_write_lane,
-        test_subagent_plan_validator_v12_warns_for_context_efficiency,
-        test_subagent_plan_validator_v12_blocks_material_hazards,
-        test_subagent_plan_validator_logs_rejections,
-        test_subagent_plan_validator_rejects_secret_and_overbroad_scope,
-        test_subagent_plan_validator_uses_canonical_manifest_and_quiet_receipts,
         test_guarded_panel_contract_is_uniform,
         test_ts_durability_classifier_behavior,
         test_diff_intel_test_plan_and_review_pack_are_bounded,
@@ -3359,6 +3133,7 @@ def main():
         test_skill_changes_are_guarded_by_pre_commit,
         test_codex_install_layout_supports_workflow_check,
         test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks,
+        test_superpowers_sources_are_attributed_and_retirement_is_allowlisted,
         test_claude_install_layout_adapts_agents_without_overwriting_user_memory,
         test_install_docs_explain_codex_and_claude_targets,
     ]
