@@ -2,7 +2,6 @@ import re
 
 
 CURRENT_TITLE = re.compile(r"^p([0-4])(-auto)?:[ \t]+([^\r\n]+?)[ \t]*$")
-LEGACY_TITLE = re.compile(r"^p([0-4])[ \t]+-[ \t]+([^\r\n]+?)[ \t]*$")
 REQUIRED_GOAL_WORDS = 4
 
 
@@ -24,16 +23,6 @@ def parse_thread_title(title):
             "priority": f"p{current.group(1)}",
             "executionMode": "autonomous" if current.group(2) else "review",
             "goal": goal,
-            "raw": title,
-        }
-
-    legacy = LEGACY_TITLE.match(title)
-    if legacy:
-        return {
-            "format": "legacy",
-            "priority": f"p{legacy.group(1)}",
-            "executionMode": "review",
-            "goal": legacy.group(2).strip(),
             "raw": title,
         }
 

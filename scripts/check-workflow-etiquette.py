@@ -88,16 +88,6 @@ def parse_title(
     if parsed["format"] == "current":
         return parsed
 
-    if parsed["format"] == "legacy":
-        add_finding(
-            findings,
-            "legacy_title_format",
-            "warn",
-            "Legacy title format accepted during migration; generate new titles as 'p#: four word goal'.",
-            migration_friendly=True,
-        )
-        return parsed
-
     if parsed.get("reason") == "goal_word_count":
         code = malformed_code if malformed_code != "malformed_title" else "title_goal_word_count"
         message = malformed_message or (
@@ -119,7 +109,7 @@ def parse_title(
         malformed_code,
         malformed_severity,
         malformed_message
-        or "Thread title must start with 'p#:' or 'p#-auto:'; legacy 'p# -' is warning-only during migration.",
+        or "Thread title must use 'p#: four word goal' or 'p#-auto: four word goal'.",
     )
     return parsed
 
@@ -174,7 +164,7 @@ def check_kickoff(content, parsed_title, findings):
             parsed_title = suggested
 
     execution_mode = fields.get("Execution Mode")
-    if execution_mode and parsed_title and parsed_title.get("format") in {"current", "legacy"}:
+    if execution_mode and parsed_title and parsed_title.get("format") == "current":
         title_mode = parsed_title.get("executionMode")
         title_is_auto = title_mode == "autonomous"
         field_is_auto = execution_mode == "autonomous"
@@ -332,15 +322,12 @@ def build_archive_plan(args, parsed_title, suggested_title, git_actions, finding
         if finding.get("severity") == "warn"
     ]
 
-    if suggested_title and suggested_title.get("format") in {"current", "legacy"}:
+    if suggested_title and suggested_title.get("format") == "current":
         current_raw = parsed_title.get("raw") if parsed_title else None
         if current_raw != suggested_title["raw"]:
             actions.append({"type": "set_thread_title", "title": suggested_title["raw"]})
 
     actions.extend(git_actions)
-
-    if status in {"pass", "warn"}:
-        actions.append({"type": "archive_thread"})
 
     return {
         "canArchive": status in {"pass", "warn"},

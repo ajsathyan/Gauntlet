@@ -24,7 +24,7 @@ The installed copies of the router, etiquette reference, checker, CLI, and workf
 
 | Surface | Present mechanism | Classification | Actual boundary or gap |
 | --- | --- | --- | --- |
-| Thread title prefix and execution suffix | Etiquette checker parser | Deterministic when invoked | No automatic invocation on raw host rename |
+| Thread title prefix and execution suffix | Etiquette checker parser | Deterministic when invoked | Only current `p#[-auto]:` syntax is accepted; no automatic invocation on raw host rename |
 | Exactly four title words | Documentation only; permissive parsers | Unenforced before this slice | Both three- and five-word goals passed |
 | Archive title rename/create-thread packets | Checker/CLI action plans | Deterministic | Safe place Gauntlet controls before app actions |
 | Path/depth/proof/execution classification | Router and role instructions | Prompt-only | Requires agent judgment; should stay judgment-led |
@@ -56,7 +56,7 @@ Primary sources: [OMP hook wrapper](https://github.com/can1357/oh-my-pi/blob/395
 
 ## Recommendation and first slice
 
-The earliest fully reliable enforcement point is the host's title mutation boundary. Gauntlet cannot modify that Codex app boundary from this repository. The earliest reliable point Gauntlet owns is immediately before emitting any title app action. Use one stdlib parser there and in the standalone checker, fail closed for current-format titles whose goals are not exactly four whitespace-delimited words, and retain the legacy format as warning-only migration behavior.
+The earliest fully reliable enforcement point is the host's title mutation boundary. Gauntlet cannot modify that Codex app boundary from this repository. The earliest reliable point Gauntlet owns is immediately before emitting any title app action. Use one stdlib parser there and in the standalone checker, and fail closed unless the title uses current `p#[-auto]:` syntax with exactly four whitespace-delimited words.
 
 Do not add TypeScript. Gauntlet's active workflow CLI, installer, fixtures, and CI are Python/stdlib; TypeScript would add a runtime and distribution boundary without improving this parser's type safety, speed, or integration.
 
@@ -74,11 +74,18 @@ Cap: title parsing, Gauntlet-owned title action emission, negative fixtures, bro
 ## Implementation and proof
 
 - Added `scripts/thread_titles.py` as the single stdlib parser used by the etiquette checker and follow-up action builder.
-- Current-format goals require exactly four words and reject multiline titles. Legacy titles remain readable with a warning but cannot create new thread actions.
+- Titles require current `p#[-auto]:` syntax with exactly four words and reject legacy or multiline forms.
 - Red-green proof observed the prior checker accepting `p2-auto: fix archive closeout`, then passed the new three-word, five-word, multiline, legacy-create, archive-suggestion, and exact-four fixtures.
 - Black-box CLI matrix: exact-four checker and create-thread packet pass; three/five/multiline titles fail; invalid or legacy create/archive inputs emit zero actions.
 - `python3 scripts/check-gauntlet-workflow.py`: all 41 repository workflow checks passed, including temporary-home Codex/Claude installs.
 - `git diff --check` and Python byte-compilation passed.
+
+## Archive presentation follow-up
+
+- Observed: archive planning parsed and printed a supplied Archive Summary, but missing content produced only a warning and still allowed `archive_thread`; user-visible presentation was guidance rather than an action-plan invariant.
+- Changed: missing content, missing files, and missing Archive Summary sections now fail closed with zero archive actions.
+- Changed: Gauntlet-owned plans emit `present_archive_summary` immediately before `archive_thread`; archive execution preserves that order in its returned app-action packet.
+- Boundary: this deterministically controls Gauntlet action packets, not a direct host archive call. Universal enforcement requires a host archive interceptor.
 
 ## Cannot verify
 

@@ -909,12 +909,12 @@ def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumption
         if quiet_data["status"] != "warn":
             raise AssertionError(f"deprecated require-kickoff mode should warn without blocking: {quiet_data}")
 
-        legacy = run([str(checker), "--title", "p2 - fix archive closeout", "--json"])
+        legacy = run([str(checker), "--title", "p2 - fix archive closeout", "--json"], check=False)
         legacy_data = json.loads(legacy.stdout)
-        if legacy_data["status"] != "warn":
-            raise AssertionError(f"legacy title should warn, not fail: {legacy_data}")
-        if not any(finding["code"] == "legacy_title_format" for finding in legacy_data["findings"]):
-            raise AssertionError(f"legacy title warning missing: {legacy_data}")
+        if legacy.returncode != 1 or legacy_data["status"] != "fail":
+            raise AssertionError(f"legacy title should fail: {legacy_data}")
+        if not any(finding["code"] == "malformed_title" for finding in legacy_data["findings"]):
+            raise AssertionError(f"legacy title failure missing: {legacy_data}")
 
         decision_gate = Path(tmp) / "decision-gate.md"
         decision_gate.write_text(
@@ -1165,7 +1165,6 @@ def test_workflow_etiquette_checker_builds_archive_action_plan():
         actions = plan.get("actions", [])
         expected = [
             {"type": "set_thread_title", "title": "p1-auto: formalize workflow etiquette checks"},
-            {"type": "archive_thread"},
         ]
         if actions != expected:
             raise AssertionError(f"archive action plan mismatch: {actions}")
@@ -1228,8 +1227,8 @@ def test_workflow_etiquette_checker_builds_archive_action_plan():
         anyway_data = json.loads(anyway.stdout)
         if anyway_data["status"] != "warn":
             raise AssertionError(f"archive anyway should warn, not review: {anyway_data}")
-        if anyway_data.get("archivePlan", {}).get("actions") != [{"type": "archive_thread"}]:
-            raise AssertionError(f"archive anyway should still plan archive: {anyway_data}")
+        if anyway_data.get("archivePlan", {}).get("actions"):
+            raise AssertionError(f"low-level checker must not emit archive app actions: {anyway_data}")
         if not any(finding["code"] == "strong_followup_archived_anyway" for finding in anyway_data["findings"]):
             raise AssertionError(f"archive anyway warning missing: {anyway_data}")
 
@@ -1594,6 +1593,11 @@ def test_gauntlet_cli_archive_plans_and_executes_github_merge():
         commit_all(repo, "feature")
         git(["push", "-u", "origin", "HEAD"], cwd=repo)
         (repo / "allowed-dirty.txt").write_text("unrelated local note\n")
+        archive_summary = Path(tmp) / "archive-summary.md"
+        archive_summary.write_text(
+            "## Archive Summary\n\n- Hardened deterministic archive execution.\n",
+            encoding="utf-8",
+        )
 
         gh_log = Path(tmp) / "gh.log"
         fake_gh = Path(tmp) / "gh"
@@ -1628,6 +1632,8 @@ def test_gauntlet_cli_archive_plans_and_executes_github_merge():
                 "plan",
                 "--title",
                 "p2-auto: fix deterministic archive closeout",
+                "--content",
+                str(archive_summary),
                 "--git-root",
                 str(repo),
                 "--allow-dirty",
@@ -1638,8 +1644,8 @@ def test_gauntlet_cli_archive_plans_and_executes_github_merge():
             if plan_data["status"] != "warn":
                 raise AssertionError(f"green PR archive plan should pass: {plan_data}")
             action_types = [action["type"] for action in plan_data["archivePlan"]["actions"]]
-            if action_types != ["gh_pr_merge", "archive_thread"]:
-                raise AssertionError(f"green PR should plan merge then archive: {plan_data}")
+            if action_types != ["gh_pr_merge", "present_archive_summary", "archive_thread"]:
+                raise AssertionError(f"green PR should merge, present summary, then archive: {plan_data}")
             merge_action = plan_data["archivePlan"]["actions"][0]
             if merge_action.get("mergeMethod") != "merge" or merge_action.get("prNumber") != 7:
                 raise AssertionError(f"merge action should use merge commit for PR 7: {plan_data}")
@@ -1650,6 +1656,8 @@ def test_gauntlet_cli_archive_plans_and_executes_github_merge():
                 "execute",
                 "--title",
                 "p2-auto: fix deterministic archive closeout",
+                "--content",
+                str(archive_summary),
                 "--git-root",
                 str(repo),
                 "--allow-dirty",
@@ -1659,8 +1667,11 @@ def test_gauntlet_cli_archive_plans_and_executes_github_merge():
             execute_data = json.loads(execute.stdout)
             if execute_data["status"] != "warn":
                 raise AssertionError(f"archive execute should pass with fake gh: {execute_data}")
-            if execute_data.get("remainingAppActions") != [{"type": "archive_thread"}]:
-                raise AssertionError(f"execute should leave app archive action for agent: {execute_data}")
+            remaining_types = [
+                action.get("type") for action in execute_data.get("remainingAppActions", [])
+            ]
+            if remaining_types != ["present_archive_summary", "archive_thread"]:
+                raise AssertionError(f"execute should present summary before app archive: {execute_data}")
             if "pr merge 7 --merge --delete-branch" not in gh_log.read_text():
                 raise AssertionError(f"execute should merge PR through gh: {gh_log.read_text()}")
         finally:
@@ -1686,6 +1697,47 @@ def test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk():
         (repo / "README.md").write_text("# Repo\n")
         commit_all(repo, "baseline")
         (repo / "scratch.md").write_text("next feature\n")
+        archive_summary = Path(tmp) / "archive-summary.md"
+        archive_summary.write_text(
+            "## Archive Summary\n\n- Preserved archive safety under dirty worktree pressure.\n",
+            encoding="utf-8",
+        )
+
+        missing_summary = run([
+            str(cli),
+            "archive",
+            "plan",
+            "--title",
+            "p3: tidy deterministic archive flow",
+            "--git-root",
+            str(repo),
+            "--confirm-git-risk",
+            "--json",
+        ], cwd=repo, check=False)
+        missing_summary_data = json.loads(missing_summary.stdout)
+        if missing_summary.returncode != 1 or missing_summary_data["archivePlan"].get("actions"):
+            raise AssertionError(f"missing summary must block archive actions: {missing_summary_data}")
+        if not any(
+            finding["code"] == "missing_archive_summary_content"
+            for finding in missing_summary_data["findings"]
+        ):
+            raise AssertionError(f"missing summary failure missing: {missing_summary_data}")
+
+        missing_summary_text = run([
+            str(cli),
+            "archive",
+            "plan",
+            "--title",
+            "p3: tidy deterministic archive flow",
+            "--git-root",
+            str(repo),
+            "--confirm-git-risk",
+        ], cwd=repo, check=False)
+        assert_contains(
+            missing_summary_text.stdout,
+            "missing_archive_summary_content",
+            "missing summary text output",
+        )
 
         archive_anyway = run([
             str(cli),
@@ -1693,6 +1745,8 @@ def test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk():
             "plan",
             "--title",
             "p3: tidy deterministic archive flow",
+            "--content",
+            str(archive_summary),
             "--git-root",
             str(repo),
             "--archive-anyway",
@@ -1712,6 +1766,8 @@ def test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk():
             "plan",
             "--title",
             "p3: tidy deterministic archive flow",
+            "--content",
+            str(archive_summary),
             "--git-root",
             str(repo),
             "--confirm-git-risk",
@@ -1720,8 +1776,11 @@ def test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk():
         confirmed_data = json.loads(confirmed.stdout)
         if confirmed_data["status"] != "warn":
             raise AssertionError(f"confirmed git risk should warn, not block: {confirmed_data}")
-        if confirmed_data["archivePlan"].get("actions") != [{"type": "archive_thread"}]:
-            raise AssertionError(f"confirmed git risk should archive without git actions: {confirmed_data}")
+        if [action["type"] for action in confirmed_data["archivePlan"].get("actions", [])] != [
+            "present_archive_summary",
+            "archive_thread",
+        ]:
+            raise AssertionError(f"confirmed git risk should present summary then archive: {confirmed_data}")
 
         allowlisted = run([
             str(cli),
@@ -1729,6 +1788,8 @@ def test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk():
             "plan",
             "--title",
             "p3: tidy deterministic archive flow",
+            "--content",
+            str(archive_summary),
             "--git-root",
             str(repo),
             "--allow-dirty",
@@ -1740,8 +1801,11 @@ def test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk():
             raise AssertionError(f"allowlisted dirty file should warn only: {allowlisted_data}")
         if not any(finding["code"] == "dirty_worktree_allowlisted" for finding in allowlisted_data["findings"]):
             raise AssertionError(f"allowlisted dirty finding missing: {allowlisted_data}")
-        if allowlisted_data["archivePlan"].get("actions") != [{"type": "archive_thread"}]:
-            raise AssertionError(f"allowlisted dirty file should still archive: {allowlisted_data}")
+        if [action["type"] for action in allowlisted_data["archivePlan"].get("actions", [])] != [
+            "present_archive_summary",
+            "archive_thread",
+        ]:
+            raise AssertionError(f"allowlisted dirty file should present summary then archive: {allowlisted_data}")
 
 
 def test_gauntlet_cli_small_helper_commands():
@@ -2004,6 +2068,11 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
             raise AssertionError(f"archive plan should reuse changelog Archive Summary: {archive_data}")
         if archive_data["archiveSummary"]["source"] != "content":
             raise AssertionError(f"archive summary should report content source: {archive_data}")
+        archive_action_types = [
+            action["type"] for action in archive_data["archivePlan"]["actions"]
+        ]
+        if archive_action_types[-2:] != ["present_archive_summary", "archive_thread"]:
+            raise AssertionError(f"archive summary must be presented before archive: {archive_data}")
 
         archive_text = run([
             str(cli),
@@ -2182,7 +2251,7 @@ def test_gauntlet_cli_changelog_memory_and_followup_helpers():
                 f"legacy format must not create new thread actions: {legacy_thread_data}"
             )
         if not any(
-            finding["code"] == "legacy_thread_title"
+            finding["code"] == "malformed_thread_title"
             for finding in legacy_thread_data["findings"]
         ):
             raise AssertionError(f"legacy thread finding missing: {legacy_thread_data}")
