@@ -12,9 +12,9 @@ DEFAULT_EVALS = ROOT / "evals" / "skill-evals.json"
 DEFAULT_CURRENT = ROOT / "evals" / "baselines" / "current" / "skills"
 DEFAULT_NEW = ROOT / "skills" if (ROOT / "skills").exists() else ROOT.parent / "skills"
 DEFAULT_RESULTS = ROOT / "evals" / "results" / "latest.json"
-DEFAULT_BEHAVIOR_RESPONSES = ROOT / "evals" / "behavior-fixtures.json"
+DEFAULT_SCORER_SMOKE_RESPONSES = ROOT / "evals" / "scorer-smoke-fixtures.json"
 COVERAGE_ARMS = ["one_shot", "current_skill", "new_skill"]
-BEHAVIOR_ARMS = ["no_guidance", "one_shot", "current_skill", "new_skill"]
+SCORER_SMOKE_ARMS = ["no_guidance", "one_shot", "current_skill", "new_skill"]
 
 
 def read_text(path):
@@ -61,11 +61,11 @@ def build_prompt(case, arm_name, source_text):
     )
 
 
-def build_behavior_prompt(case, arm_name, source_text):
+def build_scorer_smoke_prompt(case, arm_name, source_text):
     source = source_text.strip() if source_text.strip() else "No skill guidance. Respond from the pressure scenario alone."
     return "\n".join(
         [
-            f"# Gauntlet Behavioral Skill Eval: {case['id']}",
+            f"# Gauntlet Skill Scorer Smoke: {case['id']}",
             "",
             f"Variant: {arm_name}",
             "",
@@ -79,7 +79,7 @@ def build_behavior_prompt(case, arm_name, source_text):
             case["pressurePrompt"].strip(),
             "",
             "## Scored Output Shape",
-            "\n".join(f"- {item}" for item in behavior_required(case)),
+            "\n".join(f"- {item}" for item in scorer_smoke_required(case)),
         ]
     )
 
@@ -115,23 +115,29 @@ def percent_change(before, after):
     return round(((after - before) / before) * 100, 1)
 
 
-def behavior_required(case):
-    return case.get("behaviorRequiredPatterns", case["requiredPatterns"])
+def scorer_smoke_required(case):
+    return case.get(
+        "scorerSmokeRequiredPatterns",
+        case.get("behaviorRequiredPatterns", case["requiredPatterns"]),
+    )
 
 
-def behavior_forbidden(case):
-    return case.get("behaviorForbiddenPatterns", case.get("forbiddenPatterns", []))
+def scorer_smoke_forbidden(case):
+    return case.get(
+        "scorerSmokeForbiddenPatterns",
+        case.get("behaviorForbiddenPatterns", case.get("forbiddenPatterns", [])),
+    )
 
 
-def score_behavior_response(case, text):
+def score_scorer_smoke_response(case, text):
     start = time.perf_counter()
     required = [
         {"pattern": pattern, "present": has_pattern(text, pattern)}
-        for pattern in behavior_required(case)
+        for pattern in scorer_smoke_required(case)
     ]
     forbidden = [
         {"pattern": pattern, "present": has_pattern(text, pattern)}
-        for pattern in behavior_forbidden(case)
+        for pattern in scorer_smoke_forbidden(case)
     ]
     passed_required = sum(1 for item in required if item["present"])
     passed_forbidden = sum(1 for item in forbidden if not item["present"])
@@ -149,16 +155,16 @@ def score_behavior_response(case, text):
 
 
 def render_fixture_text(case, text):
-    return text.replace("{requiredPatterns}", "\n".join(behavior_required(case))).replace(
+    return text.replace("{requiredPatterns}", "\n".join(scorer_smoke_required(case))).replace(
         "{caseId}", case["id"]
     )
 
 
-def load_behavior_responses(path, cases):
+def load_scorer_smoke_responses(path, cases):
     if not path:
         return None
     data = json.loads(read_text(path))
-    by_case = {case["id"]: {arm: [] for arm in BEHAVIOR_ARMS} for case in cases}
+    by_case = {case["id"]: {arm: [] for arm in SCORER_SMOKE_ARMS} for case in cases}
     case_by_id = {case["id"]: case for case in cases}
     for item in data.get("responses", []):
         case_ids = list(case_by_id) if item["case"] == "*" else [item["case"]]
@@ -174,24 +180,24 @@ def load_behavior_responses(path, cases):
     return by_case
 
 
-def run_behavior_case(case, arms, responses_by_case, behavior_prompts_dir):
-    min_reps = int(case.get("behaviorMinReps", 5))
-    if behavior_prompts_dir:
-        case_dir = behavior_prompts_dir / case["id"]
+def run_scorer_smoke_case(case, arms, responses_by_case, scorer_smoke_prompts_dir):
+    min_reps = int(case.get("scorerSmokeMinReps", case.get("behaviorMinReps", 5)))
+    if scorer_smoke_prompts_dir:
+        case_dir = scorer_smoke_prompts_dir / case["id"]
         case_dir.mkdir(parents=True, exist_ok=True)
-        for arm_name in BEHAVIOR_ARMS:
+        for arm_name in SCORER_SMOKE_ARMS:
             source_text = arms.get(arm_name, "")
-            prompt = build_behavior_prompt(case, arm_name, source_text)
+            prompt = build_scorer_smoke_prompt(case, arm_name, source_text)
             (case_dir / f"{arm_name}.md").write_text(prompt, encoding="utf-8")
 
     arm_results = {}
-    for arm_name in BEHAVIOR_ARMS:
+    for arm_name in SCORER_SMOKE_ARMS:
         responses = []
         if responses_by_case:
             responses = responses_by_case.get(case["id"], {}).get(arm_name, [])
         reps = []
         for index, response in enumerate(responses, start=1):
-            scored = score_behavior_response(case, response["text"])
+            scored = score_scorer_smoke_response(case, response["text"])
             scored["rep"] = index
             scored["responseElapsedMs"] = response.get("elapsedMs")
             reps.append(scored)
@@ -210,15 +216,24 @@ def run_behavior_case(case, arms, responses_by_case, behavior_prompts_dir):
         }
 
     return {
-        "configured": responses_by_case is not None or behavior_prompts_dir is not None,
+        "configured": responses_by_case is not None or scorer_smoke_prompts_dir is not None,
+        "responsesConfigured": responses_by_case is not None,
+        "promptsWritten": scorer_smoke_prompts_dir is not None,
         "minReps": min_reps,
-        "requiredPatterns": behavior_required(case),
-        "forbiddenPatterns": behavior_forbidden(case),
+        "requiredPatterns": scorer_smoke_required(case),
+        "forbiddenPatterns": scorer_smoke_forbidden(case),
         "arms": arm_results,
     }
 
 
-def run_case(case, current_root, new_root, prompts_dir, behavior_prompts_dir, responses_by_case):
+def run_case(
+    case,
+    current_root,
+    new_root,
+    prompts_dir,
+    scorer_smoke_prompts_dir,
+    responses_by_case,
+):
     arms = {
         "no_guidance": "",
         "one_shot": case["oneShotInstruction"],
@@ -243,7 +258,9 @@ def run_case(case, current_root, new_root, prompts_dir, behavior_prompts_dir, re
         "skill": case["skill"],
         "title": case["title"],
         "arms": arm_results,
-        "behavior": run_behavior_case(case, arms, responses_by_case, behavior_prompts_dir),
+        "scorerSmoke": run_scorer_smoke_case(
+            case, arms, responses_by_case, scorer_smoke_prompts_dir
+        ),
         "tokenEfficiencyEstimate": {
             "currentWords": current_words,
             "newWords": new_words,
@@ -264,13 +281,37 @@ def print_summary(results):
             row.append(f"{arm}={mark} {result['score']}/{result['total']}")
         delta = case["tokenEfficiencyEstimate"]["wordDeltaPercent"]
         row.append(f"words_delta={delta:+.1f}%" if delta is not None else "words_delta=n/a")
-        behavior = case.get("behavior", {})
-        new_behavior = behavior.get("arms", {}).get("new_skill")
-        if new_behavior and new_behavior["repsFound"]:
+        scorer_smoke = case.get("scorerSmoke", {})
+        new_scorer_smoke = scorer_smoke.get("arms", {}).get("new_skill")
+        if new_scorer_smoke and new_scorer_smoke["repsFound"]:
             row.append(
-                f"behavior_new={new_behavior['passedReps']}/{new_behavior['repsFound']}"
+                "scorer_smoke_new="
+                f"{new_scorer_smoke['passedReps']}/{new_scorer_smoke['repsFound']}"
             )
         print(" | ".join(row))
+    gate = "PASS" if results["summary"]["gatePassed"] else "FAIL"
+    print(f"coverage_and_scorer_smoke={gate}")
+
+
+def build_summary(cases):
+    coverage_passed = all(case["arms"]["new_skill"]["passed"] for case in cases)
+    configured_smoke = [
+        case["scorerSmoke"]
+        for case in cases
+        if case["scorerSmoke"]["responsesConfigured"]
+    ]
+    scorer_smoke_passed = all(
+        smoke["arms"]["new_skill"]["repsFound"] >= smoke["minReps"]
+        and smoke["arms"]["new_skill"]["passedReps"]
+        == smoke["arms"]["new_skill"]["repsFound"]
+        for smoke in configured_smoke
+    )
+    return {
+        "cases": len(cases),
+        "newSkillCoveragePassed": coverage_passed,
+        "newSkillScorerSmokePassed": scorer_smoke_passed if configured_smoke else None,
+        "gatePassed": coverage_passed and scorer_smoke_passed,
+    }
 
 
 def main():
@@ -286,16 +327,34 @@ def main():
         type=Path,
         help="Optional directory to write the constructed one-shot/current/new prompts.",
     )
-    parser.add_argument(
-        "--behavior-prompts-dir",
+    prompt_group = parser.add_mutually_exclusive_group()
+    prompt_group.add_argument(
+        "--scorer-smoke-prompts-dir",
         type=Path,
-        help="Optional directory to write behavioral no-guidance/one-shot/current/new prompts.",
+        help="Optional directory to write scorer-smoke no-guidance/one-shot/current/new prompts.",
     )
-    parser.add_argument(
-        "--behavior-responses",
+    prompt_group.add_argument(
+        "--behavior-prompts-dir",
+        dest="scorer_smoke_prompts_dir",
         type=Path,
-        default=DEFAULT_BEHAVIOR_RESPONSES if DEFAULT_BEHAVIOR_RESPONSES.exists() else None,
-        help="Optional JSON file of behavioral response reps to score.",
+        help=argparse.SUPPRESS,
+    )
+    response_group = parser.add_mutually_exclusive_group()
+    response_group.add_argument(
+        "--scorer-smoke-responses",
+        type=Path,
+        default=(
+            DEFAULT_SCORER_SMOKE_RESPONSES
+            if DEFAULT_SCORER_SMOKE_RESPONSES.exists()
+            else None
+        ),
+        help="Optional JSON file of deterministic response fixtures that exercise the phrase scorer.",
+    )
+    response_group.add_argument(
+        "--behavior-responses",
+        dest="scorer_smoke_responses",
+        type=Path,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--only-skill",
@@ -315,25 +374,37 @@ def main():
     prompts_dir = args.prompts_dir
     if prompts_dir:
         prompts_dir.mkdir(parents=True, exist_ok=True)
-    behavior_prompts_dir = args.behavior_prompts_dir
-    if behavior_prompts_dir:
-        behavior_prompts_dir.mkdir(parents=True, exist_ok=True)
-    responses_by_case = load_behavior_responses(args.behavior_responses, cases_to_run)
+    scorer_smoke_prompts_dir = args.scorer_smoke_prompts_dir
+    if scorer_smoke_prompts_dir:
+        scorer_smoke_prompts_dir.mkdir(parents=True, exist_ok=True)
+    responses_by_case = load_scorer_smoke_responses(
+        args.scorer_smoke_responses, cases_to_run
+    )
 
     cases = [
-        run_case(case, args.current_root, args.new_root, prompts_dir, behavior_prompts_dir, responses_by_case)
+        run_case(
+            case,
+            args.current_root,
+            args.new_root,
+            prompts_dir,
+            scorer_smoke_prompts_dir,
+            responses_by_case,
+        )
         for case in cases_to_run
     ]
     results = {
-        "schemaVersion": "1.0",
+        "schemaVersion": "1.1",
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "evals": str(args.evals),
         "currentRoot": str(args.current_root),
         "newRoot": str(args.new_root),
         "comparisonArms": COVERAGE_ARMS,
-        "behaviorComparisonArms": BEHAVIOR_ARMS,
-        "behaviorResponses": str(args.behavior_responses) if args.behavior_responses else None,
+        "scorerSmokeComparisonArms": SCORER_SMOKE_ARMS,
+        "scorerSmokeResponses": (
+            str(args.scorer_smoke_responses) if args.scorer_smoke_responses else None
+        ),
         "onlySkill": sorted(requested_skills),
+        "summary": build_summary(cases),
         "cases": cases,
     }
 
@@ -342,6 +413,8 @@ def main():
     print_summary(results)
     print()
     print(f"wrote {args.results}")
+    if not results["summary"]["gatePassed"]:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

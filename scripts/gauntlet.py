@@ -28,7 +28,6 @@ REQUIRED_HANDOFF_FIELDS = {
     "solution",
     "changelog",
     "testing",
-    "prNote",
     "securityRisk",
 }
 TITLE_PATTERN = re.compile(r"^p[0-4](?:-auto)?: .+")
@@ -814,10 +813,6 @@ def validate_merge_handoff(data):
                 if not isinstance(item.get(field), str) or not item[field].strip():
                     findings.append(handoff_finding("invalid_testing_evidence", f"testing item {index}.{field} must be non-empty."))
 
-    pr_note = data.get("prNote")
-    if not isinstance(pr_note, list) or not pr_note or not all(isinstance(item, str) and item.strip() for item in pr_note):
-        findings.append(handoff_finding("missing_pr_note", "prNote must contain at least one non-empty item."))
-
     security_risk = data.get("securityRisk")
     if security_risk is not None and (not isinstance(security_risk, str) or not security_risk.strip()):
         findings.append(handoff_finding("invalid_security_risk", "securityRisk must be null or a non-empty string."))
@@ -856,10 +851,6 @@ def render_pr_body(data):
         "## Testing",
         "",
         *testing,
-        "",
-        "## PR Note",
-        "",
-        *[f"- {item.strip()}" for item in data["prNote"]],
     ]
     if data.get("securityRisk"):
         lines.extend(["", "## Security / Risk", "", data["securityRisk"].strip()])
@@ -2115,21 +2106,24 @@ def command_install_verify(args):
             findings.append({"code": code, "severity": "fail", "message": f"Missing {path}"})
 
     require(agent_home / "gauntlet" / "AGENTS.md", "missing_installed_agents")
+    require(agent_home / "gauntlet" / "router" / "AGENTS.md", "missing_router_source")
     require(agent_home / "gauntlet" / "scripts" / "check-gauntlet-workflow.py", "missing_installed_workflow_check")
     require(agent_home / "gauntlet" / "scripts" / "gauntlet.py", "missing_installed_gauntlet_cli")
     require(agent_home / "skills", "missing_installed_skills")
-    for relative in [
-        "skills/intake/SKILL.md",
-        "skills/planner/SKILL.md",
-        "skills/researcher/SKILL.md",
-        "skills/debugger/SKILL.md",
-        "gauntlet/docs/workflow-etiquette.md",
-        "gauntlet/docs/upstream-superpowers.json",
-        "gauntlet/evals/skill-evals.json",
-        "gauntlet/evals/behavior-fixtures.json",
-        "gauntlet/scripts/check-gauntlet-workflow.py",
-    ]:
-        require(agent_home / relative, f"missing_install_payload:{relative}")
+
+    installed_router = agent_home / "gauntlet" / "AGENTS.md"
+    if installed_router.exists():
+        router_text = installed_router.read_text(encoding="utf-8")
+        expected_root = str(agent_home / "gauntlet")
+        expected_skills = str(agent_home / "skills")
+        if "{{GAUNTLET_ROOT}}" in router_text or "{{AGENT_HOME}}" in router_text:
+            findings.append({"code": "unresolved_router_placeholder", "severity": "fail", "message": "Installed router contains an unresolved path placeholder."})
+        if expected_root not in router_text:
+            findings.append({"code": "missing_installed_root_path", "severity": "fail", "message": "Installed router lacks the rendered Gauntlet root."})
+        if expected_skills not in router_text:
+            findings.append({"code": "missing_installed_skills_path", "severity": "fail", "message": "Installed router lacks the rendered skills root."})
+        if len(router_text.encode("utf-8")) >= 32768:
+            findings.append({"code": "installed_router_too_large", "severity": "fail", "message": "Installed router exceeds the 32 KiB default instruction budget."})
 
     if args.target == "codex":
         codex_agents = agent_home / "AGENTS.md"
@@ -2138,8 +2132,8 @@ def command_install_verify(args):
             text = codex_agents.read_text(encoding="utf-8")
             if text.count("BEGIN GAUNTLET MANAGED BLOCK") != 1 or text.count("END GAUNTLET MANAGED BLOCK") != 1:
                 findings.append({"code": "invalid_codex_managed_block", "severity": "fail", "message": "Codex AGENTS.md must contain exactly one complete Gauntlet managed block."})
-            if "Gauntlet is the single workflow authority" not in text:
-                findings.append({"code": "missing_codex_gauntlet_router", "severity": "fail", "message": "Codex AGENTS.md lacks the current Gauntlet router."})
+            if "Gauntlet Workflow Router" not in text:
+                findings.append({"code": "missing_codex_router", "severity": "fail", "message": "Codex AGENTS.md lacks the installed Gauntlet router."})
     if args.target == "claude":
         claude_md = agent_home / "CLAUDE.md"
         require(claude_md, "missing_claude_md")

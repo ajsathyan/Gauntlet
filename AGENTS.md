@@ -1,200 +1,158 @@
-# Global Agent Coding Workflow
+# Gauntlet Contributor Guide
 
-Gauntlet is the single workflow authority for coding, product, research, review, and release work in this environment. Version 2.0.2 chooses the lightest path and proof that can responsibly produce a useful result.
+Gauntlet v2.0.2 is a product-thinking and proof harness for coding agents. This repository file governs work on Gauntlet itself. The portable workflow installed into agent homes lives in `router/AGENTS.md`; do not make the repository guide and global router byte-identical.
 
-## One Workflow
+## Sources of truth
 
-- Use Gauntlet for intake, planning, implementation, delegation, review, verification, git completion, and continuity.
-- Do not invoke overlapping workflow systems such as Superpowers brainstorming, writing-plans, executing-plans, subagent-driven-development, or finish-the-branch flows.
-- A domain or tool skill is still welcome when it adds a concrete capability—frontend design, browser control, documents, PDFs, APIs, or a specialist review—without imposing a second lifecycle.
-- Gauntlet contains adapted techniques from Superpowers with attribution and an upstream review map in `$AGENT_HOME/gauntlet/docs/upstream-superpowers.md`. Those techniques are Gauntlet behavior, not runtime dependencies on Superpowers skills.
+- `AGENTS.md`: repository contribution, implementation, proof, and release rules.
+- `router/AGENTS.md`: compact always-loaded global router installed by `scripts/install.sh`.
+- `skills/*/SKILL.md`: triggered role behavior and output contracts.
+- `docs/workflow-etiquette.md`: detailed execution, delegation, continuity, and archive guidance.
+- `docs/github-discipline.md`: branches, worktrees, commits, PRs, merge commits, and cleanup.
+- `docs/skill-quality-bar.md`: requirements for meaningful skill and workflow changes.
+- `docs/production-quality-bar.md`: bounded launch/hardening checks when production risk triggers them.
+- `scripts/check-gauntlet-workflow.py`: end-to-end workflow regression suite.
 
-## Work Paths
+Use repository-relative `docs/...` and `scripts/...` paths only for work inside this repository. Portable guidance must use the installed-path contract rendered by the installer.
+
+## Choose the lightest responsible path
 
 ```text
 Path: Research | Patch | Feature | Release
 Depth: Standard | Deep
-Verification scope: smoke | delta | full | not relevant
+Proof scope: smoke | delta | full | not relevant
 Execution mode: review | autonomous
 Decision gate: none | before unsafe side effect | before merge | before production change | custom
 ```
 
-Classify internally by selecting path, depth, proof scope, and triggered gates. Surface the classification only when it changes cost, scope, authority, verification, timing, or a decision the user should make.
+- Research: bounded investigation, comparison, audit, recommendation, or implementation discovery without requested code changes.
+- Patch: small, clear, low-risk changes with an obvious proof path.
+- Feature: user-facing workflow, product, IA, onboarding, activation, retention, growth, or design-heavy work.
+- Release: broad, production-bound, weakly tested, destructive, security/privacy-sensitive, billing, auth, migration, concurrency, public API, or data-integrity work.
+- Deep: the user asks for the best, fastest, most secure, hardened, audited, optimized, benchmarked, or regression-resistant result, or a small code delta has large consequences.
 
-### Research
+Classify internally. Surface the classification only when it changes scope, cost, authority, proof, or a decision AJS should make.
 
-Use Research for investigation, comparison, audits, recommendations, and implementation discovery when no code change is requested yet.
+## Intake and planning
 
-Default loop: bound the question and evidence → investigate → distinguish observation from inference → spot-check consequential claims → answer with limitations and the next useful action.
+Before substantial implementation, establish one accepted source and one canonical plan with:
 
-Research does not inherit implementation gates merely because it is broad. Use Deep when the user asks for an audit, exhaustive comparison, best option, benchmark, or high-consequence answer. Create an implementation plan only when the user asks for one or accepts a change direction.
+- goal, scope, non-goals, affected interfaces, and acceptance criteria;
+- proof, constraints, assumptions, and material open questions;
+- critical invariants and integration boundaries;
+- ordered tasks, exact file/state ownership, and the first ready task;
+- explicit deferrals and `Cannot verify` where proof is unavailable.
 
-### Patch
+Ask only questions that change product behavior, data/money/privacy/security risk, acceptance criteria, authority, or meaningful cost. Apply safe defaults for minor gaps.
 
-Use Patch for small, clear, low-risk changes with an obvious proof path.
+For genuine scope additions, check the added scope and its boundary with accepted work. Record `Scope delta checked: no material change.` in the plan when clean; update the plan before implementation when material.
 
-Default loop: quick intake → implement → verify changed behavior → self-review → concise summary.
+## Quiet autonomous execution
 
-### Feature
+- Routine execution stays in tools and machine artifacts, not user-facing narration.
+- User-facing chat is reserved for a required decision, an unrecoverable failure, a host-required terse heartbeat, or a concise final outcome and proof.
+- Child agents return a compact machine receipt: `status`, `changedFiles`, `proof`, and `blocker`.
+- Retry silently only when the next attempt is safe and materially different.
+- Stop when recovery would repeat the same failure fingerprint, require new authority, risk destructive external state, or exceed the accepted appetite.
+- Do not ask AJS to inspect subagent packets, reports, ledgers, traces, or progress prose.
 
-Use Feature for user-facing workflows, product concepts, onboarding, activation, information architecture, and design-heavy work.
+## Subagents and bounded dispatch
 
-Default loop: intake → product-architect when product behavior is not already settled → planner → implementer → bounded black-box and experience review → exceptions-first run log when material.
+Use subagents only when the user asks, the accepted plan names independent lanes, or separate file/state/proof ownership clearly beats the context cost.
 
-Feature delta may combine black-box and experience review when the same evidence answers both. Product features must look like the real product surface; keep draft/process notes out of user-facing UI.
+- The main chat owns the accepted plan, user decisions, final branch, integration, PR, merge decision, and final synthesis.
+- Write-heavy lanes use isolated worktrees unless a tiny disjoint patch clearly does not need one.
+- Dispatch children directly from bounded task packets in the canonical plan. Each prompt names objective, scope and ownership, dependencies, constraints, proof, return contract, and ask-user policy.
+- Native Codex state and main-chat messages own live coordination.
+- Keep files, mutable state, and proof targets disjoint. Avoid splitting one tightly coupled decision tree across lanes.
+- Children report `Needs decision` to the orchestrator instead of asking AJS directly.
 
-### Release
+## Implementation
 
-Use Release for production-bound or materially risky work: auth, permissions, billing, migration, privacy, destructive writes, public contracts, durable data, concurrency, deploys, or broad refactors whose regression could harm users.
+- Read before editing and match local patterns.
+- Use `apply_patch` for hand-edited files; bulk mechanical formatting may use the relevant formatter.
+- Preserve unrelated dirty work. Use a separate worktree for p0-p2, broad, risky, or dirty-workspace changes.
+- Add or update tests when behavior changes. Use red-green-refactor when a credible harness exists.
+- Keep interfaces narrow, behavior explicit, and scope bounded.
+- Do not add speculative abstractions, compatibility shims without consumers, generated boilerplate, or unrelated cleanup.
+- Do not make durable external changes, live installs, pushes, merges, releases, or production mutations beyond the user's accepted scope.
 
-Default loop: intake → planner → issue triage when needed → implementer → architecture hygiene → adversarial review → black-box proof → deep code review → exceptions-first run log.
+## Proof and review
 
-Second Release issue-triager only when review or tests create findings, deferrals, or follow-ups. Full checks are trigger-based, not automatic theater.
+Always prove changed behavior when possible. Expand proof only when risk, blast radius, weak tests, or release intent earns it.
 
-## Depth And Verification
+- Run targeted tests first, then the smallest relevant broader suite.
+- Use `scripts/diff-intel.py`, `scripts/test-plan.py`, and `scripts/review-pack.py` for changed-surface and review setup.
+- Run `python3 scripts/check-gauntlet-workflow.py` for broad workflow, installer, router, orchestration, or release changes.
+- Run `scripts/run-skill-change-checks.sh` when skills, skill evals, or skill-quality guidance changes.
+- Use temporary agent homes for install verification; do not mutate a real global home during tests.
+- Preserve archive merge behavior unless AJS explicitly requests a change.
 
-- Standard: take the simplest responsible path and prove it works.
-- Deep: compare plausible approaches, measure when relevant, run an adversarial pass, and record why the chosen path wins within the stated appetite.
-- `smoke`: prove the main changed path.
-- `delta`: prove changed surfaces, adjacent states, and changed invariants.
-- `full`: run broader checks only when blast radius, launch risk, weak tests, or durable systems earn them.
-- `not relevant`: skip with a short reason when proof truly does not apply.
+Feature, Release, Tier 2/3, or broad multi-file work requires an architecture hygiene delta pass. Check current-change dead code, unused exports/files/dependencies, stale samples/TODOs, duplicated logic, mismatched docs/tests, unnecessary abstractions, invisible scope creep, and compatibility code without a consumer.
 
-Every non-default ceremony must declare its trigger, cap, artifact, and exit condition. Do not confuse breadth with risk.
+Use the Production Quality Bar only for near-launch, private-beta, production-bound, deploy-sensitive, hardened, or audited work. State its trigger, cap, artifact, and exit condition. Do not turn speculative concerns into blockers.
 
-## User Attention And Titles
+## Skills and workflow guidance
 
-- Routine workflow mechanics stay internal. User-visible updates contain a recommendation, changed assumption, meaningful result, blocker, decision, proof, or completed outcome.
-- Ask only about decisions that materially change product behavior, data, money, privacy, security, acceptance, cost appetite, or external side effects.
-- Set or update the thread title silently once the goal is stable. Do not ask the user to approve priority or title metadata.
-- Priorities remain consequence-based: p0 material Release harm; p1 substantial Feature/strategy; p2 consequential or Deep Patch; p3 normal Patch or bounded Research; p4 routine admin, low-durable exploration, or deliberately parked work.
-- If the priority is unchanged, say nothing about it. Explain a change only when scope or risk materially moved.
-- Do not print a no-op edge-case section. Surface edge cases only when they alter the plan, proof, or require a decision.
-- `review` means requirements or acceptable defaults still need the user. Self-review and QA are autonomous work.
-- A Decision Gate exists only for a named unresolved decision or unsafe side effect; never re-ask for already accepted behavior.
-- A clean check stays silent in chat. Do not record packetization when no child implementation lanes exist. Successful packet validation stays silent.
+Use the narrowest Gauntlet role skill that adds value:
 
-Detailed collaboration and archive behavior lives in `$AGENT_HOME/gauntlet/docs/workflow-etiquette.md`.
+- `intake`, `product-architect`, `planner`, `issue-triager`, `implementer`;
+- `researcher`, `debugger`;
+- `adversarial-reviewer`, `black-box-tester`, `experience-reviewer`, `deep-code-reviewer`;
+- `run-log-builder`, `promotion-scanner`, and `ian-xiaohei-illustrations` when their triggers apply.
 
-## Intake, Specs, And Plans
+Domain/tool skills may add concrete capability without imposing a second planning or execution lifecycle.
 
-Before substantial implementation, establish goal, scope, non-goals, affected interfaces, acceptance criteria, proof, constraints, and material assumptions. Ask only questions whose answers change those.
+Selected techniques adapted from Jesse Vincent's Superpowers are tracked in `docs/upstream-superpowers.md`; Gauntlet owns the runtime behavior and Superpowers remains disabled as a lifecycle.
 
-Use one accepted spec and one canonical plan:
+For meaningful skill, router, eval, or workflow changes, apply `docs/skill-quality-bar.md`: behavior delta, trigger clarity, completion criterion, output contract, positive steering, no-op pruning, progressive disclosure, practical explanation, cheap harness mechanics, negative cases, authority/completion checks, and baseline provenance.
 
-- Intake and product work refine the accepted spec; they do not create redundant permanent documents by default.
-- Planner produces end-to-end task packets with contracts, dependencies, risks, and proof.
-- Do not pre-write production code in a plan. Include exact code only for a small interface, migration shape, or probe that removes real ambiguity.
-- Do not split work into 2–5 minute micro-steps. A task should carry a coherent behavior and its own meaningful proof.
-- Stop planning once the first build step and first proof path are obvious.
-- `Scope delta checked: no material change.` may stay inside the canonical plan. Surface only material scope deltas.
+Keep deterministic coverage, scorer plumbing, and behavioral outcome evidence distinct. A fixture that echoes required phrases is scorer smoke, not behavioral proof.
 
-Implementation Memory is deprecated as an active planning artifact. Existing CLI flags remain compatibility inputs only; new work supplies the accepted spec and canonical plan directly.
+## Installer and router safety
 
-## Adapted Engineering Techniques
+- `router/AGENTS.md` must stay below Codex's documented default `project_doc_max_bytes` budget.
+- The Codex installer owns only one marked Gauntlet block and preserves every byte outside it.
+- Reject partial, reversed, duplicated, or nested managed markers before changing the target; an unmarked file is a valid first install.
+- Repeated installs must be idempotent.
+- Installed guidance must not execute downstream-relative `scripts/...` or read downstream-relative `docs/...` as Gauntlet sources.
+- Test clean, legacy, managed, malformed, conflicting-downstream-path, and repeat-install cases in temporary homes.
 
-Gauntlet selectively incorporates these Superpowers techniques; see the attribution map for exact upstream sources and reviewed hashes:
+## Git, contextual merge, and PR discipline
 
-- Compare 2–3 approaches only when ambiguity could materially change the design; otherwise choose a safe default and mark it.
-- For behavior changes, use RED-GREEN-REFACTOR when a practical test harness exists: observe a relevant failure, implement the smallest source fix, then refactor while green.
-- Diagnose before fixing: reproduce, trace to the earliest divergence, state a falsifiable hypothesis, and run the smallest discriminating check.
-- Isolate p0–p2, broad, dirty-worktree, or write-heavy delegated work with a branch/worktree.
-- Evidence precedes completion claims.
-- Review feedback is evidence to verify, not an instruction to apply blindly.
-- Finish through the repository’s git discipline: coherent commits, PR proof, merge decision, and cleanup.
+- Branch from `main`; use isolated worktrees when the workspace is dirty, the work is p0-p2, the change is broad, or child lanes write files.
+- Commit coherent checkpoints. Preserve useful commits; do not squash or rebase unless AJS or the repository asks.
+- Treat the PR as the proof and decision bundle: changed files, checks, review context, run log, changelog, and residual risk.
+- Automated merges use merge commits. Direct push to `main` is an explicit tiny-change shortcut, not the default.
+- Child lanes commit to their branches and return receipts; the main chat integrates and owns the PR.
 
-## Implementation And Git
+“Merge this,” “land this,” or “merge this to main” authorizes the complete safe closeout for the accepted scope: prepare the contextual handoff, update `CHANGELOG.md`, commit and push the task branch, create or update one PR, wait for required checks and blocking review state, merge, delete the remote task branch, verify the default branch, and clean local task state only when no unique work remains. Ask only for a new material decision or preservation risk.
 
-- Use a branch for persisted changes. Use a separate worktree when the workspace is dirty, work is p0–p2, the change is broad, or write-heavy lanes need isolation.
-- Preserve unrelated dirty work. Never overwrite, discard, archive over, or include it without clear authority.
-- Read before editing, match repo patterns, keep interfaces narrow, and avoid unrelated cleanup.
-- Add or update tests when behavior changes. If RED-GREEN is impractical, record why and run the closest credible regression proof.
-- Use PRs as decision/proof bundles. Prefer merge commits unless the user or repository explicitly chooses another policy.
-- The main task owns the final branch, PR, user decisions, integration, and merge choice.
+“Push to git” means push the current branch; it does not authorize direct-pushing or merging `main`. Use `scripts/gauntlet.py merge prepare` before the handoff commit, `scripts/gauntlet.py merge plan` for read-only preflight, and `scripts/gauntlet.py merge execute` only when the user requested merge. A request to open a PR does not authorize merging it.
 
-See `$AGENT_HOME/gauntlet/docs/github-discipline.md` for detailed git/archive behavior.
+## Run logs and coverage gaps
 
-"Merge this," "land this," or "merge this to main" authorizes the complete safe closeout for the current scoped work: prepare the contextual handoff, update `CHANGELOG.md`, commit coherent changes, push the task branch, create or update one PR, wait for required checks and blocking review state, merge, delete the remote task branch, verify the default branch, and clean local branch/worktree state only when no unique work remains. Ask only when a new material decision or preservation risk appears.
+For Feature, Release, or Tier 2/3 work with material decisions or exceptions, maintain:
 
-"Push to git" means push the current branch, not merge. Use `scripts/gauntlet.py merge prepare` before the handoff commit, `merge plan` for read-only preflight, and `merge execute` after the branch is clean and committed.
-
-## Delegation
-
-Parallelism must beat its context cost.
-
-Name the expected speedup or independent proof value before adding lanes.
-
-- Delegate only independent files, state, contracts, or evidence lanes with separate proof paths.
-- Do not use subagents when each one would need the same large spec, trace, screenshot set, or design rationale.
-- The main task owns synthesis and consequential spot-checks. Do not redo a child's full assignment.
-- For ongoing agents, prefer state-change waits of 30-60 seconds over repeated short polling; do not repeatedly call list/wait when no decision changes.
-- Read-only review/exploration lanes do not need worktrees by default. Write-heavy lanes do.
-- Child agents return `Needs decision` to the main task instead of asking the user.
-
-For two or more parallel lanes or any write-heavy child implementation lane, `.gauntlet/subagent-plan.json` is the canonical lane contract. A single small read-only child does not need the manifest gate. Validate before implementation with:
-
-```sh
-$AGENT_HOME/gauntlet/scripts/check-subagent-plan.py "$PROJECT_ROOT" .gauntlet/subagent-plan.json --run-id "$RUN_ID"
+```text
+docs/gauntlet-runs/YYYY-MM-DD-<slug>.md
 ```
 
-Do not maintain a second handwritten Markdown packet. Generate the child prompt from its canonical lane entry. Shared context lives once in the manifest `shared` block; lanes contain only ownership and lane-specific deltas. Native Codex state owns child progress; do not require title/status churn.
+Keep it exceptions-first: material assumptions, non-obvious decisions, deviations, skipped/failed/unavailable proof, `Cannot verify`, and follow-ups. Routine passing checks belong in the final summary and PR.
 
-Keep clean validation and summary counts out of chat. Validate again only when material scope changes reshape lanes.
+Add or update `docs/coverage-gaps.md` only when reusable Gauntlet guidance is genuinely missing. Remove a pending gap when the same run resolves it.
 
-## Triggered Gates
+## Stop conditions
 
-Use the installed reference as source of truth; do not assume target repositories contain Gauntlet docs.
+Stop and ask only when:
 
-- Skill Quality Bar: meaningful workflow/skill changes. Baseline is behavior delta, trigger clarity, completion, output, positive steering, no-op pruning, progressive disclosure, and cheap mechanics. Deep escalation only for high-impact changes and only with trigger, cap, artifact, and exit condition. See `$AGENT_HOME/gauntlet/docs/skill-quality-bar.md`.
-- Production Quality Bar: near-launch, private beta, production-bound, deploy-sensitive, or explicitly hardened/audited work. Skip ordinary Patch, prototypes, docs, narrow UI polish, and test/build-tool changes. See `$AGENT_HOME/gauntlet/docs/production-quality-bar.md`.
-- Frontend Quality Gate: substantial frontend Feature/Release work. Use project tools first, then black-box and experience review. See `$AGENT_HOME/gauntlet/docs/ui-constitution.md` and `design-lint-candidates.md`.
-- TS Durability: only when `scripts/classify-ts-durability.sh` records `durabilityRequired: true` or the user explicitly requests it.
-- Architecture Hygiene: Feature/Release or broad current-change code. Check introduced dead code, unreachable branches, stale shims, duplicate logic, mismatched tests/docs, and scope creep.
-- Run Log: Feature/Release or decision-heavy Deep work with material assumptions, tradeoffs, failed/skipped proof, `Cannot verify`, or follow-ups. Routine passes stay in the final chat.
-- Coverage Gaps: add `GAP-###` only when reusable Gauntlet-general guidance is missing; human approval decides promotion. When guidance resolves a pending gap, remove it from `docs/coverage-gaps.md`; the run log and git history remain the archive.
-- Guarded Release panel: use only for concrete Release-class harm; preserve a launch cut line and decision delta, and collapse it when it adds no unique value.
-- Promotion: integrate compact promotion decisions into the current report by default. Create a standalone Promotion Brief only when explicitly requested or when a durable cross-run promotion artifact is the task.
-- System explanation visuals: for Feature/Release system changes, add a Mermaid diagram when structure materially improves understanding. Use an explanatory illustration only when it adds a distinct review aid; credit its source directly.
-
-Occasional checks remain trigger-based: Skill eval full suite for releases/eval infrastructure; Global install verification after installer/global workflow changes; full accessibility/responsive/visual sweeps for substantial UI or repeated findings.
-
-## Role Skills
-
-Use the smallest relevant Gauntlet skill set:
-
-- `intake`: bound non-trivial work.
-- `product-architect`: settle user workflow, first value, IA, trust, and acceptance.
-- `planner`: create the canonical implementation plan.
-- `debugger`: reproduce, isolate, and prove root cause before a bug fix.
-- `implementer`: make the scoped change with evidence.
-- `issue-triager`: route findings into ready/deferred/rejected work.
-- `black-box-tester`, `experience-reviewer`, `adversarial-reviewer`, `deep-code-reviewer`: apply their specific evidence lens.
-- `run-log-builder`: capture exceptions and durable decisions.
-- `promotion-scanner`: evaluate repeated loops only when promotion is actually in scope.
-
-Read a selected skill completely before acting. Do not load unrelated skill references.
-
-## Stop Conditions
-
-Stop and ask when:
-
-- A decision materially changes product behavior or acceptance.
-- Data loss, migration, billing, security, privacy, or destructive risk is ambiguous.
-- Requested behavior conflicts with architecture or policy.
-- Likely cost exceeds the accepted appetite.
-- Credentials, permissions, or external state are required and unavailable.
+- a decision materially changes product behavior or acceptance criteria;
+- data loss, migration, billing, security, privacy, or destructive external risk is ambiguous;
+- the request conflicts with architecture, policy, or authority;
+- the likely cost exceeds the accepted appetite;
+- credentials, permissions, external state, or required proof are unavailable;
+- safe recovery is exhausted and continuing would repeat the same failure.
 
 ## Completion
 
-A coding task is complete only when:
-
-- Acceptance criteria are met.
-- Relevant proof ran, or limitations and `Cannot verify` are explicit.
-- No blocking review/test/triage findings remain.
-- Required run logs and coverage-gap changes are complete.
-- Feature/Release architecture hygiene is complete, not applicable with reason, or triaged.
-- The final response names changed files, proof completed, and unresolved risk.
-
-Do not mark complete because code exists, a plan was written, or a budget is low. Evidence before claims.
-
-When archiving, use `$AGENT_HOME/gauntlet/scripts/gauntlet.py archive plan|execute`; pass closeout content so the Archive Summary remains visible, and execute returned app actions in order. Do not broaden archive authority into merge authority without the user’s accepted merge request or explicit `--merge`.
+Work is complete only when acceptance criteria are met, relevant checks pass or limitations are explicit, blocking findings are resolved or rejected with evidence, required run logs/gaps are updated, architecture hygiene is complete or not applicable, and the final handoff names changed files, proof, and residual risk concisely.

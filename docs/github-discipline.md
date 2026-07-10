@@ -36,7 +36,7 @@ This gives solo builders and AI-assisted teams a durable trail: what changed, wh
 The main chat owns the final Git story:
 
 - Selects or creates the task branch.
-- Tracks the child-lane ledger and user-facing decisions.
+- Tracks child-lane decisions and integration state without printing a routine lane ledger.
 - Integrates child implementation work.
 - Opens or updates the final PR.
 - Decides whether checks and review are enough to merge.
@@ -46,7 +46,7 @@ Child chats should stay bounded:
 - Read-only review, research, summarization, and log-analysis lanes return reports, not commits.
 - Implementation child chats use separate branches or worktrees when they write code, touch multiple files, or have uncertain ownership.
 - Child chats do not direct-push to `main`.
-- Child chats should return compact reports with changed files, proof, risks, and any unresolved decision for the main chat.
+- Child chats return compact machine receipts with status, changed files, proof, and any blocker for the main chat.
 
 ## Solo Builder Rules
 
@@ -104,7 +104,6 @@ The contextual PR body is reviewer memory, not a file tour:
 2. `## Solution`: resulting behavior, important invariants/design choices, preserved behavior, and meaningful non-goals.
 3. `## Changelog`: one release-note bullet copied exactly into `CHANGELOG.md` under `Unreleased`.
 4. `## Testing`: exact commands/results, what they prove, and any limitation or `Cannot verify` item.
-5. `## PR Note`: the material tradeoff, compatibility/recovery context, non-goal, or merge rationale future maintainers need.
-6. `## Security / Risk`: include only for a concrete material risk; omit empty boilerplate.
+5. `## Security / Risk`: include only for a concrete material risk; omit empty boilerplate.
 
 Build this framing from the user goal and accepted decisions. Use the diff only to fact-check completeness.

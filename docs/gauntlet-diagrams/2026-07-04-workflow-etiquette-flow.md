@@ -28,7 +28,7 @@ flowchart LR
     subgraph Control["Triggered Controls"]
         J["Decision gate only for<br/>a material unresolved choice"]
         D{"Parallel lanes earned?"}
-        M["Canonical JSON manifest<br/>with typed dependencies"]
+        M["Bounded child prompts<br/>from the canonical plan"]
     end
 
     subgraph Side["Side Captures"]

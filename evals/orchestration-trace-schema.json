@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gauntlet.local/schemas/orchestration-trace-pack-1.0.json",
+  "title": "Gauntlet orchestration trace pack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "packId", "baselineProvenance", "pairs"],
+  "properties": {
+    "schemaVersion": {"const": "1.0"},
+    "packId": {"type": "string", "minLength": 1},
+    "description": {"type": "string"},
+    "baselineProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current", "candidate", "contractRef"],
+      "properties": {
+        "current": {"type": "string", "minLength": 1},
+        "candidate": {"type": "string", "minLength": 1},
+        "contractRef": {"type": "string", "minLength": 1}
+      }
+    },
+    "pairs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/pair"}
+    }
+  },
+  "$defs": {
+    "matcher": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expectedOutcome",
+        "requiredActions",
+        "forbiddenActions",
+        "allowedAuthorities",
+        "requiredProof",
+        "outputBudget"
+      ],
+      "properties": {
+        "expectedOutcome": {"type": "string", "minLength": 1},
+        "requiredActions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/matcher"}
+        },
+        "forbiddenActions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/matcher"}
+        },
+        "allowedAuthorities": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "requiredProof": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/matcher"}
+        },
+        "expectedRoutingChoice": {"type": "string", "minLength": 1},
+        "outputBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["maxMessages", "maxWords"],
+          "properties": {
+            "maxMessages": {"type": "integer", "minimum": 0},
+            "maxWords": {"type": "integer", "minimum": 0}
+          }
+        },
+        "metricLimits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxCostUsd": {"type": "number", "minimum": 0},
+            "maxLatencyMs": {"type": "number", "minimum": 0}
+          }
+        },
+        "subjectiveCriteria": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["type", "authority"],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "authority": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    },
+    "proof": {
+      "type": "object",
+      "required": ["type", "ref", "passed"],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "ref": {"type": "string", "minLength": 1},
+        "passed": {"type": "boolean"}
+      },
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "actions", "proof", "userVisibleMessages"],
+      "properties": {
+        "outcome": {"type": "string", "minLength": 1},
+        "actions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/action"}
+        },
+        "proof": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/proof"}
+        },
+        "routingChoice": {"type": "string", "minLength": 1},
+        "userVisibleMessages": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "costUsd": {"type": "number", "minimum": 0},
+            "latencyMs": {"type": "number", "minimum": 0}
+          }
+        }
+      }
+    },
+    "pair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "contract", "arms", "expectedVerdicts"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "contract": {"$ref": "#/$defs/contract"},
+        "arms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["current", "candidate"],
+          "properties": {
+            "current": {"$ref": "#/$defs/trace"},
+            "candidate": {"$ref": "#/$defs/trace"}
+          }
+        },
+        "expectedVerdicts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["current", "candidate"],
+          "properties": {
+            "current": {"enum": ["pass", "fail", "cannot_verify"]},
+            "candidate": {"enum": ["pass", "fail", "cannot_verify"]}
+          }
+        }
+      }
+    }
+  }
+}

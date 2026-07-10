@@ -17,7 +17,3 @@
 <!-- `command` — PASS/FAIL — what it proves; include limitations or Cannot verify when relevant. -->
 
 - <!-- Exact command, result, and what it proves -->
-
-## PR Note
-
-<!-- Material tradeoff, compatibility/recovery context, meaningful non-goal, or merge rationale. -->

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0",
-  "description": "Deterministic smoke fixtures for the behavioral skill-eval scorer. Replace or supplement these with real model response reps when running behavioral pressure tests.",
+  "description": "Deterministic fixtures for the skill phrase scorer only. Phrase presence is not evidence of correct agent behavior.",
   "defaultRepeat": 5,
   "responses": [
     {
@@ -25,7 +25,7 @@
       "case": "*",
       "arm": "new_skill",
       "elapsedMs": 1250,
-      "text": "{requiredPatterns}\nNot relevant because this synthetic fixture only exercises the behavior scorer contract."
+      "text": "{requiredPatterns}\nNot relevant because this synthetic phrase echo exercises only the scorer contract."
     }
   ]
 }

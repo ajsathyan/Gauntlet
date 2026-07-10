@@ -64,7 +64,7 @@
       "sourcePath": "skills/dispatching-parallel-agents/SKILL.md",
       "reviewedSha256": "76806091c7f923ba2596546b19cccd98a08e57a68745df77c3a7b998fe838e2b",
       "disposition": "adapted",
-      "destinations": ["AGENTS.md", "skills/planner/SKILL.md", "scripts/check-subagent-plan.py"]
+      "destinations": ["AGENTS.md", "skills/planner/SKILL.md"]
     },
     {
       "sourceSkill": "writing-plans",

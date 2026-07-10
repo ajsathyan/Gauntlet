@@ -5,7 +5,7 @@ A product-thinking harness for AI coding agents.
 <p>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-3fb950?style=for-the-badge"></a>
   <a href="https://github.com/ajsathyan/Gauntlet/releases/tag/v2.0.2"><img alt="Version" src="https://img.shields.io/badge/version-v2.0.2-111827?style=for-the-badge"></a>
-  <a href="AGENTS.md"><img alt="Workflow" src="https://img.shields.io/badge/workflow-global-0969da?style=for-the-badge"></a>
+  <a href="router/AGENTS.md"><img alt="Workflow" src="https://img.shields.io/badge/workflow-global-0969da?style=for-the-badge"></a>
   <a href="skills"><img alt="Role skills" src="https://img.shields.io/badge/role_skills-13-8957e5?style=for-the-badge"></a>
   <a href="docs/coverage-gaps.md"><img alt="Coverage gaps" src="https://img.shields.io/badge/coverage_gaps-pending-f778ba?style=for-the-badge"></a>
 </p>
@@ -14,7 +14,7 @@ A product-thinking harness for AI coding agents.
   <a href="#-at-a-glance">At A Glance</a> |
   <a href="#v202-product-thinking-and-proof-scope">v2.0.2</a> |
   <a href="#v201-run-log-harness">v2.0.1</a> |
-  <a href="#-work-paths">Work Paths</a> |
+  <a href="#-build-stages">Build Stages</a> |
   <a href="#-run-logs">Run Logs</a> |
   <a href="#-skill-quality-bar">Skill Quality Bar</a> |
   <a href="#-coverage-gaps">Coverage Gaps</a> |
@@ -22,7 +22,7 @@ A product-thinking harness for AI coding agents.
   <a href="#-install">Install</a>
 </p>
 
-Gauntlet helps AI coding agents turn rough asks into thought-through, consistent features, evidence-backed research, and verified changes. It is the single workflow authority: external domain/tool skills may add capabilities, but overlapping planning and execution methodologies do not add a second lifecycle.
+Gauntlet helps AI coding agents turn rough asks into thought-through features, evidence-backed research, and verified changes. It is the single workflow authority; domain/tool skills may add capabilities without imposing a second lifecycle.
 
 Coding agents make implementation cheaper, but they make product judgment, coherence, and review more important. Gauntlet v2.0.2 keeps the workflow strict where the feature shape or risk demands it and lighter where ceremony gets in the way: durable context is now an exceptions-first Markdown run log plus pending coverage gaps, not a separate review product.
 
@@ -44,7 +44,7 @@ Gauntlet v2.0.2 sharpens the harness around outcomes:
 
 Gauntlet v2.0.1 replaces the default review surface with a small **Run Log** and a candidate **Coverage Gap** loop inspired by repo-local product-design guidance patterns.
 
-The workflow is built around Research, Patch, Feature, and Release paths; Standard and Deep depth; smoke, delta, and full proof scopes; one accepted spec and one canonical plan; run logs; architecture hygiene; TypeScript durability classification; the Production Quality Bar; targeted skill-change evals; and design lint candidates.
+The workflow is built around Research, Patch, Feature, and Release paths; Standard and Deep depth; smoke, delta, and full proof scopes; one accepted source and canonical plan; run logs; architecture hygiene; TypeScript durability classification; and triggered quality gates.
 
 ## ✨ At A Glance
 
@@ -58,23 +58,23 @@ The workflow is built around Research, Patch, Feature, and Release paths; Standa
 | Skill quality bar | Gives future skill and workflow edits a practical behavior-delta, trigger, completion, proof, and token-cost bar without making every Patch heavier. |
 | Coverage gaps | Captures pending candidates when missing reusable guidance forced a material assumption or repeated review finding. |
 | Workflow speedup helpers | Classifies changed surfaces, recommends bounded tests, and generates redacted review packets without making every Patch run a heavy quality gate. |
-| Promotion scanner | Integrates compact promotion decisions into the current report; standalone Promotion Briefs are explicit durable artifacts. |
+| Promotion scanner | Produces a Promotion Brief when repeated manual or agent loops should be considered for repo code, repo test, repo docs/run log, Gauntlet skill/tool, coverage gap, or Reject. |
 | UI constitution | Keeps frontend quality checks bounded: general lint candidates, browser checks, experience review guidance, and gap promotion only for substantial UI work. |
 | Production Quality Bar | Raises the bar for near-launch systems with ownership boundaries, invariants, durable state, state machines, threat/redaction review, no-mutation or dry-run proof, automated GitHub release tags, release proof, feedback loops, and decision-oriented UI. |
 | Model portability | Installs as reusable instructions, skills, docs, scripts, and evals that can be adapted to different agent environments. |
 
-## 🧭 Work Paths
+## 🧭 Build Stages
 
-| Path | Best For | What It Optimizes |
+| Stage | Best For | What It Optimizes |
 | --- | --- | --- |
 | Research | Audits, comparisons, recommendations, and implementation discovery | Evidence quality without implementation gates. |
 | Patch | Small, focused changes | Speed and low overhead. |
 | Feature | High-fidelity product features and workflows | Coherent product thinking, implementation, and consistency checks. |
 | Release | Production-bound or risky changes | Deeper verification, review, and regression control. |
 
-## 🎯 How To Choose A Path
+## 🎯 How To Choose A Stage
 
-| Signal | Recommended Path |
+| Signal | Recommended Stage |
 | --- | --- |
 | Investigation, audit, comparison, or recommendation without a requested code change | Research |
 | Clear copy, config, polish, or narrow bug fix | Patch |
@@ -85,11 +85,11 @@ The workflow is built around Research, Patch, Feature, and Release paths; Standa
 The rule has two parts:
 
 ```text
-Choose the lightest path for the change shape.
+Choose the lightest stage for the change shape.
 Choose the depth that matches the value of finding the best answer.
 ```
 
-Path is about intent, scope, and risk surface. Depth is about search effort. A performance optimization can be a tiny Patch and still deserve Deep depth if "fastest reasonable result" matters more than minimizing tokens.
+Mode is about scope and risk surface. Depth is about search effort. A performance optimization can be a tiny Patch and still deserve Deep depth if "fastest reasonable result" matters more than minimizing tokens.
 
 ## 👥 Who It Helps
 
@@ -134,9 +134,9 @@ Routine successful checks stay in the final chat summary. The run log should fee
 
 [docs/skill-quality-bar.md](docs/skill-quality-bar.md) is the reference for creating or meaningfully changing Gauntlet skills, role skills, workflow guidance, eval guidance, or skill-like checklists.
 
-The baseline bar asks whether the change creates a practical behavior delta, has a clear trigger, defines completion and output, steers positively, prunes no-op prose, uses progressive disclosure, and keeps cheap harness mechanics such as schemas, bounded attempt notes, and `Cannot verify` slots where they help. Independent second planning is reserved for concrete Release-class harm or explicit user request; normal Deep work compares alternatives inside one bounded pass.
+The baseline bar asks whether the change creates a practical behavior delta, has a clear trigger, defines completion and output, steers positively, prunes no-op prose, uses progressive disclosure, and keeps cheap harness mechanics such as schemas, bounded attempt notes, and `Cannot verify` slots where they help. The escalation bar is reserved for high-impact work that earns extra tokens: forward-test scenarios, adversarial skill review, two-attempt Deep planning, impact proof review, or parallel reviewer lanes.
 
-Gauntlet credits Matt Pocock's `writing-great-skills` for skill-writing vocabulary and Jesse Vincent's Superpowers for selected engineering techniques. Gauntlet owns the adapted runtime behavior; exact upstream versions, hashes, destinations, and update steps live in [docs/upstream-superpowers.md](docs/upstream-superpowers.md).
+Gauntlet credits Matt Pocock's `writing-great-skills` for the skill-writing vocabulary that informs this reference, while keeping Gauntlet's applied bar in its own docs.
 
 ## 🕳 Coverage Gaps
 
@@ -189,7 +189,8 @@ Goal:
 Make the Gauntlet workflow available across all my projects, not just one repo.
 
 Use the repo's files as the source of truth:
-- AGENTS.md is the global workflow/router.
+- router/AGENTS.md is the compact portable global workflow/router.
+- AGENTS.md is the contributor guide for this repository.
 - skills/ contains reusable role skills.
 - docs/ contains run-log, coverage-gap, and design-lint guidance.
 - scripts/ contains the installer, durability classifier, workflow speedup helpers, skill evals, and skill checks.
@@ -198,16 +199,16 @@ Use the repo's files as the source of truth:
 Install or adapt those files into whatever persistent global instruction, skill, memory, workflow, or config system this agent environment supports.
 
 Preserve these concepts:
-- Research, Patch, Feature, and Release work paths
+- Patch, Feature, and Release build stages
 - Standard and Deep depth
 - Proof scope: smoke | delta | full | not relevant
 - Intake before substantial work
 - Exceptions-first Markdown run logs for Feature/Release work
 - Pending coverage gaps for missing reusable guidance
-- Compact promotion decisions only when repeated evidence supports a durable destination
+- Promotion Brief scans for repeated manual or agent loops after Release or live-ops wrap-up, not ordinary Patch
 - Bounded UI constitution checks for substantial frontend work
 - Triggered Production Quality Bar checks for near-launch, private-beta, production-bound, hardened, or audited work
-- Scoped role skills for research, debugging, planning, implementation, triage, adversarial review, black-box testing, experience review, deep code review, and run-log building
+- Scoped role skills for planning, implementation, triage, adversarial review, black-box testing, experience review, deep code review, and run-log building
 
 Do not delete or overwrite unrelated existing user instructions. Merge carefully.
 
@@ -230,7 +231,7 @@ Already cloned the repo?
 
 `./scripts/install.sh` defaults to `--target codex`, which installs Gauntlet into `$HOME/.codex` unless `AGENT_HOME` or `GAUNTLET_AGENT_HOME` is set. For Claude Code, use `./scripts/install.sh --target claude` or `GAUNTLET_INSTALL_TARGET=claude ./scripts/install.sh`; this installs into `$HOME/.claude` by default.
 
-The Codex target writes or replaces a Gauntlet managed block inside the agent-home `AGENTS.md`, preserving unrelated instructions. The Claude Code target writes or updates `CLAUDE.md` with a managed import block pointing at the installed Gauntlet `AGENTS.md`. Both targets reject malformed managed markers and replace their block idempotently.
+The Codex target writes or replaces one Gauntlet managed block inside the agent-home `AGENTS.md`, preserving unrelated instructions outside the block. The Claude Code target writes or updates `CLAUDE.md` with a managed import block pointing at the installed portable router because Claude Code reads `CLAUDE.md` rather than `AGENTS.md`. Both targets reject malformed managed markers and replace their own block idempotently.
 
 Both targets install only the Gauntlet files that live in this repository: the global workflow, Gauntlet role skills, docs, scripts, and eval fixtures. They do not import personal skills or instructions from elsewhere on your machine.
 
@@ -240,7 +241,8 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 
 | File Or Directory | Purpose |
 | --- | --- |
-| [AGENTS.md](AGENTS.md) | Global router for task tiers, intake, stage selection, role skills, run logs, stop conditions, and completion rules. Installed as root `AGENTS.md` for Codex and as `gauntlet/AGENTS.md` for all targets. |
+| [router/AGENTS.md](router/AGENTS.md) | Compact portable global router installed into the target agent home with rendered stable Gauntlet paths. |
+| [AGENTS.md](AGENTS.md) | Repository contributor guide for changing and proving Gauntlet itself; it is not installed as the portable router. |
 | `CLAUDE.md` | Claude Code adapter created by `--target claude`; imports the installed Gauntlet `AGENTS.md` through a managed block while preserving existing Claude instructions. |
 | [skills/intake/SKILL.md](skills/intake/SKILL.md) | Turns rough intent into an implementable spec. |
 | [skills/researcher/SKILL.md](skills/researcher/SKILL.md) | Produces bounded evidence-backed research without importing implementation ceremony. |
@@ -254,29 +256,31 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [skills/experience-reviewer/SKILL.md](skills/experience-reviewer/SKILL.md) | Reviews workflow clarity, IA, states, metrics, accessibility, trust, activation, retention, and growth. |
 | [skills/deep-code-reviewer/SKILL.md](skills/deep-code-reviewer/SKILL.md) | Reviews correctness, maintainability, tests, integration risk, and regression risk. |
 | [skills/run-log-builder/SKILL.md](skills/run-log-builder/SKILL.md) | Creates exceptions-first run logs and pending coverage-gap candidates. |
-| [skills/promotion-scanner/SKILL.md](skills/promotion-scanner/SKILL.md) | Routes repeated manual or agent loops to durable destinations without recommending live operational actions. |
-| [docs/upstream-superpowers.md](docs/upstream-superpowers.md) | Attributes adapted techniques and explains selective update review and runtime retirement. |
+| [skills/promotion-scanner/SKILL.md](skills/promotion-scanner/SKILL.md) | Produces bounded Promotion Briefs for repeated manual or agent loops without recommending live operational actions. |
+| [docs/upstream-superpowers.md](docs/upstream-superpowers.md) | Attributes adapted techniques and explains selective upstream update review and runtime retirement. |
 | [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
 | [docs/github-discipline.md](docs/github-discipline.md) | Beginner-friendly branch, worktree, commit, PR, merge, child-chat, and solo-builder defaults. |
 | [docs/ui-constitution.md](docs/ui-constitution.md) | Bounded frontend quality gate for prototypes and product UI. |
 | [docs/production-quality-bar.md](docs/production-quality-bar.md) | Near-launch quality gate for boundaries, invariants, durable state, state machines, release proof, threat/redaction, feedback loops, and decision-oriented UI. |
-| [docs/workflow-speedups.md](docs/workflow-speedups.md) | Advisory changed-surface, test-planning, review-packet, and subagent packet guidance. |
+| [docs/workflow-speedups.md](docs/workflow-speedups.md) | Advisory changed-surface, test-planning, review-packet, and child-dispatch guidance. |
 | [docs/promotion-scanner.md](docs/promotion-scanner.md) | Trigger policy and gap-routing guidance for promotion scans. |
 | [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
-| [scripts/gauntlet.py](scripts/gauntlet.py) | Small deterministic CLI for local analytics, closeout facts, bounded attempt memory, release-candidate summaries, archive planning/execution, install verification, follow-up packets, compatibility memory linting, PR/changelog drafts, and saved diagram lookup. |
+| [scripts/gauntlet.py](scripts/gauntlet.py) | Deterministic CLI for merge/archive actions, analytics, install verification, follow-up packets, compatibility memory linting, and PR/changelog drafts. |
 | [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals. |
 | [scripts/classify-ts-durability.sh](scripts/classify-ts-durability.sh) | Classifies whether TypeScript durability standards are required for the current work. |
 | [scripts/diff-intel.py](scripts/diff-intel.py) | Writes advisory changed-file, package-root, risk-trigger, dirty-worktree, confidence, and `Cannot verify` intel. |
 | [scripts/test-plan.py](scripts/test-plan.py) | Recommends focused and broader verification commands from diff intel without defaulting to huge suites. |
-| [scripts/review-pack.py](scripts/review-pack.py) | Generates a bounded, redacted review packet from current diff intel, accepted spec/plan context, and existing test-plan summaries. |
+| [scripts/review-pack.py](scripts/review-pack.py) | Generates a bounded, redacted review packet from diff intel, accepted spec/plan context, and test-plan summaries. |
 | [scripts/check-superpowers-sync.py](scripts/check-superpowers-sync.py) | Reports upstream Superpowers technique changes and affected Gauntlet destinations. |
 | [scripts/retire-superpowers.py](scripts/retire-superpowers.py) | Reversibly retires allowlisted active Superpowers skills and disables the plugin. |
-| [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill evals, including targeted changed-skill runs. |
+| [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill-text coverage and explicitly labeled scorer-smoke checks. |
+| [scripts/run-orchestration-evals.py](scripts/run-orchestration-evals.py) | Scores paired orchestration traces from observable outcome, action, authority, proof, routing, output-budget, cost, and latency evidence. |
 | [scripts/lint-skills.py](scripts/lint-skills.py) | Lints skill frontmatter, word budget, contract slots, optional examples, and bounded subagent guidance. |
 | [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill evals and linting when staged Gauntlet skill files change. |
 | [scripts/install-git-hooks.sh](scripts/install-git-hooks.sh) | Installs the pre-commit hook that enforces skill-change checks. |
 | [evals/skill-evals.json](evals/skill-evals.json) | Pressure scenarios for skill contract coverage. |
-| [evals/behavior-fixtures.json](evals/behavior-fixtures.json) | Five-rep smoke fixtures for behavioral skill-eval scoring and metrics. |
+| [evals/scorer-smoke-fixtures.json](evals/scorer-smoke-fixtures.json) | Five-rep fixtures that prove the phrase scorer and metrics path—not agent behavior. |
+| [evals/orchestration-trace-fixtures.json](evals/orchestration-trace-fixtures.json) | Paired observable trace cases including missing-proof, authority, verbosity, phrase-echo, and subjective-judgment canaries. |
 | [evals/baselines/current/skills](evals/baselines/current/skills) | Frozen current-skill baseline used by the three-arm evals. |
 
 ## 🧠 Inspiration
@@ -285,19 +289,20 @@ Gauntlet is partly inspired by Simon Last's framing of agent work as a higher-th
 
 It is also influenced by Vercel's product-design guidance pattern: accepted decisions live near the code, repeated mechanical checks graduate into linters, missing standards stay visible as coverage gaps, and humans approve what becomes guidance.
 
-Gauntlet combines those ideas into a product-thinking harness: define the feature clearly, choose the right work path and proof scope, let the agent keep moving, and leave small durable repo memory behind.
+Gauntlet combines those ideas into a product-thinking harness: define the feature clearly, choose the right build stage and proof scope, let the agent keep moving, and leave small durable repo memory behind.
 
-Selected techniques are also adapted from Jesse Vincent's [Superpowers](https://github.com/obra/superpowers) under its MIT license. Attribution here does not make Superpowers a runtime dependency; see [the update map](docs/upstream-superpowers.md).
+Selected techniques are adapted from Jesse Vincent's [Superpowers](https://github.com/obra/superpowers) under MIT. The version/hash update map lives in [docs/upstream-superpowers.md](docs/upstream-superpowers.md); Superpowers is not a runtime dependency.
 
 ## 📚 Repository Files
 
 | File | Purpose |
 | --- | --- |
-| [AGENTS.md](AGENTS.md) | Global workflow instructions. |
+| [router/AGENTS.md](router/AGENTS.md) | Portable global workflow router. |
+| [AGENTS.md](AGENTS.md) | Contributor guidance for this repository. |
 | [skills/](skills) | Role-specific reusable instructions. |
 | [docs/](docs) | Coverage gaps, UI constitution, Production Quality Bar, workflow speedups, promotion scanner, design lint candidates, and historical plans. |
 | [scripts/](scripts) | Installer, durability classifier, workflow speedup helpers, workflow checks, skill evals, and skill linter. |
-| [evals/](evals) | Skill eval definitions, behavior fixtures, and baselines. |
+| [evals/](evals) | Skill coverage, scorer-smoke, orchestration-trace fixtures, and baselines. |
 | [LICENSE](LICENSE) | MIT license. |
 
 ## 📄 License

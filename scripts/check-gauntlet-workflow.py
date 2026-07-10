@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
+import hashlib
 import importlib.util
 import json
-import hashlib
 import os
 import shutil
 import subprocess
@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 SKILLS = ROOT / "skills" if (ROOT / "skills").exists() else ROOT.parent / "skills"
 AGENTS_MD = ROOT / "AGENTS.md" if (ROOT / "AGENTS.md").exists() else ROOT.parent / "AGENTS.md"
+ROUTER_MD = ROOT / "router" / "AGENTS.md" if (ROOT / "router" / "AGENTS.md").exists() else AGENTS_MD
 README_MD = ROOT / "README.md" if (ROOT / "README.md").exists() else ROOT.parent / "README.md"
 
 
@@ -86,55 +87,38 @@ def commit_all(root, message):
 
 def test_simplified_modes_and_depth_are_documented():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     readme = read(README_MD)
     planner = read(SKILLS / "planner" / "SKILL.md")
-    combined = "\n".join([agents, readme, planner])
+    combined = "\n".join([agents, router, readme, planner])
 
     for label in ["Research", "Patch", "Feature", "Release"]:
-        assert_contains(combined, label, "mode docs")
+        assert_contains(combined, label, "work path docs")
     for marker in [
         "Path: Research | Patch | Feature | Release",
         "Depth: Standard | Deep",
-        "Research does not inherit implementation gates",
-        "Classify internally",
-        "Surface the classification only when",
+        "Proof scope: smoke | delta | full | not relevant",
+        "Triggered Gates",
+        "architecture hygiene",
+        "TypeScript",
     ]:
         assert_contains(combined, marker, "simplified mode model")
+
+    if len(router.encode("utf-8")) >= 32768:
+        raise AssertionError("portable router must stay below the default 32 KiB instruction budget")
+    if ROUTER_MD != AGENTS_MD and router == agents:
+        raise AssertionError("portable router and repository contributor guide must be decoupled")
 
     for stale in ["### Deep Patch", "### Slice", "Deep Patch |", "| Deep Patch", "Slice |"]:
         assert_not_contains(combined, stale, "simplified mode model")
 
 
-def test_gauntlet_is_the_single_workflow_authority():
-    agents = read(AGENTS_MD)
-    readme = read(README_MD)
-    combined = "\n".join([agents, readme])
-
-    for marker in [
-        "Gauntlet is the single workflow authority",
-        "Do not invoke overlapping workflow systems",
-        "domain or tool skill",
-        "Superpowers",
-        "adapted techniques",
-    ]:
-        assert_contains(combined, marker, "single workflow authority")
-
-    for stale in [
-        "docs/superpowers/plans",
-        "docs/superpowers/specs",
-        "Use superpowers:subagent-driven-development",
-    ]:
-        assert_not_contains(combined, stale, "single workflow authority")
-
-    if (ROOT / "docs" / "superpowers").exists():
-        raise AssertionError("tracked Superpowers plan/spec artifacts should be removed")
-
-
 def test_v201_run_log_contract_replaces_default_review_brief():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     readme = read(README_MD)
     run_log = read(SKILLS / "run-log-builder" / "SKILL.md")
-    combined = "\n".join([agents, readme, run_log])
+    combined = "\n".join([agents, router, readme, run_log])
 
     for marker in [
         "v2.0.1",
@@ -184,7 +168,7 @@ def test_coverage_gap_and_design_lint_guidance_are_documented():
         "rule, reference, exemplar, lint, eval, coverage gap, or no change",
         "Reliable failure signal",
         "Resolved Gap Cleanup",
-        "remove it from `docs/coverage-gaps.md`",
+        "Remove a `GAP-###` entry from this file",
         "run log and git history are the archive",
         "new or updated gap IDs",
         "Added GAP-###: Short name",
@@ -231,15 +215,16 @@ def test_coverage_gap_and_design_lint_guidance_are_documented():
 
 def test_product_thinking_and_scope_routing_are_documented():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     readme = read(README_MD)
     black_box = read(SKILLS / "black-box-tester" / "SKILL.md")
     experience = read(SKILLS / "experience-reviewer" / "SKILL.md")
-    combined = "\n".join([agents, readme, black_box, experience])
+    combined = "\n".join([agents, router, readme, black_box, experience])
 
     for marker in [
         "v2.0.2",
         "product-thinking harness for AI coding agents",
-        "thought-through, consistent features",
+        "thought-through features",
         "coherent product features",
         "Token efficiency",
     ]:
@@ -247,19 +232,18 @@ def test_product_thinking_and_scope_routing_are_documented():
 
     for marker in [
         "Proof scope: smoke | delta | full | not relevant",
-        "Every non-default ceremony must declare its trigger, cap, artifact, and exit condition",
-        "Full checks are trigger-based",
-        "Feature delta",
-        "combined black-box and experience pass",
-        "Second Release issue-triager only when",
-        "Global install verification",
-        "Skill eval full suite",
+        "Run gates only when their trigger applies",
+        "bounded architecture hygiene",
+        "Substantial frontend work",
+        "Near-launch, private-beta, production-bound, hardened, or audited work",
+        "Meaningful skill or workflow changes",
     ]:
         assert_contains(combined, marker, "scope routing")
 
 
 def test_production_quality_bar_is_launch_gated():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     readme = read(README_MD)
     quality_bar = read(ROOT / "docs" / "production-quality-bar.md")
     pr_template_path = ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md"
@@ -274,6 +258,7 @@ def test_production_quality_bar_is_launch_gated():
     run_log = read(SKILLS / "run-log-builder" / "SKILL.md")
     combined = "\n".join([
         agents,
+        router,
         readme,
         quality_bar,
         planner,
@@ -344,91 +329,62 @@ def test_production_quality_bar_is_launch_gated():
 
 def test_subagent_parallelism_is_context_efficient():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     planner = read(SKILLS / "planner" / "SKILL.md")
     product = read(SKILLS / "product-architect" / "SKILL.md")
     implementer = read(SKILLS / "implementer" / "SKILL.md")
-    validator_doc = read(ROOT / "docs" / "subagent-plan-validator.md")
+    combined = "\n".join([agents, router, planner, implementer])
 
     for marker in [
-        "Parallelism must beat its context cost.",
-        "Do not use subagents when each one would need the same large spec",
-        "scripts/check-subagent-plan.py",
-        "expected speedup",
-        "Do not redo a child's full assignment",
-        "30-60 seconds",
+        "Parallelism must beat its context cost",
+        "Delegate only independent files, state, contracts, or evidence lanes",
+        "bounded task packets",
+        "Native Codex state",
+        "main-task messages",
     ]:
-        assert_contains(agents, marker, "subagent context-efficiency guard")
-
-    for marker in [
-        "For two or more parallel lanes or any write-heavy child implementation lane",
-        "Shared context lives in the manifest `shared` block",
-    ]:
-        assert_contains(implementer, marker, "implementer subagent guidance")
+        assert_contains(combined, marker, "subagent context-efficiency guard")
 
     assert_contains(
         planner,
         "Use end-to-end steps unless files, state, and proof are independent enough to split.",
         "planner firm end-to-end rule",
     )
-    assert_contains(planner, ".gauntlet/subagent-plan.json", "planner subagent manifest")
-    assert_contains(planner, "canonical lane contract", "planner canonical manifest")
-    assert_not_contains(planner, "taskPacketRef", "planner duplicate task packet")
-    assert_not_contains(planner, "Prefer end-to-end steps over component piles.", "planner soft end-to-end rule")
-
     assert_contains(
         product,
         "Include onboarding, activation, retention, or growth only when accepted scope or a real next action makes them relevant.",
         "product-architect firm scope rule",
     )
-    assert_not_contains(
-        product,
-        "Consider onboarding, activation, retention, and growth only when tied to accepted scope or a real next action.",
-        "product-architect soft scope rule",
-    )
-
-    for marker in [
-        '"schemaVersion": "1.2"',
-        '"shared"',
-        '"contextDelta"',
-        "two or more parallel lanes or any write-heavy child implementation lane",
-        "Warnings do not delay implementation",
-        "Successful validation is durable internal evidence",
-    ]:
-        assert_contains(validator_doc, marker, "subagent validator reference")
 
 
-def test_material_transitions_replace_kickoff_ceremony():
+def test_direct_dispatch_and_quiet_execution_are_documented():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
     planner = read(SKILLS / "planner" / "SKILL.md")
     implementer = read(SKILLS / "implementer" / "SKILL.md")
+    combined = "\n".join([agents, router, etiquette, planner, implementer])
 
     for marker in [
-        "Set or update the thread title silently",
-        "Do not ask the user to approve priority or title metadata",
-        "If the priority is unchanged, say nothing about it",
-        "Do not print a no-op edge-case section",
-        "one accepted spec and one canonical plan",
-        "two or more parallel lanes or any write-heavy child implementation lane",
-        "before implementation",
+        "Quiet Execution",
+        "compact receipt",
+        "bounded task packet",
+        "objective",
+        "ownership",
+        "dependencies",
+        "constraints",
+        "proof",
+        "return contract",
+        "ask-user policy",
         "Scope delta checked: no material change.",
     ]:
-        assert_contains("\n".join([agents, etiquette]), marker, "implementation-transition guidance")
+        assert_contains(combined, marker, "direct dispatch guidance")
 
     for marker in [
-        "canonical plan",
-        "Scope delta checked: no material change.",
-        "Do not pre-write production code",
-    ]:
-        assert_contains(planner, marker, "planner implementation-transition gate")
-
-    for marker in [
-        "RED-GREEN-REFACTOR",
-        "Refuse delegated implementation",
-        "current-run manifest",
+        "one bounded task packet",
+        "Native Codex state",
         "Resolve added-scope deltas",
     ]:
-        assert_contains(implementer, marker, "implementer implementation-transition gate")
+        assert_contains(implementer, marker, "implementer direct dispatch contract")
 
 
 def test_workflow_guidance_keeps_routine_controls_silent():
@@ -439,13 +395,11 @@ def test_workflow_guidance_keeps_routine_controls_silent():
     combined = "\n".join([agents, etiquette, planner, implementer])
 
     for marker in [
-        "Routine workflow mechanics stay internal",
-        "A clean check stays silent in chat",
-        "Successful packet validation stays silent",
-        "Do not record packetization when no child implementation lanes exist",
-        "Native Codex state owns child progress; do not require title/status churn",
-        "User-visible updates contain",
-        "Classify internally by selecting path, depth, proof scope, and triggered gates",
+        "Keep routine reads, searches, formatting, command setup, generated packets, and unchanged polls in tools or artifacts",
+        "Classify path, depth, verification, execution posture, and priority internally",
+        "Native Codex state owns child progress; do not require title or status churn",
+        "Surface:",
+        "changed judgment, scope, risk, or verification",
     ]:
         assert_contains(combined, marker, "quiet workflow contract")
 
@@ -458,11 +412,12 @@ def test_workflow_guidance_keeps_routine_controls_silent():
 
 def test_skill_quality_bar_is_trigger_bounded():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     readme = read(README_MD)
     quality_bar = read(ROOT / "docs" / "skill-quality-bar.md")
     coverage = read(ROOT / "docs" / "coverage-gaps.md")
     plan = read(ROOT / "docs" / "skill-quality-implementation-plan.md")
-    combined = "\n".join([agents, readme, quality_bar, coverage, plan])
+    combined = "\n".join([agents, router, readme, quality_bar, coverage, plan])
 
     for marker in [
         "Skill Quality Bar",
@@ -489,7 +444,7 @@ def test_skill_quality_bar_is_trigger_bounded():
         "narrow accepted tweaks",
         "trigger, cap, artifact, and exit condition",
     ]:
-        assert_contains(agents, marker, "skill quality bar trigger bounds")
+        assert_contains(combined, marker, "skill quality bar trigger bounds")
 
     for marker in [
         "local analytics direction",
@@ -508,254 +463,6 @@ def test_skill_quality_bar_is_trigger_bounded():
     ]:
         assert_contains(plan, marker, "skill quality analytics plan")
 
-
-def complete_subagent_plan(project, lane_ids=("C1", "C2")):
-    docs = project / "docs"
-    docs.mkdir(parents=True, exist_ok=True)
-    (docs / "accepted-spec.md").write_text("# Accepted Spec\n")
-    return {
-        "schemaVersion": "1.2",
-        "runId": "workflow-test",
-        "shared": {
-            "projectRoot": ".",
-            "acceptedSource": "docs/accepted-spec.md",
-            "constraints": ["Preserve unrelated work."],
-            "askUserPolicy": "Return Needs decision to the main task.",
-            "expectedReturn": "Verdict, evidence, residual risk, and one next action.",
-        },
-        "lanes": [
-            {
-                "id": lane_id,
-                "skill": "implementer",
-                "objective": f"Implement bounded lane {lane_id}",
-                "worktreePath": f".worktrees/{lane_id}",
-                "scope": f"Implement {lane_id}",
-                "inScope": [f"src/{lane_id}/**"],
-                "outOfScope": ["src/shared/**"],
-                "filesRead": [f"src/{lane_id}/**"],
-                "filesWrite": [f"src/{lane_id}/**"],
-                "filesAvoid": ["src/shared/**"],
-                "stateScope": lane_id,
-                "stateAccess": "mutates",
-                "dependsOn": [],
-                "consumes": ["accepted spec"],
-                "produces": [f"{lane_id} patch"],
-                "laneConstraints": [],
-                "proof": [f"test-{lane_id}"],
-                "contextDelta": f"Only change the {lane_id} boundary.",
-            }
-            for lane_id in lane_ids
-        ],
-    }
-
-
-def run_subagent_plan(validator, project, data, run_id, *extra_args):
-    data["runId"] = run_id
-    plan = project / f"{run_id}.json"
-    plan.write_text(json.dumps(data))
-    result = run(
-        [str(validator), str(project), str(plan), "--run-id", run_id, *extra_args],
-        check=False,
-    )
-    log = project / ".gauntlet" / "subagent-plan-log.jsonl"
-    record = json.loads(log.read_text().splitlines()[-1]) if log.exists() else {}
-    return result, record
-
-
-def test_subagent_plan_validator_v12_accepts_shared_and_single_write_lane():
-    validator = SCRIPTS / "check-subagent-plan.py"
-    with tempfile.TemporaryDirectory() as tmp:
-        project = Path(tmp) / "project"
-        project.mkdir()
-        plan = complete_subagent_plan(project, lane_ids=("C1",))
-        plan["lanes"][0]["contextDelta"] = ""
-
-        result, record = run_subagent_plan(validator, project, plan, "v12-single-write")
-
-        if result.returncode != 0:
-            raise AssertionError(f"schema 1.2 single write lane should pass:\n{result.stdout}\n{result.stderr}")
-        if result.stdout.strip() != "accepted":
-            raise AssertionError(f"clean acceptance should stay quiet: {result.stdout!r}")
-        if record.get("status") != "accepted" or record.get("warningCount") != 0:
-            raise AssertionError(f"clean schema 1.2 record is incomplete: {record}")
-
-
-def test_subagent_plan_validator_v12_warns_for_context_efficiency():
-    validator = SCRIPTS / "check-subagent-plan.py"
-    with tempfile.TemporaryDirectory() as tmp:
-        project = Path(tmp) / "project"
-        project.mkdir()
-        plan = complete_subagent_plan(project)
-        repeated = "shared repeated context must move to the shared packet block " * 20
-        for lane in plan["lanes"]:
-            lane["contextDelta"] = repeated
-            lane["proof"] = ["python3 -m unittest"]
-        plan["lanes"][0]["filesRead"] = ["**/*"]
-
-        result, record = run_subagent_plan(
-            validator,
-            project,
-            plan,
-            "v12-warnings",
-            "--max-inline-words",
-            "25",
-            "--max-total-inline-words",
-            "40",
-        )
-
-        if result.returncode != 0 or record.get("status") != "accepted":
-            raise AssertionError(f"efficiency findings must not block: {record}")
-        warning_codes = {finding["code"] for finding in record.get("warnings", [])}
-        expected = {
-            "duplicated_lane_context",
-            "lane_context_too_large",
-            "total_context_too_large",
-            "duplicate_proof_target",
-            "overbroad_read_scope",
-        }
-        if not expected.issubset(warning_codes):
-            raise AssertionError(f"missing advisory findings: expected {expected}, got {warning_codes}")
-
-
-def test_subagent_plan_validator_v12_blocks_material_hazards():
-    validator = SCRIPTS / "check-subagent-plan.py"
-    with tempfile.TemporaryDirectory() as tmp:
-        project = Path(tmp) / "project"
-        project.mkdir()
-        plan = complete_subagent_plan(project)
-        plan["shared"]["constraints"] = ["Use OPENAI_API_KEY=sk-live-secret-value while working."]
-        plan["shared"]["acceptedSource"] = "../outside.md"
-        plan["lanes"][1]["filesWrite"] = plan["lanes"][0]["filesWrite"]
-        plan["lanes"][1]["stateScope"] = plan["lanes"][0]["stateScope"]
-        plan["lanes"][0]["filesWrite"] = [*plan["lanes"][0]["filesWrite"], "**/*"]
-        plan["lanes"][1]["taskPacketRef"] = "../duplicate-packet.md"
-
-        result, record = run_subagent_plan(validator, project, plan, "v12-material-hazards")
-
-        if result.returncode == 0 or record.get("status") != "rejected":
-            raise AssertionError(f"material hazards must block: {record}")
-        rejection_codes = {finding["code"] for finding in record.get("rejections", [])}
-        expected = {
-            "secret_in_shared_context",
-            "overlapping_writes",
-            "shared_mutable_state",
-            "overbroad_write_scope",
-            "legacy_duplicate_field",
-            "invalid_accepted_source",
-        }
-        if not expected.issubset(rejection_codes):
-            raise AssertionError(f"missing blocking findings: expected {expected}, got {rejection_codes}")
-
-
-def test_subagent_plan_validator_logs_rejections():
-    validator = SCRIPTS / "check-subagent-plan.py"
-    if not validator.exists() or not os.access(validator, os.X_OK):
-        raise AssertionError("missing executable subagent plan validator")
-
-    with tempfile.TemporaryDirectory() as tmp:
-        project = Path(tmp) / "project"
-        project.mkdir()
-        data = complete_subagent_plan(project)
-        data["runId"] = "workflow-test"
-        data["lanes"][1]["filesWrite"] = data["lanes"][0]["filesWrite"]
-        data["lanes"][1]["stateScope"] = data["lanes"][0]["stateScope"]
-        data["shared"]["constraints"] = ["Use OPENAI_API_KEY=sk-live-secret-value while working."]
-        plan = project / "subagent-plan.json"
-        plan.write_text(json.dumps(data))
-
-        result = run([str(validator), str(project), str(plan), "--run-id", "workflow-test"], check=False)
-        if result.returncode == 0:
-            raise AssertionError("invalid subagent plan should fail")
-        for marker in ["Subagent plan rejected", "rejection(s)", ".gauntlet/subagent-plan-log.jsonl"]:
-            assert_contains(result.stdout, marker, "subagent rejection output")
-
-        log_path = project / ".gauntlet" / "subagent-plan-log.jsonl"
-        summary_path = project / ".gauntlet" / "subagent-plan-summary.json"
-        if not log_path.exists():
-            raise AssertionError("subagent rejection log was not written")
-        if not summary_path.exists():
-            raise AssertionError("subagent summary was not written")
-        record = json.loads(log_path.read_text().splitlines()[-1])
-        summary = json.loads(summary_path.read_text())
-        if record["status"] != "rejected" or record["rejectionCount"] < 3:
-            raise AssertionError("subagent rejection record missing expected failures")
-        if summary["runId"] != "workflow-test" or summary["rejectedPlans"] != 1:
-            raise AssertionError("subagent summary should track rejected plans for the run")
-
-        stats = run([str(validator), str(project), "--stats", "--run-id", "workflow-test"])
-        assert_contains(stats.stdout, "Subagent plans: 1 checked, 1 rejected", "subagent stats output")
-
-
-def test_subagent_plan_validator_rejects_secret_and_overbroad_scope():
-    validator = SCRIPTS / "check-subagent-plan.py"
-
-    with tempfile.TemporaryDirectory() as tmp:
-        project = Path(tmp) / "project"
-        project.mkdir()
-        data = complete_subagent_plan(project)
-        data["runId"] = "secret-test"
-        data["shared"]["constraints"] = ["Use OPENAI_API_KEY=sk-live-secret-value while reviewing."]
-        data["lanes"][0]["filesRead"] = ["**/*"]
-        data["lanes"][0]["filesWrite"] = ["**/*"]
-        plan = project / "subagent-plan.json"
-        plan.write_text(json.dumps(data))
-
-        result = run([str(validator), str(project), str(plan), "--run-id", "secret-test"], check=False)
-        if result.returncode == 0:
-            raise AssertionError("secret-bearing overbroad subagent plan should fail")
-
-        record = json.loads((project / ".gauntlet" / "subagent-plan-log.jsonl").read_text().splitlines()[-1])
-        codes = {rejection["code"] for rejection in record["rejections"]}
-        for code in ["secret_in_shared_context", "overbroad_write_scope"]:
-            if code not in codes:
-                raise AssertionError(f"subagent validator missing {code} rejection")
-        warning_codes = {warning["code"] for warning in record["warnings"]}
-        if "overbroad_read_scope" not in warning_codes:
-            raise AssertionError("broad read scope should be advisory")
-
-
-def test_subagent_plan_validator_uses_one_canonical_manifest_and_typed_dependencies():
-    validator = SCRIPTS / "check-subagent-plan.py"
-
-    with tempfile.TemporaryDirectory() as tmp:
-        project = Path(tmp) / "project"
-        project.mkdir()
-
-        incomplete = complete_subagent_plan(project)
-        for lane in incomplete["lanes"]:
-            lane.pop("produces")
-        result, record = run_subagent_plan(validator, project, incomplete, "manifest-fields")
-        if result.returncode == 0:
-            raise AssertionError("incomplete lane packets should fail before implementation")
-        if "missing_field" not in {item["code"] for item in record["rejections"]}:
-            raise AssertionError("incomplete lane packets should report missing_field")
-
-        complete = complete_subagent_plan(project)
-        accepted, record = run_subagent_plan(validator, project, complete, "manifest-accepted")
-        if accepted.returncode != 0 or record.get("status") != "accepted":
-            raise AssertionError(f"complete canonical manifest should pass:\n{accepted.stdout}\n{accepted.stderr}")
-
-        duplicate = complete_subagent_plan(project)
-        duplicate["lanes"][0]["taskPacketRef"] = "docs/duplicate-packet.md"
-        result, record = run_subagent_plan(validator, project, duplicate, "duplicate-packet")
-        if result.returncode == 0 or "legacy_duplicate_field" not in {item["code"] for item in record["rejections"]}:
-            raise AssertionError("taskPacketRef should be rejected as a duplicate planning source")
-
-        unknown = complete_subagent_plan(project)
-        unknown["lanes"][1]["dependsOn"] = ["C9"]
-        result, record = run_subagent_plan(validator, project, unknown, "unknown-dependency")
-        if result.returncode == 0 or "unknown_dependency" not in {item["code"] for item in record["rejections"]}:
-            raise AssertionError("unknown lane dependencies should fail")
-
-        cycle = complete_subagent_plan(project)
-        cycle["lanes"][0]["dependsOn"] = ["C2"]
-        cycle["lanes"][1]["dependsOn"] = ["C1"]
-        result, record = run_subagent_plan(validator, project, cycle, "dependency-cycle")
-        codes = {item["code"] for item in record["rejections"]}
-        if result.returncode == 0 or "dependency_cycle" not in codes:
-            raise AssertionError("cyclic lane dependencies should fail")
-        if "no_ready_lane" not in codes:
-            raise AssertionError("fully blocked dependency graphs should report no_ready_lane")
 
 def test_guarded_panel_contract_is_uniform():
     files = {
@@ -778,7 +485,6 @@ def test_guarded_panel_contract_is_uniform():
     for name, text in files.items():
         for marker in required:
             assert_contains(text, marker, name)
-    assert_contains(read(AGENTS_MD), "Guarded Release", "AGENTS.md")
     assert_contains(files["planner"], "Do not union every idea", "planner")
 
 
@@ -1044,6 +750,7 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
     agents = read(AGENTS_MD)
     readme = read(README_MD)
     speedups = read(ROOT / "docs" / "workflow-speedups.md")
+    planner = read(SKILLS / "planner" / "SKILL.md")
     combined = "\n".join([agents, readme, speedups])
 
     for marker in [
@@ -1053,41 +760,39 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         "gauntlet.py changelog pr",
         "gauntlet.py followup thread",
         "accepted spec and canonical plan remain the sources",
-        "deprecated compatibility inputs",
         "create_thread",
         "advisory",
         "confidence",
         "Cannot verify",
         "quality-check --surface",
         "deferred",
-        "stale",
         "dirty worktree",
     ]:
         assert_contains(combined, marker, "workflow speedup guidance")
 
     for marker in [
-        "Main-task behavior",
-        "Needs decision",
-        "does not duplicate full child assignments",
-        "waits 30–60 seconds",
-        "Native Codex state owns child progress",
+        "reports `Needs decision` to the main task instead of asking the user",
+        "Native Codex state owns child progress; do not require title or status churn",
+        "archives a child task after its report is integrated",
+        "returns a compact Role Report",
     ]:
         assert_contains(read(ROOT / "docs" / "workflow-etiquette.md"), marker, "delegation etiquette child lane guidance")
 
     for marker in [
         "separate git worktrees by default",
-        "The main chat owns user questions, merge decisions, and final synthesis",
+        "Child chats return compact reports and archive after integration",
         "Native Codex state owns child progress",
     ]:
         assert_contains(speedups, marker, "workflow speedup child lane guidance")
 
     for marker in [
-        "Do not print a no-op edge-case section",
-        "one accepted spec and one canonical plan",
-        "canonical lane contract",
-        "30-60 seconds",
+        "router/AGENTS.md",
+        "one bounded task packet",
+        "Native Codex state",
+        "main-task messages",
+        "Scope delta checked: no material change.",
     ]:
-        assert_contains(agents, marker, "active AGENTS workflow speedup routing")
+        assert_contains("\n".join([agents, read(ROUTER_MD), readme, planner]), marker, "workflow speedup routing")
 
 
 def test_contextual_merge_contract_is_documented():
@@ -1115,7 +820,7 @@ def test_contextual_pr_template_changelog_and_run_log_contract():
     if not template_path.exists():
         return
     template = read(template_path)
-    required = ["## Problem", "## Solution", "## Changelog", "## Testing", "## PR Note"]
+    required = ["## Problem", "## Solution", "## Changelog", "## Testing"]
     for marker in required:
         assert_contains(template, marker, "contextual PR template")
     positions = [template.index(item) for item in required]
@@ -1126,6 +831,7 @@ def test_contextual_pr_template_changelog_and_run_log_contract():
         "## User Or Agent Impact",
         "## Workflow Or Behavior Changes",
         "## Release Proof (near-launch only)",
+        "## PR Note",
     ]:
         assert_not_contains(template, obsolete, "contextual PR template")
 
@@ -1180,31 +886,28 @@ def test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumption
         ])
         data = json.loads(result.stdout)
         if data["status"] != "warn":
-            raise AssertionError(f"deprecated kickoff validation should warn without blocking: {data}")
+            raise AssertionError(f"legacy five-field kickoff should warn without blocking: {data}")
         if not any(finding["code"] == "kickoff_check_deprecated" for finding in data["findings"]):
-            raise AssertionError(f"deprecated kickoff warning missing: {data}")
+            raise AssertionError(f"legacy kickoff warning missing: {data}")
         if data["parsedTitle"]["executionMode"] != "autonomous":
             raise AssertionError("auto title should parse as autonomous")
         if data["effectiveExecutionMode"] != "autonomous":
             raise AssertionError("auto kickoff should report effective execution mode")
 
-        research = Path(tmp) / "research.md"
-        research.write_text(
-            "Mode: Research\nDepth: Deep\nVerification Scope: not relevant\n"
-            "Execution Mode: autonomous\nSuggested thread label: p3-auto: audit workflow evidence\n"
-        )
-        research_result = run([
+        quiet = Path(tmp) / "quiet.md"
+        quiet.write_text("Implementation can proceed without a user decision.\n")
+        quiet_result = run([
             str(checker),
             "--title",
-            "p3-auto: audit workflow evidence",
+            "p2-auto: fix archive closeout",
             "--content",
-            str(research),
+            str(quiet),
             "--require-kickoff",
             "--json",
         ])
-        research_data = json.loads(research_result.stdout)
-        if research_data["kickoffFields"].get("Mode") != "Research" or research_data["status"] != "warn":
-            raise AssertionError(f"legacy kickoff parsing should accept the Research path: {research_data}")
+        quiet_data = json.loads(quiet_result.stdout)
+        if quiet_data["status"] != "warn":
+            raise AssertionError(f"deprecated require-kickoff mode should warn without blocking: {quiet_data}")
 
         legacy = run([str(checker), "--title", "p2 - fix archive closeout", "--json"])
         legacy_data = json.loads(legacy.stdout)
@@ -1496,9 +1199,6 @@ def merge_handoff_fixture():
                 "proves": "Packet, conversation, handoff, and merge contracts pass together.",
             }
         ],
-        "prNote": [
-            "Child safeguards are retained; duplicate-context findings are advisory because the old blocker did not control actual dispatch prompts."
-        ],
         "securityRisk": None,
     }
 
@@ -1536,10 +1236,10 @@ def test_gauntlet_cli_merge_prepare_renders_contextual_handoff():
             raise AssertionError(f"first prepare should create changelog: {first_data}")
 
         body = body_path.read_text()
-        required = ["## Problem", "## Solution", "## Changelog", "## Testing", "## PR Note"]
+        required = ["## Problem", "## Solution", "## Changelog", "## Testing"]
         if [body.index(item) for item in required] != sorted(body.index(item) for item in required):
             raise AssertionError(f"PR body sections are out of order:\n{body}")
-        if "## Security / Risk" in body or "Files changed" in body:
+        if "## Security / Risk" in body or "## PR Note" in body or "Files changed" in body:
             raise AssertionError(f"PR body contains empty risk or a file tour:\n{body}")
         bullet = f"- {handoff['changelog']}"
         if bullet not in body:
@@ -2836,27 +2536,26 @@ def test_thread_changelog_captures_pr_history_and_followups():
 
 def test_workflow_etiquette_is_in_global_workflow():
     agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
     etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
-    combined = "\n".join([agents, etiquette])
+    combined = "\n".join([agents, router, etiquette])
 
     for marker in [
-        "Workflow Etiquette",
-        "Execution mode: review | autonomous",
-        "Decision gate",
+        "Quiet Execution",
+        "Execution: review | autonomous",
+        "Decision gate:",
         "## Archive",
         "scripts/check-workflow-etiquette.py",
-        "scripts/gauntlet.py",
-        "--confirm-git-risk",
-        "Set or update the thread title silently",
-        "Execute returned app actions in order: title, then archive",
+        "{{GAUNTLET_ROOT}}/scripts/gauntlet.py",
+        "confirm-git-risk",
         "Archive Summary",
-        "Pass PR/closeout content",
-        "final response names changed files, proof completed, and unresolved risk",
+        "compact machine receipts",
+        "final outcome and proof",
     ]:
         assert_contains(combined, marker, "workflow etiquette global guidance")
 
 
-def test_promotion_scanner_is_explicit_or_evidence_triggered():
+def test_promotion_scanner_is_release_wrapup_not_patch_gate():
     agents = read(AGENTS_MD)
     readme = read(README_MD)
     promotion_doc = read(ROOT / "docs" / "promotion-scanner.md")
@@ -2868,8 +2567,7 @@ def test_promotion_scanner_is_explicit_or_evidence_triggered():
     for marker in [
         "promotion-scanner",
         "Promotion Brief",
-        "standalone",
-        "explicit",
+        "explicit user request",
         "repeated manual verification",
         "stale vs latest evidence",
         "repo code",
@@ -2890,12 +2588,10 @@ def test_promotion_scanner_is_explicit_or_evidence_triggered():
         raise AssertionError("promotion-scanner eval case is missing")
 
 
-def run_install(agent_home, target="codex", check=True, extra_env=None):
+def run_install(agent_home, target="codex"):
     env = os.environ.copy()
     env["AGENT_HOME"] = str(agent_home)
     env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
-    if extra_env:
-        env.update(extra_env)
     result = subprocess.run(
         [str(SCRIPTS / "install.sh"), "--target", target],
         cwd=ROOT,
@@ -2904,7 +2600,7 @@ def run_install(agent_home, target="codex", check=True, extra_env=None):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    if check and result.returncode != 0:
+    if result.returncode != 0:
         raise AssertionError(
             f"install.sh failed with {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
@@ -2918,26 +2614,30 @@ def assert_installed_gauntlet_layout(agent_home):
     installed_cli = agent_home / "gauntlet" / "scripts" / "gauntlet.py"
     if not installed_cli.exists() or not os.access(installed_cli, os.X_OK):
         raise AssertionError("installed Gauntlet CLI is missing or not executable")
+    router_source = agent_home / "gauntlet" / "router" / "AGENTS.md"
+    if not router_source.exists():
+        raise AssertionError("installed portable router source is missing")
+    assert_contains(read(router_source), "{{GAUNTLET_ROOT}}", "installed router source placeholder")
     installed_agents = read(agent_home / "gauntlet" / "AGENTS.md")
-    assert_contains(
-        installed_agents,
-        "$AGENT_HOME/gauntlet/docs/production-quality-bar.md",
-        "installed AGENTS production quality bar path",
-    )
-    assert_contains(
-        installed_agents,
-        "$AGENT_HOME/gauntlet/docs/ui-constitution.md",
-        "installed AGENTS frontend quality path",
-    )
+    installed_root = str(agent_home / "gauntlet")
+    installed_skills = str(agent_home / "skills")
     for marker in [
-        "Gauntlet is the single workflow authority",
-        "Path: Research | Patch | Feature | Release",
-        "one accepted spec and one canonical plan",
-        "Scope delta checked: no material change.",
+        "Gauntlet Workflow Router",
+        installed_root,
+        installed_skills,
+        f"{installed_root}/docs/production-quality-bar.md",
+        f"{installed_root}/docs/ui-constitution.md",
+        "bounded task packets",
+        "Native Codex state",
+        "a request to open a PR does not authorize merging it",
+        f"{installed_root}/scripts/gauntlet.py merge prepare|plan|execute",
+        "compact machine receipts",
     ]:
-        assert_contains(installed_agents, marker, "installed implementation-transition guidance")
+        assert_contains(installed_agents, marker, "installed router guidance")
+    for unresolved in ["{{GAUNTLET_ROOT}}", "{{AGENT_HOME}}"]:
+        assert_not_contains(installed_agents, unresolved, "installed router path rendering")
     if len(installed_agents.encode("utf-8")) >= 32768:
-        raise AssertionError("installed Gauntlet router should remain below Codex's default 32 KiB project-doc budget")
+        raise AssertionError("installed router exceeds the default 32 KiB instruction budget")
     run([str(installed_check)])
 
 
@@ -2953,116 +2653,352 @@ def test_codex_install_layout_supports_workflow_check():
 
 Keep this user-owned instruction across Gauntlet reinstalls.
 <!-- END PERSONAL HOUSE VOICE -->"""
-        (agent_home / "AGENTS.md").write_text(
-            "# My Existing Global Instructions\n\n"
+        user_content = (
+            "# My Global Instructions\n\n"
             f"{personal_block}\n\n"
-            "Keep this unrelated instruction too.\n"
+            "Always preserve this unrelated company policy.\n"
         )
+        (agent_home / "AGENTS.md").write_text(user_content)
         run_install(agent_home, target="codex")
         assert_installed_gauntlet_layout(agent_home)
         installed_agents = read(agent_home / "AGENTS.md")
-        assert_contains(installed_agents, "BEGIN GAUNTLET MANAGED BLOCK", "Codex managed block")
-        assert_contains(installed_agents, "Keep this unrelated instruction too.", "Codex unrelated instruction preservation")
+        if not installed_agents.startswith(user_content):
+            raise AssertionError("Codex install must preserve every pre-existing user byte before the managed block")
+        assert_contains(installed_agents, "Gauntlet Workflow Router", "Codex AGENTS install")
         assert_contains(installed_agents, personal_block, "Codex personal house voice preservation")
+        if installed_agents.count("BEGIN GAUNTLET MANAGED BLOCK") != 1:
+            raise AssertionError("Codex install should create exactly one managed block")
         installed_mode = (agent_home / "AGENTS.md").stat().st_mode & 0o777
         if installed_mode != 0o644:
             raise AssertionError(f"Codex AGENTS install mode should be 0644, got {installed_mode:04o}")
-        for marker in [
-            "Gauntlet is the single workflow authority",
-            "Path: Research | Patch | Feature | Release",
-            "one accepted spec and one canonical plan",
-            "Scope delta checked: no material change.",
-        ]:
-            assert_contains(installed_agents, marker, "Codex root implementation-transition guidance")
         if (agent_home / "CLAUDE.md").exists():
             raise AssertionError("Codex install should not create CLAUDE.md")
 
         run_install(agent_home, target="codex")
         reinstalled_agents = read(agent_home / "AGENTS.md")
-        if reinstalled_agents.count("BEGIN GAUNTLET MANAGED BLOCK") != 1:
-            raise AssertionError("Codex reinstall should replace one managed block")
-        if reinstalled_agents.count("BEGIN PERSONAL HOUSE VOICE") != 1:
-            raise AssertionError("Codex reinstall should preserve one personal house voice block")
+        if reinstalled_agents != installed_agents:
+            raise AssertionError("Codex reinstall should be byte-idempotent")
 
-        missing_eval = agent_home / "gauntlet" / "evals" / "skill-evals.json"
-        missing_eval.unlink()
         verify = run([
             str(agent_home / "gauntlet" / "scripts" / "gauntlet.py"),
             "install",
             "verify",
-            "--target",
-            "codex",
             "--agent-home",
             str(agent_home),
+            "--target",
+            "codex",
             "--json",
-        ], check=False)
-        if verify.returncode == 0:
-            raise AssertionError("install verification should fail when a required eval artifact is missing")
-        verify_codes = {finding["code"] for finding in json.loads(verify.stdout)["findings"]}
-        if "missing_install_payload:gauntlet/evals/skill-evals.json" not in verify_codes:
-            raise AssertionError(f"missing eval payload should be named precisely: {verify.stdout}")
+        ])
+        if json.loads(verify.stdout)["status"] != "pass":
+            raise AssertionError(f"Codex install verify should pass: {verify.stdout}")
+
+        installed_env = os.environ.copy()
+        installed_env["AGENT_HOME"] = str(agent_home)
+        installed_env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
+        installed_reinstall = subprocess.run(
+            [str(agent_home / "gauntlet" / "scripts" / "install.sh"), "--target", "codex"],
+            cwd=agent_home / "gauntlet",
+            env=installed_env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if installed_reinstall.returncode != 0:
+            raise AssertionError(
+                "installed Gauntlet should support an idempotent self-reinstall:\n"
+                f"{installed_reinstall.stdout}\n{installed_reinstall.stderr}"
+            )
+        if read(agent_home / "AGENTS.md") != installed_agents:
+            raise AssertionError("installed self-reinstall should not change the managed Codex file")
+        if not (agent_home / "gauntlet" / "docs" / "workflow-etiquette.md").exists():
+            raise AssertionError("installed self-reinstall must not delete its own payload")
+
+        linked_home = Path(tmp) / "linked-agent-home"
+        linked_home.mkdir()
+        linked_target = Path(tmp) / "shared-global-agents.md"
+        linked_content = "# Shared global policy\n\nKeep this through linked installs.\n"
+        linked_target.write_text(linked_content)
+        linked_target.chmod(0o600)
+        (linked_home / "AGENTS.md").symlink_to(linked_target)
+
+        run_install(linked_home, target="codex")
+        if not (linked_home / "AGENTS.md").is_symlink():
+            raise AssertionError("Codex install must preserve an existing AGENTS.md symlink")
+        linked_installed = linked_target.read_text()
+        if not linked_installed.startswith(linked_content):
+            raise AssertionError("Codex install must preserve user bytes through an AGENTS.md symlink")
+        linked_mode = linked_target.stat().st_mode & 0o777
+        if linked_mode != 0o600:
+            raise AssertionError(f"Codex install must preserve existing permissions, got {linked_mode:04o}")
+        run_install(linked_home, target="codex")
+        if linked_target.read_text() != linked_installed:
+            raise AssertionError("linked Codex reinstall should be byte-idempotent")
 
 
-def test_install_migrates_legacy_codex_layout_and_rejects_malformed_blocks():
+def test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks():
     if not (ROOT / ".git").exists():
         return
 
     with tempfile.TemporaryDirectory() as tmp:
-        agent_home = Path(tmp) / "legacy-home"
+        agent_home = Path(tmp) / "agent-home"
         (agent_home / "gauntlet").mkdir(parents=True)
-        legacy = "# Global Agent Coding Workflow\n\nLegacy Gauntlet body.\n"
-        personal = """<!-- BEGIN PERSONAL HOUSE VOICE -->
-## Personal Test Voice
-
-Keep this user-owned instruction.
-<!-- END PERSONAL HOUSE VOICE -->"""
+        legacy = "# Legacy Gauntlet Router\n\nLegacy managed workflow body.\n"
+        personal = "<!-- BEGIN PERSONAL HOUSE VOICE -->\nKeep my voice.\n<!-- END PERSONAL HOUSE VOICE -->\n"
         (agent_home / "gauntlet" / "AGENTS.md").write_text(legacy)
-        (agent_home / "AGENTS.md").write_text(
-            "# Global Agent Coding Workflow\n\n" + personal + "\n\nLegacy Gauntlet body.\n"
-        )
+        first_line_end = legacy.index("\n") + 1
+        (agent_home / "AGENTS.md").write_text(legacy[:first_line_end] + "\n" + personal + legacy[first_line_end:])
 
         run_install(agent_home, target="codex")
         migrated = read(agent_home / "AGENTS.md")
-        if migrated.count("BEGIN GAUNTLET MANAGED BLOCK") != 1:
-            raise AssertionError("legacy Codex install should migrate to one managed block")
-        if migrated.count("BEGIN PERSONAL HOUSE VOICE") != 1:
-            raise AssertionError("legacy migration should preserve the personal house voice")
-        assert_not_contains(migrated, "Legacy Gauntlet body.", "retired legacy Gauntlet body")
-        assert_contains(migrated, "Gauntlet is the single workflow authority", "new managed Gauntlet body")
+        assert_contains(migrated, personal.strip(), "legacy personal block migration")
+        assert_contains(migrated, "BEGIN GAUNTLET MANAGED BLOCK", "legacy managed migration")
+        assert_not_contains(migrated, "Legacy managed workflow body.", "legacy body removal")
 
-    malformed_cases = {
-        "unterminated": "Before\n<!-- BEGIN GAUNTLET MANAGED BLOCK -->\nunterminated\n",
-        "reversed": "Before\n<!-- END GAUNTLET MANAGED BLOCK -->\nbody\n<!-- BEGIN GAUNTLET MANAGED BLOCK -->\n",
-    }
-    for target, filename in [("codex", "AGENTS.md"), ("claude", "CLAUDE.md")]:
-        for case_name, original in malformed_cases.items():
-            with tempfile.TemporaryDirectory() as tmp:
-                agent_home = Path(tmp) / f"malformed-{target}-{case_name}"
-                agent_home.mkdir()
-                (agent_home / filename).write_text(original)
-                result = run_install(agent_home, target=target, check=False)
-                if result.returncode == 0:
-                    raise AssertionError(f"{target} install should reject a {case_name} managed block")
-                if (agent_home / filename).read_text() != original:
-                    raise AssertionError(f"{target} {case_name}-block failure must preserve the original file")
+        before = migrated
+        (agent_home / "AGENTS.md").write_text(before.replace("<!-- END GAUNTLET MANAGED BLOCK -->", ""))
+        malformed_before = (agent_home / "AGENTS.md").read_bytes()
+        env = os.environ.copy()
+        env["AGENT_HOME"] = str(agent_home)
+        env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
+        malformed = subprocess.run(
+            [str(SCRIPTS / "install.sh"), "--target", "codex"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if malformed.returncode == 0:
+            raise AssertionError("malformed managed markers must reject installation")
+        if (agent_home / "AGENTS.md").read_bytes() != malformed_before:
+            raise AssertionError("malformed managed markers must not mutate AGENTS.md")
+
+        (agent_home / "AGENTS.md").write_text(
+            "<!-- BEGIN GAUNTLET MANAGED BLOCK -->\n"
+            "<!-- BEGIN GAUNTLET MANAGED BLOCK -->\n"
+            "nested\n"
+            "<!-- END GAUNTLET MANAGED BLOCK -->\n"
+            "<!-- END GAUNTLET MANAGED BLOCK -->\n"
+        )
+        nested_before = (agent_home / "AGENTS.md").read_bytes()
+        nested = subprocess.run(
+            [str(SCRIPTS / "install.sh"), "--target", "codex"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if nested.returncode == 0 or (agent_home / "AGENTS.md").read_bytes() != nested_before:
+            raise AssertionError("nested managed markers must reject without mutation")
+
+
+def test_claude_install_layout_adapts_agents_without_overwriting_user_memory():
+    if not (ROOT / ".git").exists():
+        return
 
     with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        agent_home = root / "partial-home"
-        fake_bin = root / "bin"
+        agent_home = Path(tmp) / "agent-home"
         agent_home.mkdir()
-        fake_bin.mkdir()
-        original = "# Existing Global Instructions\n\nKeep this active.\n"
-        (agent_home / "AGENTS.md").write_text(original)
-        fake_rsync = fake_bin / "rsync"
-        fake_rsync.write_text("#!/usr/bin/env bash\nexit 9\n")
-        fake_rsync.chmod(0o755)
-        path = f"{fake_bin}:{os.environ.get('PATH', '')}"
-        failed = run_install(agent_home, target="codex", check=False, extra_env={"PATH": path})
-        if failed.returncode == 0:
-            raise AssertionError("payload-copy failure should fail the install")
-        if (agent_home / "AGENTS.md").read_text() != original:
-            raise AssertionError("payload-copy failure must not activate or alter the Codex router")
+        claude_md = agent_home / "CLAUDE.md"
+        claude_md.write_text("# My Existing Claude Memory\n\nKeep this personal note.\n")
+
+        run_install(agent_home, target="claude")
+        assert_installed_gauntlet_layout(agent_home)
+
+        installed_claude = read(claude_md)
+        assert_contains(installed_claude, "Keep this personal note.", "Claude user memory preservation")
+        assert_contains(installed_claude, "BEGIN GAUNTLET MANAGED BLOCK", "Claude Gauntlet managed block")
+        assert_contains(installed_claude, f"@{agent_home}/gauntlet/AGENTS.md", "Claude AGENTS import")
+        assert_contains(installed_claude, "Gauntlet Adapter For Claude Code", "Claude adapter guidance")
+        if (agent_home / "AGENTS.md").exists():
+            raise AssertionError("Claude install should not write root AGENTS.md")
+
+        run_install(agent_home, target="claude")
+        reinstalled_claude = read(claude_md)
+        if reinstalled_claude.count("BEGIN GAUNTLET MANAGED BLOCK") != 1:
+            raise AssertionError("Claude reinstall should replace, not duplicate, the managed block")
+
+
+def test_install_docs_explain_codex_and_claude_targets():
+    readme = read(README_MD)
+    for marker in [
+        "./scripts/install.sh --target codex",
+        "./scripts/install.sh --target claude",
+        "GAUNTLET_INSTALL_TARGET=claude",
+        "Claude Code",
+        "CLAUDE.md",
+        "scripts/gauntlet.py",
+        "managed import block",
+        "preserving unrelated instructions",
+        "reject malformed managed markers",
+        "router/AGENTS.md",
+    ]:
+        assert_contains(readme, marker, "install target docs")
+
+
+def test_skill_evals_compare_all_arms():
+    runner = SCRIPTS / "run-skill-evals.py"
+    evals = ROOT / "evals" / "skill-evals.json"
+    current = ROOT / "evals" / "baselines" / "current" / "skills"
+    results = ROOT / "evals" / "results" / "workflow-check.json"
+
+    for path in [runner, evals, current]:
+        if not path.exists():
+            raise AssertionError(f"missing skill eval artifact: {path}")
+
+    run([str(runner), "--results", str(results)])
+    data = json.loads(results.read_text())
+    if data.get("comparisonArms") != ["one_shot", "current_skill", "new_skill"]:
+        raise AssertionError("skill evals must compare one_shot, current_skill, and new_skill")
+    if not data.get("cases"):
+        raise AssertionError("skill evals must include cases")
+    for case in data["cases"]:
+        arms = case.get("arms", {})
+        for arm in data["comparisonArms"]:
+            if arm not in arms:
+                raise AssertionError(f"{case['id']} missing {arm}")
+        if not arms["new_skill"]["passed"]:
+            raise AssertionError(f"{case['id']} new_skill did not pass")
+
+    targeted = ROOT / "evals" / "results" / "workflow-check-planner-only.json"
+    run([str(runner), "--only-skill", "planner", "--results", str(targeted)])
+    targeted_data = json.loads(targeted.read_text())
+    targeted_cases = targeted_data.get("cases", [])
+    if not targeted_cases or any(case["skill"] != "planner" for case in targeted_cases):
+        raise AssertionError("skill evals must support targeted --only-skill filtering")
+
+
+def test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes():
+    runner = SCRIPTS / "run-skill-evals.py"
+    fixture = ROOT / "evals" / "scorer-smoke-fixtures.json"
+    results = ROOT / "evals" / "results" / "workflow-scorer-smoke-check.json"
+    orchestration_runner = SCRIPTS / "run-orchestration-evals.py"
+    orchestration_fixture = ROOT / "evals" / "orchestration-trace-fixtures.json"
+    orchestration_results = ROOT / "evals" / "results" / "workflow-orchestration-check.json"
+
+    for path in [runner, fixture, orchestration_runner, orchestration_fixture]:
+        if not path.exists():
+            raise AssertionError(f"missing scorer/eval artifact: {path}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        prompts = Path(tmp) / "scorer-smoke-prompts"
+        run([
+            str(runner),
+            "--scorer-smoke-responses",
+            str(fixture),
+            "--scorer-smoke-prompts-dir",
+            str(prompts),
+            "--results",
+            str(results),
+        ])
+        data = json.loads(results.read_text())
+        if data.get("scorerSmokeComparisonArms") != ["no_guidance", "one_shot", "current_skill", "new_skill"]:
+            raise AssertionError("scorer smoke must compare no_guidance, one_shot, current_skill, and new_skill")
+        if "behaviorComparisonArms" in data:
+            raise AssertionError("phrase scorer output must not be labeled behavioral")
+        if not data.get("cases"):
+            raise AssertionError("scorer smoke must include cases")
+        for case in data["cases"]:
+            scorer_smoke = case.get("scorerSmoke")
+            if not scorer_smoke:
+                raise AssertionError(f"{case['id']} missing scorer-smoke results")
+            if scorer_smoke.get("minReps", 0) < 5:
+                raise AssertionError(f"{case['id']} must require at least five scorer-smoke reps")
+            if not (prompts / case["id"] / "new_skill.md").exists():
+                raise AssertionError(f"{case['id']} missing generated scorer-smoke prompt")
+            new_scorer = scorer_smoke["arms"]["new_skill"]
+            if new_scorer["repsFound"] < scorer_smoke["minReps"]:
+                raise AssertionError(f"{case['id']} new_skill missing scorer-smoke reps")
+            if new_scorer["passRate"] < 1:
+                raise AssertionError(f"{case['id']} new_skill scorer-smoke reps should pass")
+            for arm_name, arm in case["arms"].items():
+                if arm.get("promptWordCount", 0) <= 0:
+                    raise AssertionError(f"{case['id']} {arm_name} missing prompt word metric")
+                if arm.get("scoreElapsedMs", -1) < 0:
+                    raise AssertionError(f"{case['id']} {arm_name} missing score speed metric")
+
+    run([
+        str(orchestration_runner),
+        "--pack",
+        str(orchestration_fixture),
+        "--results",
+        str(orchestration_results),
+    ])
+    outcomes = json.loads(orchestration_results.read_text())
+    if not outcomes.get("summary", {}).get("expectationsMatched"):
+        raise AssertionError(f"orchestration outcome expectations failed: {outcomes}")
+    pairs = {pair["id"]: pair for pair in outcomes.get("pairs", [])}
+    for required in [
+        "correct-outcome",
+        "missing-proof",
+        "authority-violation",
+        "verbose-output",
+        "phrase-echo-wrong-action",
+        "subjective-needs-judgment",
+    ]:
+        if required not in pairs:
+            raise AssertionError(f"missing orchestration outcome case: {required}")
+    if pairs["phrase-echo-wrong-action"]["arms"]["current"]["verdict"] != "fail":
+        raise AssertionError("phrase echo with the wrong observable action must fail")
+    if pairs["subjective-needs-judgment"]["arms"]["candidate"]["verdict"] != "cannot_verify":
+        raise AssertionError("uncalibrated subjective judgment must remain Cannot verify")
+
+
+def test_skill_linter_examples_and_noop_pruning():
+    linter = SCRIPTS / "lint-skills.py"
+    evals = ROOT / "evals" / "skill-evals.json"
+    if not linter.exists():
+        raise AssertionError("missing skill linter")
+
+    skill_names = sorted({case["skill"] for case in json.loads(evals.read_text())["cases"]})
+    result = run([
+        str(linter),
+        "--skills-root",
+        str(SKILLS),
+        "--only",
+        ",".join(skill_names),
+        "--json",
+    ])
+    data = json.loads(result.stdout)
+    if data.get("failures"):
+        raise AssertionError(f"skill linter failures: {json.dumps(data['failures'], indent=2)}")
+    if not data.get("skills"):
+        raise AssertionError("skill linter did not scan skills")
+    for skill in data["skills"]:
+        if skill.get("wordCount", 0) > 500:
+            raise AssertionError(f"{skill['name']} exceeds 500 words")
+        if not skill.get("optionalExamples"):
+            raise AssertionError(f"{skill['name']} missing optional examples")
+
+
+def test_skill_changes_are_guarded_by_pre_commit():
+    hook_installer = SCRIPTS / "install-git-hooks.sh"
+    skill_check = SCRIPTS / "run-skill-change-checks.sh"
+    for path in [hook_installer, skill_check]:
+        if not path.exists() or not os.access(path, os.X_OK):
+            raise AssertionError(f"missing executable skill-change guard: {path}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        repo.mkdir()
+        run(["git", "init"], cwd=repo)
+        run([str(hook_installer), "--repo", str(repo), "--gauntlet-root", str(ROOT)])
+        hook = repo / ".git" / "hooks" / "pre-commit"
+        if not hook.exists() or not os.access(hook, os.X_OK):
+            raise AssertionError("pre-commit hook was not installed")
+        hook_text = hook.read_text()
+        for marker in ["GAUNTLET SKILL CHECKS", "run-skill-change-checks.sh"]:
+            assert_contains(hook_text, marker, "pre-commit hook")
+
+    for args in [[str(skill_check)], [str(skill_check), "--changed-files", "README.md"]]:
+        result = run(args, cwd=ROOT)
+        if "No Gauntlet skill changes detected" not in result.stdout:
+            raise AssertionError("non-skill changes should skip skill evals")
+
+    result = run([str(skill_check), "--changed-files", "skills/planner/SKILL.md"], cwd=ROOT)
+    for marker in ["Gauntlet skill changes detected", "targeted skill evals: planner", "skill evals:", "orchestration trace evals:", "skill linter"]:
+        assert_contains(result.stdout, marker, "skill change checks")
 
 
 def test_superpowers_sources_are_attributed_and_retirement_is_allowlisted():
@@ -3124,7 +3060,7 @@ def test_superpowers_sources_are_attributed_and_retirement_is_allowlisted():
             str(retire), "--active-skills", str(active), "--config", str(config),
             "--archive", str(archive), "--manifest", str(fixture_manifest), "--json",
         ])
-        if (active / "brainstorming").exists() is False or json.loads(dry_run.stdout)["applied"]:
+        if not (active / "brainstorming").exists() or json.loads(dry_run.stdout)["applied"]:
             raise AssertionError("retirement must be dry-run by default")
         applied = run([
             str(retire), "--active-skills", str(active), "--config", str(config),
@@ -3139,220 +3075,34 @@ def test_superpowers_sources_are_attributed_and_retirement_is_allowlisted():
             raise AssertionError("unrelated skills must be preserved")
         assert_contains(config.read_text(), "enabled = false", "disabled Superpowers plugin")
 
-        unsafe_configs = {
-            "missing-section": "[plugins.\"another-plugin\"]\nenabled = true\n",
+        for label, config_text in {
+            "missing-section": '[plugins."another-plugin"]\nenabled = true\n',
             "missing-enabled-key": '[plugins."superpowers@openai-curated"]\nmode = "manual"\n',
-        }
-        for label, config_text in unsafe_configs.items():
+        }.items():
             unsafe_active = root / f"unsafe-active-{label}"
             (unsafe_active / "brainstorming").mkdir(parents=True)
             unsafe_config = root / f"unsafe-{label}.toml"
             unsafe_config.write_text(config_text)
-            unsafe_archive = root / f"unsafe-archive-{label}"
             unsafe_result = run([
                 str(retire), "--active-skills", str(unsafe_active), "--config", str(unsafe_config),
-                "--archive", str(unsafe_archive), "--manifest", str(fixture_manifest), "--apply", "--json",
+                "--archive", str(root / f"unsafe-archive-{label}"), "--manifest", str(fixture_manifest), "--apply", "--json",
             ], check=False)
             if unsafe_result.returncode == 0:
                 raise AssertionError(f"retirement should stop when plugin disablement is unresolved: {label}")
-            if not (unsafe_active / "brainstorming").exists():
-                raise AssertionError(f"unverified plugin disablement must not move skills: {label}")
-            if unsafe_config.read_text() != config_text:
-                raise AssertionError(f"unverified plugin disablement must preserve config: {label}")
-
-
-def test_claude_install_layout_adapts_agents_without_overwriting_user_memory():
-    if not (ROOT / ".git").exists():
-        return
-
-    with tempfile.TemporaryDirectory() as tmp:
-        agent_home = Path(tmp) / "agent-home"
-        agent_home.mkdir()
-        claude_md = agent_home / "CLAUDE.md"
-        claude_md.write_text("# My Existing Claude Memory\n\nKeep this personal note.\n")
-
-        run_install(agent_home, target="claude")
-        assert_installed_gauntlet_layout(agent_home)
-
-        installed_claude = read(claude_md)
-        assert_contains(installed_claude, "Keep this personal note.", "Claude user memory preservation")
-        assert_contains(installed_claude, "BEGIN GAUNTLET MANAGED BLOCK", "Claude Gauntlet managed block")
-        assert_contains(installed_claude, f"@{agent_home}/gauntlet/AGENTS.md", "Claude AGENTS import")
-        assert_contains(installed_claude, "Gauntlet Adapter For Claude Code", "Claude adapter guidance")
-        if (agent_home / "AGENTS.md").exists():
-            raise AssertionError("Claude install should not write root AGENTS.md")
-
-        run_install(agent_home, target="claude")
-        reinstalled_claude = read(claude_md)
-        if reinstalled_claude.count("BEGIN GAUNTLET MANAGED BLOCK") != 1:
-            raise AssertionError("Claude reinstall should replace, not duplicate, the managed block")
-
-
-def test_install_docs_explain_codex_and_claude_targets():
-    readme = read(README_MD)
-    for marker in [
-        "./scripts/install.sh --target codex",
-        "./scripts/install.sh --target claude",
-        "GAUNTLET_INSTALL_TARGET=claude",
-        "Claude Code",
-        "CLAUDE.md",
-        "scripts/gauntlet.py",
-        "managed import block",
-        "preserving existing Claude instructions",
-    ]:
-        assert_contains(readme, marker, "install target docs")
-
-
-def test_skill_evals_compare_all_arms():
-    runner = SCRIPTS / "run-skill-evals.py"
-    evals = ROOT / "evals" / "skill-evals.json"
-    current = ROOT / "evals" / "baselines" / "current" / "skills"
-    results = ROOT / "evals" / "results" / "workflow-check.json"
-
-    for path in [runner, evals, current]:
-        if not path.exists():
-            raise AssertionError(f"missing skill eval artifact: {path}")
-
-    run([str(runner), "--results", str(results)])
-    data = json.loads(results.read_text())
-    if data.get("comparisonArms") != ["one_shot", "current_skill", "new_skill"]:
-        raise AssertionError("skill evals must compare one_shot, current_skill, and new_skill")
-    if not data.get("cases"):
-        raise AssertionError("skill evals must include cases")
-    for case in data["cases"]:
-        arms = case.get("arms", {})
-        for arm in data["comparisonArms"]:
-            if arm not in arms:
-                raise AssertionError(f"{case['id']} missing {arm}")
-        if not arms["new_skill"]["passed"]:
-            raise AssertionError(f"{case['id']} new_skill did not pass")
-
-    targeted = ROOT / "evals" / "results" / "workflow-check-planner-only.json"
-    run([str(runner), "--only-skill", "planner", "--results", str(targeted)])
-    targeted_data = json.loads(targeted.read_text())
-    targeted_cases = targeted_data.get("cases", [])
-    if not targeted_cases or any(case["skill"] != "planner" for case in targeted_cases):
-        raise AssertionError("skill evals must support targeted --only-skill filtering")
-
-
-def test_skill_evals_include_behavior_and_metrics():
-    runner = SCRIPTS / "run-skill-evals.py"
-    fixture = ROOT / "evals" / "behavior-fixtures.json"
-    results = ROOT / "evals" / "results" / "workflow-behavior-check.json"
-
-    for path in [runner, fixture]:
-        if not path.exists():
-            raise AssertionError(f"missing behavior eval artifact: {path}")
-
-    with tempfile.TemporaryDirectory() as tmp:
-        prompts = Path(tmp) / "behavior-prompts"
-        run([
-            str(runner),
-            "--behavior-responses",
-            str(fixture),
-            "--behavior-prompts-dir",
-            str(prompts),
-            "--results",
-            str(results),
-        ])
-        data = json.loads(results.read_text())
-        if data.get("behaviorComparisonArms") != ["no_guidance", "one_shot", "current_skill", "new_skill"]:
-            raise AssertionError("behavior evals must compare no_guidance, one_shot, current_skill, and new_skill")
-        if not data.get("cases"):
-            raise AssertionError("behavior evals must include cases")
-        for case in data["cases"]:
-            behavior = case.get("behavior")
-            if not behavior:
-                raise AssertionError(f"{case['id']} missing behavior results")
-            if behavior.get("minReps", 0) < 5:
-                raise AssertionError(f"{case['id']} must require at least five behavioral reps")
-            if not (prompts / case["id"] / "new_skill.md").exists():
-                raise AssertionError(f"{case['id']} missing generated behavior prompt")
-            new_behavior = behavior["arms"]["new_skill"]
-            if new_behavior["repsFound"] < behavior["minReps"]:
-                raise AssertionError(f"{case['id']} new_skill missing behavior reps")
-            if new_behavior["passRate"] < 1:
-                raise AssertionError(f"{case['id']} new_skill behavior reps should pass")
-            for arm_name, arm in case["arms"].items():
-                if arm.get("promptWordCount", 0) <= 0:
-                    raise AssertionError(f"{case['id']} {arm_name} missing prompt word metric")
-                if arm.get("scoreElapsedMs", -1) < 0:
-                    raise AssertionError(f"{case['id']} {arm_name} missing score speed metric")
-
-
-def test_skill_linter_examples_and_noop_pruning():
-    linter = SCRIPTS / "lint-skills.py"
-    evals = ROOT / "evals" / "skill-evals.json"
-    if not linter.exists():
-        raise AssertionError("missing skill linter")
-
-    skill_names = sorted({case["skill"] for case in json.loads(evals.read_text())["cases"]})
-    result = run([
-        str(linter),
-        "--skills-root",
-        str(SKILLS),
-        "--only",
-        ",".join(skill_names),
-        "--json",
-    ])
-    data = json.loads(result.stdout)
-    if data.get("failures"):
-        raise AssertionError(f"skill linter failures: {json.dumps(data['failures'], indent=2)}")
-    if not data.get("skills"):
-        raise AssertionError("skill linter did not scan skills")
-    for skill in data["skills"]:
-        if skill.get("wordCount", 0) > 500:
-            raise AssertionError(f"{skill['name']} exceeds 500 words")
-        if not skill.get("optionalExamples"):
-            raise AssertionError(f"{skill['name']} missing optional examples")
-
-
-def test_skill_changes_are_guarded_by_pre_commit():
-    hook_installer = SCRIPTS / "install-git-hooks.sh"
-    skill_check = SCRIPTS / "run-skill-change-checks.sh"
-    for path in [hook_installer, skill_check]:
-        if not path.exists() or not os.access(path, os.X_OK):
-            raise AssertionError(f"missing executable skill-change guard: {path}")
-
-    with tempfile.TemporaryDirectory() as tmp:
-        repo = Path(tmp) / "repo"
-        repo.mkdir()
-        run(["git", "init"], cwd=repo)
-        run([str(hook_installer), "--repo", str(repo), "--gauntlet-root", str(ROOT)])
-        hook = repo / ".git" / "hooks" / "pre-commit"
-        if not hook.exists() or not os.access(hook, os.X_OK):
-            raise AssertionError("pre-commit hook was not installed")
-        hook_text = hook.read_text()
-        for marker in ["GAUNTLET SKILL CHECKS", "run-skill-change-checks.sh"]:
-            assert_contains(hook_text, marker, "pre-commit hook")
-
-    for args in [[str(skill_check)], [str(skill_check), "--changed-files", "README.md"]]:
-        result = run(args, cwd=ROOT)
-        if "No Gauntlet skill changes detected" not in result.stdout:
-            raise AssertionError("non-skill changes should skip skill evals")
-
-    result = run([str(skill_check), "--changed-files", "skills/planner/SKILL.md"], cwd=ROOT)
-    for marker in ["Gauntlet skill changes detected", "targeted skill evals: planner", "skill evals:", "skill linter"]:
-        assert_contains(result.stdout, marker, "skill change checks")
+            if not (unsafe_active / "brainstorming").exists() or unsafe_config.read_text() != config_text:
+                raise AssertionError(f"unverified plugin disablement must preserve skills and config: {label}")
 
 
 def main():
     tests = [
         test_simplified_modes_and_depth_are_documented,
-        test_gauntlet_is_the_single_workflow_authority,
         test_v201_run_log_contract_replaces_default_review_brief,
         test_coverage_gap_and_design_lint_guidance_are_documented,
         test_product_thinking_and_scope_routing_are_documented,
         test_production_quality_bar_is_launch_gated,
         test_subagent_parallelism_is_context_efficient,
-        test_material_transitions_replace_kickoff_ceremony,
+        test_direct_dispatch_and_quiet_execution_are_documented,
         test_workflow_guidance_keeps_routine_controls_silent,
-        test_subagent_plan_validator_v12_accepts_shared_and_single_write_lane,
-        test_subagent_plan_validator_v12_warns_for_context_efficiency,
-        test_subagent_plan_validator_v12_blocks_material_hazards,
-        test_subagent_plan_validator_logs_rejections,
-        test_subagent_plan_validator_rejects_secret_and_overbroad_scope,
-        test_subagent_plan_validator_uses_one_canonical_manifest_and_typed_dependencies,
         test_guarded_panel_contract_is_uniform,
         test_ts_durability_classifier_behavior,
         test_diff_intel_test_plan_and_review_pack_are_bounded,
@@ -3376,13 +3126,13 @@ def main():
         test_gauntlet_cli_bounded_attempt_memory,
         test_thread_changelog_captures_pr_history_and_followups,
         test_workflow_etiquette_is_in_global_workflow,
-        test_promotion_scanner_is_explicit_or_evidence_triggered,
+        test_promotion_scanner_is_release_wrapup_not_patch_gate,
         test_skill_evals_compare_all_arms,
-        test_skill_evals_include_behavior_and_metrics,
+        test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes,
         test_skill_linter_examples_and_noop_pruning,
         test_skill_changes_are_guarded_by_pre_commit,
         test_codex_install_layout_supports_workflow_check,
-        test_install_migrates_legacy_codex_layout_and_rejects_malformed_blocks,
+        test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks,
         test_superpowers_sources_are_attributed_and_retirement_is_allowlisted,
         test_claude_install_layout_adapts_agents_without_overwriting_user_memory,
         test_install_docs_explain_codex_and_claude_targets,

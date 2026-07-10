@@ -12,8 +12,7 @@ Gauntlet uses one accepted spec and one canonical plan:
 
 - Intake and product exploration refine the accepted spec in conversation.
 - Planner turns the accepted spec into bounded task packets.
-- `.gauntlet/subagent-plan.json` is the only additional planning artifact when real parallel lanes exist.
-- Implementation Memory, separate design documents, and handwritten child packets are not active defaults.
+- Implementation Memory, separate design documents, and duplicate child packets are not active defaults.
 
 For Deep work, compare alternatives inside one pass. Use a second independent plan only when concrete Release-class harm or an explicit user request earns it.
 
@@ -70,11 +69,11 @@ Research is a first-class path, not a pre-Release ceremony.
 
 Use delegation only when parallelism beats context cost.
 
-Use the canonical manifest for two or more parallel lanes or any write-heavy child implementation lane. It contains shared accepted source/constraints plus complete lane entries. Each lane names objective, skill, ownership, typed dependencies, consumes/produces, proof, and its context delta. Do not create a second Markdown packet. A single small read-only child does not need this gate.
+Dispatch each child directly from one bounded task packet in the canonical plan. Name its objective, skill, ownership, dependencies, consumes/produces contracts, constraints, proof, return contract, and ask-user policy. Native Codex state and main-task messages own live coordination.
 
 Child behavior:
 
-- receives a prompt generated from its canonical lane entry;
+- receives its bounded task packet directly from the main task;
 - works inside named files/state/worktree;
 - returns a compact Role Report;
 - reports `Needs decision` to the main task instead of asking the user;
@@ -158,7 +157,7 @@ See `docs/github-discipline.md` for the detailed beginner-friendly branch → co
 - Plan delta: at most three bullets.
 - Material foresight: at most four edge cases.
 - Status update: one decision or changed fact.
-- Child prompt: generated from one manifest entry; no shared background duplication.
+- Child prompt: one bounded task packet; no shared background duplication.
 - Assumptions: at most three material items.
 - Debrief: at most three bullets and only when triggered.
 - Archive: quiet happy path; explain only blockers or warnings.

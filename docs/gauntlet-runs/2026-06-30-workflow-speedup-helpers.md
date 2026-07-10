@@ -13,7 +13,7 @@ Proof scope: delta
 
 - Implemented `diff-intel.py`, `test-plan.py`, and `review-pack.py` as advisory helpers instead of a `quality-check --surface` gate.
 - Kept `quality-check --surface ...` deferred because named surfaces are usually repo-specific and can make Patch work feel heavy.
-- Extended `check-subagent-plan.py` only for concrete packet hazards: secret-like inline context and overbroad path scopes.
+- Kept child packets bounded to concrete ownership, context, and proof.
 - Filtered `.gauntlet/` run artifacts from changed-file discovery so helper-generated files do not pollute follow-up helper runs.
 
 ## Exceptions

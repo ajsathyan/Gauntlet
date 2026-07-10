@@ -12,7 +12,7 @@ Proof scope: `full`
 ## Decisions
 
 - Keep the kickoff checker for title, decision-gate, assumption, follow-up, git-risk, and archive safety. Make five-field kickoff narration warning-only and accept `Research` as a compatibility value.
-- Use one accepted spec and one canonical plan. Schema `1.2` makes `.gauntlet/subagent-plan.json` the complete lane contract and rejects duplicate Markdown packet references.
+- Use one accepted spec and one canonical plan. The main task dispatches bounded child packets directly and coordinates them through native Codex state.
 - Preserve legacy Implementation Memory CLI inputs for one migration window, but remove them from active workflow routing and documentation.
 - Disable the Superpowers plugin only after the Gauntlet replacements, attribution hashes, managed-block migration, and retirement preflight pass.
 
@@ -20,7 +20,7 @@ Proof scope: `full`
 
 - The first exact legacy-install simulation appended the new managed block without removing the old Gauntlet body because a house-voice insertion left one extra blank line. The migration now compares normalized blank runs without normalizing user output; the exact live layout and malformed/reversed markers have regression coverage.
 - Independent review found that unresolved plugin configuration could still allow skill moves, a failed payload copy could activate the new router too early, and changelog JSON changed `source` type. Retirement now refuses unverified disablement, install activates the router last after payload validation, and `source` remains a compatibility string alongside `sources`.
-- Before PR closeout, current `main` had added contextual merge automation and stricter child-lane gates across the same workflow files. The conflict resolution preserved those merge/check-cleanup capabilities while keeping the canonical manifest as the sole packet and extending its gate to single write-heavy child lanes.
+- Before PR closeout, current `main` added contextual merge automation and a machine-readable child-lane system across the same workflow files. Conflict resolution preserved the merge/check-cleanup capabilities but removed that duplicate coordination layer after review showed native main-task state and bounded child prompts already own the job.
 - `Cannot verify`: this already-running Codex process may retain the skill catalog captured at startup. A reload/new thread is the next check for runtime catalog refresh; active config and filesystem state already show the plugin disabled and all 14 skills retired.
 
 ## Production Quality Bar
@@ -29,7 +29,7 @@ Not relevant because this changes a local agent workflow installation, not a dep
 
 ## Release Proof
 
-Launch cut line: do not activate the global router or retire Superpowers until source checks, upstream hash sync, canonical-manifest proof, exact legacy migration, malformed-marker preservation, and retirement preflight pass. The cut line was satisfied before active mutation.
+Launch cut line: do not activate the global router or retire Superpowers until source checks, upstream hash sync, direct-dispatch proof, exact legacy migration, malformed-marker preservation, and retirement preflight pass. The cut line was satisfied before active mutation.
 
 | Concern | Decision | Why Not Defer | Proof | Plan Delta |
 | --- | --- | --- | --- | --- |
