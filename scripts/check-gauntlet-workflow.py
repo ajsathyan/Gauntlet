@@ -1582,7 +1582,7 @@ def prepare_merge_fixture(cli, repo):
     return handoff_path, body_path
 
 
-def write_merge_fake_gh(path, log_path, state_path, check_conclusion="SUCCESS"):
+def write_merge_fake_gh(path, log_path, state_path, check_conclusion="SUCCESS", empty_checks_once=False):
     path.write_text(
         "\n".join([
             "#!/usr/bin/env bash",
@@ -1594,6 +1594,12 @@ def write_merge_fake_gh(path, log_path, state_path, check_conclusion="SUCCESS"):
             "fi",
             "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then",
             "  if [ ! -f \"$GH_STATE\" ]; then exit 1; fi",
+            "  if [ \"${GH_EMPTY_CHECKS_ONCE:-0}\" = \"1\" ] && [ ! -f \"${GH_STATE}.empty-served\" ]; then",
+            "    touch \"${GH_STATE}.empty-served\"",
+            "    printf '%s\\n' '{\"number\":7,\"state\":\"OPEN\",\"isDraft\":false,\"mergeable\":\"MERGEABLE\",\"mergedAt\":null,\"statusCheckRollup\":[],\"url\":\"https://example.test/pr/7\",\"baseRefName\":\"main\",\"headRefName\":\"codex/merge-flow\",\"reviewDecision\":\"\"}'",
+            "    exit 0",
+            "  fi",
+            "  touch \"${GH_STATE}.checks-ready\"",
             f"  printf '%s\\n' '{{\"number\":7,\"state\":\"OPEN\",\"isDraft\":false,\"mergeable\":\"MERGEABLE\",\"mergedAt\":null,\"statusCheckRollup\":[{{\"__typename\":\"CheckRun\",\"name\":\"gauntlet\",\"status\":\"COMPLETED\",\"conclusion\":\"{check_conclusion}\"}}],\"url\":\"https://example.test/pr/7\",\"baseRefName\":\"main\",\"headRefName\":\"codex/merge-flow\",\"reviewDecision\":\"\"}}'",
             "  exit 0",
             "fi",
@@ -1603,7 +1609,13 @@ def write_merge_fake_gh(path, log_path, state_path, check_conclusion="SUCCESS"):
             "  exit 0",
             "fi",
             "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then exit 0; fi",
-            "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"checks\" ]; then exit 0; fi",
+            "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"checks\" ]; then",
+            "  if [ \"${GH_EMPTY_CHECKS_ONCE:-0}\" = \"1\" ] && [ ! -f \"${GH_STATE}.checks-ready\" ]; then",
+            "    printf '%s\\n' 'no checks reported' >&2",
+            "    exit 1",
+            "  fi",
+            "  exit 0",
+            "fi",
             "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"merge\" ]; then",
             "  git push origin HEAD:main >/dev/null",
             "  exit 0",
@@ -1612,7 +1624,12 @@ def write_merge_fake_gh(path, log_path, state_path, check_conclusion="SUCCESS"):
         ]) + "\n"
     )
     path.chmod(0o755)
-    return {"GAUNTLET_GH": str(path), "GH_LOG": str(log_path), "GH_STATE": str(state_path)}
+    return {
+        "GAUNTLET_GH": str(path),
+        "GH_LOG": str(log_path),
+        "GH_STATE": str(state_path),
+        "GH_EMPTY_CHECKS_ONCE": "1" if empty_checks_once else "0",
+    }
 
 
 def test_gauntlet_cli_merge_plan_requires_clean_task_branch():
@@ -1728,7 +1745,7 @@ def test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main():
         gh_log = Path(tmp) / "gh.log"
         state = Path(tmp) / "gh-state"
         fake_gh = Path(tmp) / "gh"
-        env = write_merge_fake_gh(fake_gh, gh_log, state)
+        env = write_merge_fake_gh(fake_gh, gh_log, state, empty_checks_once=True)
         result = subprocess.run([
             str(cli), "merge", "execute", "--git-root", str(repo),
             "--handoff", str(handoff_path), "--body", str(body_path), "--json",
@@ -1748,6 +1765,8 @@ def test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main():
         for marker in ["pr create", "pr checks 7 --watch", "pr merge 7 --merge --delete-branch"]:
             if marker not in log:
                 raise AssertionError(f"missing GitHub action {marker}:\n{log}")
+        if log.count("pr view") < 3:
+            raise AssertionError(f"merge execute did not poll for delayed check registration:\n{log}")
 
 
 def test_gauntlet_cli_archive_plans_and_executes_github_merge():

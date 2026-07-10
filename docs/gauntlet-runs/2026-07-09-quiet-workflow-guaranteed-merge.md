@@ -11,3 +11,7 @@
 ## Cannot Verify
 
 - Separate children still need their relevant shared constraints. The total billed or cached child context was unavailable in the traces, so no end-to-end model-cost reduction is claimed.
+
+## Exceptions
+
+- The first live PR run reached GitHub before Actions had registered any checks, so `gh pr checks --watch` exited instead of waiting. The merge helper now polls for the actual check-registration condition with a bounded timeout before handing off to GitHub's check watcher.

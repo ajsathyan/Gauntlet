@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1119,6 +1120,18 @@ def refreshed_pr_is_mergeable(payload, pr):
     return len(payload["findings"]) == before
 
 
+def wait_for_pr_checks(repo, timeout_seconds=60, poll_seconds=2):
+    deadline = time.monotonic() + timeout_seconds
+    last_error = None
+    while True:
+        pr, last_error = current_pr(repo)
+        if pr and pr.get("statusCheckRollup"):
+            return pr, None
+        if time.monotonic() >= deadline:
+            return pr, last_error or f"No PR status checks were reported within {timeout_seconds} seconds."
+        time.sleep(poll_seconds)
+
+
 def execute_merge_plan(payload, git_root, handoff_path, body_path):
     repo = Path(git_root).resolve()
     executed = []
@@ -1138,9 +1151,9 @@ def execute_merge_plan(payload, git_root, handoff_path, body_path):
         elif action_type == "gh_pr_edit":
             result = gh(["pr", "edit", str(pr.get("number")), "--title", handoff["title"], "--body-file", str(body_path)], repo)
         elif action_type == "gh_pr_checks_watch":
-            pr, _ = current_pr(repo)
-            if not pr:
-                add_finding(payload, "pull_request_missing_after_publish", "fail", "Could not find the pull request before watching checks.")
+            pr, checks_error = wait_for_pr_checks(repo)
+            if checks_error:
+                add_finding(payload, "pull_request_checks_missing", "fail", checks_error)
                 break
             action["prNumber"] = pr.get("number")
             result = gh(["pr", "checks", str(pr.get("number")), "--watch"], repo)
