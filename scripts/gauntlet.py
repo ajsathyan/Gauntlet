@@ -1133,6 +1133,24 @@ def wait_for_pr_checks(repo, timeout_seconds=60, poll_seconds=2):
         time.sleep(poll_seconds)
 
 
+def delete_remote_branch(repo, branch, git_runner=None):
+    git_runner = git_runner or git
+    probe = git_runner(["ls-remote", "--exit-code", "--heads", "origin", branch], repo)
+    if probe.returncode == 2:
+        return subprocess.CompletedProcess(probe.args, 0, probe.stdout, probe.stderr)
+    if probe.returncode != 0:
+        return probe
+
+    deletion = git_runner(["push", "origin", "--delete", branch], repo)
+    if deletion.returncode == 0:
+        return deletion
+
+    confirmation = git_runner(["ls-remote", "--exit-code", "--heads", "origin", branch], repo)
+    if confirmation.returncode == 2:
+        return subprocess.CompletedProcess(deletion.args, 0, deletion.stdout, deletion.stderr)
+    return deletion
+
+
 def execute_merge_plan(payload, git_root, handoff_path, body_path):
     repo = Path(git_root).resolve()
     executed = []
@@ -1166,13 +1184,7 @@ def execute_merge_plan(payload, git_root, handoff_path, body_path):
             method = action.get("mergeMethod") or "merge"
             result = gh(["pr", "merge", str(pr.get("number")), f"--{method}"], repo)
         elif action_type == "delete_remote_branch":
-            remote_branch = git(["ls-remote", "--exit-code", "--heads", "origin", branch], repo)
-            if remote_branch.returncode == 0:
-                result = git(["push", "origin", "--delete", branch], repo)
-            elif remote_branch.returncode == 2:
-                result = subprocess.CompletedProcess(remote_branch.args, 0, remote_branch.stdout, remote_branch.stderr)
-            else:
-                result = remote_branch
+            result = delete_remote_branch(repo, branch)
         elif action_type == "verify_default_branch":
             fetch = git(["fetch", "origin", default_branch], repo)
             if fetch.returncode != 0:

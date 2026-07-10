@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import importlib.util
 import json
 import os
 import shutil
@@ -1774,6 +1775,28 @@ def test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main():
             raise AssertionError(f"merge execute did not delete the remote task branch: {remote_branch.stdout}")
 
 
+def test_remote_branch_cleanup_accepts_concurrent_auto_delete():
+    module_path = SCRIPTS / "gauntlet.py"
+    spec = importlib.util.spec_from_file_location("gauntlet_cli", module_path)
+    gauntlet_cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gauntlet_cli)
+    if not hasattr(gauntlet_cli, "delete_remote_branch"):
+        raise AssertionError("merge helper is missing postcondition-based remote branch cleanup")
+
+    results = iter([
+        subprocess.CompletedProcess(["git", "ls-remote"], 0, "branch\n", ""),
+        subprocess.CompletedProcess(["git", "push", "--delete"], 1, "", "remote ref disappeared"),
+        subprocess.CompletedProcess(["git", "ls-remote"], 2, "", ""),
+    ])
+
+    def fake_git(_args, _repo):
+        return next(results)
+
+    result = gauntlet_cli.delete_remote_branch(Path("/test/repo"), "codex/merge-flow", git_runner=fake_git)
+    if result.returncode != 0:
+        raise AssertionError("remote cleanup should pass when the branch is absent after a concurrent auto-delete")
+
+
 def test_gauntlet_cli_archive_plans_and_executes_github_merge():
     cli = SCRIPTS / "gauntlet.py"
     if not cli.exists() or not os.access(cli, os.X_OK):
@@ -3141,6 +3164,7 @@ def main():
         test_gauntlet_cli_merge_prepare_renders_contextual_handoff,
         test_gauntlet_cli_merge_plan_requires_clean_task_branch,
         test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main,
+        test_remote_branch_cleanup_accepts_concurrent_auto_delete,
         test_gauntlet_cli_archive_plans_and_executes_github_merge,
         test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk,
         test_gauntlet_cli_small_helper_commands,
