@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now requires plain, concise, coherent user-facing prose and preserves shipped changelog entries under dated version headings.
+
 - Gauntlet now routes bounded, reversible normal requests through minimum-scope execution, delivering the requested artifact before proportional proof and bypassing unnecessary lifecycle ceremony.
 
 - Gauntlet now automatically delegates independent work when parallelism beats coordination cost, without requiring a user request or Release classification, while keeping child execution quiet.

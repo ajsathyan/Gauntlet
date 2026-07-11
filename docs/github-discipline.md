@@ -107,3 +107,7 @@ The contextual PR body is reviewer memory, not a file tour:
 5. `## Security / Risk`: include only for a concrete material risk; omit empty boilerplate.
 
 Build this framing from the user goal and accepted decisions. Use the diff only to fact-check completeness.
+
+## Version Changelog
+
+When cutting a version, move the shipped entries from `Unreleased` under a heading for that version and release date. Keep the `Unreleased` heading at the top for future work. Leave behind any entries that are not part of the release, and never delete released changelog history.
