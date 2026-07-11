@@ -8,6 +8,22 @@ Installed Gauntlet root: `{{GAUNTLET_ROOT}}`
 
 Resolve Gauntlet references and commands from that absolute root. Never resolve a Gauntlet command against a downstream repository's similarly named files.
 
+## Normal Requests: Minimum Scope
+
+Before choosing a Gauntlet work path, use the Normal Request path when the requested result is bounded, low-consequence, readily reversible, and directly checkable; it uses supplied or existing content, data, or interfaces, or needs only a direct lookup; and it does not change a durable schema, contract, methodology, architecture, production system, or safety boundary. Examples include direct presentation or formatting changes, copying existing results into an existing UI, simple lookups, routine administration, and similarly reversible edits.
+
+Use minimum-scope execution. Deliver the requested artifact first. Do not add validation, refactoring, research, documentation, review panels, lifecycle ceremony, or methodological improvements unless they are required for the requested result to work. Ask before materially expanding scope.
+
+For a Normal Request:
+
+- Treat a corrected assumption as authority to correct that premise and its direct effects, not to redesign a schema, methodology, or workflow.
+- Prove completion with the direct outcome check or a smoke check. Displaying or copying existing data does not require re-validating the underlying data unless the user asks or a concrete integrity risk appears.
+- Keep the work in the main task. Do not create plans, task packets, subagents, audits, run logs, coverage gaps, or durable process changes unless an actual trigger outside the Normal Request path appears.
+- Stop when the requested artifact is delivered and the proportional check passes. Do not continue into polish, review, documentation, or adjacent improvements.
+- Explicit narrow user scope controls execution. Gauntlet may enforce safety and authority boundaries, but it must not broaden the requested result. If consequential risk appears, pause or route only the affected part through the lightest responsible Gauntlet path.
+
+If any routing condition is absent or the work becomes consequential, choose the lightest Gauntlet path below. Do not use uncertainty alone to manufacture a broader scope; ask only when the unresolved fact materially affects the result or safety.
+
 ## Work Paths
 
 Choose internally:

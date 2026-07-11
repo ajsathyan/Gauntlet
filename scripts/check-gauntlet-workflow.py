@@ -113,6 +113,36 @@ def test_simplified_modes_and_depth_are_documented():
         assert_not_contains(combined, stale, "simplified mode model")
 
 
+def test_normal_requests_use_minimum_scope_before_lifecycle_routing():
+    agents = read(AGENTS_MD)
+    router = read(ROUTER_MD)
+    etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
+    rule_map = read(ROOT / "docs" / "global-router-rule-map.md")
+    combined = "\n".join([agents, router, etiquette, rule_map])
+
+    for marker in [
+        "Normal Requests: Minimum Scope",
+        "Before choosing a Gauntlet work path",
+        "bounded, low-consequence, readily reversible, and directly checkable",
+        "direct presentation or formatting changes",
+        "copying existing results into an existing UI",
+        "simple lookups",
+        "routine administration",
+        "Use minimum-scope execution. Deliver the requested artifact first.",
+        "Ask before materially expanding scope.",
+        "not to redesign a schema, methodology, or workflow",
+        "does not require re-validating the underlying data",
+        "Keep the work in the main task",
+        "Stop when the requested artifact is delivered",
+        "Explicit narrow user scope controls execution",
+        "route only the affected part",
+    ]:
+        assert_contains(combined, marker, "normal-request minimum-scope routing")
+
+    assert_contains(etiquette, "Normal Requests stay in the main task.", "normal-request delegation boundary")
+    assert_contains(rule_map, "bypasses lifecycle ceremony", "normal-request router invariant")
+
+
 def test_v201_run_log_contract_replaces_default_review_brief():
     agents = read(AGENTS_MD)
     router = read(ROUTER_MD)
@@ -3288,6 +3318,7 @@ def test_superpowers_sources_are_attributed_and_retirement_is_allowlisted():
 def main():
     tests = [
         test_simplified_modes_and_depth_are_documented,
+        test_normal_requests_use_minimum_scope_before_lifecycle_routing,
         test_v201_run_log_contract_replaces_default_review_brief,
         test_coverage_gap_and_design_lint_guidance_are_documented,
         test_product_thinking_and_scope_routing_are_documented,
