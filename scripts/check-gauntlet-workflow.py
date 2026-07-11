@@ -846,6 +846,13 @@ def test_contextual_merge_contract_is_documented():
         "scripts/gauntlet.py merge execute",
     ]:
         assert_contains(combined, marker, "contextual merge contract")
+    for marker in [
+        "gauntlet.py closeout execute",
+        "explicit `--stage` paths",
+        "remainingAppActions",
+        "cannot archive the task by itself",
+    ]:
+        assert_contains("\n".join([agents, read(ROUTER_MD), github]), marker, "guarded closeout command guidance")
 
 
 def test_plain_language_guidance_is_global_and_contributor_facing():
@@ -1560,7 +1567,9 @@ def test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main():
         git(["remote", "add", "origin", str(remote)], cwd=repo)
         git(["push", "-u", "origin", "main"], cwd=repo)
         git(["checkout", "-b", "codex/merge-flow"], cwd=repo)
-        (repo / "feature.txt").write_text("feature\n")
+        feature_path = repo / "skills" / "archive" / "SKILL.md"
+        feature_path.parent.mkdir(parents=True)
+        feature_path.write_text("# Archive\n")
         handoff_path, body_path = prepare_merge_fixture(cli, repo)
         commit_all(repo, "feature with changelog")
 
@@ -1568,6 +1577,7 @@ def test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main():
         state = Path(tmp) / "gh-state"
         fake_gh = Path(tmp) / "gh"
         env = write_merge_fake_gh(fake_gh, gh_log, state, empty_checks_once=True)
+
         result = subprocess.run([
             str(cli), "merge", "execute", "--git-root", str(repo),
             "--handoff", str(handoff_path), "--body", str(body_path), "--json",
@@ -1583,6 +1593,85 @@ def test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main():
         ancestor = git(["merge-base", "--is-ancestor", "HEAD", "origin/main"], cwd=repo)
         if ancestor.returncode != 0:
             raise AssertionError("merge execute did not verify the feature commit on origin/main")
+
+
+def test_gauntlet_cli_closeout_execute_commits_merges_cleans_and_returns_archive_actions():
+    cli = SCRIPTS / "gauntlet.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        remote = Path(tmp) / "remote.git"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / "README.md").write_text("# Repo\n")
+        commit_all(repo, "baseline")
+        git(["init", "--bare", str(remote)], cwd=tmp)
+        git(["remote", "add", "origin", str(remote)], cwd=repo)
+        git(["push", "-u", "origin", "main"], cwd=repo)
+        git(["checkout", "-b", "codex/merge-flow"], cwd=repo)
+        feature_path = repo / "skills" / "archive" / "SKILL.md"
+        feature_path.parent.mkdir(parents=True)
+        feature_path.write_text("# Archive\n")
+
+        handoff_path = Path(tmp) / "handoff.json"
+        handoff_path.write_text(json.dumps(merge_handoff_fixture()))
+        archive_content = Path(tmp) / "archive.md"
+        archive_content.write_text("## Archive Summary\n\n- Shipped one guarded closeout command.\n")
+
+        gh_log = Path(tmp) / "gh.log"
+        state = Path(tmp) / "gh-state"
+        fake_gh = Path(tmp) / "gh"
+        env = write_merge_fake_gh(fake_gh, gh_log, state, empty_checks_once=True)
+
+        rejected = subprocess.run([
+            str(cli), "closeout", "execute", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--stage", "skills/archive/SKILL.md",
+            "--install-target", "none", "--title", "Unlabeled closeout task",
+            "--content", str(archive_content), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if rejected.returncode != 1 or "invalid_archive_title" not in {item["code"] for item in json.loads(rejected.stdout)["findings"]}:
+            raise AssertionError(f"invalid archive input should fail before closeout: {rejected.stdout}")
+        if git(["log", "-1", "--pretty=%s"], cwd=repo).stdout.strip() != "baseline":
+            raise AssertionError("archive preflight failure must happen before the closeout commit")
+
+        (repo / "unrelated.txt").write_text("preserve me\n")
+        unscoped = subprocess.run([
+            str(cli), "closeout", "execute", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--stage", "skills/archive/SKILL.md",
+            "--install-target", "none", "--title", "Unlabeled closeout task",
+            "--suggested-title", "p2-auto: complete guarded release closeout",
+            "--content", str(archive_content), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if unscoped.returncode != 1 or "unscoped_dirty_work" not in {item["code"] for item in json.loads(unscoped.stdout)["findings"]}:
+            raise AssertionError(f"unlisted dirty work should block closeout: {unscoped.stdout}")
+        (repo / "unrelated.txt").unlink()
+
+        result = subprocess.run([
+            str(cli), "closeout", "execute", "--git-root", str(repo),
+            "--handoff", str(handoff_path), "--stage", "skills/archive/SKILL.md",
+            "--install-target", "none", "--title", "Unlabeled closeout task",
+            "--suggested-title", "p2-auto: complete guarded release closeout",
+            "--content", str(archive_content), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if result.returncode != 0:
+            raise AssertionError(f"closeout execute should pass:\n{result.stdout}\n{result.stderr}")
+        data = json.loads(result.stdout)
+        if data["status"] not in {"pass", "warn"}:
+            raise AssertionError(f"closeout status should allow archive: {data}")
+        if data.get("commit", {}).get("subject") != merge_handoff_fixture()["title"]:
+            raise AssertionError(f"closeout should commit with the handoff title: {data}")
+        merge_actions = [action["type"] for action in data.get("merge", {}).get("executedActions", [])]
+        expected_merge = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "delete_remote_branch", "verify_default_branch"]
+        if merge_actions != expected_merge:
+            raise AssertionError(f"closeout merge actions mismatch: {merge_actions}")
+        current_branch = git(["branch", "--show-current"], cwd=repo).stdout.strip()
+        worktree_status = git(["status", "--porcelain"], cwd=repo).stdout.strip()
+        if current_branch != "main" or worktree_status:
+            raise AssertionError("closeout should leave a clean local default branch")
+        if run(["git", "show-ref", "--verify", "refs/heads/codex/merge-flow"], cwd=repo, check=False).returncode == 0:
+            raise AssertionError("closeout should delete the merged local task branch")
+        app_actions = [action["type"] for action in data.get("remainingAppActions", [])]
+        if app_actions != ["set_thread_title", "present_archive_summary", "archive_thread"]:
+            raise AssertionError(f"closeout should return ordered app actions: {app_actions}")
         log = gh_log.read_text()
         for marker in ["pr create", "pr checks 7 --watch", "pr merge 7 --merge"]:
             if marker not in log:
@@ -3355,6 +3444,7 @@ def main():
         test_gauntlet_cli_merge_prepare_renders_contextual_handoff,
         test_gauntlet_cli_merge_plan_requires_clean_task_branch,
         test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main,
+        test_gauntlet_cli_closeout_execute_commits_merges_cleans_and_returns_archive_actions,
         test_remote_branch_cleanup_accepts_concurrent_auto_delete,
         test_gauntlet_cli_archive_plans_and_executes_github_merge,
         test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk,

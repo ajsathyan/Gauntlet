@@ -1,0 +1,4 @@
+interface:
+  display_name: "Archive"
+  short_description: "Merge, install, and archive completed work"
+  default_prompt: "Use $archive to apply this work locally, merge it through a new PR, and archive this task."

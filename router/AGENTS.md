@@ -101,6 +101,8 @@ Archive behavior is authority-sensitive: use the installed archive planner and e
 
 “Merge this” or “land this” authorizes the accepted branch-to-PR, required-check, merge, verification, and safe-cleanup sequence. “Push to git” authorizes only the current branch, and a request to open a PR does not authorize merging it. Use `{{GAUNTLET_ROOT}}/scripts/gauntlet.py merge prepare|plan|execute`; run `execute` only with merge authority.
 
+When the user asks to apply Gauntlet locally, merge it through a new PR, and then archive the task, use `{{GAUNTLET_ROOT}}/scripts/gauntlet.py closeout execute` with explicit `--stage` paths. Execute its returned Codex app actions in order; the CLI plans those app actions but cannot archive the task by itself.
+
 ## Delegation And Quiet Execution
 
 Parallelism must beat its context cost. Delegate only independent files, state, contracts, or evidence lanes with separate proof paths. The main task owns user decisions, integration, synthesis, the final branch, and the pull request.
