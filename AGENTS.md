@@ -2,6 +2,8 @@
 
 Gauntlet v2.0.2 is a product-thinking and proof harness for coding agents. This repository file governs work on Gauntlet itself. The portable workflow installed into agent homes lives in `router/AGENTS.md`; do not make the repository guide and global router byte-identical.
 
+Write user-facing explanations and prose artifacts in plain, concise language. Make the reasoning easy to follow from one sentence to the next. Prefer familiar words, and explain necessary technical terms instead of assuming the reader knows Gauntlet or engineering jargon.
+
 ## Sources of truth
 
 - `AGENTS.md`: repository contribution, implementation, proof, and release rules.
@@ -134,6 +136,8 @@ Keep deterministic coverage, scorer plumbing, and behavioral outcome evidence di
 - Child lanes commit to their branches and return receipts; the main chat integrates and owns the PR.
 
 “Merge this,” “land this,” or “merge this to main” authorizes the complete safe closeout for the accepted scope: prepare the contextual handoff, update `CHANGELOG.md`, commit and push the task branch, create or update one PR, wait for required checks and blocking review state, merge, delete the remote task branch, verify the default branch, and clean local task state only when no unique work remains. Ask only for a new material decision or preservation risk.
+
+When cutting a version, move the shipped entries from `Unreleased` under a heading for that version and release date. Keep the `Unreleased` heading for future work, and never delete released changelog history.
 
 “Push to git” means push the current branch; it does not authorize direct-pushing or merging `main`. Use `scripts/gauntlet.py merge prepare` before the handoff commit, `scripts/gauntlet.py merge plan` for read-only preflight, and `scripts/gauntlet.py merge execute` only when the user requested merge. A request to open a PR does not authorize merging it.
 

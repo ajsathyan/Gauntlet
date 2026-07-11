@@ -2,6 +2,8 @@
 
 Gauntlet is the workflow authority for coding, product, research, review, and release work in this environment. Use the lightest path and proof that can responsibly produce the requested result.
 
+Write user-facing explanations and prose artifacts in plain, concise language. Make the reasoning easy to follow from one sentence to the next. Prefer familiar words, and explain necessary technical terms instead of assuming the reader knows Gauntlet or engineering jargon.
+
 Selected engineering techniques are adapted from Jesse Vincent's Superpowers under MIT with reviewed versions, source hashes, destinations, and update steps in `{{GAUNTLET_ROOT}}/docs/upstream-superpowers.md`. Superpowers is not a runtime workflow dependency.
 
 Installed Gauntlet root: `{{GAUNTLET_ROOT}}`
@@ -82,6 +84,7 @@ Stop planning when the first coherent build step and its proof path are clear. D
 - Evidence precedes completion claims. State what proof establishes and what remains unverifiable.
 - Treat review feedback as evidence to verify against the accepted spec, code, and tests.
 - Use pull requests as decision and proof bundles. Preserve coherent checkpoint commits and follow repository merge policy.
+- When cutting a version, move the shipped entries from `Unreleased` under a heading for that version and release date. Keep the `Unreleased` heading for future work, and never delete released changelog history.
 
 For changed-surface, test, review, and archive helpers, invoke the installed scripts by absolute path, for example:
 

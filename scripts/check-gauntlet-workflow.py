@@ -848,6 +848,19 @@ def test_contextual_merge_contract_is_documented():
         assert_contains(combined, marker, "contextual merge contract")
 
 
+def test_plain_language_guidance_is_global_and_contributor_facing():
+    marker = "Write user-facing explanations and prose artifacts in plain, concise language."
+    assert_contains(read(AGENTS_MD), marker, "contributor plain-language guidance")
+    assert_contains(read(ROUTER_MD), marker, "global plain-language guidance")
+
+
+def test_version_changelog_preserves_release_history():
+    marker = "move the shipped entries from `Unreleased` under a heading for that version and release date"
+    assert_contains(read(AGENTS_MD), marker, "contributor version changelog guidance")
+    assert_contains(read(ROUTER_MD), marker, "global version changelog guidance")
+    assert_contains(read(ROOT / "docs" / "github-discipline.md"), marker, "detailed version changelog guidance")
+
+
 def test_contextual_pr_template_changelog_and_run_log_contract():
     template_path = ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md"
     if not template_path.exists():
@@ -3333,6 +3346,8 @@ def main():
         test_workflow_helpers_filter_artifacts_and_find_python_tests,
         test_workflow_speedup_helpers_are_documented_as_advisory,
         test_contextual_merge_contract_is_documented,
+        test_plain_language_guidance_is_global_and_contributor_facing,
+        test_version_changelog_preserves_release_history,
         test_contextual_pr_template_changelog_and_run_log_contract,
         test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions,
         test_workflow_etiquette_checker_pauses_archive_on_followups_and_git_state,
