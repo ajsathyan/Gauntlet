@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now automatically delegates independent work when parallelism beats coordination cost, without requiring a user request or Release classification, while keeping child execution quiet.
+
 - Gauntlet now rejects legacy or non-four-word task titles and blocks archive actions until a visible Archive Summary is queued immediately before thread archival.
 
 - Gauntlet installs now remove workflow scripts deleted from the source payload, preventing retired orchestration helpers from lingering locally.
