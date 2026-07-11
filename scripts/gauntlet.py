@@ -1223,8 +1223,230 @@ def command_merge_execute(args):
     return EXIT_CODES[payload["status"]]
 
 
+def repo_relative_scope_path(repo, raw_path):
+    candidate = Path(raw_path)
+    if not candidate.is_absolute():
+        candidate = repo / candidate
+    candidate = candidate.resolve()
+    try:
+        return candidate.relative_to(repo).as_posix()
+    except ValueError:
+        return None
+
+
+def closeout_fail(payload, code, message):
+    add_finding(payload, code, "fail", message)
+    payload["status"] = status_for(payload)
+    payload["remainingAppActions"] = []
+    return payload
+
+
+def command_closeout_execute(args):
+    repo = Path(args.git_root).resolve()
+    payload = {
+        "schemaVersion": "1.0",
+        "status": "pass",
+        "findings": [],
+        "commit": None,
+        "merge": None,
+        "install": None,
+        "archive": None,
+        "remainingAppActions": [],
+    }
+    if git(["rev-parse", "--is-inside-work-tree"], repo).returncode != 0:
+        closeout_fail(payload, "git_root_not_repo", f"Not a git repository: {repo}")
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+
+    handoff_path = merge_input_path(repo, args.handoff)
+    if not handoff_path.is_file():
+        closeout_fail(payload, "missing_handoff_file", f"Merge handoff does not exist: {handoff_path}")
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+    try:
+        handoff = load_merge_handoff(handoff_path)
+    except (json.JSONDecodeError, OSError) as error:
+        closeout_fail(payload, "invalid_handoff_file", str(error))
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+    payload["findings"].extend(validate_merge_handoff(handoff))
+    if payload["findings"]:
+        payload["status"] = status_for(payload)
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+
+    archive_summary, archive_findings = archive_summary_from_content(args.content)
+    for finding in archive_findings:
+        add_finding(payload, finding["code"], finding["severity"], finding["message"])
+    parsed_title = parse_thread_title(args.title)
+    parsed_suggestion = parse_thread_title(args.suggested_title) if args.suggested_title else None
+    if parsed_title["format"] != "current" and (not parsed_suggestion or parsed_suggestion["format"] != "current"):
+        add_finding(
+            payload,
+            "invalid_archive_title",
+            "fail",
+            "Provide a current 'p#: four word goal' title or a valid --suggested-title before closeout begins.",
+        )
+    if payload["findings"]:
+        payload["status"] = status_for(payload)
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+    payload["archiveSummary"] = archive_summary
+
+    settings, settings_error = repository_merge_settings(repo)
+    default_branch = ((settings or {}).get("defaultBranchRef") or {}).get("name") or "main"
+    task_branch = branch_name(repo)
+    if settings_error:
+        add_finding(payload, "merge_settings_unverified", "warn", "Could not verify repository merge settings; using the default branch reported by local convention.")
+    if not task_branch or task_branch in {default_branch, "main", "master"}:
+        closeout_fail(payload, "task_branch_required", "Closeout execute requires a named task branch, not the default branch.")
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+
+    scoped_paths = []
+    for raw_path in args.stage:
+        relative = repo_relative_scope_path(repo, raw_path)
+        if relative is None:
+            closeout_fail(payload, "stage_path_outside_repo", f"Stage path is outside the repository: {raw_path}")
+        elif relative not in scoped_paths:
+            scoped_paths.append(relative)
+    if payload["status"] == "fail":
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+
+    existing_dirty = dirty_paths(repo)
+    unscoped_dirty = sorted(set(existing_dirty) - set(scoped_paths))
+    if unscoped_dirty:
+        closeout_fail(payload, "unscoped_dirty_work", "Closeout refused unrelated or unlisted work: " + ", ".join(unscoped_dirty[:6]))
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+
+    body_handle = tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, suffix="-gauntlet-pr.md")
+    body_path = Path(body_handle.name)
+    body_handle.write(render_pr_body(handoff))
+    body_handle.close()
+    try:
+        ensure_unreleased_changelog(repo / "CHANGELOG.md", handoff["changelog"])
+        commit_scope = [*scoped_paths, "CHANGELOG.md"]
+        dirty_after_prepare = dirty_paths(repo)
+        unscoped_after_prepare = sorted(set(dirty_after_prepare) - set(commit_scope))
+        if unscoped_after_prepare:
+            closeout_fail(payload, "unscoped_dirty_work", "Closeout preparation produced or found unlisted work: " + ", ".join(unscoped_after_prepare[:6]))
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+
+        add_result = git(["add", "--", *commit_scope], repo)
+        if add_result.returncode != 0:
+            closeout_fail(payload, "git_add_failed", add_result.stderr.strip() or add_result.stdout.strip())
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+        cached = git(["diff", "--cached", "--name-only"], repo)
+        cached_paths = [line.strip() for line in cached.stdout.splitlines() if line.strip()]
+        if cached.returncode != 0:
+            closeout_fail(payload, "git_diff_cached_failed", cached.stderr.strip() or cached.stdout.strip())
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+        unexpected_cached = sorted(set(cached_paths) - set(commit_scope))
+        if unexpected_cached:
+            closeout_fail(payload, "unscoped_staged_work", "Closeout refused staged paths outside the explicit scope: " + ", ".join(unexpected_cached[:6]))
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+        if cached_paths:
+            commit_result = git(["commit", "-m", handoff["title"]], repo)
+            if commit_result.returncode != 0:
+                closeout_fail(payload, "git_commit_failed", commit_result.stderr.strip() or commit_result.stdout.strip())
+                print_payload(payload, args.json)
+                return EXIT_CODES[payload["status"]]
+            commit_oid = git(["rev-parse", "HEAD"], repo).stdout.strip()
+            payload["commit"] = {"oid": commit_oid, "subject": handoff["title"], "paths": cached_paths, "created": True}
+        else:
+            fetch_default = git(["fetch", "origin", default_branch], repo)
+            committed = git(["diff", "--name-only", f"origin/{default_branch}...HEAD"], repo) if fetch_default.returncode == 0 else fetch_default
+            committed_paths = [line.strip() for line in committed.stdout.splitlines() if line.strip()]
+            tip_subject = git(["log", "-1", "--pretty=%s"], repo).stdout.strip()
+            unexpected_committed = sorted(set(committed_paths) - set(commit_scope))
+            if committed.returncode != 0 or not committed_paths or tip_subject != handoff["title"] or unexpected_committed:
+                details = ", ".join(unexpected_committed[:6]) if unexpected_committed else "no matching scoped closeout commit"
+                closeout_fail(payload, "closeout_resume_mismatch", "Closeout cannot safely resume this branch: " + details)
+                print_payload(payload, args.json)
+                return EXIT_CODES[payload["status"]]
+            commit_oid = git(["rev-parse", "HEAD"], repo).stdout.strip()
+            payload["commit"] = {"oid": commit_oid, "subject": tip_subject, "paths": committed_paths, "created": False}
+
+        merge_args = argparse.Namespace(git_root=repo, handoff=handoff_path, body=body_path, json=True)
+        merge_payload = build_merge_payload(merge_args)
+        if merge_payload["status"] in {"pass", "warn"}:
+            merge_payload = execute_merge_plan(merge_payload, repo, handoff_path, body_path)
+        payload["merge"] = merge_payload
+        payload["findings"].extend(merge_payload.get("findings", []))
+        payload["status"] = status_for(payload)
+        if payload["status"] not in {"pass", "warn"}:
+            payload["remainingAppActions"] = []
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+
+        fetch = git(["fetch", "origin", default_branch], repo)
+        switch = git(["switch", default_branch], repo) if fetch.returncode == 0 else fetch
+        pull = git(["pull", "--ff-only", "origin", default_branch], repo) if switch.returncode == 0 else switch
+        delete_local = git(["branch", "-d", task_branch], repo) if pull.returncode == 0 else pull
+        for code, result in [
+            ("fetch_default_failed", fetch),
+            ("switch_default_failed", switch),
+            ("pull_default_failed", pull),
+            ("delete_local_branch_failed", delete_local),
+        ]:
+            if result.returncode != 0:
+                closeout_fail(payload, code, result.stderr.strip() or result.stdout.strip())
+                print_payload(payload, args.json)
+                return EXIT_CODES[payload["status"]]
+
+        if args.install_target != "none":
+            install_env = os.environ.copy()
+            if args.agent_home:
+                install_env["GAUNTLET_AGENT_HOME"] = str(Path(args.agent_home).expanduser())
+            install_result = subprocess.run(
+                [str(repo / "scripts" / "install.sh"), "--target", args.install_target],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=install_env,
+            )
+            payload["install"] = {"target": args.install_target, "applied": install_result.returncode == 0}
+            if install_result.returncode != 0:
+                closeout_fail(payload, "local_install_failed", install_result.stderr.strip() or install_result.stdout.strip())
+                print_payload(payload, args.json)
+                return EXIT_CODES[payload["status"]]
+        else:
+            payload["install"] = {"target": "none", "applied": False}
+
+        archive_args = argparse.Namespace(
+            title=args.title,
+            suggested_title=args.suggested_title,
+            content=args.content,
+            git_root=repo,
+            require_kickoff=False,
+            require_assumptions=False,
+            archive_anyway=False,
+            confirm_git_risk=False,
+            allow_dirty=[],
+            json=True,
+        )
+        archive_payload = build_archive_payload(archive_args)
+        if archive_payload["status"] in {"pass", "warn"}:
+            archive_payload = execute_archive_actions(archive_payload, repo)
+        payload["archive"] = archive_payload
+        payload["findings"].extend(archive_payload.get("findings", []))
+        payload["status"] = status_for(payload)
+        payload["remainingAppActions"] = archive_payload.get("remainingAppActions", []) if payload["status"] in {"pass", "warn"} else []
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+    finally:
+        body_path.unlink(missing_ok=True)
+
+
 def dirty_paths(repo):
-    status = git(["status", "--porcelain"], repo)
+    status = git(["status", "--porcelain", "--untracked-files=all"], repo)
     if status.returncode != 0:
         raise RuntimeError(status.stderr.strip() or "git status failed")
     return [line[3:] if len(line) > 3 else line for line in status.stdout.splitlines() if line.strip()]
@@ -2231,6 +2453,20 @@ def build_parser():
         merge_command.add_argument("--body", type=Path, default=Path(".gauntlet/pr-body.md"))
         merge_command.add_argument("--json", action="store_true")
         merge_command.set_defaults(func=func)
+
+    closeout = subcommands.add_parser("closeout", help="Commit scoped work, merge it through a PR, install it locally, and plan task archival.")
+    closeout_subcommands = closeout.add_subparsers(dest="closeout_command", required=True)
+    closeout_execute = closeout_subcommands.add_parser("execute")
+    closeout_execute.add_argument("--git-root", type=Path, default=Path.cwd())
+    closeout_execute.add_argument("--handoff", type=Path, required=True)
+    closeout_execute.add_argument("--stage", action="append", required=True)
+    closeout_execute.add_argument("--install-target", choices=["none", "codex", "claude"], default="none")
+    closeout_execute.add_argument("--agent-home", default=None)
+    closeout_execute.add_argument("--title", required=True)
+    closeout_execute.add_argument("--suggested-title", default=None)
+    closeout_execute.add_argument("--content", type=Path, required=True)
+    closeout_execute.add_argument("--json", action="store_true")
+    closeout_execute.set_defaults(func=command_closeout_execute)
 
     install = subcommands.add_parser("install", help="Installed-layout helpers.")
     install_subcommands = install.add_subparsers(dest="install_command", required=True)

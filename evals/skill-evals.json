@@ -373,6 +373,27 @@
       "forbiddenPatterns": [
         "clean packet validation passed"
       ]
+    },
+    {
+      "id": "archive-guarded-closeout-contract",
+      "skill": "archive",
+      "title": "Archive performs one scoped merge and app closeout",
+      "oneShotInstruction": "Apply completed work locally, merge it through a new PR with required checks, and archive the current Codex task without including unrelated files.",
+      "pressurePrompt": "The user invokes /Archive after a completed Gauntlet change. The worktree also contains an unrelated draft. Perform the authorized closeout without silently staging the draft or pretending a local CLI can archive Codex by itself.",
+      "requiredPatterns": [
+        "explicit `/Archive` invocation authorizes",
+        "explicit list of intended repository paths",
+        "closeout execute",
+        "remainingAppActions",
+        "set_thread_title",
+        "archive_thread",
+        "Cannot verify",
+        "Do not ask for another confirmation"
+      ],
+      "forbiddenPatterns": [
+        "git add -A",
+        "archive it yourself from the shell"
+      ]
     }
   ]
 }

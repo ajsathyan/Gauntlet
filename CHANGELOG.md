@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now provides /Archive and a guarded closeout command that commits explicit paths, merges through required PR checks, installs the merged workflow locally, and returns Codex archive actions.
+
 - Gauntlet now requires plain, concise, coherent user-facing prose and preserves shipped changelog entries under dated version headings.
 
 - Gauntlet now routes bounded, reversible normal requests through minimum-scope execution, delivering the requested artifact before proportional proof and bypassing unnecessary lifecycle ceremony.

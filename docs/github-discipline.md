@@ -94,6 +94,22 @@ Use `scripts/gauntlet.py merge prepare` before committing the changelog, `script
 
 For explicit standalone drafts, use `scripts/gauntlet.py changelog pr --accepted-spec "$SPEC_PATH" --plan "$PLAN_PATH" --git-root "$PROJECT_ROOT"`. The hidden `--implementation-memory` alias remains migration-only.
 
+For the combined instruction “apply it locally, merge it to main with a new PR, then archive this task,” use one guarded closeout execution:
+
+```sh
+python3 scripts/gauntlet.py closeout execute \
+  --git-root "$PROJECT_ROOT" \
+  --handoff "$HANDOFF_PATH" \
+  --stage path/to/changed-file \
+  --install-target codex \
+  --title "$THREAD_TITLE" \
+  --suggested-title "p3-auto: complete guarded release closeout" \
+  --content "$ARCHIVE_SUMMARY_PATH" \
+  --json
+```
+
+Repeat `--stage` for every intended source path. The command rejects unlisted dirty work and invalid archive inputs before committing. It prepares the PR body and changelog, commits the named scope, pushes, creates or updates one PR, waits for checks, merges, cleans the local and remote task branches, fast-forwards the default branch, installs the merged Gauntlet version when requested, and returns `remainingAppActions`. The agent must execute those Codex app actions in order; a local process cannot rename or archive a Codex task directly.
+
 ## Commit And PR Framing
 
 Use `<area>: <imperative behavioral outcome>` for commit subjects and PR titles, such as `workflow: generate contextual merge handoffs`. A quick task normally has one behavioral commit with its tests and changelog; preserve multiple commits only when each is independently reviewable.

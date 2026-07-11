@@ -257,6 +257,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [skills/deep-code-reviewer/SKILL.md](skills/deep-code-reviewer/SKILL.md) | Reviews correctness, maintainability, tests, integration risk, and regression risk. |
 | [skills/run-log-builder/SKILL.md](skills/run-log-builder/SKILL.md) | Creates exceptions-first run logs and pending coverage-gap candidates. |
 | [skills/promotion-scanner/SKILL.md](skills/promotion-scanner/SKILL.md) | Produces bounded Promotion Briefs for repeated manual or agent loops without recommending live operational actions. |
+| [skills/archive/SKILL.md](skills/archive/SKILL.md) | Runs the guarded local-install, PR-merge, cleanup, and Codex task-archive sequence when `/Archive` is invoked. |
 | [docs/upstream-superpowers.md](docs/upstream-superpowers.md) | Attributes adapted techniques and explains selective upstream update review and runtime retirement. |
 | [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
 | [docs/github-discipline.md](docs/github-discipline.md) | Beginner-friendly branch, worktree, commit, PR, merge, child-chat, and solo-builder defaults. |
@@ -265,7 +266,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [docs/workflow-speedups.md](docs/workflow-speedups.md) | Advisory changed-surface, test-planning, review-packet, and child-dispatch guidance. |
 | [docs/promotion-scanner.md](docs/promotion-scanner.md) | Trigger policy and gap-routing guidance for promotion scans. |
 | [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
-| [scripts/gauntlet.py](scripts/gauntlet.py) | Deterministic CLI for merge/archive actions, analytics, install verification, follow-up packets, compatibility memory linting, and PR/changelog drafts. |
+| [scripts/gauntlet.py](scripts/gauntlet.py) | Deterministic CLI for guarded one-command closeout, merge/archive actions, analytics, install verification, follow-up packets, compatibility memory linting, and PR/changelog drafts. |
 | [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals. |
 | [scripts/classify-ts-durability.sh](scripts/classify-ts-durability.sh) | Classifies whether TypeScript durability standards are required for the current work. |
 | [scripts/diff-intel.py](scripts/diff-intel.py) | Writes advisory changed-file, package-root, risk-trigger, dirty-worktree, confidence, and `Cannot verify` intel. |

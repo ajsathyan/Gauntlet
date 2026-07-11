@@ -141,6 +141,8 @@ When cutting a version, move the shipped entries from `Unreleased` under a headi
 
 “Push to git” means push the current branch; it does not authorize direct-pushing or merging `main`. Use `scripts/gauntlet.py merge prepare` before the handoff commit, `scripts/gauntlet.py merge plan` for read-only preflight, and `scripts/gauntlet.py merge execute` only when the user requested merge. A request to open a PR does not authorize merging it.
 
+When AJS asks to apply Gauntlet locally, merge it through a new PR, and then archive the task, use one `scripts/gauntlet.py closeout execute` invocation with explicit `--stage` paths. The command preflights archive inputs, commits only the named scope plus `CHANGELOG.md`, merges through the existing PR gates, updates and installs the merged default branch, and returns the Codex app actions. The main task must execute those returned app actions in order because the local CLI cannot mutate Codex task state.
+
 ## Run logs and coverage gaps
 
 For Feature, Release, or Tier 2/3 work with material decisions or exceptions, maintain:
