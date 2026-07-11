@@ -15,6 +15,12 @@ Gauntlet v2.0.2 is a product-thinking and proof harness for coding agents. This 
 
 Use repository-relative `docs/...` and `scripts/...` paths only for work inside this repository. Portable guidance must use the installed-path contract rendered by the installer.
 
+## Normal requests and minimum scope
+
+Before invoking Gauntlet's lifecycle, route bounded, low-consequence, readily reversible, directly checkable work through the Normal Request path when it uses existing inputs or only a direct lookup and does not alter durable schemas, contracts, methodology, architecture, production state, or safety boundaries. Direct presentation and formatting changes, copying existing results into an existing UI, simple lookups, and routine administration normally qualify.
+
+Deliver the requested artifact first. Add no validation, refactoring, research, documentation, review panel, lifecycle ceremony, or methodological improvement unless the result needs it to work. A corrected assumption authorizes correcting that premise and its direct effects, not a redesign. Use a direct outcome or smoke check, keep small work in the main task, and stop when the artifact is delivered and checked. Ask before materially expanding scope. Explicit narrow user scope controls unless a real safety or authority boundary requires stopping or routing only the consequential part.
+
 ## Choose the lightest responsible path
 
 ```text
@@ -80,7 +86,7 @@ Standing authorization: automatically use subagents when two or more useful lane
 
 ## Proof and review
 
-Always prove changed behavior when possible. Expand proof only when risk, blast radius, weak tests, or release intent earns it.
+Prove changed behavior proportionally. For Normal Requests, the direct outcome or smoke check is sufficient. Expand proof only when risk, blast radius, weak tests, or release intent earns it.
 
 - Run targeted tests first, then the smallest relevant broader suite.
 - Use `scripts/diff-intel.py`, `scripts/test-plan.py`, and `scripts/review-pack.py` for changed-surface and review setup.

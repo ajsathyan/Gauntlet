@@ -4,6 +4,7 @@ This map prevents the compact global router from becoming a silent rule deletion
 
 | Current source | Decision | Router invariant | Detailed destination |
 | --- | --- | --- | --- |
+| Normal Request path | Add | Bounded, low-consequence, reversible, directly checkable work delivers the artifact first, uses proportional proof, and bypasses lifecycle ceremony. Explicit narrow scope controls unless a real safety or authority boundary appears. | `docs/workflow-etiquette.md` |
 | Modes | Keep + move | Choose Patch, Feature, or Release from change shape and risk. | `docs/workflow-etiquette.md` and role skills |
 | Depth | Keep + move | Use Deep only when search value or consequence earns it. | `docs/skill-quality-bar.md`, reviewer skills |
 | Proof Scope | Keep + move | Prove the changed behavior; widen proof only when triggered. | Role skills and `docs/production-quality-bar.md` |

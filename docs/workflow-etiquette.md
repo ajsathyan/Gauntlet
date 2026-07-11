@@ -4,6 +4,18 @@ Status: authoritative Gauntlet collaboration reference.
 
 Purpose: keep work legible and preserve user agency without turning metadata, planning, or closeout into ceremony.
 
+## Normal Request Path
+
+Use this path before Gauntlet lifecycle routing when all of these are true:
+
+- the requested artifact is bounded, low-consequence, readily reversible, and directly checkable;
+- the work uses existing or supplied content, data, or interfaces, or needs only a direct lookup; and
+- it does not change a durable schema, contract, methodology, architecture, production system, or safety boundary.
+
+Typical cases are presentation or formatting edits, copying existing results into an existing UI, simple lookups, routine administration, and comparable low-risk work. Deliver the artifact, run the direct outcome or smoke check, and stop. Do not create intake artifacts, plans, subagent packets, audits, review panels, run logs, coverage gaps, or follow-on improvements for these requests.
+
+A user correction narrows or replaces the corrected premise; it does not authorize a schema, methodology, or workflow redesign. Existing data that is merely displayed or copied needs an outcome check, not exhaustive re-verification, unless the request or a concrete integrity risk requires it. Explicit narrow user scope outranks Gauntlet's preference for more process. Safety, permissions, destructive effects, and other consequential boundaries still apply; when one appears, route only that affected portion through the lightest responsible path or ask for the required authority.
+
 ## Planning
 
 Carry forward user constraints, corrections, and dislikes. Report a plan delta only when their input changed the plan; do not restate the plan after a simple “go.”
@@ -69,7 +81,7 @@ Research is a first-class path, not a pre-Release ceremony.
 
 ## Delegation
 
-Use delegation only when parallelism beats context cost.
+Use delegation only when parallelism beats context cost. Normal Requests stay in the main task.
 
 This is standing authorization to spawn subagents automatically when two or more useful lanes have independent ownership, state, and proof. Do not wait for the user to request delegation, and do not use Release classification as a prerequisite. Keep the work in the main task when the split would create dependency waits or repeated context without a real speed or evidence benefit.
 
