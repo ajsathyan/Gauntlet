@@ -48,6 +48,8 @@ Decision gate: none | before unsafe side effect | before merge | before producti
 
 Keep classifications and no-op gate reports out of user-facing chat unless they change cost, scope, authority, proof, or a decision the user must make.
 
+Set the root task title silently once its goal is clear, and no later than the third substantive user-authored message. Count requests and corrections; ignore generated context, tool or skill payloads, and acknowledgements such as “okay” or “continue.” Use `p#: four word goal` or `p#-auto: four word goal`, applying `-auto` when the agent can proceed through reversible local choices without the user watching. If the goal later changes materially, update the title again. Do not ask for title approval or narrate the rename.
+
 Priorities are consequence-based: p0 for material Release harm, p1 for substantial Feature or strategy work, p2 for consequential or Deep patches, p3 for normal patches or bounded research, and p4 for routine administration or deliberately parked exploration.
 
 ## Intake And Planning
