@@ -32,7 +32,7 @@ For Deep work, compare alternatives inside one pass. Use a second independent pl
 
 Classify path, depth, verification, execution posture, and priority internally. Surface them only when the classification changes cost, scope, authority, proof, or a decision.
 
-Set or update the thread title silently once the goal is stable. Do not ask the user to approve priority or title metadata. Existing priority format remains:
+Set or update the root thread title silently once the goal is clear. Do it as soon as practical and no later than the third substantive user-authored message. Count requests and corrections; ignore generated context, tool or skill payloads, and acknowledgements such as “okay” or “continue.” If the goal later changes materially, update the title again. Do not ask the user to approve priority or title metadata, and do not narrate the rename. Existing priority format remains:
 
 ```text
 p#: four word goal
