@@ -3593,9 +3593,42 @@ def test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes():
         "capability-removal-negative-canary",
         "premature-completion-negative-canary",
         "completion-and-delegation-trace",
+        "breakthrough-no-history-frozen-packet",
+        "chat-only-context-stays-root",
+        "web-verification-browser-default",
+        "explicit-computer-use-wins",
+        "native-cross-app-uses-computer-use",
+        "chrome-only-for-profile-session-extension",
+        "efficiency-telemetry-host-exposure-gate",
     ]:
         if required not in refactor_pairs:
             raise AssertionError(f"missing refactor orchestration outcome case: {required}")
+    for required in [
+        "breakthrough-no-history-frozen-packet",
+        "chat-only-context-stays-root",
+        "completion-and-delegation-trace",
+        "web-verification-browser-default",
+        "explicit-computer-use-wins",
+        "native-cross-app-uses-computer-use",
+        "chrome-only-for-profile-session-extension",
+    ]:
+        arms = refactor_pairs[required]["arms"]
+        if (
+            arms["current"]["verdict"] != "fail"
+            or arms["candidate"]["verdict"] != "pass"
+        ):
+            raise AssertionError(
+                f"{required} must reject the negative canary and accept the candidate"
+            )
+    telemetry = refactor_pairs["efficiency-telemetry-host-exposure-gate"]["arms"]
+    if (
+        telemetry["current"]["verdict"] != "fail"
+        or telemetry["candidate"]["verdict"] != "cannot_verify"
+    ):
+        raise AssertionError(
+            "efficiency telemetry must reject invented numbers and preserve "
+            "Cannot verify without host evidence"
+        )
 
 
 def test_skill_linter_examples_and_noop_pruning():
@@ -3631,6 +3664,23 @@ def test_skill_changes_are_guarded_by_pre_commit():
     for path in [hook_installer, skill_check]:
         if not path.exists() or not os.access(path, os.X_OK):
             raise AssertionError(f"missing executable skill-change guard: {path}")
+    assert_contains(skill_check.read_text(), "--diff-filter=ACMRD", "skill deletion guard")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        deletion_repo = Path(tmp) / "deletion-repo"
+        (deletion_repo / "scripts").mkdir(parents=True)
+        (deletion_repo / "skills" / "refactor-codebase" / "assets").mkdir(parents=True)
+        copied_check = deletion_repo / "scripts" / "run-skill-change-checks.sh"
+        shutil.copy2(skill_check, copied_check)
+        deleted_asset = deletion_repo / "skills" / "refactor-codebase" / "assets" / "packet.md"
+        deleted_asset.write_text("frozen packet\n")
+        run(["git", "init", "-q"], cwd=deletion_repo)
+        run(["git", "add", "."], cwd=deletion_repo)
+        run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "fixture"], cwd=deletion_repo)
+        deleted_asset.unlink()
+        run(["git", "add", "-u"], cwd=deletion_repo)
+        deletion = run([str(copied_check), "--detect-only"], cwd=deletion_repo)
+        assert_contains(deletion.stdout, "Gauntlet skill changes detected: refactor-codebase", "staged skill deletion guard")
 
     with tempfile.TemporaryDirectory() as tmp:
         repo = Path(tmp) / "repo"
@@ -3652,6 +3702,22 @@ def test_skill_changes_are_guarded_by_pre_commit():
     result = run([str(skill_check), "--changed-files", "skills/planner/SKILL.md"], cwd=ROOT)
     for marker in ["Gauntlet skill changes detected", "targeted skill evals: planner", "skill evals:", "orchestration trace evals:", "skill linter"]:
         assert_contains(result.stdout, marker, "skill change checks")
+
+    result = run([
+        str(skill_check), "--changed-files",
+        "skills/refactor-codebase/assets/breakthrough-agent-packet.md",
+    ], cwd=ROOT)
+    for marker in ["Gauntlet skill changes detected", "targeted skill evals: refactor-codebase", "Ran 25 tests", "skill linter"]:
+        assert_contains(result.stdout + result.stderr, marker, "refactor asset change checks")
+
+
+def test_refactor_agent_prompt_renderer_integrity():
+    result = run([
+        "python3", "-m", "unittest", "discover",
+        "-s", str(SKILLS / "refactor-codebase" / "scripts"),
+        "-p", "test_render_agent_prompt.py", "-v",
+    ], cwd=ROOT)
+    assert_contains(result.stdout + result.stderr, "Ran 6 tests", "refactor prompt renderer tests")
 
 
 def test_superpowers_sources_are_attributed_and_retirement_is_allowlisted():
@@ -3894,6 +3960,7 @@ def main():
         test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes,
         test_skill_linter_examples_and_noop_pruning,
         test_skill_changes_are_guarded_by_pre_commit,
+        test_refactor_agent_prompt_renderer_integrity,
         test_codex_install_layout_supports_workflow_check,
         test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks,
         test_superpowers_sources_are_attributed_and_retirement_is_allowlisted,
