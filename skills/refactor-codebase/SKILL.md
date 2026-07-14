@@ -71,7 +71,7 @@ Load only the current phase reference and any selected strategy reference.
 
 1. **Protect and baseline.** Read [source-and-baseline.md](references/source-and-baseline.md). Freeze the approved snapshot, prove isolation, and record comparable size, dependency, test, and product-performance baselines. Use the bundled integrity and LOC helpers. Invoke `$refactor-performance` for its measurement contract; do not recreate its profiling procedure here.
 2. **Map capabilities and parity.** Read [capability-and-parity.md](references/capability-and-parity.md). Invoke `$craft-product-terminology` in `capability-map` mode. Freeze the product job, capability map, parity ledger, and compatibility matrix. Validate the ledger with the bundled helper before advancing.
-3. **Search for a breakthrough.** Read [breakthrough-search.md](references/breakthrough-search.md). Give three independent agents the same evidence and output contract without a favored architecture or one another's conclusions. Compare mechanisms and retain the strongest credible step-change hypotheses.
+3. **Search for a breakthrough.** Read [breakthrough-search.md](references/breakthrough-search.md). Give three independent agents the same frozen evidence packet and output contract without a favored architecture or one another's conclusions. Compare mechanisms and retain the strongest credible step-change hypotheses.
 4. **Prove architecture.** Read [architecture-proof.md](references/architecture-proof.md). Prototype the leading hypothesis against common, most-complex, and structural-outlier slices. Freeze shared contracts only after all three pass.
 5. **Select one migration strategy.** Choose from the evidence, then read exactly one of [strategy-mechanical.md](references/strategy-mechanical.md), [strategy-incremental.md](references/strategy-incremental.md), or [strategy-dual-run.md](references/strategy-dual-run.md). Record why its preconditions hold.
 6. **Migrate and retire.** Read [migration-execution.md](references/migration-execution.md). Move bounded capabilities through parity gates. Delete replaced code only after its ledger rows pass and no supported consumer remains.
@@ -89,9 +89,13 @@ Track every migration-only adapter, bridge, dual implementation, or tool with an
 
 Keep product interpretation, shared-contract design, ledger adjudication, integration, deletion decisions, and completion claims in the root task. After contracts pass the diverse-slice gate, delegate only disjoint subsystems with explicit ownership and separate proof.
 
-Give validation agents the frozen observable contract and artifacts without implementer reasoning. Use independent compatibility, architecture/metric, and black-box review mandates when their evidence lanes are separate. Treat reviewer convergence as evidence, not proof.
+Use `fork_turns: "none"` only for a bounded agent whose complete context exists in durable artifacts and whose task packet identifies every required input. The agent receives no parent conversation, so keep any task with an unstored product decision, unresolved contract, shared integration state, deletion authority, or completion judgment in the root task. Give validation agents the frozen observable contract and artifacts without implementer reasoning. Use no-history packets for compatibility, architecture/metric, or black-box review only after their observable contracts are frozen. Treat reviewer convergence as evidence, not proof.
 
-Require delegated lanes to return a compact machine receipt with owned scope, evidence paths, proof result, mismatches, and blocker. Reject malformed receipts before integration. Keep breakthrough proposals separate through the independent round, then let the root task synthesize them.
+Use the stable packet templates in [breakthrough-agent-packet.md](assets/breakthrough-agent-packet.md) and [observable-review-agent-packet.md](assets/observable-review-agent-packet.md). Preserve each template's static contract as the exact prompt prefix and append only the variable assignment and artifact paths at the end. Prefer artifact paths and hashes over copied evidence. Version and hash the populated packet, then index it from `refactor-state.json`.
+
+Require delegated lanes to return only the template's compact machine receipt with owned scope, evidence paths, proof result, mismatches, and blocker. Reject malformed receipts before integration. Keep breakthrough proposals separate through the independent round, then let the root task synthesize them.
+
+When the host exposes usage data, keep an indexed raw `efficiency-receipt.json` with packet template version/hash, fork context mode, delegated agent count, Browser and Computer Use action/retry counts, and total/cached input tokens. Mark unavailable fields `Cannot verify`; never estimate them. This receipt measures workflow efficiency and cannot substitute for parity or completion proof.
 
 ## Stop And Return Evidence
 
