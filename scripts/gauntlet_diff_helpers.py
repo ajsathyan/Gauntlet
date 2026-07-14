@@ -154,9 +154,23 @@ def path_is_instruction_surface(path, text=""):
     parts = Path(lower).parts
     if name in {"agents.md", "claude.md", "gemini.md"}:
         return True
+    if parts and parts[0] == "router" and Path(name).suffix in {".md", ".mdx", ".txt"}:
+        return True
     if len(parts) >= 3 and parts[0] == "skills" and parts[-1] == "skill.md":
         return True
-    if parts and parts[0] in {"prompts", "prompt", "templates", "template", "instructions"}:
+    if len(parts) >= 4 and parts[0] == "skills" and "examples" in parts[2:-1] and Path(name).suffix in {".md", ".mdx", ".txt"}:
+        return True
+    if lower in {
+        "docs/github-discipline.md",
+        "docs/meaningful-proof.md",
+        "docs/production-quality-bar.md",
+        "docs/skill-quality-bar.md",
+        "docs/ui-constitution.md",
+        "docs/workflow-etiquette.md",
+        "docs/workflow-speedups.md",
+    }:
+        return True
+    if any(part in {"prompts", "prompt", "templates", "template", "instructions"} for part in parts[:-1]):
         return True
     if parts and parts[0] in {".codex-plugin", ".claude-plugin"}:
         return True
@@ -184,6 +198,7 @@ def path_is_instruction_surface(path, text=""):
         return True
     return suffix in {".json", ".jsonl", ".yaml", ".yml", ".toml"} and bool(
         re.search(r"(?i)\b(system_?prompt|developer_?prompt|agent_?prompt|instructions?)\b", text)
+        or re.search(r"(?im)^\+?\s*[\"']?prompt[\"']?\s*[:=]", text)
     )
 
 

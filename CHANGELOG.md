@@ -6,6 +6,8 @@
 
 - Gauntlet now includes `craft-product-terminology` for naming public product concepts and internal system pieces from their actual responsibilities and boundaries.
 
+- Gauntlet now uses prose delegation tickets with proportional behavioral proof, treats child receipts and declared trace fields as evidence pointers instead of proof, and labels phrase-based skill checks as structural coverage only.
+
 - Gauntlet now ships one Codex and Claude Code plugin bundle from its shared skills tree, adds the `craft-customer-email` workflow, namespaces the vendored eval suite under `eval-`, and limits intake to three high-value questions.
 
 - Gauntlet now installs one shared precision-preserving response style for Codex and Claude, applies conflict-aware Codex verbosity and personality defaults, and stops before layering over unreviewed user instructions.

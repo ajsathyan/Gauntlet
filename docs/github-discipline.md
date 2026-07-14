@@ -46,7 +46,7 @@ Child chats should stay bounded:
 - Read-only review, research, summarization, and log-analysis lanes return reports, not commits.
 - Implementation child chats use separate branches or worktrees when they write code, touch multiple files, or have uncertain ownership.
 - Child chats do not direct-push to `main`.
-- Child chats return compact machine receipts with status, changed files, proof, and any blocker for the main chat.
+- Implementation children return compact machine receipts with status, changed files, evidence pointers, and any blocker. Research and review children return their requested result compactly.
 
 ## Solo Builder Rules
 
@@ -119,7 +119,7 @@ The contextual PR body is reviewer memory, not a file tour:
 1. `## Problem`: who is affected, what was insufficient, and why it matters.
 2. `## Solution`: resulting behavior, important invariants/design choices, preserved behavior, and meaningful non-goals.
 3. `## Changelog`: one release-note bullet copied exactly into `CHANGELOG.md` under `Unreleased`.
-4. `## Testing`: exact commands/results, what they prove, and any limitation or `Cannot verify` item.
+4. `## Testing`: reported commands/results, the behavioral claim each check is intended to support, and any limitation or `Cannot verify` item. These records are evidence pointers, not independent proof; required merge checks or the integrating parent must rerun or resolve them before treating the claim as verified.
 5. `## Security / Risk`: include only for a concrete material risk; omit empty boilerplate.
 
 Build this framing from the user goal and accepted decisions. Use the diff only to fact-check completeness.

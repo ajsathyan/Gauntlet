@@ -400,9 +400,7 @@ def test_production_quality_bar_is_launch_gated():
         "run-log-builder": run_log,
     }.items():
         assert_contains(text, "Production Quality Bar", name)
-        if name == "planner":
-            assert_contains(text, "omit the field when the trigger is absent", name)
-        else:
+        if name != "planner":
             assert_contains(text, "Not relevant because", name)
 
 def test_subagent_parallelism_is_context_efficient():
@@ -418,7 +416,7 @@ def test_subagent_parallelism_is_context_efficient():
         "Delegate only independent files, state, contracts, or evidence lanes",
         "spawn subagents automatically without waiting for the user to request delegation",
         "Standing authorization",
-        "bounded tickets",
+        "bounded ticket",
         "Native Codex state",
         "main-task messages",
     ]:
@@ -454,14 +452,14 @@ def test_direct_dispatch_and_quiet_execution_are_documented():
         "constraints",
         "proof",
         "return contract",
-        "ask-user policy",
+        "ask-parent policy",
     ]:
         assert_contains(combined, marker, "direct dispatch guidance")
 
     for marker in [
-        "one bounded ticket",
+        "one bounded Gauntlet Ticket",
         "Native Codex state",
-        "Resolve added-scope deltas",
+        "Resolve material added-scope deltas",
     ]:
         assert_contains(implementer, marker, "implementer direct dispatch contract")
 
@@ -474,7 +472,7 @@ def test_workflow_guidance_keeps_routine_controls_silent():
     combined = "\n".join([agents, etiquette, planner, implementer])
 
     for marker in [
-        "Keep routine reads, searches, formatting, command setup, generated packets, and unchanged polls in tools or artifacts",
+        "Keep routine reads, searches, formatting, command setup, generated tickets, and unchanged polls in tools or artifacts",
         "Classify path, depth, verification, execution posture, and priority internally",
         "All applicable workflow etiquette remains active during quiet execution",
         "Native Codex state owns child progress; do not require title or status churn",
@@ -758,7 +756,7 @@ def test_docs_only_diff_gets_no_runtime_test_commands():
         plan = json.loads((project / ".gauntlet" / "test-plan.json").read_text())
         if plan["commands"]:
             raise AssertionError(f"docs-only diff should not recommend runtime tests: {plan['commands']}")
-        assert_contains("\n".join(plan["cannotVerify"]), "No runtime behavior changed", "docs-only cannot verify note")
+        assert_contains("\n".join(plan["cannotVerify"]), "No runtime-code test inferred", "docs-only cannot verify note")
 
 
 def test_instruction_surfaces_are_not_classified_as_docs_only():
@@ -768,15 +766,21 @@ def test_instruction_surfaces_are_not_classified_as_docs_only():
     with tempfile.TemporaryDirectory() as tmp:
         project = Path(tmp) / "project"
         init_repo(project)
-        for directory in ["router", "skills/demo", "prompts", "templates", "config", ".codex-plugin", "scripts"]:
+        for directory in ["router", "skills/demo/examples", "prompts", "templates", "src/prompts", "packages/app/templates", "config", "docs", ".codex-plugin", "scripts"]:
             (project / directory).mkdir(parents=True, exist_ok=True)
         instruction_paths = [
             "AGENTS.md",
             "router/AGENTS.md",
+            "router/response-style.md",
             "skills/demo/SKILL.md",
+            "skills/demo/examples/report.md",
             "prompts/system.md",
             "templates/agent.md",
+            "src/prompts/system.txt",
+            "packages/app/templates/system.md",
             "config/settings.toml",
+            "config/assistant.yaml",
+            "docs/meaningful-proof.md",
             ".codex-plugin/plugin.json",
         ]
         for path in instruction_paths:
@@ -785,6 +789,7 @@ def test_instruction_surfaces_are_not_classified_as_docs_only():
         (project / "scripts" / "check-gauntlet-workflow.py").write_text("pass\n")
         commit_all(project, "baseline")
         (project / "config" / "settings.toml").write_text('system_prompt = "Steer the agent"\n')
+        (project / "config" / "assistant.yaml").write_text('prompt: "Steer the agent"\n')
 
         run([str(diff_intel), str(project), "--changed-files", *instruction_paths])
         intel_path = project / ".gauntlet" / "diff-intel.json"
@@ -3072,7 +3077,7 @@ def assert_installed_gauntlet_layout(agent_home):
         installed_skills,
         f"{installed_root}/docs/production-quality-bar.md",
         f"{installed_root}/docs/ui-constitution.md",
-        "bounded tickets",
+        "bounded ticket",
         "Native Codex state",
         "a request to open a PR does not authorize merging it",
         f"{installed_root}/scripts/gauntlet.py merge prepare|plan|execute",
@@ -3574,8 +3579,10 @@ def test_structural_scorers_are_labeled_and_reject_negative_canaries():
             new_scorer = scorer_smoke["arms"]["new_skill"]
             if new_scorer["repsFound"] < scorer_smoke["minReps"]:
                 raise AssertionError(f"{case['id']} new_skill missing scorer-smoke reps")
-            if new_scorer["passRate"] < 1:
+            if new_scorer["expectationMatchRate"] < 1:
                 raise AssertionError(f"{case['id']} new_skill matcher canaries should match expectations")
+            if new_scorer["passRate"] != 0.5:
+                raise AssertionError(f"{case['id']} matcher pass rate must count actual positive matches")
             if not any(rep.get("expectedPassed") is False for rep in new_scorer["reps"]):
                 raise AssertionError(f"{case['id']} missing negative matcher canary")
             for arm_name, arm in case["arms"].items():
@@ -3583,6 +3590,25 @@ def test_structural_scorers_are_labeled_and_reject_negative_canaries():
                     raise AssertionError(f"{case['id']} {arm_name} missing prompt word metric")
                 if arm.get("scoreElapsedMs", -1) < 0:
                     raise AssertionError(f"{case['id']} {arm_name} missing score speed metric")
+
+        malformed = Path(tmp) / "malformed-scorer-smoke.json"
+        malformed.write_text(json.dumps({
+            "responses": [{
+                "case": "*",
+                "arm": "new_skill",
+                "expectedPassed": "false",
+                "text": "invalid boolean",
+            }]
+        }))
+        malformed_result = run([
+            str(runner),
+            "--scorer-smoke-responses",
+            str(malformed),
+            "--results",
+            str(results),
+        ], check=False)
+        if malformed_result.returncode == 0 or "must be a JSON boolean" not in malformed_result.stderr:
+            raise AssertionError("string expectedPassed values must fail fixture validation")
 
     run([
         str(orchestration_runner),

@@ -61,7 +61,7 @@ When `doc_org.md` activates the local-document profile, read it and `local-docs/
 
 - Routine execution stays in tools and machine artifacts, not user-facing narration.
 - User-facing chat is reserved for a required decision, an unrecoverable failure, a host-required terse heartbeat, or a concise final outcome and proof.
-- Child agents return a compact machine receipt: `status`, `changedFiles`, evidence pointers, and `blocker`. A receipt is not proof by itself.
+- Implementation children return a compact machine receipt: `status`, `changedFiles`, evidence pointers, and `blocker`. Research and review children return the requested artifact or findings compactly. Neither form is proof by itself.
 - Retry silently only when the next attempt is safe and materially different.
 - Stop when recovery would repeat the same failure fingerprint, require new authority, risk destructive external state, or exceed the accepted appetite.
 - Do not ask AJS to inspect tickets, reports, ledgers, traces, or progress prose.
@@ -73,7 +73,7 @@ Standing authorization: automatically use subagents when two or more useful lane
 - The main chat owns the accepted plan, user decisions, final branch, integration, PR, merge decision, and final synthesis.
 - Write-heavy lanes use isolated worktrees unless a tiny disjoint patch clearly does not need one.
 - A Gauntlet ticket is an ephemeral child assignment from the canonical plan, not an issue-tracker record.
-- Dispatch each child directly from one bounded ticket. Include only the material objective, ownership, dependencies, constraints, proof expectations, return contract, and ask-user policy; proof fields are optional and proportional.
+- Dispatch each child directly from one bounded ticket. Include only the material objective, ownership, dependencies, constraints, proof expectations, return contract, and ask-parent policy; proof fields are optional and proportional.
 - Native Codex state and main-chat messages own live coordination.
 - Keep files, mutable state, and proof targets disjoint. Avoid splitting one tightly coupled decision tree across lanes.
 - Children report `Needs decision` to the orchestrator instead of asking AJS directly.

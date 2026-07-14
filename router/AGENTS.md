@@ -122,11 +122,11 @@ Parallelism must beat its context cost. Delegate only independent files, state, 
 
 Standing authorization: when two or more useful lanes meet that independence test, spawn subagents automatically without waiting for the user to request delegation. The work itself is the trigger; Release classification is not required. Stay end-to-end in the main task when splitting would duplicate context, serialize on shared state, or weaken proof.
 
-A Gauntlet ticket is an ephemeral child assignment from the canonical plan, not an issue-tracker record. Dispatch each child directly from one bounded ticket with only the material objective, ownership, dependencies, constraints, proportional proof expectations, return contract, and ask-user policy. Proof fields are optional. Native Codex state and main-task messages own live coordination. Write-heavy lanes use isolated worktrees unless a tiny disjoint change makes that unnecessary.
+A Gauntlet ticket is an ephemeral child assignment from the canonical plan, not an issue-tracker record. Dispatch each child directly from one bounded ticket with only the material objective, ownership, dependencies, constraints, proportional proof expectations, return contract, and ask-parent policy. Proof fields are optional. Native Codex state and main-task messages own live coordination. Write-heavy lanes use isolated worktrees unless a tiny disjoint change makes that unnecessary.
 
-Children work quietly and return compact receipts that point to evidence. The main task owns the oracle, independently verifies child evidence, integrates commits into one branch as results arrive, runs targeted integration checks, waits for all required tickets before combined proof, and opens one final pull request.
+Children work quietly. Implementation children return compact receipts that point to evidence; research and review children return the requested artifact or findings compactly. The main task owns the oracle, independently verifies child evidence, integrates commits into one branch as results arrive, runs targeted integration checks, waits for all required tickets before combined proof, and opens one final pull request.
 
-Child agents return compact machine receipts. Keep routine coordination, status narration, and internal reports out of user-facing chat. Surface only:
+Implementation children return compact machine receipts; other children return their requested result compactly. Keep routine coordination, status narration, and internal reports out of user-facing chat. Surface only:
 
 - a decision requiring new user authority;
 - an unrecoverable failure or safety stop;

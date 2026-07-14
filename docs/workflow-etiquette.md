@@ -91,7 +91,7 @@ Use delegation only when parallelism beats context cost. Normal Requests stay in
 
 This is standing authorization to spawn subagents automatically when two or more useful lanes have independent ownership, state, and proof. Do not wait for the user to request delegation, and do not use Release classification as a prerequisite. Keep the work in the main task when the split would create dependency waits or repeated context without a real speed or evidence benefit.
 
-A Gauntlet ticket is an ephemeral child assignment from the canonical plan, not an issue-tracker record. Dispatch each child directly from one bounded ticket. Include only its material objective, skill, ownership, dependencies, consumes/produces contracts, constraints, proportional proof expectations, return contract, and ask-user policy. Proof fields are optional. Native Codex state and main-task messages own live coordination.
+A Gauntlet ticket is an ephemeral child assignment from the canonical plan, not an issue-tracker record. Dispatch each child directly from one bounded ticket. Include only its material objective, skill, ownership, dependencies, consumes/produces contracts, constraints, proportional proof expectations, return contract, and ask-parent policy. Proof fields are optional. Native Codex state and main-task messages own live coordination.
 
 Child behavior:
 
@@ -110,7 +110,7 @@ Main-task behavior:
 - waits 30–60 seconds or for meaningful state change instead of repeatedly polling unchanged state;
 - archives a child task after its report is integrated when the product supports it.
 
-Native Codex state owns child progress; do not require title or status churn. Use the stable lane id in the packet and report as the coordination handle.
+Native Codex state owns child progress; do not require title or status churn. Use the stable lane id in the ticket and report as the coordination handle.
 
 Do not narrate the delegation lifecycle to the user unless a higher-priority host instruction explicitly requires disclosure. All applicable workflow etiquette remains active during quiet execution: perform classification, foresight, proof, state, and archive checks internally, then surface only a required user-facing action or material exception such as a title change, suggestion, decision, blocker, or safety stop.
 

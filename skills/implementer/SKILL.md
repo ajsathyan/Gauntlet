@@ -29,11 +29,11 @@ Optional example: read `examples/implementation-report.md` only when the output 
 - Read first, match local patterns, implement the smallest correct step, and test behavior changes.
 - For practical behavior changes, use RED-GREEN-REFACTOR: observe the relevant test fail for the intended reason, implement the smallest source fix, then refactor while green. When no credible harness exists, record why and run the closest regression proof.
 - Verify review feedback before applying it; return `Needs decision` for a behavior change.
-- Every delegated lane requires one bounded Gauntlet Ticket naming the applicable objective, ownership, dependencies, constraints, proof, return contract, and ask-parent policy.
+- Every delegated lane gets one bounded Gauntlet Ticket containing only applicable fields. Proof expectations are proportional to risk; the return contract and ask-parent policy are explicit.
 - Native Codex state owns coordination. Child prompts contain only their ticket context and preserve disjoint ownership, state, and proof; otherwise work sequentially.
 - Keep delegation, child progress, clean checks, and receipts out of user-facing messages unless required.
 - Resolve material added-scope deltas by updating affected ownership, dependencies, and proof. Keep no-op checks silent.
-- Child tests are evidence, not sole acceptance. Do not weaken or tailor assertions, graders, hidden checks, shared fixtures, or oracles unless explicitly owned.
+- Child tests are evidence, not sole acceptance. A ticket may authorize edits to assertions, graders, fixtures, or oracles, but an edited oracle cannot establish acceptance until the parent independently reviews or redefines it.
 - Make tests behavior-sensitive: establish the intended failure when practical, include a plausible wrong case or required non-effect, and state what the result proves. Phrases, fields, and green commands alone do not prove semantics.
 - The parent reruns or inspects proof; consequential work may need independent black-box or hidden checks.
 - Retry silently only when safe, materially different, and authorized. Stop before repeating a failure fingerprint or risking destructive state.

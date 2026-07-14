@@ -167,6 +167,9 @@ def load_scorer_smoke_responses(path, cases):
     by_case = {case["id"]: {arm: [] for arm in SCORER_SMOKE_ARMS} for case in cases}
     case_by_id = {case["id"]: case for case in cases}
     for item in data.get("responses", []):
+        expected_passed = item.get("expectedPassed", True)
+        if not isinstance(expected_passed, bool):
+            raise SystemExit("scorer-smoke expectedPassed must be a JSON boolean")
         case_ids = list(case_by_id) if item["case"] == "*" else [item["case"]]
         repeat = int(item.get("repeat", data.get("defaultRepeat", 1)))
         for case_id in case_ids:
@@ -174,7 +177,7 @@ def load_scorer_smoke_responses(path, cases):
             response = {
                 "text": render_fixture_text(case, item["text"]),
                 "elapsedMs": item.get("elapsedMs"),
-                "expectedPassed": bool(item.get("expectedPassed", True)),
+                "expectedPassed": expected_passed,
             }
             for _ in range(repeat):
                 by_case[case_id][item["arm"]].append(response)
@@ -214,7 +217,8 @@ def run_scorer_smoke_case(case, arms, responses_by_case, scorer_smoke_prompts_di
             "repsFound": reps_found,
             "passedReps": passed,
             "matchedReps": matched,
-            "passRate": round(matched / reps_found, 3) if reps_found else 0,
+            "passRate": round(passed / reps_found, 3) if reps_found else 0,
+            "expectationMatchRate": round(matched / reps_found, 3) if reps_found else 0,
             "averageOutputWords": avg_words,
             "averageResponseElapsedMs": avg_response_ms,
             "reps": reps,

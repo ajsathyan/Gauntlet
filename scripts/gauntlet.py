@@ -1147,7 +1147,7 @@ def validate_merge_handoff(data):
 
     testing = data.get("testing")
     if not isinstance(testing, list) or not testing:
-        findings.append(handoff_finding("missing_testing_evidence", "testing must contain at least one result."))
+        findings.append(handoff_finding("missing_testing_evidence", "testing must contain at least one reported check."))
     else:
         for index, item in enumerate(testing, 1):
             if not isinstance(item, dict):

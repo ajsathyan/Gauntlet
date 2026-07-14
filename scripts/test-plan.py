@@ -55,7 +55,7 @@ def build_test_plan(project_root, intel):
     changed_paths = [item.get("path", "") for item in intel.get("changedFiles", [])]
 
     if triggers == {"docs-only"}:
-        cannot_verify.append("No runtime behavior changed; review rendered docs or generated docs output if applicable.")
+        cannot_verify.append("No runtime-code test inferred from a documentation-only diff; review rendered docs or generated docs output if applicable.")
         return commands, cannot_verify
 
     if not intel.get("changedFiles"):

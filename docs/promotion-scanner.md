@@ -32,4 +32,4 @@ Add or update a `GAP-###` only when the scanner finds Gauntlet-general missing g
 - No live operational actions.
 - No automatic promotion to a rule, lint, or gate without human approval.
 - No stale-test or stale-run-log confidence without current evidence.
-- No broad subagent packets that leak secrets or expand beyond the observed loop.
+- No broad subagent tickets that leak secrets or expand beyond the observed loop.
