@@ -11,7 +11,7 @@ Execute one accepted ticket. Preserve unrelated work and prove behavior.
 
 Do not narrate routine work, tool choice, recoverable issues, or retries. Return only status, changed files or artifact, proof and its limit, and a blocker or risk. Use JSON only when parsed. Contact the parent early only for new authority, an unrecoverable blocker, a safety stop, or a required heartbeat.
 
-## Implementation Packet
+## Implementation Report
 
 Non-delegated reports contain:
 

@@ -1,52 +1,88 @@
-# {{EPIC_ID}}: {{TITLE}}
+# {{TITLE}} PRD
 
-Epic ID: {{EPIC_ID}}
-Status: Proposed
+Document status: Discussing
+Implementation target: None
 Created: {{DATE}}
 Last updated: {{DATE}}
+
+`Implementation target` names the accepted, build-ready Epic IDs this document authorizes for a later `implement the PRD` request. Use `None` while product decisions remain unresolved. One PRD may contain multiple epics; add each epic to `local-docs/INDEX.md` without splitting the product discussion into separate files.
+
+## Epic {{EPIC_ID}}: {{TITLE}}
+
+Epic status: Proposed
 Depends on: None
 Supersedes: None
 Implemented by: Not implemented
 Verified by: Not verified
 
-## Workstreams
+### Scope Areas
 
-## Primary User And Situation
+Give each stable product responsibility an ID such as `{{EPIC_ID}}-S01`. Scope Areas survive planning changes; implementation Tickets reference them rather than inventing a second product decomposition.
 
-## User Job And First Value
+### Primary User
 
-## Objective
+### User Situation
 
-## Principles
+### User Job
 
-## Scope
+### First Value
 
-## Non-Goals
+### Objectives
 
-## Workflow And Information Architecture
+### Principles
 
-## Deterministic Rules
+### Scope
 
-## States, Failures, And Recovery
+### Non-goals
 
-## Trust, Privacy, Security, And Authority
+### User Workflow
 
-## Configuration Requirements
+### Information Architecture
+
+### Deterministic Rules
+
+### States
+
+### Failures And Recovery
+
+### Trust And User Hesitation
+
+### Privacy And Sensitive Data
+
+### Security Boundaries
+
+### Authority Model
+
+### Configuration Requirements
 
 State what behavior must be configurable, who controls it, which secret or private-data classes are involved, and whether changing it changes accepted product behavior. Use `None identified` when this does not apply. Never include actual secret values.
 
-## Acceptance Criteria
+### Product Acceptance
 
-### Product
+### Design Acceptance
 
-### Design
+### Engineering Acceptance
 
-### Engineering
+### Affected Interfaces
 
-## Affected Interfaces And Proof
+### Test Expectations
 
-## Release Constraints
+For each material behavior, name the claim or invariant, an observable oracle, a plausible wrong case, and required non-effects. Do not accept phrase matching, populated fields, self-reports, or an edited oracle as semantic proof.
+
+### Verification Strategy
+
+Describe the smallest useful ticket, cohort, full-PRD, release, and production checks. Planning will bind each check to an owner and executable path.
+
+### Dependencies
+
+### Assumptions
+
+### Open Questions
+
+### Cannot Verify
+
+### Rollout Constraints
+
+### Rollback Constraints
 
 Record only product-level compatibility, migration, availability, rollout, or recovery constraints. The reusable release procedure lives in `doc_org.md` and is not copied here.
-
-## Assumptions And Open Questions

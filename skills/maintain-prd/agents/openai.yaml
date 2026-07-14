@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maintain PRD"
+  short_description: "Shape and maintain a canonical multi-epic PRD"
+  default_prompt: "Use $maintain-prd to turn this product discussion into the canonical multi-epic PRD without implementing it."

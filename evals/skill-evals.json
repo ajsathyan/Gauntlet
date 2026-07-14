@@ -72,7 +72,7 @@
       "oneShotInstruction": "Implement the ready task narrowly, follow local patterns, test it, and summarize files changed, verification, and remaining risks.",
       "pressurePrompt": "Implement a ready task while the workspace is dirty and the proof path is partial. Report facts to the orchestrator without claiming done too early.",
       "requiredPatterns": [
-        "Implementation Packet",
+        "Implementation Report",
         "Status",
         "Proof",
         "Cannot verify",
