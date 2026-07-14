@@ -90,6 +90,8 @@ Unless the primary worktree contains `.gauntlet/doc-org.disabled`, the local-doc
 
 Treat a PRD as the human product source: Epics are stable outcomes and Scope Areas are stable responsibilities. At implementation time, compile only the explicit build-ready target into a Ticket Graph of independently assignable Tickets. One Execution Run owns durable local state; Receipts point to evidence, and Cohort Verification proves shared interfaces or invariants. Follow `{{GAUNTLET_ROOT}}/docs/prd-execution.md`.
 
+For material Gauntlet work, apply the durable control architecture by default: human-readable sources own intent; versioned deterministic controllers own mechanical invariants and canonical state; `{{GAUNTLET_ROOT}}/scripts/generated_context.py` renders bounded machine projections under `{{GAUNTLET_ROOT}}/docs/generated-context.md`; replaceable harness adapters cannot redefine Gauntlet acceptance; and local artifacts survive compaction and restart. Use `{{GAUNTLET_ROOT}}/docs/evaluation-tasks.md` and `{{GAUNTLET_ROOT}}/docs/evaluation-protocol.md` for automatic comparative evaluation. This architecture does not apply to Normal Requests and must not add a model round trip or continuous verifier to the healthy path.
+
 ## Implementation And Proof
 
 - Read before editing, match repository patterns, keep interfaces narrow, and avoid unrelated cleanup.

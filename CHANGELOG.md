@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now uses a durable orchestration architecture for material work: deterministic generated context, per-child routing and model-request analytics, independent Ticket progress inside context-affine lanes, isolated automatic evaluation tasks, and condition-blind paired experiments with sealed core-study slots; Normal Requests remain lightweight.
+
 - Gauntlet skill creation now checks cache-friendly prompt structure, token efficiency, custom-agent fit, and instruction-drift resistance, with the same review applied before delegated Ticket dispatch.
 
 - Gauntlet now records a parent-owned integration branch and one-final-PR strategy per Ticket Graph run while keeping that run metadata out of bounded child context.

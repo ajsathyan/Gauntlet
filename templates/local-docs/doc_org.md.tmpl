@@ -110,6 +110,8 @@ After compilation, disk artifacts are authoritative for execution state. Convers
 
 Resume after compaction from the source lock, manifest, and resume file. Dispatch children from one deterministic materialized Ticket bundle containing only its stable instruction prefix, relevant cohort context, dependency contracts, and source slices. Do not send the whole PRD, manifest, event history, unrelated receipts, or raw logs. Keep shared context versioned by cohort, canonicalize field order and whitespace, sort stable IDs, omit empty fields, and put volatile run data last. These rules improve prefix reuse and token cost without promising a cache hit.
 
+Use the installed generated-context renderer and its versioned prompt-family templates for repeated or delegated machine context. The PRD and other human documents remain readable sources; generated bundles are traceable projections, not alternate requirements. A multi-Ticket lane retains independent Ticket state, receipts, evidence, integration, and dependency release.
+
 ## Implementation And Release Contract
 
 This is the single reusable release contract for local documents. PRDs do not copy it. Compiled Ticket Graphs reference it and resolve their implementation-specific fields.

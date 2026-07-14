@@ -4301,6 +4301,38 @@ def test_prd_execution_run_controller_behavior():
         raise AssertionError(f"PRD execution-run controller behavior failed:\n{result.stdout}\n{result.stderr}")
 
 
+def test_subagent_orchestration_v2_behavior():
+    for script in [
+        "test-generated-context.py",
+        "test-subagent-orchestration.py",
+        "test-eval-task.py",
+        "test-eval-run.py",
+    ]:
+        result = run(["python3", str(SCRIPTS / script)], check=False)
+        if result.returncode != 0:
+            raise AssertionError(f"Subagent Orchestration V2 check failed for {script}:\n{result.stdout}\n{result.stderr}")
+
+    combined = "\n".join([
+        read(AGENTS_MD),
+        read(ROUTER_MD),
+        read(ROOT / "docs" / "workflow-etiquette.md"),
+        read(ROOT / "docs" / "generated-context.md"),
+        read(ROOT / "docs" / "evaluation-tasks.md"),
+        read(ROOT / "docs" / "evaluation-protocol.md"),
+    ])
+    for marker in [
+        "human-readable sources",
+        "versioned deterministic controllers",
+        "bounded machine projections",
+        "Normal Requests",
+        "generated_context.py",
+        "multi-Ticket lane",
+        "cheap current-liveness probe",
+        "replaceable",
+    ]:
+        assert_contains(combined, marker, "durable orchestration architecture")
+
+
 def main():
     tests = [
         test_plugin_manifests_bundle_shared_skills,
@@ -4361,6 +4393,7 @@ def main():
         test_install_docs_explain_codex_and_claude_targets,
         test_local_document_profile_preserves_tracked_docs_and_primary_canonical_copy,
         test_prd_execution_run_controller_behavior,
+        test_subagent_orchestration_v2_behavior,
     ]
     for test in tests:
         test()

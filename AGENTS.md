@@ -61,6 +61,8 @@ Unless the primary worktree contains `.gauntlet/doc-org.disabled`, the global ro
 
 An accepted multi-Epic PRD is the human product source. At implementation time, compile only its explicit build-ready target into a Ticket Graph; do not turn proposed, deferred, or materially unresolved work into tickets. Follow `docs/prd-execution.md` for terminology, durable artifacts, resumption, scheduling, and release authority.
 
+For material Gauntlet workflows, use one durable control pattern: human-readable sources own intent; versioned deterministic controllers own mechanically checkable rules and canonical state; bounded machine projections carry only relevant context; replaceable adapters cannot redefine Gauntlet acceptance; and local evidence survives compaction and restart. Use `docs/generated-context.md` for generated prompts and `docs/evaluation-tasks.md` plus `docs/evaluation-protocol.md` for automatic comparative evaluation. Keep these controls out of the Normal Request path.
+
 ## Quiet autonomous execution
 
 - Routine execution stays in tools and machine artifacts, not user-facing narration.
