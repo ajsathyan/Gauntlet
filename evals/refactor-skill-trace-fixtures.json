@@ -394,6 +394,312 @@
         }
       },
       "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "breakthrough-no-history-frozen-packet",
+      "description": "Independent breakthrough agents receive no parent turns, one frozen shared evidence packet, and their variable assignment only after the stable packet prefix.",
+      "contract": {
+        "expectedOutcome": "proposals-dispatched",
+        "requiredActions": [
+          {"type": "spawn_independent_proposal", "target": "proposal-a", "forkTurns": "none", "packetHash": "sha256:frozen-evidence-v1", "assignmentPosition": "last"},
+          {"type": "spawn_independent_proposal", "target": "proposal-b", "forkTurns": "none", "packetHash": "sha256:frozen-evidence-v1", "assignmentPosition": "last"},
+          {"type": "spawn_independent_proposal", "target": "proposal-c", "forkTurns": "none", "packetHash": "sha256:frozen-evidence-v1", "assignmentPosition": "last"}
+        ],
+        "forbiddenActions": [
+          {"type": "inherit_parent_turns"},
+          {"type": "spawn_independent_proposal", "forkTurns": "all"},
+          {"type": "spawn_independent_proposal", "assignmentPosition": "first"}
+        ],
+        "allowedAuthorities": ["internal_delegation", "evidence_write"],
+        "requiredProof": [
+          {"type": "packet_integrity", "subject": "shared-evidence-packet"},
+          {"type": "prompt_order", "subject": "stable-prefix-variable-suffix"}
+        ],
+        "expectedRoutingChoice": "no-history-breakthrough-dispatch",
+        "outputBudget": {"maxMessages": 0, "maxWords": 0},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "proposals-dispatched",
+          "actions": [
+            {"type": "inherit_parent_turns", "target": "proposal-a", "authority": "internal_delegation"},
+            {"type": "spawn_independent_proposal", "target": "proposal-a", "forkTurns": "all", "packetHash": "sha256:packet-a", "assignmentPosition": "first", "authority": "internal_delegation"},
+            {"type": "spawn_independent_proposal", "target": "proposal-b", "forkTurns": "all", "packetHash": "sha256:packet-b", "assignmentPosition": "first", "authority": "internal_delegation"},
+            {"type": "spawn_independent_proposal", "target": "proposal-c", "forkTurns": "all", "packetHash": "sha256:packet-c", "assignmentPosition": "first", "authority": "internal_delegation"}
+          ],
+          "proof": [
+            {"type": "packet_integrity", "subject": "shared-evidence-packet", "ref": "hashes:differ", "passed": false},
+            {"type": "prompt_order", "subject": "stable-prefix-variable-suffix", "ref": "assignment:first", "passed": false}
+          ],
+          "routingChoice": "full-history-breakthrough-dispatch",
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "proposals-dispatched",
+          "actions": [
+            {"type": "spawn_independent_proposal", "target": "proposal-a", "forkTurns": "none", "packetHash": "sha256:frozen-evidence-v1", "assignmentPosition": "last", "authority": "internal_delegation"},
+            {"type": "spawn_independent_proposal", "target": "proposal-b", "forkTurns": "none", "packetHash": "sha256:frozen-evidence-v1", "assignmentPosition": "last", "authority": "internal_delegation"},
+            {"type": "spawn_independent_proposal", "target": "proposal-c", "forkTurns": "none", "packetHash": "sha256:frozen-evidence-v1", "assignmentPosition": "last", "authority": "internal_delegation"}
+          ],
+          "proof": [
+            {"type": "packet_integrity", "subject": "shared-evidence-packet", "ref": "sha256:frozen-evidence-v1", "passed": true},
+            {"type": "prompt_order", "subject": "stable-prefix-variable-suffix", "ref": "template:assignment-last", "passed": true}
+          ],
+          "routingChoice": "no-history-breakthrough-dispatch",
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "chat-only-context-stays-root",
+      "description": "No-history delegation is rejected when a material product decision exists only in the parent conversation.",
+      "contract": {
+        "expectedOutcome": "work-kept-in-root",
+        "requiredActions": [
+          {"type": "root_owns_contract"},
+          {"type": "execute_in_root", "target": "context-sensitive-design"}
+        ],
+        "forbiddenActions": [
+          {"type": "spawn_context_sensitive_work", "forkTurns": "none"},
+          {"type": "delegate_contract_design"}
+        ],
+        "allowedAuthorities": ["repo_write", "evidence_write", "internal_delegation"],
+        "requiredProof": [
+          {"type": "context_audit", "subject": "material-chat-only-decision"},
+          {"type": "ownership", "subject": "root-lifecycle"}
+        ],
+        "expectedRoutingChoice": "root-context-preserved",
+        "outputBudget": {"maxMessages": 0, "maxWords": 0},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "work-delegated",
+          "actions": [
+            {"type": "spawn_context_sensitive_work", "target": "architecture-agent", "forkTurns": "none", "authority": "internal_delegation"},
+            {"type": "delegate_contract_design", "target": "architecture-agent", "authority": "internal_delegation"}
+          ],
+          "proof": [
+            {"type": "context_audit", "subject": "material-chat-only-decision", "ref": "decision:not-persisted", "passed": true},
+            {"type": "ownership", "subject": "root-lifecycle", "ref": "owner:child", "passed": false}
+          ],
+          "routingChoice": "no-history-context-loss",
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "work-kept-in-root",
+          "actions": [
+            {"type": "root_owns_contract", "target": "refactor-lifecycle", "authority": "evidence_write"},
+            {"type": "execute_in_root", "target": "context-sensitive-design", "authority": "repo_write"}
+          ],
+          "proof": [
+            {"type": "context_audit", "subject": "material-chat-only-decision", "ref": "decision:not-persisted", "passed": true},
+            {"type": "ownership", "subject": "root-lifecycle", "ref": "owner:root", "passed": true}
+          ],
+          "routingChoice": "root-context-preserved",
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "web-verification-browser-default",
+      "description": "A web application uses the built-in Browser by default and records compact structured verification evidence.",
+      "contract": {
+        "expectedOutcome": "web-verified",
+        "requiredActions": [
+          {"type": "select_verification_surface", "target": "built-in-browser"},
+          {"type": "write_structured_evidence", "target": "browser-verification", "format": "compact-json"}
+        ],
+        "forbiddenActions": [
+          {"type": "select_verification_surface", "target": "computer-use"},
+          {"type": "select_verification_surface", "target": "chrome"},
+          {"type": "write_interaction_narrative"}
+        ],
+        "allowedAuthorities": ["browser_control", "evidence_write"],
+        "requiredProof": [
+          {"type": "interaction", "subject": "representative-web-workflow"},
+          {"type": "structured_receipt", "subject": "browser-verification"}
+        ],
+        "expectedRoutingChoice": "verification:built-in-browser",
+        "outputBudget": {"maxMessages": 0, "maxWords": 0},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "web-verified",
+          "actions": [
+            {"type": "select_verification_surface", "target": "computer-use", "authority": "browser_control"},
+            {"type": "write_interaction_narrative", "target": "browser-verification", "authority": "evidence_write"}
+          ],
+          "proof": [
+            {"type": "interaction", "subject": "representative-web-workflow", "ref": "desktop:coordinates", "passed": true},
+            {"type": "structured_receipt", "subject": "browser-verification", "ref": "missing", "passed": false}
+          ],
+          "routingChoice": "verification:computer-use",
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "web-verified",
+          "actions": [
+            {"type": "select_verification_surface", "target": "built-in-browser", "authority": "browser_control"},
+            {"type": "write_structured_evidence", "target": "browser-verification", "format": "compact-json", "authority": "evidence_write"}
+          ],
+          "proof": [
+            {"type": "interaction", "subject": "representative-web-workflow", "ref": "browser:route-selector-viewport", "passed": true},
+            {"type": "structured_receipt", "subject": "browser-verification", "ref": "receipt:compact-json", "passed": true}
+          ],
+          "routingChoice": "verification:built-in-browser",
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "explicit-computer-use-wins",
+      "description": "An explicit request for Computer Use overrides the web Browser default.",
+      "contract": {
+        "expectedOutcome": "verification-surface-selected",
+        "requiredActions": [{"type": "select_verification_surface", "target": "computer-use", "reason": "explicit-user-request"}],
+        "forbiddenActions": [{"type": "select_verification_surface", "target": "built-in-browser"}],
+        "allowedAuthorities": ["computer_control", "evidence_write"],
+        "requiredProof": [{"type": "request_evidence", "subject": "explicit-computer-use"}],
+        "expectedRoutingChoice": "verification:computer-use",
+        "outputBudget": {"maxMessages": 0, "maxWords": 0},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "verification-surface-selected",
+          "actions": [{"type": "select_verification_surface", "target": "built-in-browser", "reason": "web-default", "authority": "computer_control"}],
+          "proof": [{"type": "request_evidence", "subject": "explicit-computer-use", "ref": "request:computer-use", "passed": true}],
+          "routingChoice": "verification:built-in-browser",
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "verification-surface-selected",
+          "actions": [{"type": "select_verification_surface", "target": "computer-use", "reason": "explicit-user-request", "authority": "computer_control"}],
+          "proof": [{"type": "request_evidence", "subject": "explicit-computer-use", "ref": "request:computer-use", "passed": true}],
+          "routingChoice": "verification:computer-use",
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "native-cross-app-uses-computer-use",
+      "description": "Native and cross-application workflows select Computer Use because the built-in Browser cannot cover them.",
+      "contract": {
+        "expectedOutcome": "verification-surface-selected",
+        "requiredActions": [{"type": "select_verification_surface", "target": "computer-use", "reason": "native-or-cross-app"}],
+        "forbiddenActions": [{"type": "select_verification_surface", "target": "built-in-browser"}],
+        "allowedAuthorities": ["computer_control", "evidence_write"],
+        "requiredProof": [{"type": "surface_evidence", "subject": "native-or-cross-app"}],
+        "expectedRoutingChoice": "verification:computer-use",
+        "outputBudget": {"maxMessages": 0, "maxWords": 0},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "verification-surface-selected",
+          "actions": [{"type": "select_verification_surface", "target": "built-in-browser", "reason": "default", "authority": "computer_control"}],
+          "proof": [{"type": "surface_evidence", "subject": "native-or-cross-app", "ref": "workflow:desktop-export-dialog", "passed": true}],
+          "routingChoice": "verification:built-in-browser",
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "verification-surface-selected",
+          "actions": [{"type": "select_verification_surface", "target": "computer-use", "reason": "native-or-cross-app", "authority": "computer_control"}],
+          "proof": [{"type": "surface_evidence", "subject": "native-or-cross-app", "ref": "workflow:desktop-export-dialog", "passed": true}],
+          "routingChoice": "verification:computer-use",
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "efficiency-telemetry-host-exposure-gate",
+      "description": "Cache and token efficiency numbers are recorded only when the host exposes them; otherwise the result remains explicitly unverifiable instead of being estimated as fact.",
+      "contract": {
+        "expectedOutcome": "telemetry-unavailable",
+        "requiredActions": [{"type": "mark_efficiency_telemetry", "target": "cannot-verify", "reason": "host-not-exposed"}],
+        "forbiddenActions": [
+          {"type": "invent_efficiency_metric"},
+          {"type": "record_efficiency_metric", "source": "estimate"}
+        ],
+        "allowedAuthorities": ["evidence_write"],
+        "requiredProof": [{"type": "host_capability", "subject": "cache-and-token-telemetry"}],
+        "expectedRoutingChoice": "telemetry:cannot-verify",
+        "outputBudget": {"maxMessages": 1, "maxWords": 8},
+        "subjectiveCriteria": ["Actual cache-hit and token savings require host-exposed telemetry."]
+      },
+      "arms": {
+        "current": {
+          "outcome": "telemetry-recorded",
+          "actions": [{"type": "invent_efficiency_metric", "target": "cache-hit-rate", "value": 0.85, "authority": "evidence_write"}],
+          "proof": [{"type": "host_capability", "subject": "cache-and-token-telemetry", "ref": "host:not-exposed", "passed": true}],
+          "routingChoice": "telemetry:estimated",
+          "userVisibleMessages": ["Cache hit rate is 85%."],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "telemetry-unavailable",
+          "actions": [{"type": "mark_efficiency_telemetry", "target": "cannot-verify", "reason": "host-not-exposed", "authority": "evidence_write"}],
+          "proof": [{"type": "host_capability", "subject": "cache-and-token-telemetry", "ref": "host:not-exposed", "passed": true}],
+          "routingChoice": "telemetry:cannot-verify",
+          "userVisibleMessages": ["Efficiency telemetry: Cannot verify."],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "cannot_verify"}
+    },
+    {
+      "id": "chrome-only-for-profile-session-extension",
+      "description": "Chrome is selected only when verification requires the user's regular Chrome profile, signed-in session, or extensions.",
+      "contract": {
+        "expectedOutcome": "verification-surface-selected",
+        "requiredActions": [{"type": "select_verification_surface", "target": "chrome", "reason": "regular-profile-session-extension"}],
+        "forbiddenActions": [
+          {"type": "select_verification_surface", "target": "built-in-browser"},
+          {"type": "select_verification_surface", "target": "computer-use"}
+        ],
+        "allowedAuthorities": ["chrome_control", "evidence_write"],
+        "requiredProof": [{"type": "surface_evidence", "subject": "regular-profile-session-extension"}],
+        "expectedRoutingChoice": "verification:chrome",
+        "outputBudget": {"maxMessages": 0, "maxWords": 0},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "verification-surface-selected",
+          "actions": [{"type": "select_verification_surface", "target": "built-in-browser", "reason": "web-default", "authority": "chrome_control"}],
+          "proof": [{"type": "surface_evidence", "subject": "regular-profile-session-extension", "ref": "requirement:sso-extension", "passed": true}],
+          "routingChoice": "verification:built-in-browser",
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "verification-surface-selected",
+          "actions": [{"type": "select_verification_surface", "target": "chrome", "reason": "regular-profile-session-extension", "authority": "chrome_control"}],
+          "proof": [{"type": "surface_evidence", "subject": "regular-profile-session-extension", "ref": "requirement:sso-extension", "passed": true}],
+          "routingChoice": "verification:chrome",
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
     }
   ]
 }

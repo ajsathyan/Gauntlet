@@ -3593,9 +3593,42 @@ def test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes():
         "capability-removal-negative-canary",
         "premature-completion-negative-canary",
         "completion-and-delegation-trace",
+        "breakthrough-no-history-frozen-packet",
+        "chat-only-context-stays-root",
+        "web-verification-browser-default",
+        "explicit-computer-use-wins",
+        "native-cross-app-uses-computer-use",
+        "chrome-only-for-profile-session-extension",
+        "efficiency-telemetry-host-exposure-gate",
     ]:
         if required not in refactor_pairs:
             raise AssertionError(f"missing refactor orchestration outcome case: {required}")
+    for required in [
+        "breakthrough-no-history-frozen-packet",
+        "chat-only-context-stays-root",
+        "completion-and-delegation-trace",
+        "web-verification-browser-default",
+        "explicit-computer-use-wins",
+        "native-cross-app-uses-computer-use",
+        "chrome-only-for-profile-session-extension",
+    ]:
+        arms = refactor_pairs[required]["arms"]
+        if (
+            arms["current"]["verdict"] != "fail"
+            or arms["candidate"]["verdict"] != "pass"
+        ):
+            raise AssertionError(
+                f"{required} must reject the negative canary and accept the candidate"
+            )
+    telemetry = refactor_pairs["efficiency-telemetry-host-exposure-gate"]["arms"]
+    if (
+        telemetry["current"]["verdict"] != "fail"
+        or telemetry["candidate"]["verdict"] != "cannot_verify"
+    ):
+        raise AssertionError(
+            "efficiency telemetry must reject invented numbers and preserve "
+            "Cannot verify without host evidence"
+        )
 
 
 def test_skill_linter_examples_and_noop_pruning():
