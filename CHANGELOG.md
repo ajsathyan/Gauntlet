@@ -4,6 +4,8 @@
 
 - Gauntlet now maintains human-readable multi-Epic PRDs and compiles build-ready targets into durable Ticket Graph runs with bounded cache-oriented child context, parent-owned verification, cohort gates, and authorized end-to-end release handling.
 
+- Gauntlet refactor workflows now isolate bounded proposal and review agents with stable artifact-backed prompts, prefer the built-in Browser for web verification, preserve explicit Computer Use requests, and record execution-efficiency metrics only when observable.
+
 - Gauntlet now includes staged `refactor-codebase` and measure-first `refactor-performance` skills with durable phase receipts, independent breakthrough search, migration strategy gates, parity proof, and deterministic refactor helpers.
 
 - Gauntlet now offers an opt-in `local-docs/` profile with stable epic scaffolding, primary-worktree canonical documents, tracked-document boundaries, one release contract, configuration and secret classification, and a global three-question discipline shared by every skill.
