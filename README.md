@@ -273,7 +273,16 @@ Use `--check` to run the same marker, instruction-review, and Codex-preference p
 
 `./scripts/install.sh` defaults to `--target codex`, which installs Gauntlet into `$HOME/.codex` unless `AGENT_HOME` or `GAUNTLET_AGENT_HOME` is set. For Claude Code, use `./scripts/install.sh --target claude` or `GAUNTLET_INSTALL_TARGET=claude ./scripts/install.sh`; this installs into `$HOME/.claude` by default.
 
-The Codex target writes or replaces one Gauntlet managed block inside the agent-home `AGENTS.md`, preserving unrelated instructions outside the block. It also adds `model_verbosity = "low"` and `personality = "none"` as top-level settings in `config.toml`. The update is atomic, preserves unrelated bytes, comments, permissions, and symlinks, and is idempotent.
+The Codex target writes or replaces one Gauntlet managed block inside the agent-home `AGENTS.md`, preserving unrelated instructions outside the block. It also adds `model_verbosity = "low"` and `personality = "none"` as top-level settings in `config.toml`, and installs seven named profiles under `~/.codex/agents/`. The agent installer owns only files recorded in its hash manifest; it refuses unowned collisions and modified managed files, preserves unrelated profiles, and safely removes an unchanged profile only after Gauntlet retires it. Restart or reload Codex after installation so the profiles are discovered.
+
+Ticket routing is deterministic and documented in [docs/custom-agent-routing.md](docs/custom-agent-routing.md). It selects an explicit profile from the Ticket's work class, complexity, risk, authority, proof type, and context shape. The parent remains responsible for integration, pull requests, merges, deployment, production changes, and rollback decisions.
+
+Codex immediately records started subagents in its local native state. Gauntlet's audit exporter durably merges profile, model, reasoning effort, effective sandbox and approval mode, IDs, timestamps, working directory, source, nickname, and token count into `~/.codex/gauntlet/logs/subagents.jsonl`; it never exports prompts or transcript content. Records survive native-state pruning, and a missing or unreadable native database fails without replacing the audit. Refresh or inspect it with:
+
+```sh
+python3 ~/.codex/gauntlet/scripts/subagent-audit.py sync
+python3 ~/.codex/gauntlet/scripts/subagent-audit.py summary --json
+```
 
 When Codex already has a different value, the installer stops before changing any files and prints both the existing and candidate values. After asking the user, rerun with one explicit choice:
 
@@ -316,6 +325,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | --- | --- |
 | [router/AGENTS.md](router/AGENTS.md) | Compact portable global router installed into the target agent home with rendered stable Gauntlet paths. |
 | [router/response-style.md](router/response-style.md) | Single response-style policy rendered into the portable router unless the user keeps a conflicting existing style. |
+| [agents/codex/](agents/codex) | Seven canonical named Codex profiles with fixed models, reasoning effort, authority boundaries, and quiet return contracts. |
 | [AGENTS.md](AGENTS.md) | Repository contributor guide for changing and proving Gauntlet itself; it is not installed as the portable router. |
 | `CLAUDE.md` | Claude Code adapter created by `--target claude`; imports the installed Gauntlet `AGENTS.md` through a managed block while preserving existing Claude instructions. |
 | [skills/intake/SKILL.md](skills/intake/SKILL.md) | Turns rough intent into an implementable spec. |
@@ -349,6 +359,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [docs/upstream-eval-skills.md](docs/upstream-eval-skills.md) | Records the vendored eval-skill source, namespace mapping, update procedure, and license location. |
 | [docs/local-documentation.md](docs/local-documentation.md) | Defines the opt-in ignored local-document profile, tracked/private boundary, canonical primary-worktree rule, and release/configuration contracts. |
 | [docs/prd-execution.md](docs/prd-execution.md) | Defines PRD/Epic/Scope Area/Ticket Graph terminology, durable execution artifacts, ready-queue scheduling, bounded child context, verification layers, and end-to-end implementation authority. |
+| [docs/custom-agent-routing.md](docs/custom-agent-routing.md) | Defines deterministic Ticket-to-profile selection, escalation, bounded context, and audit requirements. |
 | [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
 | [docs/github-discipline.md](docs/github-discipline.md) | Beginner-friendly branch, worktree, commit, PR, merge, child-chat, and solo-builder defaults. |
 | [docs/ui-constitution.md](docs/ui-constitution.md) | Bounded frontend quality gate for prototypes and product UI. |
@@ -359,6 +370,9 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [scripts/gauntlet.py](scripts/gauntlet.py) | Deterministic CLI for guarded one-command closeout, merge/archive actions, analytics, install verification, follow-up packets, compatibility memory linting, and PR/changelog drafts. |
 | [templates/local-docs/](templates/local-docs) | Scaffolds `doc_org.md`, the local index, epic PRDs, research, decisions, implementation plans, and run logs. |
 | [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals with instruction-conflict preflight and conflict-aware Codex response defaults. |
+| [scripts/install-codex-agents.py](scripts/install-codex-agents.py) | Validates, installs, retires, and verifies Gauntlet-owned Codex profiles without overwriting user-owned agents. |
+| [scripts/subagent-audit.py](scripts/subagent-audit.py) | Idempotently exports privacy-bounded Gauntlet subagent usage from Codex native local state. |
+| [scripts/route-codex-agent.py](scripts/route-codex-agent.py) | Deterministically maps validated Ticket routing fields to an explicit named Codex profile. |
 | [scripts/classify-ts-durability.sh](scripts/classify-ts-durability.sh) | Classifies whether TypeScript durability standards are required for the current work. |
 | [scripts/diff-intel.py](scripts/diff-intel.py) | Writes advisory changed-file, package-root, risk-trigger, dirty-worktree, confidence, and `Cannot verify` intel. |
 | [scripts/test-plan.py](scripts/test-plan.py) | Recommends focused and broader verification commands from diff intel without defaulting to huge suites. |

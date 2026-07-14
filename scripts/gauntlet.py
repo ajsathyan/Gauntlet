@@ -2789,6 +2789,9 @@ def command_install_verify(args):
     require(agent_home / "gauntlet" / "router" / "response-style.md", "missing_response_style_source")
     require(agent_home / "gauntlet" / "scripts" / "check-gauntlet-workflow.py", "missing_installed_workflow_check")
     require(agent_home / "gauntlet" / "scripts" / "gauntlet.py", "missing_installed_gauntlet_cli")
+    require(agent_home / "gauntlet" / "scripts" / "install-codex-agents.py", "missing_custom_agent_installer")
+    require(agent_home / "gauntlet" / "scripts" / "subagent-audit.py", "missing_subagent_audit_exporter")
+    require(agent_home / "gauntlet" / "scripts" / "route-codex-agent.py", "missing_custom_agent_router")
     require(agent_home / "gauntlet" / "docs" / "local-documentation.md", "missing_local_documentation_policy")
     require(agent_home / "gauntlet" / "templates" / "local-docs" / "doc_org.md.tmpl", "missing_local_document_template")
     require(agent_home / "skills", "missing_installed_skills")
@@ -2816,6 +2819,15 @@ def command_install_verify(args):
                 findings.append({"code": "invalid_codex_managed_block", "severity": "fail", "message": "Codex AGENTS.md must contain exactly one complete Gauntlet managed block."})
             if "Gauntlet Workflow Router" not in text:
                 findings.append({"code": "missing_codex_router", "severity": "fail", "message": "Codex AGENTS.md lacks the installed Gauntlet router."})
+        source = agent_home / "gauntlet" / "agents" / "codex"
+        verifier = agent_home / "gauntlet" / "scripts" / "install-codex-agents.py"
+        if source.is_dir() and verifier.is_file():
+            result = subprocess.run(
+                [sys.executable, str(verifier), "verify", "--source", str(source), "--agent-home", str(agent_home)],
+                text=True, capture_output=True,
+            )
+            if result.returncode:
+                findings.append({"code": "invalid_codex_custom_agents", "severity": "fail", "message": result.stderr.strip() or result.stdout.strip()})
     if args.target == "claude":
         claude_md = agent_home / "CLAUDE.md"
         require(claude_md, "missing_claude_md")

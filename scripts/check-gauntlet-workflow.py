@@ -3139,6 +3139,28 @@ Keep this user-owned instruction across Gauntlet reinstalls.
             raise AssertionError(f"Codex AGENTS install mode should be 0644, got {installed_mode:04o}")
         if (agent_home / "CLAUDE.md").exists():
             raise AssertionError("Codex install should not create CLAUDE.md")
+        expected_profiles = {
+            "gauntlet-fast-reader": ("gpt-5.6-luna", "medium"),
+            "gauntlet-standard-worker": ("gpt-5.6-sol", "medium"),
+            "gauntlet-deep-worker": ("gpt-5.6-sol", "high"),
+            "gauntlet-independent-verifier": ("gpt-5.6-sol", "medium"),
+            "gauntlet-release-integrator": ("gpt-5.6-terra", "high"),
+            "gauntlet-deep-expert-researcher": ("gpt-5.6-sol", "xhigh"),
+            "gauntlet-security-reviewer": ("gpt-5.6-sol", "high"),
+        }
+        installed_profiles = sorted((agent_home / "agents").glob("gauntlet-*.toml"))
+        if {path.stem for path in installed_profiles} != set(expected_profiles):
+            raise AssertionError("Codex install must activate exactly the seven canonical profiles")
+        for profile in installed_profiles:
+            text = profile.read_text()
+            model, effort = expected_profiles[profile.stem]
+            assert_contains(text, f'model = "{model}"', f"{profile.stem} model")
+            assert_contains(text, f'model_reasoning_effort = "{effort}"', f"{profile.stem} effort")
+            assert_not_contains(text, 'model_reasoning_effort = "low"', f"{profile.stem} forbidden low effort")
+        if not (agent_home / "gauntlet" / "install-agents-codex.json").is_file():
+            raise AssertionError("Codex custom-agent ownership manifest is missing")
+        user_agent = agent_home / "agents" / "my-personal-agent.toml"
+        user_agent.write_text('description = "user owned"\n')
 
         stale_script = agent_home / "gauntlet" / "scripts" / "removed-workflow-helper.py"
         stale_script.write_text("stale installed payload\n")
@@ -3157,6 +3179,8 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         reinstalled_agents = read(agent_home / "AGENTS.md")
         if reinstalled_agents != installed_agents:
             raise AssertionError("Codex reinstall should be byte-idempotent")
+        if user_agent.read_text() != 'description = "user owned"\n':
+            raise AssertionError("Codex reinstall must preserve unrelated user-owned agents")
         if stale_script.exists():
             raise AssertionError("Codex reinstall should remove scripts deleted from the source payload")
         for legacy_skill in [
@@ -3224,6 +3248,167 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         run_install(linked_home, target="codex")
         if linked_target.read_text() != linked_installed:
             raise AssertionError("linked Codex reinstall should be byte-idempotent")
+
+
+def test_codex_custom_agent_collision_and_audit_behavior():
+    import sqlite3
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        collision_home = root / "collision-home"
+        (collision_home / "agents").mkdir(parents=True)
+        collision = collision_home / "agents" / "gauntlet-fast-reader.toml"
+        collision.write_bytes((ROOT / "agents" / "codex" / collision.name).read_bytes())
+        refused = run_install(
+            collision_home, target="codex",
+            extra_args=["--instructions-reviewed", "--codex-preferences", "skip"], check=False,
+        )
+        if refused.returncode == 0 or "unowned custom-agent profile" not in refused.stderr:
+            raise AssertionError("an exact-byte unowned profile collision must fail preflight")
+        if (collision_home / "gauntlet").exists() or (collision_home / "AGENTS.md").exists():
+            raise AssertionError("custom-agent collision preflight must not partially install Gauntlet")
+
+        agent_home = root / "audit-home"
+        agent_home.mkdir()
+        database = agent_home / "state_5.sqlite"
+        connection = sqlite3.connect(str(database))
+        connection.executescript("""
+        CREATE TABLE threads (
+          id TEXT, model TEXT, reasoning_effort TEXT, agent_role TEXT,
+          sandbox_policy TEXT, approval_mode TEXT,
+          agent_nickname TEXT, source TEXT, tokens_used INTEGER, cwd TEXT,
+          created_at_ms INTEGER, updated_at_ms INTEGER
+        );
+        CREATE TABLE thread_spawn_edges (parent_thread_id TEXT, child_thread_id TEXT);
+        """)
+        connection.execute(
+            "INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("child-1", "gpt-5.6-luna", "medium", "gauntlet-fast-reader", '{"type":"read-only"}', "never", "reader", "subagent", 321, "/repo", 10, 20),
+        )
+        connection.execute(
+            "INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("other", "gpt-5", "high", "unrelated-agent", "danger-full-access", "never", "other", "subagent", 999, "/private", 11, 21),
+        )
+        connection.execute("INSERT INTO thread_spawn_edges VALUES (?, ?)", ("parent-1", "child-1"))
+        connection.commit()
+        connection.close()
+        audit = SCRIPTS / "subagent-audit.py"
+        run(["python3", str(audit), "sync", "--agent-home", str(agent_home)])
+        log = agent_home / "gauntlet" / "logs" / "subagents.jsonl"
+        first = log.read_text()
+        run(["python3", str(audit), "sync", "--agent-home", str(agent_home)])
+        if log.read_text() != first:
+            raise AssertionError("subagent audit sync must be byte-idempotent")
+        rows = [json.loads(line) for line in first.splitlines()]
+        if len(rows) != 1 or rows[0]["profile"] != "gauntlet-fast-reader" or rows[0]["parentAgentId"] != "parent-1":
+            raise AssertionError("subagent audit must export only linked Gauntlet usage")
+        if set(rows[0]) != {
+            "agentId", "parentAgentId", "profile", "model", "reasoningEffort", "nickname",
+            "sandboxPolicy", "approvalMode", "source", "tokensUsed", "cwd", "createdAtMs", "updatedAtMs",
+        }:
+            raise AssertionError("subagent audit exported fields outside its privacy-bounded contract")
+        verified = run([
+            "python3", str(audit), "verify", "--agent-home", str(agent_home),
+            "--agent-id", "child-1", "--requested-profile", "gauntlet-fast-reader", "--require-read-only", "--json",
+        ])
+        if json.loads(verified.stdout)["status"] != "pass":
+            raise AssertionError("subagent audit must reconcile actual profile and effective sandbox")
+        mismatch = run([
+            "python3", str(audit), "verify", "--agent-home", str(agent_home),
+            "--agent-id", "child-1", "--requested-profile", "gauntlet-deep-worker",
+        ], check=False)
+        if mismatch.returncode == 0:
+            raise AssertionError("subagent audit must reject a requested-versus-started profile mismatch")
+        connection = sqlite3.connect(str(database))
+        for wrong_policy in ['{"type":"not-read-only"}', '{"type":"danger-full-access"}', '{"type":"workspace-write"}', "null", "malformed"]:
+            connection.execute("UPDATE threads SET sandbox_policy = ? WHERE id = ?", (wrong_policy, "child-1"))
+            connection.commit()
+            wrong_sandbox = run([
+                "python3", str(audit), "verify", "--agent-home", str(agent_home),
+                "--agent-id", "child-1", "--requested-profile", "gauntlet-fast-reader", "--require-read-only",
+            ], check=False)
+            if wrong_sandbox.returncode == 0:
+                raise AssertionError(f"subagent audit must reject non-canonical read-only policy: {wrong_policy}")
+        connection.execute("UPDATE threads SET sandbox_policy = ?, model = ? WHERE id = ?", ('{"type":"read-only"}', "wrong-model", "child-1"))
+        connection.commit()
+        connection.close()
+        wrong_model = run([
+            "python3", str(audit), "verify", "--agent-home", str(agent_home),
+            "--agent-id", "child-1", "--requested-profile", "gauntlet-fast-reader", "--require-read-only",
+        ], check=False)
+        if wrong_model.returncode == 0:
+            raise AssertionError("subagent audit must reject an actual model override")
+        connection = sqlite3.connect(str(database))
+        connection.execute("UPDATE threads SET model = ? WHERE id = ?", ("gpt-5.6-luna", "child-1"))
+        connection.commit()
+        connection.close()
+        connection = sqlite3.connect(str(database))
+        connection.execute("DELETE FROM threads WHERE id = ?", ("child-1",))
+        connection.commit()
+        connection.close()
+        run(["python3", str(audit), "sync", "--agent-home", str(agent_home)])
+        if log.read_text() != first:
+            raise AssertionError("audit sync must retain records pruned from Codex native state")
+        database.unlink()
+        unavailable = run(["python3", str(audit), "sync", "--agent-home", str(agent_home)], check=False)
+        if unavailable.returncode == 0 or log.read_text() != first:
+            raise AssertionError("missing native state must fail without erasing audit history")
+
+
+def test_codex_agent_router_is_deterministic():
+    router = SCRIPTS / "route-codex-agent.py"
+    base = {
+        "work-class": "implementation", "complexity": "standard", "risk": "ordinary",
+        "authority": "local-write", "proof": "integration", "context-shape": "bounded",
+    }
+    cases = [
+        ({}, "gauntlet-standard-worker"),
+        ({"complexity": "deep"}, "gauntlet-deep-worker"),
+        ({"work-class": "verification", "authority": "read-only", "proof": "security"}, "gauntlet-security-reviewer"),
+        ({"work-class": "release", "authority": "merge", "risk": "consequential", "proof": "release"}, "gauntlet-release-integrator"),
+        ({"work-class": "scan", "authority": "read-only", "proof": "source", "context-shape": "high-volume"}, "gauntlet-fast-reader"),
+        ({"work-class": "research", "authority": "read-only", "complexity": "deep", "proof": "source"}, "gauntlet-deep-expert-researcher"),
+    ]
+    for overrides, expected in cases:
+        fields = {**base, **overrides}
+        args = ["python3", str(router)]
+        for key, value in fields.items():
+            args.extend(["--" + key, value])
+        args.append("--json")
+        result = json.loads(run(args).stdout)
+        if result["profile"] != expected:
+            raise AssertionError(f"router selected {result['profile']} instead of {expected} for {fields}")
+    security_implementation = {**base, "risk": "consequential", "proof": "security"}
+    args = ["python3", str(router)]
+    for key, value in security_implementation.items():
+        args.extend(["--" + key, value])
+    args.append("--json")
+    result = json.loads(run(args).stdout)
+    if result["profile"] != "gauntlet-standard-worker":
+        raise AssertionError("security-sensitive implementation must retain a writer and use a separate review ticket")
+
+
+def test_codex_agent_installer_recovers_interrupted_update():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source = root / "source"
+        shutil.copytree(ROOT / "agents" / "codex", source)
+        home = root / "home"
+        installer = SCRIPTS / "install-codex-agents.py"
+        run(["python3", str(installer), "apply", "--source", str(source), "--agent-home", str(home)])
+        manifest_path = home / "gauntlet" / "install-agents-codex.json"
+        old = json.loads(manifest_path.read_text())["files"]
+        changed_source = source / "gauntlet-standard-worker.toml"
+        changed_source.write_text(changed_source.read_text().replace("Keep coordination quiet.", "Keep routine coordination quiet."))
+        intended = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in source.glob("*.toml")}
+        pending = home / "gauntlet" / "install-agents-codex.pending.json"
+        pending.write_text(json.dumps({"schemaVersion": 1, "base": old, "intended": intended}, sort_keys=True))
+        changed_target = home / "agents" / changed_source.name
+        changed_target.write_bytes(changed_source.read_bytes())
+        run(["python3", str(installer), "apply", "--source", str(source), "--agent-home", str(home)])
+        if pending.exists() or json.loads(manifest_path.read_text())["files"] != intended:
+            raise AssertionError("interrupted custom-agent update must converge and clear its transaction")
+        run(["python3", str(installer), "verify", "--source", str(source), "--agent-home", str(home)])
 
 
 def test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks():
@@ -4078,6 +4263,9 @@ def main():
         test_skill_changes_are_guarded_by_pre_commit,
         test_refactor_agent_prompt_renderer_integrity,
         test_codex_install_layout_supports_workflow_check,
+        test_codex_custom_agent_collision_and_audit_behavior,
+        test_codex_agent_router_is_deterministic,
+        test_codex_agent_installer_recovers_interrupted_update,
         test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks,
         test_superpowers_sources_are_attributed_and_retirement_is_allowlisted,
         test_claude_install_layout_adapts_agents_without_overwriting_user_memory,

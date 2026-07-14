@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now installs seven deterministic Codex custom-agent profiles, routes bounded Tickets by explicit work and risk fields, and maintains a privacy-bounded local usage audit backed by Codex native state.
+
 - Gauntlet now maintains human-readable multi-Epic PRDs and compiles build-ready targets into durable Ticket Graph runs with bounded cache-oriented child context, parent-owned verification, cohort gates, and authorized end-to-end release handling.
 
 - Gauntlet refactor workflows now isolate bounded proposal and review agents with stable artifact-backed prompts, prefer the built-in Browser for web verification, preserve explicit Computer Use requests, and record execution-efficiency metrics only when observable.

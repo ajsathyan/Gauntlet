@@ -130,11 +130,15 @@ Standing authorization: when two or more useful lanes meet that independence tes
 
 A Gauntlet Ticket is a generated execution assignment within the current plan or Execution Run, not an issue-tracker record. Dispatch each child directly from one bounded ticket with only the material objective, ownership, dependencies, constraints, proportional proof expectations, return contract, and ask-parent policy. Proof fields are optional. Native Codex state and main-task messages own live coordination. Write-heavy lanes use isolated worktrees unless a tiny disjoint change makes that unnecessary.
 
+For Codex delegation, classify the Ticket and run `{{GAUNTLET_ROOT}}/scripts/route-codex-agent.py` as specified by `{{GAUNTLET_ROOT}}/docs/custom-agent-routing.md`. Record its result before dispatch and request that exact `gauntlet-*` profile when starting the child. A missing or mismatched profile is a routing failure; do not silently substitute another profile for consequential work. The parent retains integration, pull-request, merge, deployment, production, and rollback authority.
+
 Schedule a dynamic ready queue: prioritize critical-path and interface-first work, preserve useful agent affinity, integrate finished tickets continuously, and wait only at selective cohort barriers. The parent owns the oracle and named integration outputs. Materialize compact child context from the ticket, relevant versioned shared context, named dependency contracts, and owned source; do not send the whole PRD, run manifest, event stream, or unrelated receipts.
 
 After an Execution Run starts, its source lock, manifest, and resume artifact are authoritative for execution state. Resume from disk after compaction or restart. Keep stable instructions first and ticket-specific data last, with canonical ordering and stable formatting; this improves prefix reuse but does not guarantee cache hits.
 
 Children work quietly. Implementation children return compact receipts that point to evidence; research and review children return the requested artifact or findings compactly. The main task owns the oracle, independently verifies child evidence, integrates commits into one branch as results arrive, runs targeted integration checks, waits for all required tickets before combined proof, and opens one final pull request.
+
+Codex records each started child in its native local state. Reconcile its child ID and requested profile with `subagent-audit.py verify`; require the effective read-only sandbox for `gauntlet-security-reviewer`. After a Gauntlet child reaches a terminal state, silently run `python3 {{GAUNTLET_ROOT}}/scripts/subagent-audit.py sync --agent-home {{AGENT_HOME}}` so the privacy-bounded Gauntlet JSONL audit stays current. The sync may be rerun after compaction or restart; it durably merges native records and never exports prompts or transcript content.
 
 Implementation children return compact machine receipts; other children return their requested result compactly. Keep routine coordination, status narration, and internal reports out of user-facing chat. Surface only:
 
