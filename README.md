@@ -315,6 +315,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [skills/promotion-scanner/SKILL.md](skills/promotion-scanner/SKILL.md) | Produces bounded Promotion Briefs for repeated manual or agent loops without recommending live operational actions. |
 | [skills/archive/SKILL.md](skills/archive/SKILL.md) | Runs the guarded local-install, PR-merge, cleanup, and Codex task-archive sequence when `/Archive` is invoked. |
 | [skills/craft-customer-email/SKILL.md](skills/craft-customer-email/SKILL.md) | Writes, revises, and audits customer-facing product, operational, transactional, incident, and lifecycle email. |
+| [skills/craft-product-terminology/SKILL.md](skills/craft-product-terminology/SKILL.md) | Creates minimal, responsibility-accurate names for public product concepts and internal system pieces. |
 | [skills/eval-audit/SKILL.md](skills/eval-audit/SKILL.md) | Audits whether an LLM evaluation pipeline is trustworthy. |
 | [skills/eval-error-analysis/SKILL.md](skills/eval-error-analysis/SKILL.md) | Identifies and categorizes failure modes from LLM traces. |
 | [skills/eval-judge-prompt/SKILL.md](skills/eval-judge-prompt/SKILL.md) | Designs binary LLM-as-Judge evaluators for subjective failure modes. |

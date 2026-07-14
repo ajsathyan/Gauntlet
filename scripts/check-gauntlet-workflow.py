@@ -73,6 +73,28 @@ def test_plugin_manifests_bundle_shared_skills():
         raise AssertionError("Claude marketplace must expose the Gauntlet plugin")
 
 
+def test_craft_product_terminology_contract():
+    skill = read(SKILLS / "craft-product-terminology" / "SKILL.md")
+    router = read(ROUTER_MD)
+
+    for marker in [
+        "smallest terminology system",
+        "actual authority",
+        "minimum-question rule",
+        "company-specific branding",
+        "Never promote unverified wording",
+        "Candidate table",
+        "concrete rejections",
+    ]:
+        assert_contains(skill, marker, "craft product terminology contract")
+
+    assert_contains(
+        router,
+        "invoke `craft-product-terminology`",
+        "craft product terminology routing",
+    )
+
+
 def make_ts_project(root):
     (root / "package.json").write_text('{"devDependencies":{"typescript":"latest"}}\n')
     (root / "tsconfig.json").write_text('{"compilerOptions":{"strict":true}}\n')
@@ -3019,6 +3041,7 @@ def assert_installed_gauntlet_layout(agent_home):
         raise AssertionError("installed router exceeds the default 32 KiB instruction budget")
     for skill in [
         "craft-customer-email",
+        "craft-product-terminology",
         "eval-audit",
         "eval-error-analysis",
         "eval-judge-prompt",
@@ -3701,6 +3724,7 @@ def test_superpowers_sources_are_attributed_and_retirement_is_allowlisted():
 def main():
     tests = [
         test_plugin_manifests_bundle_shared_skills,
+        test_craft_product_terminology_contract,
         test_simplified_modes_and_depth_are_documented,
         test_normal_requests_use_minimum_scope_before_lifecycle_routing,
         test_v201_run_log_contract_replaces_default_review_brief,
