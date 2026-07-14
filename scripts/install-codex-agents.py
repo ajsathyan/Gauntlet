@@ -33,6 +33,17 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def authority_attestation(hashes):
+    """Bind the read-only reviewer declaration to the installed profile set."""
+    profile_set_version = digest(json.dumps(hashes, sort_keys=True, separators=(",", ":")).encode())
+    return profile_set_version, {
+        "profile": "gauntlet_security_reviewer",
+        "profileSha256": hashes["gauntlet_security_reviewer.toml"],
+        "profileSetVersion": profile_set_version,
+        "sandboxMode": "read-only",
+    }
+
+
 def parse_profile(path):
     try:
         text = path.read_text(encoding="utf-8")
@@ -176,7 +187,13 @@ def apply(source, agent_home):
         target = destination / name
         if not target.exists() or target.read_bytes() != profile["data"]:
             atomic_write(target, profile["data"])
-    rendered = (json.dumps({"schemaVersion": MANIFEST_VERSION, "files": hashes}, indent=2, sort_keys=True) + "\n").encode()
+    profile_set_version, security_authority = authority_attestation(hashes)
+    rendered = (json.dumps({
+        "schemaVersion": MANIFEST_VERSION,
+        "profileSetVersion": profile_set_version,
+        "securityReviewerAuthority": security_authority,
+        "files": hashes,
+    }, indent=2, sort_keys=True) + "\n").encode()
     atomic_write(manifest_path, rendered)
     pending_path.unlink()
 
@@ -188,6 +205,11 @@ def verify(source, agent_home):
     expected_hashes = {name: digest(profile["data"]) for name, profile in profiles.items()}
     if manifest["files"] != expected_hashes:
         fail("Custom-agent ownership manifest does not match the canonical profiles")
+    profile_set_version, security_authority = authority_attestation(expected_hashes)
+    if manifest.get("profileSetVersion") != profile_set_version:
+        fail("Custom-agent profile-set version does not match the canonical profiles")
+    if manifest.get("securityReviewerAuthority") != security_authority:
+        fail("Installed security reviewer authority is not validated for this profile-set version")
     for name, expected_hash in expected_hashes.items():
         target = destination / name
         if not target.is_file() or target.is_symlink() or digest(target.read_bytes()) != expected_hash:

@@ -50,4 +50,38 @@ Apply the first matching rule:
 
 Send a child only its compact Ticket, relevant shared contracts, named dependency outputs, and owned sources. A release bundle contains the accepted release contract, target revision, changed-surface summary, relevant proof, unresolved exceptions, rollout and rollback steps, and current state needed for the decision. Do not send the full task conversation, complete Execution Run event stream, unrelated receipts, or other child histories.
 
-The Ticket or Execution Run records the classifier's requested profile. Codex native state records the profile actually started, its effective sandbox, and its approval mode; `scripts/subagent-audit.py` exports those actual values into the local Gauntlet audit. Reconcile the two after start when the run has durable dispatch state. A mismatch or unavailable named profile is a routing failure; do not silently substitute another profile. For `gauntlet_security_reviewer`, also require the effective sandbox to be read-only. The profile default and prose constraint are not a security boundary because a parent's live runtime override can supersede them.
+The Ticket or Execution Run records the classifier's requested profile. Codex native state records the profile actually started, model, reasoning effort, effective sandbox, and Codex version. Queue this local reconciliation as soon as start metadata is observable; do not await it in the healthy dispatch critical section:
+
+```sh
+python3 scripts/subagent-audit.py reconcile \
+  --agent-home "$AGENT_HOME" \
+  --agent-id "$CHILD_ID" \
+  --requested-profile "$PROFILE" \
+  --requested-risk "$RISK" \
+  --json
+```
+
+Reconciliation classifies `profile_substitution`, `authority_substitution`, `model_substitution`, `reasoning_substitution`, `security_sandbox_violation`, and `missing_start_metadata`. Its circuit is scoped to the native Codex version and requested profile. The first mismatch opens that circuit for later affected dispatches; it does not stop an already-running ordinary child when the substituted profile has equivalent authority. Consequential substitutions, authority changes, missing required start metadata, and a non-read-only security reviewer return a fail-closed result. Never silently substitute another profile.
+
+Operational router calls pass the same version and circuit path as part of the existing deterministic classification step:
+
+```sh
+python3 scripts/route-codex-agent.py \
+  --circuit-file "$AGENT_HOME/gauntlet/state/routing-circuit.json" \
+  --codex-version "$CODEX_VERSION" \
+  <ticket routing fields> --json
+```
+
+An open circuit returns exit status `3` before a new spawn. A healthy route still requires exactly one native `spawn_agent` call and no model handshake. The router only reads compact circuit state; audit synchronization and rollout analytics stay outside the scheduling critical section.
+
+## Privacy-bounded request analytics
+
+Run `scripts/subagent-audit.py sync` after a child reaches terminal state and whenever local measurements should be refreshed. It writes three mode-`0600` local files under `$AGENT_HOME/gauntlet/logs/`:
+
+- `subagents.jsonl` contains native start metadata; the `cwd` value is an opaque fingerprint and sandbox policy is reduced to its effective type.
+- `subagent-model-requests.jsonl` contains one row per observed model request with input, cached-input, output, reasoning-output, and total token classes.
+- `subagent-quarantine.jsonl` contains only agent ID, line number, and a reason code for incomplete or inconsistent native input.
+
+The request parser derives each request from the difference between successive cumulative native counters. Repeated snapshots therefore do not add requests or tokens twice. Sync rebuilds current-child measurements deterministically and retains measurements for native records that have been pruned, so repeated sync is byte-idempotent. Unterminated JSON, malformed token records, counter regressions, and inconsistent deltas are quarantined without storing their contents. Prompts, transcripts, command output, rollout paths, and absolute private paths are never copied into these files.
+
+The custom-agent installer binds the canonical security reviewer's `read-only` declaration and profile digest to a digest of the complete installed profile set. `verify` checks that versioned authority attestation. Runtime reconciliation separately checks the effective security sandbox for each Codex version because a live override can supersede the installed default.
