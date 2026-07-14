@@ -14,6 +14,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -42,7 +43,16 @@ BRANCH_RE = re.compile(r"^(?!/)(?!-)(?!.*(?:\.\.|//|@\{|[ ~^:?*\[\\]))[A-Za-z0-9
 LANE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 PROTOCOL_VERSION = 1
 INTEGRATION_MODE = "parent-branch"
-PR_STRATEGY = "one-final-pr-per-run"
+PR_STRATEGIES = ("single-final-pr", "review-prs-plus-final")
+DEFAULT_PR_STRATEGY = "single-final-pr"
+AUTHORITY_CAPABILITIES = (
+    "push-review-branch",
+    "open-review-pr",
+    "merge-to-integration",
+    "open-final-pr",
+    "merge-to-default",
+)
+REVIEW_UNIT_STATES = ("pending", "opened", "checked", "merge-locked", "merged", "verified", "cleanup-eligible", "cleaned")
 
 
 class RunError(Exception):
@@ -78,31 +88,36 @@ def source_contract(path: Path, requested_targets: list[str]) -> dict[str, Any]:
     requested = sorted({require_id(item, "target Epic ID") for item in requested_targets})
     if not requested or declared != requested:
         raise RunError(f"requested targets {requested} do not match PRD Implementation target {declared}")
-    epic_matches = list(re.finditer(r"^## Epic ([A-Z][A-Z0-9_-]{0,63}):[^\n]*$", text, re.MULTILINE))
+    epic_matches = list(re.finditer(r"^## Epic ([A-Z][A-Z0-9_-]{0,63}):[ \t]*(.*?)[ \t]*$", text, re.MULTILINE))
     epic_sections: dict[str, str] = {}
     scope_hashes: dict[str, str] = {}
+    epics: dict[str, Any] = {}
     for index, match in enumerate(epic_matches):
         epic_id = match.group(1)
         if epic_id in epic_sections:
             raise RunError(f"duplicate Epic ID in PRD: {epic_id}")
         section = text[match.start() : epic_matches[index + 1].start() if index + 1 < len(epic_matches) else len(text)]
         epic_sections[epic_id] = section
+        epic_title = require_string(match.group(2), f"Epic {epic_id} title")
+        epic_scopes: dict[str, Any] = {}
         if epic_id in requested and not re.search(r"^Epic status:\s*Accepted\s*$", section, re.MULTILINE | re.IGNORECASE):
             raise RunError(f"target Epic {epic_id} is not Accepted")
         if epic_id in requested:
             heading_matches = list(re.finditer(r"^### ([^\n]+)$", section, re.MULTILINE))
             scope_chunks: list[tuple[str, int, int, str]] = []
             for heading_index, heading in enumerate(heading_matches):
-                scope_match = re.fullmatch(r"Scope Area ([A-Z][A-Z0-9_-]{0,63}):.+", heading.group(1))
+                scope_match = re.fullmatch(r"Scope Area ([A-Z][A-Z0-9_-]{0,63}):[ \t]*(.*?)[ \t]*", heading.group(1))
                 if not scope_match:
                     continue
                 scope_id = scope_match.group(1)
+                responsibility = require_string(scope_match.group(2), f"Scope Area {scope_id} responsibility")
                 if scope_id in scope_hashes or any(existing[0] == scope_id for existing in scope_chunks):
                     raise RunError(f"duplicate Scope Area ID in PRD: {scope_id}")
                 if not scope_id.startswith(f"{epic_id}-"):
                     raise RunError(f"Scope Area {scope_id} must belong to target Epic {epic_id}")
                 end = heading_matches[heading_index + 1].start() if heading_index + 1 < len(heading_matches) else len(section)
                 scope_chunks.append((scope_id, heading.start(), end, section[heading.start():end]))
+                epic_scopes[scope_id] = {"responsibility": responsibility}
             common_parts = []
             cursor = 0
             for _, start, end, _ in scope_chunks:
@@ -111,12 +126,18 @@ def source_contract(path: Path, requested_targets: list[str]) -> dict[str, Any]:
             common = "".join(common_parts)
             for scope_id, _, _, scope_text in scope_chunks:
                 scope_hashes[scope_id] = object_hash({"epic_common": common, "scope": scope_text})
+                epic_scopes[scope_id]["sha256"] = scope_hashes[scope_id]
+            epics[epic_id] = {"scope_areas": dict(sorted(epic_scopes.items())), "title": epic_title}
     missing = set(requested) - set(epic_sections)
     if missing:
         raise RunError(f"target Epics are missing from the PRD: {sorted(missing)}")
     if not scope_hashes:
         raise RunError("Implementation target must define searchable '### Scope Area <ID>: <Responsibility>' sections")
-    return {"epic_ids": requested, "scope_hashes": dict(sorted(scope_hashes.items()))}
+    return {
+        "epic_ids": requested,
+        "epics": {key: epics[key] for key in requested},
+        "scope_hashes": dict(sorted(scope_hashes.items())),
+    }
 
 
 def read_json(path: Path) -> Any:
@@ -406,6 +427,53 @@ def normalize_graph(raw: Any) -> dict[str, Any]:
             raise RunError(f"cohort {cohort_id} ticket_ids do not match assigned tickets")
     detect_cycles(ticket_out)
 
+    review_raw = raw.get("review_units")
+    review_out: dict[str, Any] = {}
+    if review_raw is not None:
+        if not isinstance(review_raw, dict) or not review_raw:
+            raise RunError("review_units must be a non-empty object when present")
+        assigned: list[str] = []
+        for unit_id in sorted(review_raw):
+            require_id(unit_id, "review unit ID")
+            unit = review_raw[unit_id]
+            if not isinstance(unit, dict) or set(unit) != {"dependencies", "ticket_ids"}:
+                raise RunError(f"review unit {unit_id} must contain exactly dependencies and ticket_ids")
+            unit_tickets = sorted(string_list(unit["ticket_ids"], f"review unit {unit_id}.ticket_ids", allow_empty=False))
+            if len(unit_tickets) != len(set(unit_tickets)):
+                raise RunError(f"review unit {unit_id} contains duplicate tickets")
+            unknown_tickets = set(unit_tickets) - ticket_ids
+            if unknown_tickets:
+                raise RunError(f"review unit {unit_id} has unknown tickets: {sorted(unknown_tickets)}")
+            dependencies = sorted(string_list(unit["dependencies"], f"review unit {unit_id}.dependencies"))
+            if len(dependencies) != len(set(dependencies)):
+                raise RunError(f"review unit {unit_id} contains duplicate dependencies")
+            review_out[unit_id] = {"dependencies": dependencies, "ticket_ids": unit_tickets}
+            assigned.extend(unit_tickets)
+        if len(assigned) != len(set(assigned)):
+            raise RunError("each ticket must belong to exactly one review unit; duplicate membership found")
+        if set(assigned) != ticket_ids:
+            raise RunError("review unit ticket membership must exactly cover the Ticket Graph")
+        ticket_unit = {ticket_id: unit_id for unit_id, unit in review_out.items() for ticket_id in unit["ticket_ids"]}
+        for unit_id, unit in review_out.items():
+            unknown_units = set(unit["dependencies"]) - set(review_out)
+            if unknown_units:
+                raise RunError(f"review unit {unit_id} has unknown dependencies: {sorted(unknown_units)}")
+            if unit_id in unit["dependencies"]:
+                raise RunError(f"review unit {unit_id} cannot depend on itself")
+            required = {
+                ticket_unit[dependency]
+                for ticket_id in unit["ticket_ids"]
+                for dependency in next(item for item in ticket_out if item["id"] == ticket_id)["dependencies"]
+                if ticket_unit[dependency] != unit_id
+            }
+            declared = set(unit["dependencies"])
+            if declared != required:
+                raise RunError(
+                    f"review unit {unit_id} dependencies must exactly match cross-ticket dependencies; "
+                    f"missing={sorted(required - declared)}, extra={sorted(declared - required)}"
+                )
+        detect_dependency_cycles({key: value["dependencies"] for key, value in review_out.items()}, "review unit")
+
     cohort_context = shared.get("cohorts", {})
     if not isinstance(cohort_context, dict):
         raise RunError("shared_context.cohorts must be an object")
@@ -416,18 +484,22 @@ def normalize_graph(raw: Any) -> dict[str, Any]:
             "cohorts": {key: require_string(cohort_context[key], f"shared context {key}") for key in sorted(cohort_context)},
             "global": require_string(shared.get("global"), "shared_context.global"),
         },
+        "review_units": review_out,
         "tickets": ticket_out,
         "version": 1,
     }
 
 
 def detect_cycles(tickets: list[dict[str, Any]]) -> None:
-    dependencies = {item["id"]: item["dependencies"] for item in tickets}
+    detect_dependency_cycles({item["id"]: item["dependencies"] for item in tickets}, "dependency")
+
+
+def detect_dependency_cycles(dependencies: dict[str, list[str]], label: str) -> None:
     visiting: set[str] = set()
     visited: set[str] = set()
     def visit(ticket_id: str) -> None:
         if ticket_id in visiting:
-            raise RunError(f"dependency cycle includes {ticket_id}")
+            raise RunError(f"{label} cycle includes {ticket_id}")
         if ticket_id in visited:
             return
         visiting.add(ticket_id)
@@ -611,6 +683,607 @@ def require_state(manifest: dict[str, Any], allowed: tuple[str, ...]) -> None:
         raise RunError(f"state {manifest['state']} does not allow this operation; expected {', '.join(allowed)}")
 
 
+def require_sha(value: Any, label: str) -> str:
+    digest = require_string(value, label).lower()
+    if not re.fullmatch(r"[0-9a-f]{7,64}", digest):
+        raise RunError(f"{label} must be a Git object ID")
+    return digest
+
+
+def canonical_git_object(repo: Path, value: Any, label: str, expected_type: str) -> str:
+    supplied = require_sha(value, label)
+    resolved = require_sha(git_value(["rev-parse", "--verify", supplied], label, repo), label)
+    object_type = git_value(["cat-file", "-t", resolved], f"{label} type", repo)
+    if object_type != expected_type:
+        raise RunError(f"{label} must identify a Git {expected_type} object")
+    return resolved
+
+
+def legacy_checked_tree(repo: Path, check: dict[str, Any]):
+    legacy = check.get("tested_merge_sha")
+    if not legacy:
+        return None
+    merge_sha = canonical_git_object(repo, legacy, "legacy tested merge SHA", "commit")
+    parents = git_value(["rev-list", "--parents", "-n", "1", merge_sha], "legacy tested merge parents", repo).split()
+    base = canonical_git_object(repo, check.get("tested_base_sha"), "tested base SHA", "commit")
+    head = canonical_git_object(repo, check.get("head_sha"), "review head SHA", "commit")
+    if len(parents) != 3 or parents[1:] != [base, head]:
+        raise RunError("legacy tested merge commit must have the tested base and review head as its two parents")
+    return canonical_git_object(repo, git_value(["rev-parse", f"{merge_sha}^{{tree}}"], "legacy tested merge tree", repo), "legacy tested merge tree", "tree")
+
+
+def require_closed_object(value: Any, keys: set[str], label: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != keys:
+        raise RunError(f"{label} must contain exactly {', '.join(sorted(keys))}")
+    return value
+
+
+def require_authority(manifest: dict[str, Any], *capabilities: str) -> None:
+    authority = manifest.get("authority", {})
+    missing = [key for key in capabilities if not authority.get(key, {}).get("granted")]
+    if missing:
+        raise RunError(f"missing authority capabilities: {', '.join(missing)}")
+
+
+def cmd_record_authority(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    capability = args.capability
+    source = require_string(args.source, "authority source")
+    record = manifest.setdefault("authority", {}).setdefault(capability, {"granted": False, "source": None})
+    if record.get("granted"):
+        if record.get("source") != source:
+            raise RunError(f"authority {capability} is already recorded from a different source")
+        return
+    record.update({"granted": True, "source": source})
+    event(run, manifest, "authority_recorded", {"capability": capability})
+    save_manifest(run, manifest)
+
+
+def cmd_authority_status(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    record = manifest.get("authority", {}).get(args.capability, {})
+    print(pretty_json({
+        "capability": args.capability,
+        "granted": bool(record.get("granted")),
+        "runId": manifest["run_id"],
+        "schemaVersion": "1.0",
+        "source": record.get("source"),
+    }), end="")
+
+
+def cmd_review_unit(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    require_state(manifest, ("executing", "integrating", "cohort_verified", "prd_verified"))
+    if manifest.get("integration", {}).get("pr_strategy") != "review-prs-plus-final":
+        raise RunError("review-unit operations require review-prs-plus-final")
+    unit_id = require_id(args.unit, "review unit ID")
+    unit = manifest.get("review_units", {}).get(unit_id)
+    if not unit:
+        raise RunError(f"unknown review unit {unit_id}")
+    action = args.action
+    target_index = REVIEW_UNIT_STATES.index(action)
+    current_index = REVIEW_UNIT_STATES.index(unit["state"])
+    if current_index < target_index - 1:
+        raise RunError(f"invalid review unit transition {unit['state']} -> {action}")
+
+    update: dict[str, Any] = {}
+    if action == "opened":
+        require_authority(manifest, "push-review-branch", "open-review-pr")
+        update = {"branch": require_branch(args.branch, "review branch"), "pr": require_string(args.pr, "review PR")}
+        if update["branch"] == manifest["integration"]["branch"]:
+            raise RunError("review branch must differ from the integration branch")
+    elif action == "checked":
+        pending_dependencies = [
+            dependency for dependency in unit["dependencies"]
+            if REVIEW_UNIT_STATES.index(manifest["review_units"][dependency]["state"]) < REVIEW_UNIT_STATES.index("merged")
+        ]
+        if pending_dependencies:
+            raise RunError(f"review unit dependencies are not merged: {pending_dependencies}")
+        evidence, relative = proof_path(run, Path(args.proof_evidence), "review check evidence")
+        result = require_string(args.proof_result, "review proof result")
+        if result != "pass":
+            raise RunError("review unit check result must be pass")
+        if not args.tested_tree_sha and not args.tested_merge_sha:
+            raise RunError("checked review units require --tested-tree-sha")
+        repo, _ = git_repository_identity(Path.cwd())
+        checked_base = canonical_git_object(repo, args.tested_base_sha, "tested base SHA", "commit")
+        checked_head = canonical_git_object(repo, args.head_sha, "review head SHA", "commit")
+        if args.tested_tree_sha:
+            checked_tree = canonical_git_object(repo, args.tested_tree_sha, "tested merge tree SHA", "tree")
+        else:
+            legacy_check = {
+                "head_sha": checked_head,
+                "tested_base_sha": checked_base,
+                "tested_merge_sha": args.tested_merge_sha,
+            }
+            checked_tree = legacy_checked_tree(repo, legacy_check)
+        proof_hash = sha_file(evidence)
+        update = {
+            "check": {
+                "head_sha": checked_head,
+                "proof": {
+                    "command": require_string(args.proof_command, "review proof command"),
+                    "evidence": relative,
+                    "evidence_sha256": proof_hash,
+                    "result": result,
+                },
+                "tested_base_sha": checked_base,
+                "tested_tree_sha": checked_tree,
+            }
+        }
+        previous = unit.get("check", {})
+        previous_tuple = (
+            previous.get("head_sha"),
+            previous.get("tested_base_sha"),
+            previous.get("tested_tree_sha") or legacy_checked_tree(repo, previous),
+        )
+        current_tuple = (
+            update["check"]["head_sha"],
+            update["check"]["tested_base_sha"],
+            update["check"]["tested_tree_sha"],
+        )
+        previous_proof = previous.get("proof", {})
+        if isinstance(previous_proof, list):
+            previous_hash = sha_file(run / previous_proof[2]) if len(previous_proof) > 2 else None
+        else:
+            previous_hash = previous_proof.get("evidence_sha256")
+        if previous and previous_tuple != current_tuple and previous_hash == proof_hash:
+            raise RunError("a changed review tuple requires fresh proof evidence")
+        pin_artifact(run, manifest, evidence)
+    elif action == "merge-locked":
+        require_authority(manifest, "merge-to-integration")
+        repo, _ = git_repository_identity(Path.cwd())
+        current_base = canonical_git_object(repo, args.current_base_sha, "current integration base SHA", "commit")
+        checked_base = canonical_git_object(repo, unit.get("check", {}).get("tested_base_sha"), "tested base SHA", "commit")
+        if current_base != checked_base:
+            raise RunError("stale integration base; recheck the review unit against the current base")
+        update = {"merge_lock": {"base_sha": current_base}}
+    elif action == "merged":
+        repo, _ = git_repository_identity(Path.cwd())
+        merge_sha = canonical_git_object(repo, args.merge_sha, "review merge SHA", "commit")
+        merged_tree_sha = canonical_git_object(repo, args.merged_tree_sha, "merged tree SHA", "tree")
+        check = unit.get("check", {})
+        tested_tree_sha = check.get("tested_tree_sha") or legacy_checked_tree(repo, check)
+        if merged_tree_sha != tested_tree_sha:
+            raise RunError("merged tree SHA must equal the checked synthetic merge tree SHA")
+        parents = git_value(["rev-list", "--parents", "-n", "1", merge_sha], "review merge parents", repo).split()
+        checked_base = canonical_git_object(repo, check.get("tested_base_sha"), "tested base SHA", "commit")
+        checked_head = canonical_git_object(repo, check.get("head_sha"), "review head SHA", "commit")
+        if len(parents) != 3 or parents[1:] != [checked_base, checked_head]:
+            raise RunError("review merge commit must have the checked integration base and review head as its two parents")
+        actual_tree = require_sha(git_value(["rev-parse", f"{merge_sha}^{{tree}}"], "review merge tree", repo), "review merge tree")
+        if actual_tree != merged_tree_sha:
+            raise RunError("merged tree SHA does not match the recorded merge commit")
+        branch_ref = integration_ref(repo, manifest["integration"]["branch"])
+        contains = subprocess.run(
+            ["git", "-C", str(repo), "merge-base", "--is-ancestor", merge_sha, branch_ref],
+            text=True,
+            capture_output=True,
+        )
+        if contains.returncode != 0:
+            raise RunError("review merge commit is not present on the integration branch")
+        update = {"merge_sha": merge_sha, "merged_tree_sha": merged_tree_sha}
+    elif action == "verified":
+        repo, _ = git_repository_identity(Path.cwd())
+        branch_ref = integration_ref(repo, manifest["integration"]["branch"])
+        merge_sha = unit.get("merge_sha")
+        head_sha = unit.get("check", {}).get("head_sha")
+        for candidate, label in ((merge_sha, "recorded review merge"), (head_sha, "reviewed head")):
+            reachable = subprocess.run(
+                ["git", "-C", str(repo), "merge-base", "--is-ancestor", candidate or "missing", branch_ref],
+                text=True,
+                capture_output=True,
+            )
+            if reachable.returncode != 0:
+                raise RunError(f"{label} is not reachable from the integration branch")
+        evidence, relative = proof_path(run, Path(args.evidence), "review verification evidence")
+        update = {"verification": {"evidence": relative, "summary": require_string(args.summary, "review verification summary")}}
+        pin_artifact(run, manifest, evidence)
+
+    if action == "checked" and unit["state"] in ("checked", "merge-locked"):
+        if unit.get("check") == update["check"] and unit["state"] == "checked":
+            return
+        unit.update(update)
+        unit.pop("merge_lock", None)
+        unit["state"] = "checked"
+        event(run, manifest, "review_unit_rechecked", {"unit": unit_id})
+        save_manifest(run, manifest)
+        return
+    if current_index >= target_index:
+        for key, value in update.items():
+            if unit.get(key) != value:
+                raise RunError(f"review unit {unit_id} already passed {action} with different data")
+        return
+    unit.update(update)
+    unit["state"] = action
+    event(run, manifest, "review_unit_transitioned", {"state": action, "unit": unit_id})
+    save_manifest(run, manifest)
+
+
+def cmd_review_unit_status(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    if manifest.get("integration", {}).get("pr_strategy") != "review-prs-plus-final":
+        raise RunError("review-unit status requires review-prs-plus-final")
+    unit_id = require_id(args.unit, "review unit ID")
+    unit = manifest.get("review_units", {}).get(unit_id)
+    if not unit:
+        raise RunError(f"unknown review unit {unit_id}")
+    graph = read_json(run / "ticket-graph.json")
+    graph_tickets = {item["id"]: item for item in graph["tickets"]}
+    payload = {
+        "authority": {
+            key: bool(value.get("granted"))
+            for key, value in sorted(manifest.get("authority", {}).items())
+        },
+        "integrationBranch": manifest["integration"]["branch"],
+        "prStrategy": manifest["integration"]["pr_strategy"],
+        "runId": manifest["run_id"],
+        "schemaVersion": "1.0",
+        "dependencyStates": {
+            dependency: manifest["review_units"][dependency]["state"]
+            for dependency in unit["dependencies"]
+        },
+        "unit": {
+            **unit,
+            "id": unit_id,
+            "tickets": [
+                {
+                    "epicId": graph_tickets[ticket_id]["epic_id"],
+                    "id": ticket_id,
+                    "objective": graph_tickets[ticket_id]["objective"],
+                    "status": manifest["tickets"][ticket_id]["status"],
+                    "title": graph_tickets[ticket_id]["title"],
+                }
+                for ticket_id in unit["ticket_ids"]
+            ],
+        },
+    }
+    print(pretty_json(payload), end="")
+
+
+PROJECT_SUMMARY_KEYS = {"title", "problem", "solution", "changelog", "testing", "securityRisk"}
+EPIC_OUTCOME_KEYS = {"epicId", "title", "outcome", "scopeAreas", "decisions", "risks"}
+SCOPE_OUTCOME_KEYS = {"scopeAreaId", "responsibility", "outcome", "claim", "proofLayer", "evidenceRefs", "cannotVerify"}
+DECISION_KEYS = {"id", "outcome", "rationale", "provenance"}
+RISK_KEYS = {"id", "summary", "disposition", "blocking", "gateId", "evidenceRefs"}
+
+
+def bounded_string(value: Any, label: str, limit: int = 4000) -> str:
+    result = require_string(value, label)
+    if len(result) > limit:
+        raise RunError(f"{label} exceeds {limit} characters")
+    return result
+
+
+def cmd_record_project_summary(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    require_state(manifest, ("prd_verified",))
+    raw = require_closed_object(read_json(Path(args.artifact)), PROJECT_SUMMARY_KEYS, "project summary")
+    title = bounded_string(raw["title"], "project summary.title")
+    if not re.fullmatch(r"[^:\n]+: [^\n]+", title):
+        raise RunError("project summary.title must use '<area>: <behavioral outcome>'")
+    problem = require_closed_object(raw["problem"], {"context", "impact"}, "project summary.problem")
+    problem_out = {
+        "context": bounded_string(problem["context"], "project summary.problem.context"),
+        "impact": bounded_string(problem["impact"], "project summary.problem.impact"),
+    }
+    solution = require_closed_object(
+        raw["solution"], {"outcome", "invariants", "preserved", "nonGoals"}, "project summary.solution"
+    )
+    solution_out = {"outcome": bounded_string(solution["outcome"], "project summary.solution.outcome")}
+    for field in ("invariants", "preserved", "nonGoals"):
+        values = string_list(solution[field], f"project summary.solution.{field}")
+        solution_out[field] = [bounded_string(value, f"project summary.solution.{field}") for value in values]
+    testing = raw["testing"]
+    if not isinstance(testing, list) or not testing:
+        raise RunError("project summary.testing must be a non-empty list")
+    testing_out = []
+    for index, item in enumerate(testing):
+        item = require_closed_object(item, {"command", "result", "proves"}, f"project summary.testing[{index}]")
+        testing_out.append({
+            field: bounded_string(item[field], f"project summary.testing[{index}].{field}")
+            for field in ("command", "result", "proves")
+        })
+    security_risk = raw["securityRisk"]
+    if security_risk is not None:
+        security_risk = bounded_string(security_risk, "project summary.securityRisk")
+    summary = {
+        "changelog": bounded_string(raw["changelog"], "project summary.changelog"),
+        "problem": problem_out,
+        "securityRisk": security_risk,
+        "solution": solution_out,
+        "testing": testing_out,
+        "title": title,
+    }
+    if "\n" in summary["changelog"] or "\r" in summary["changelog"]:
+        raise RunError("project summary.changelog must be exactly one line")
+    destination = run / "release" / "project-summary.json"
+    if destination.is_file() and read_json(destination) != summary:
+        raise RunError("project summary is already recorded and immutable")
+    atomic_json(destination, summary)
+    relative = pin_artifact(run, manifest, destination)
+    manifest.setdefault("outcomes", {})["project_summary"] = relative
+    event(run, manifest, "project_summary_recorded", {})
+    save_manifest(run, manifest)
+
+
+def qualified_evidence(manifest: dict[str, Any]) -> dict[str, set[str]]:
+    integration = {
+        item["integration_verification"]["evidence"]
+        for item in manifest["tickets"].values()
+        if item.get("status") == "integrated" and item.get("integration_verification", {}).get("evidence")
+    }
+    cohorts = {item["evidence"] for item in manifest["cohorts"].values() if item.get("result") == "pass" and item.get("evidence")}
+    prd = manifest.get("release", {}).get("prd-verification", {})
+    return {"parent-integration": integration, "cohort": cohorts, "prd": {prd["evidence"]} if prd.get("result") == "pass" else set()}
+
+
+def validate_evidence_refs(run: Path, manifest: dict[str, Any], refs: Any, label: str, allowed: set[str]) -> list[str]:
+    result = sorted(string_list(refs, label, allow_empty=False))
+    if len(result) != len(set(result)):
+        raise RunError(f"{label} contains duplicates")
+    for relative in result:
+        if relative not in allowed:
+            raise RunError(f"{label} contains evidence outside its qualifying proof layer: {relative}")
+        path = run / relative
+        if not path.is_file() or manifest.get("artifact_hashes", {}).get(relative) != sha_file(path):
+            raise RunError(f"{label} must reference hash-pinned run evidence: {relative}")
+    return result
+
+
+def cmd_record_epic_outcome(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    require_state(manifest, ("prd_verified",))
+    lock = read_json(run / "source-lock.json")
+    raw = require_closed_object(read_json(Path(args.artifact)), EPIC_OUTCOME_KEYS, "Epic outcome")
+    epic_id = require_id(raw["epicId"], "Epic outcome.epicId")
+    canonical = lock.get("epics", {}).get(epic_id)
+    if not canonical or raw["title"] != canonical["title"]:
+        raise RunError("Epic outcome must use a locked Epic ID and canonical title")
+    if not isinstance(raw["scopeAreas"], list):
+        raise RunError("Epic outcome.scopeAreas must be a list")
+    evidence = qualified_evidence(manifest)
+    scopes = []
+    for item in raw["scopeAreas"]:
+        item = require_closed_object(item, SCOPE_OUTCOME_KEYS, "Scope Area outcome")
+        scope_id = require_id(item["scopeAreaId"], "Scope Area outcome.scopeAreaId")
+        expected = canonical["scope_areas"].get(scope_id)
+        if not expected or item["responsibility"] != expected["responsibility"]:
+            raise RunError(f"Scope Area outcome {scope_id} must use its canonical responsibility")
+        layer = item["proofLayer"]
+        if layer not in evidence:
+            raise RunError("Scope Area outcome.proofLayer must be parent-integration, cohort, or prd")
+        integrated = [
+            ticket_id for ticket_id, ticket in manifest["tickets"].items()
+            if scope_id in ticket["scope_area_ids"] and ticket["status"] == "integrated"
+        ]
+        if not integrated:
+            raise RunError(f"Scope Area {scope_id} has no integrated Ticket")
+        if layer == "parent-integration":
+            allowed = {
+                manifest["tickets"][ticket_id]["integration_verification"]["evidence"]
+                for ticket_id in integrated
+            }
+        elif layer == "cohort":
+            allowed = {
+                manifest["cohorts"][manifest["tickets"][ticket_id]["cohort_id"]]["evidence"]
+                for ticket_id in integrated
+                if manifest["cohorts"][manifest["tickets"][ticket_id]["cohort_id"]].get("result") == "pass"
+            }
+        else:
+            allowed = evidence[layer]
+        refs = validate_evidence_refs(run, manifest, item["evidenceRefs"], f"Scope Area {scope_id}.evidenceRefs", allowed)
+        scopes.append({
+            "cannotVerify": sorted(string_list(item["cannotVerify"], f"Scope Area {scope_id}.cannotVerify")),
+            "claim": bounded_string(item["claim"], f"Scope Area {scope_id}.claim"),
+            "evidenceRefs": refs,
+            "outcome": bounded_string(item["outcome"], f"Scope Area {scope_id}.outcome"),
+            "proofLayer": layer,
+            "responsibility": expected["responsibility"],
+            "scopeAreaId": scope_id,
+        })
+    scopes.sort(key=lambda item: item["scopeAreaId"])
+    if [item["scopeAreaId"] for item in scopes] != sorted(canonical["scope_areas"]):
+        raise RunError(f"Epic outcome {epic_id} must cover each locked Scope Area exactly once")
+
+    decisions = []
+    if not isinstance(raw["decisions"], list):
+        raise RunError("Epic outcome.decisions must be a list")
+    all_evidence = set().union(*evidence.values())
+    for item in raw["decisions"]:
+        item = require_closed_object(item, DECISION_KEYS, "decision")
+        provenance = require_string(item["provenance"], "decision.provenance")
+        validate_evidence_refs(run, manifest, [provenance], "decision.provenance", all_evidence)
+        decisions.append({
+            "id": require_id(item["id"], "decision.id"), "outcome": bounded_string(item["outcome"], "decision.outcome"),
+            "rationale": bounded_string(item["rationale"], "decision.rationale"), "provenance": provenance,
+        })
+    decisions.sort(key=lambda item: item["id"])
+    if len({item["id"] for item in decisions}) != len(decisions):
+        raise RunError("decision IDs must be unique")
+
+    risks = []
+    if not isinstance(raw["risks"], list):
+        raise RunError("Epic outcome.risks must be a list")
+    gate_ids = {"ticket-integration", "cohort-verification", "prd-verification", "review-units", "merge-to-default", "deployment", "production-verification"}
+    for item in raw["risks"]:
+        item = require_closed_object(item, RISK_KEYS, "risk")
+        if not isinstance(item["blocking"], bool):
+            raise RunError("risk.blocking must be boolean")
+        gate_id = item["gateId"]
+        if gate_id is not None and gate_id not in gate_ids:
+            raise RunError(f"unknown risk gateId {gate_id}")
+        refs = [] if not item["evidenceRefs"] else validate_evidence_refs(run, manifest, item["evidenceRefs"], "risk.evidenceRefs", all_evidence)
+        risks.append({
+            "blocking": item["blocking"], "disposition": bounded_string(item["disposition"], "risk.disposition"),
+            "evidenceRefs": refs, "gateId": gate_id, "id": require_id(item["id"], "risk.id"),
+            "summary": bounded_string(item["summary"], "risk.summary"),
+        })
+    risks.sort(key=lambda item: item["id"])
+    if len({item["id"] for item in risks}) != len(risks):
+        raise RunError("risk IDs must be unique")
+
+    outcome = {
+        "decisions": decisions, "epicId": epic_id, "outcome": bounded_string(raw["outcome"], "Epic outcome.outcome"),
+        "risks": risks, "scopeAreas": scopes, "title": canonical["title"],
+    }
+    destination = run / "outcomes" / f"{epic_id}.json"
+    if destination.is_file() and read_json(destination) != outcome:
+        raise RunError(f"Epic outcome {epic_id} is already recorded and immutable")
+    atomic_json(destination, outcome)
+    relative = pin_artifact(run, manifest, destination)
+    manifest.setdefault("outcomes", {}).setdefault("epics", {})[epic_id] = relative
+    event(run, manifest, "epic_outcome_recorded", {"epic": epic_id})
+    save_manifest(run, manifest)
+
+
+def git_value(args: list[str], label: str, cwd: Path) -> str:
+    result = subprocess.run(["git", "-C", str(cwd), *args], text=True, capture_output=True)
+    if result.returncode:
+        raise RunError(f"cannot determine {label}: {result.stderr.strip() or result.stdout.strip()}")
+    return result.stdout.strip()
+
+
+def git_repository_identity(cwd: Path) -> tuple[Path, str]:
+    root = Path(git_value(["rev-parse", "--show-toplevel"], "repository root", cwd)).resolve()
+    remote = subprocess.run(
+        ["git", "-C", str(root), "config", "--get", "remote.origin.url"],
+        text=True,
+        capture_output=True,
+    )
+    identity = remote.stdout.strip() if remote.returncode == 0 and remote.stdout.strip() else str(root)
+    return root, identity
+
+
+def integration_ref(repo: Path, branch: str) -> str:
+    for ref in (f"refs/remotes/origin/{branch}", f"refs/heads/{branch}"):
+        result = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--verify", ref],
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            return ref
+    raise RunError(f"integration branch is not available locally or from origin: {branch}")
+
+
+def run_binding_registry(repo: Path) -> Path:
+    raw = Path(git_value(["rev-parse", "--git-common-dir"], "Git common directory", repo))
+    common = raw if raw.is_absolute() else (repo / raw).resolve()
+    return common / "gauntlet" / "run-bindings.json"
+
+
+def register_run_binding(repo: Path, branch: str, run: Path, repository_identity: str) -> None:
+    registry = run_binding_registry(repo)
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = registry.with_suffix(".lock")
+    with lock_path.open("a+") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        records = read_json(registry) if registry.is_file() else {}
+        if not isinstance(records, dict):
+            raise RunError(f"invalid run-binding registry: {registry}")
+        existing = records.get(branch)
+        if existing and Path(existing.get("run", "")).is_dir() and Path(existing["run"]).resolve() != run.resolve():
+            raise RunError(f"integration branch {branch} is already bound to Execution Run {existing['run']}")
+        records[branch] = {"repository": repository_identity, "run": str(run.resolve())}
+        atomic_json(registry, records)
+
+
+def release_gates(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    integration_evidence = sorted(
+        item["integration_verification"]["evidence"] for item in manifest["tickets"].values()
+        if item.get("integration_verification", {}).get("evidence")
+    )
+    cohort_evidence = sorted(item["evidence"] for item in manifest["cohorts"].values() if item.get("evidence"))
+    prd = manifest["release"]["prd-verification"]
+    gates = [
+        {"id": "ticket-integration", "stage": "pre-merge", "summary": "Every compiled Ticket is integrated with parent verification.", "status": "pass", "blocking": True, "evidenceRefs": integration_evidence},
+        {"id": "cohort-verification", "stage": "pre-merge", "summary": "Every Cohort invariant passed.", "status": "pass", "blocking": True, "evidenceRefs": cohort_evidence},
+        {"id": "prd-verification", "stage": "pre-merge", "summary": "Independent verification covered the locked PRD target.", "status": "pass", "blocking": True, "evidenceRefs": [prd["evidence"]]},
+    ]
+    if manifest.get("integration", {}).get("pr_strategy") == "review-prs-plus-final":
+        gates.append({
+            "id": "review-units", "stage": "pre-merge", "summary": "Every review unit was checked, merged, and verified.",
+            "status": "pass", "blocking": True,
+            "evidenceRefs": sorted(unit["verification"]["evidence"] for unit in manifest["review_units"].values()),
+        })
+    gates.append({
+        "id": "merge-to-default", "stage": "merge", "summary": "Final PR merge requires the distinct merge-to-default authority capability.",
+        "status": "pending", "blocking": False, "evidenceRefs": [],
+    })
+    for stage in ("deployment", "production-verification"):
+        applicable = manifest["release"]["applicability"][stage]
+        gates.append({
+            "id": stage, "stage": "post-merge", "summary": f"{stage.replace('-', ' ').title()} is {'required after merge' if applicable else 'not applicable to this run'}.",
+            "status": "pending" if applicable else "skipped", "blocking": False, "evidenceRefs": [],
+        })
+    return gates
+
+
+def cmd_project_pr(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    require_state(manifest, ("prd_verified",))
+    require_authority(manifest, "open-final-pr")
+    pending = [key for key, item in manifest["tickets"].items() if item["status"] != "integrated"]
+    failed_cohorts = [key for key, item in manifest["cohorts"].items() if item.get("result") != "pass"]
+    if pending or failed_cohorts or manifest["release"].get("prd-verification", {}).get("result") != "pass":
+        raise RunError("project-pr requires integrated Tickets, passing Cohorts, and passing PRD verification")
+    if manifest.get("integration", {}).get("pr_strategy") == "review-prs-plus-final":
+        unverified = [
+            key for key, unit in manifest.get("review_units", {}).items()
+            if REVIEW_UNIT_STATES.index(unit["state"]) < REVIEW_UNIT_STATES.index("verified")
+        ]
+        if unverified:
+            raise RunError(f"project-pr requires verified review units: {unverified}")
+    outcomes = manifest.get("outcomes", {})
+    summary_ref = outcomes.get("project_summary")
+    if not summary_ref:
+        raise RunError("project summary has not been recorded")
+    summary = read_json(run / summary_ref)
+    lock = read_json(run / "source-lock.json")
+    epic_refs = outcomes.get("epics", {})
+    if set(epic_refs) != set(lock["target_epic_ids"]):
+        raise RunError("project-pr requires exactly one outcome artifact for every locked Epic")
+    substantial = [read_json(run / epic_refs[epic_id]) for epic_id in sorted(epic_refs)]
+    if any(scope["cannotVerify"] for epic in substantial for scope in epic["scopeAreas"]):
+        raise RunError("project-pr cannot claim completion while a Scope Area has cannotVerify entries")
+    if any(risk["blocking"] for epic in substantial for risk in epic["risks"]):
+        raise RunError("project-pr cannot proceed with unresolved blocking risks")
+
+    cwd = Path.cwd().resolve()
+    repo_root, repository = git_repository_identity(cwd)
+    if git_value(["status", "--porcelain"], "repository cleanliness", repo_root):
+        raise RunError("project-pr requires a clean repository")
+    branch = git_value(["branch", "--show-current"], "current branch", repo_root)
+    if branch != manifest["integration"]["branch"]:
+        raise RunError("current branch does not match the Execution Run integration branch")
+    head = require_sha(git_value(["rev-parse", "HEAD"], "HEAD", repo_root), "HEAD")
+    verification = manifest["release"]["prd-verification"]
+    if repository != lock.get("repository_identity") or repository != verification.get("repository_identity"):
+        raise RunError("project-pr repository does not match the locked and verified repository")
+    if head != verification.get("integration_head_sha"):
+        raise RunError("project-pr HEAD does not match the exact integration revision verified by the PRD check")
+    prd_evidence = run / manifest["release"]["prd-verification"]["evidence"]
+    projection = {
+        "binding": {
+            "branch": branch, "generation": manifest["generation"], "graphSha256": manifest["graph_sha256"],
+            "headSha": head, "prdVerificationSha256": sha_file(prd_evidence), "repository": repository,
+            "runId": manifest["run_id"], "sourceLockSha256": manifest["source_lock_sha256"],
+        },
+        "changelog": summary["changelog"], "problem": summary["problem"], "releaseGates": release_gates(manifest),
+        "schemaVersion": "2.0", "securityRisk": summary["securityRisk"], "solution": summary["solution"],
+        "substantialChanges": substantial, "testing": summary["testing"], "title": summary["title"],
+    }
+    print(pretty_json(projection), end="")
+
+
 def cmd_init(args: argparse.Namespace) -> None:
     source = Path(args.source).resolve()
     if not source.is_file():
@@ -622,6 +1295,10 @@ def cmd_init(args: argparse.Namespace) -> None:
     if final_run.exists():
         raise RunError(f"run already exists: {final_run}")
     source_info = source_contract(source, args.target)
+    repository_root, repository_identity = git_repository_identity(Path.cwd())
+    pr_strategy = args.pr_strategy
+    if pr_strategy not in PR_STRATEGIES:
+        raise RunError(f"PR strategy must be one of {', '.join(PR_STRATEGIES)}")
     integration_branch = require_branch(args.integration_branch or f"run/{args.run_id}", "integration branch")
     stages = sorted(set(item.strip() for item in args.release_stages.split(",") if item.strip()))
     unknown_stages = set(stages) - set(RELEASE_APPLICABILITY)
@@ -629,31 +1306,34 @@ def cmd_init(args: argparse.Namespace) -> None:
         raise RunError("release stages must include merge and production-verification requires deployment")
     run = Path(tempfile.mkdtemp(prefix=f".{args.run_id}.init-", dir=root))
     args._init_temporary = run
-    for directory in ("tickets", "receipts", "handoffs", "evidence", "cohorts", "release", "shared-context"):
+    for directory in ("tickets", "receipts", "handoffs", "evidence", "cohorts", "release", "shared-context", "outcomes"):
         (run / directory).mkdir(parents=True, exist_ok=False)
     source_hash = sha_file(source)
     lock = {
         "instruction_version": require_string(args.instruction_version, "instruction version"),
         "release_contract": require_string(args.release_contract, "release contract"),
         "release_stages": stages,
+        "repository_identity": repository_identity,
         "source_path": str(source), "source_sha256": source_hash,
         "target_epic_ids": source_info["epic_ids"], "scope_hashes": source_info["scope_hashes"],
+        "epics": source_info["epics"],
     }
     manifest = {
         "artifact_hashes": {}, "cohorts": {}, "event_sequence": 0, "generation": 0, "graph_sha256": None,
         "ownership": {
             "children": ["assigned code worktree", "receipt input", "named evidence"],
-            "parent": ["source-lock.json", "manifest.json", "resume.md", "events.jsonl", "cohorts/", "release/"],
+            "parent": ["source-lock.json", "manifest.json", "resume.md", "events.jsonl", "cohorts/", "release/", "review_units", "outcomes/"],
         },
         "protocol_version": PROTOCOL_VERSION,
+        "authority": {key: {"granted": False, "source": None} for key in AUTHORITY_CAPABILITIES},
         "integration": {
             "branch": integration_branch,
             "merge_executor": "parent-after-user-authority",
             "mode": INTEGRATION_MODE,
-            "pr_strategy": PR_STRATEGY,
+            "pr_strategy": pr_strategy,
         },
         "release": {"applicability": {key: key in stages for key in RELEASE_APPLICABILITY}},
-        "run_id": args.run_id, "shared_context": {}, "lanes": {},
+        "run_id": args.run_id, "shared_context": {}, "lanes": {}, "review_units": {}, "outcomes": {},
         "source": {"path": str(source), "sha256": source_hash}, "state": "discussing", "tickets": {},
     }
     atomic_json(run / "source-lock.json", lock)
@@ -671,6 +1351,13 @@ def cmd_init(args: argparse.Namespace) -> None:
         os.rename(run, final_run)
     except OSError as exc:
         raise RunError(f"cannot publish execution run {final_run}: {exc}") from exc
+    try:
+        register_run_binding(repository_root, integration_branch, final_run, repository_identity)
+    except (OSError, RunError) as exc:
+        shutil.rmtree(final_run)
+        if isinstance(exc, RunError):
+            raise
+        raise RunError(f"cannot register Execution Run binding: {exc}") from exc
     args._init_temporary = None
     print(final_run)
 
@@ -724,6 +1411,11 @@ def cmd_compile(args: argparse.Namespace) -> None:
     require_state(manifest, ("accepted",))
     graph = normalize_graph(read_json(Path(args.graph)))
     lock = read_json(run / "source-lock.json")
+    strategy = manifest.get("integration", {}).get("pr_strategy", "one-final-pr-per-run")
+    if strategy == "review-prs-plus-final" and not graph["review_units"]:
+        raise RunError("review-prs-plus-final requires graph review_units")
+    if strategy != "review-prs-plus-final" and graph["review_units"]:
+        raise RunError("review_units are only valid with review-prs-plus-final")
     graph_epics = {item["epic_id"] for item in graph["tickets"]}
     if graph_epics != set(lock["target_epic_ids"]):
         raise RunError(f"ticket graph Epics {sorted(graph_epics)} do not match locked targets {lock['target_epic_ids']}")
@@ -750,6 +1442,21 @@ def cmd_compile(args: argparse.Namespace) -> None:
         context = graph["shared_context"]["cohorts"].get(cohort_id, graph["cohorts"][cohort_id]["invariant"])
         atomic_text(run / "shared-context" / f"{cohort_id.lower()}-v1.md", f"# Cohort {cohort_id} context\n\n{context.strip()}\n")
     manifest["tickets"] = tickets
+    ticket_units = {
+        ticket_id: unit_id
+        for unit_id, unit in graph["review_units"].items()
+        for ticket_id in unit["ticket_ids"]
+    }
+    for ticket_id, unit_id in ticket_units.items():
+        manifest["tickets"][ticket_id]["review_unit_id"] = unit_id
+    manifest["review_units"] = {
+        unit_id: {
+            "dependencies": unit["dependencies"],
+            "state": "pending",
+            "ticket_ids": unit["ticket_ids"],
+        }
+        for unit_id, unit in graph["review_units"].items()
+    }
     manifest["cohorts"] = {key: {"result": None, **graph["cohorts"][key]} for key in sorted(graph["cohorts"])}
     manifest["shared_context"] = {
         "cohorts": {key: f"shared-context/{key.lower()}-v1.md" for key in sorted(graph["cohorts"])},
@@ -1222,6 +1929,18 @@ def cmd_verify_prd(args: argparse.Namespace) -> None:
         "evidence": relative, "result": args.result,
         "summary": require_string(args.summary, "full PRD summary"),
     }
+    if manifest.get("integration", {}).get("pr_strategy") in PR_STRATEGIES:
+        repo, repository_identity = git_repository_identity(Path.cwd())
+        lock = read_json(run / "source-lock.json")
+        if repository_identity != lock.get("repository_identity"):
+            raise RunError("full PRD verification must run in the repository locked at initialization")
+        branch = git_value(["branch", "--show-current"], "current branch", repo)
+        if branch != manifest["integration"]["branch"]:
+            raise RunError("full PRD verification must run on the Execution Run integration branch")
+        manifest["release"]["prd-verification"].update({
+            "repository_identity": repository_identity,
+            "integration_head_sha": require_sha(git_value(["rev-parse", "HEAD"], "integration HEAD", repo), "integration HEAD"),
+        })
     report = run / "release" / "prd-verification.md"
     atomic_text(report, f"# PRD Verification\n\nResult: {args.result}\n\nSummary: {args.summary}\n\nEvidence: {relative}\n")
     pin_artifact(run, manifest, evidence); pin_artifact(run, manifest, report)
@@ -1233,6 +1952,8 @@ def cmd_record_merge(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
     require_state(manifest, ("prd_verified",))
+    if "authority" in manifest:
+        require_authority(manifest, "merge-to-default")
     merged = require_string(args.merged_sha, "merged SHA").lower()
     main = require_string(args.main_sha, "main SHA").lower()
     if not re.fullmatch(r"[0-9a-f]{7,64}", merged) or merged != main:
@@ -1279,6 +2000,8 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
         raise RunError(f"source does not exist: {source}")
     graph = normalize_graph(read_json(Path(args.graph)))
     old_graph = read_json(run / "ticket-graph.json")
+    if graph.get("review_units", {}) != old_graph.get("review_units", {}):
+        raise RunError("reconcile cannot change frozen review unit membership or dependencies; compile a new run")
     old_by_id = {item["id"]: item for item in old_graph["tickets"]}
     new_by_id = {item["id"]: item for item in graph["tickets"]}
     if set(old_by_id) != set(new_by_id):
@@ -1321,6 +2044,10 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
             if ticket_id not in impacted and impacted.intersection(item["dependencies"]):
                 impacted.add(ticket_id)
                 changed = True
+    impacted_units = {
+        unit_id for unit_id, unit in graph.get("review_units", {}).items()
+        if set(unit["ticket_ids"]) & impacted
+    }
     backup, base_generation = begin_transaction_backup(
         run, "reconcile",
         ["source-lock.json", "ticket-graph.json", "ticket-graph.md", "manifest.json", "resume.md", "events.jsonl"],
@@ -1333,7 +2060,18 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
         path = run / "tickets" / f"{ticket_id}.r{revision}.md"
         atomic_text(path, render_ticket(new_by_id[ticket_id], revision))
         manifest["tickets"][ticket_id] = ticket_entry(new_by_id[ticket_id], revision, path, new_scope_hashes)
+        review_unit_id = next(
+            (unit_id for unit_id, unit in graph.get("review_units", {}).items() if ticket_id in unit["ticket_ids"]),
+            None,
+        )
+        if review_unit_id:
+            manifest["tickets"][ticket_id]["review_unit_id"] = review_unit_id
         manifest["tickets"][ticket_id]["revision_history"] = {**history, **manifest["tickets"][ticket_id]["revision_history"]}
+    for unit_id in sorted(impacted_units):
+        unit_graph = graph["review_units"][unit_id]
+        manifest["review_units"][unit_id] = {
+            "dependencies": unit_graph["dependencies"], "state": "pending", "ticket_ids": unit_graph["ticket_ids"],
+        }
     if old_shared["global"] != new_shared["global"]:
         current = Path(manifest["shared_context"]["global"])
         version = int(re.search(r"-v(\d+)\.md$", current.name).group(1)) + 1
@@ -1353,6 +2091,7 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
         **lock,
         "source_path": str(source), "source_sha256": sha_file(source),
         "target_epic_ids": source_info["epic_ids"], "scope_hashes": new_scope_hashes,
+        "epics": source_info["epics"],
     }
     manifest["source"] = {"path": str(source), "sha256": lock["source_sha256"]}
     manifest["graph_sha256"] = object_hash(graph)
@@ -1392,6 +2131,7 @@ def parser() -> argparse.ArgumentParser:
     init.add_argument("--target", required=True, action="append"); init.add_argument("--instruction-version", default="prd-run/v1")
     init.add_argument("--release-contract", required=True); init.add_argument("--release-stages", default="merge")
     init.add_argument("--integration-branch")
+    init.add_argument("--pr-strategy", choices=PR_STRATEGIES, default=DEFAULT_PR_STRATEGY)
     init.set_defaults(func=cmd_init)
     transition = commands.add_parser("transition")
     transition.add_argument("--run", required=True); transition.add_argument("--to", required=True); transition.set_defaults(func=cmd_transition)
@@ -1426,6 +2166,23 @@ def parser() -> argparse.ArgumentParser:
     rollback.add_argument("--run", required=True); rollback.add_argument("--trigger", required=True); rollback.add_argument("--action", required=True); rollback.add_argument("--result", required=True, choices=("pass", "fail")); rollback.add_argument("--evidence", required=True); rollback.set_defaults(func=cmd_record_rollback)
     reconcile = commands.add_parser("reconcile")
     reconcile.add_argument("--run", required=True); reconcile.add_argument("--source", required=True); reconcile.add_argument("--graph", required=True); reconcile.set_defaults(func=cmd_reconcile)
+    authority = commands.add_parser("record-authority")
+    authority.add_argument("--run", required=True); authority.add_argument("--capability", required=True, choices=AUTHORITY_CAPABILITIES); authority.add_argument("--source", required=True); authority.set_defaults(func=cmd_record_authority)
+    authority_status = commands.add_parser("authority-status")
+    authority_status.add_argument("--run", required=True); authority_status.add_argument("--capability", required=True, choices=AUTHORITY_CAPABILITIES); authority_status.set_defaults(func=cmd_authority_status)
+    review_unit = commands.add_parser("review-unit")
+    review_unit.add_argument("--run", required=True); review_unit.add_argument("--unit", required=True); review_unit.add_argument("--action", required=True, choices=REVIEW_UNIT_STATES[1:])
+    review_unit.add_argument("--branch"); review_unit.add_argument("--pr"); review_unit.add_argument("--head-sha"); review_unit.add_argument("--tested-base-sha"); review_unit.add_argument("--tested-tree-sha"); review_unit.add_argument("--tested-merge-sha")
+    review_unit.add_argument("--proof-command"); review_unit.add_argument("--proof-result"); review_unit.add_argument("--proof-evidence"); review_unit.add_argument("--current-base-sha"); review_unit.add_argument("--merge-sha"); review_unit.add_argument("--merged-tree-sha")
+    review_unit.add_argument("--evidence"); review_unit.add_argument("--summary"); review_unit.set_defaults(func=cmd_review_unit)
+    review_status = commands.add_parser("review-unit-status")
+    review_status.add_argument("--run", required=True); review_status.add_argument("--unit", required=True); review_status.set_defaults(func=cmd_review_unit_status)
+    project_summary = commands.add_parser("record-project-summary")
+    project_summary.add_argument("--run", required=True); project_summary.add_argument("--artifact", required=True); project_summary.set_defaults(func=cmd_record_project_summary)
+    epic_outcome = commands.add_parser("record-epic-outcome")
+    epic_outcome.add_argument("--run", required=True); epic_outcome.add_argument("--artifact", required=True); epic_outcome.set_defaults(func=cmd_record_epic_outcome)
+    project_pr = commands.add_parser("project-pr")
+    project_pr.add_argument("--run", required=True); project_pr.add_argument("--json", action="store_true"); project_pr.set_defaults(func=cmd_project_pr)
     return root
 
 
