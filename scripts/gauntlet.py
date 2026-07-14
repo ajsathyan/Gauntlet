@@ -478,7 +478,10 @@ def epic_title_slug(title):
 
 
 def valid_epic_title(title):
-    return bool(title.strip()) and len(title) <= 120 and "\n" not in title and "\r" not in title and "|" not in title
+    return (
+        bool(title.strip()) and len(title) <= 120
+        and not any(character in title for character in "\n\r|[]()<>`\\")
+    )
 
 
 def allocated_epic_numbers(context, prefix):
@@ -538,7 +541,7 @@ def command_docs_epic_create(args):
         findings.append({
             "code": "invalid_epic_title",
             "severity": "fail",
-            "message": "Epic title must be one non-empty line, at most 120 characters, without a table separator.",
+            "message": "Epic title must be one non-empty line, at most 120 characters, without Markdown link or control delimiters.",
         })
         return local_docs_payload(args, context, findings)
     prefix = local_epic_prefix(context["indexPath"])

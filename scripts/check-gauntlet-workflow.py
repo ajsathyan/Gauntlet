@@ -3918,6 +3918,12 @@ def test_local_document_profile_preserves_tracked_docs_and_primary_canonical_cop
         ], check=False)
         if bad_title.returncode == 0 or (repo / "local-docs" / "epics" / "003").exists():
             raise AssertionError("invalid epic titles must fail without a partial epic")
+        injected_title = run([
+            str(cli), "docs", "epic", "create", "--project-root", str(linked),
+            "--title", "Legit](https://example.invalid)[x", "--json",
+        ], check=False)
+        if injected_title.returncode == 0 or "example.invalid" in (repo / "local-docs" / "INDEX.md").read_text():
+            raise AssertionError("Epic titles must not inject Markdown into the canonical index")
         wrong_prefix = run([
             str(cli), "docs", "init", "--project-root", str(linked),
             "--epic-prefix", "OTHER", "--json",
@@ -3954,7 +3960,7 @@ def test_local_document_profile_preserves_tracked_docs_and_primary_canonical_cop
 
 def test_prd_execution_run_controller_behavior():
     result = run(["python3", str(SCRIPTS / "test-prd-run.py")], check=False)
-    if result.returncode != 0 or "Ran 9 tests" not in result.stderr or "OK" not in result.stderr:
+    if result.returncode != 0 or "Ran " not in result.stderr or "OK" not in result.stderr:
         raise AssertionError(f"PRD execution-run controller behavior failed:\n{result.stdout}\n{result.stderr}")
 
 

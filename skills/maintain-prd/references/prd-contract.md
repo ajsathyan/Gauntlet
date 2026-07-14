@@ -2,9 +2,11 @@
 
 Use one H1 for the PRD and one `## Epic <stable-id>: <title>` section per Epic. The document header contains `Document status` and `Implementation target`. The target lists only accepted, build-ready Epic IDs.
 
+Directly below each Epic heading, use the exact machine-readable line `Epic status: Proposed`, `Epic status: Accepted`, or `Epic status: Deferred`. The execution controller requires `Epic status: Accepted` for every Epic named by `Implementation target`.
+
 Within each Epic, use the following H3 headings when applicable. Omit a truly irrelevant heading only when omission cannot hide a decision.
 
-1. `Scope Areas`: stable IDs for product responsibilities, for example `PAY-001-S01`.
+1. Repeat `Scope Area <ID>: <Responsibility>` for each stable product responsibility, for example `Scope Area PAY-001-S01: Stored balance`.
 2. `Primary User`, `User Situation`, `User Job`, `First Value`.
 3. `Objectives`, `Principles`, `Scope`, `Non-goals`.
 4. `User Workflow`, `Information Architecture`, `Deterministic Rules`.

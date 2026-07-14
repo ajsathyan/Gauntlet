@@ -60,20 +60,22 @@ executions/<run-id>/
   source-lock.json
   manifest.json
   ticket-graph.json
+  ticket-graph.md
   shared-context/global-v1.md
   shared-context/<cohort>-v<N>.md
   resume.md
   events.jsonl
   tickets/
   receipts/
+  handoffs/
   evidence/
   cohorts/
   release/
 ```
 
-`source-lock.json` pins the PRD revision and selected Scope Areas. `manifest.json` owns validated run and ticket state. `resume.md` is the minimal reentry view. Events are append-only diagnostics, not the normal context source. Tickets are immutable after dispatch; a changed requirement creates a new revision or selectively invalidates affected tickets through Scope Area source hashes.
+`source-lock.json` pins the PRD revision, selected Epic and Scope Area sections, instruction version, release contract, and applicable release stages. `manifest.json` owns validated run and ticket state. `resume.md` is the minimal reentry view. Events are append-only diagnostics, not the normal context source. Tickets are immutable after dispatch; a changed requirement creates a new revision or selectively invalidates affected tickets through source-section hashes.
 
-After the run starts, these artifacts are authoritative for execution state. Conversation remains the place for user decisions, but a compaction or restart must rehydrate from the source lock, manifest, and resume file rather than reconstructing progress from chat. The parent alone updates the manifest, resume, cohort results, and release records. A child owns its worktree plus its assigned receipt and evidence paths. Use atomic writes, an agent-and-attempt lease, and validated state transitions so stale agents cannot overwrite current state.
+After the run starts, these artifacts are authoritative for execution state. Conversation remains the place for user decisions, but a compaction or restart must rehydrate from the source lock, manifest, and resume file rather than reconstructing progress from chat. The parent alone updates the manifest, resume, cohort results, and release records. A child owns its worktree plus its assigned receipt and evidence paths. Use atomic writes, an exclusive parent-process lock, an agent-and-attempt lease, hash-pinned proof artifacts, and validated state transitions so stale or concurrent agents cannot overwrite current state. Reconciliation keeps a recovery journal and restores the prior consistent source/graph generation after an interrupted update.
 
 The lifecycle is:
 

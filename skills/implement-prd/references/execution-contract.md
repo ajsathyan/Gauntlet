@@ -23,7 +23,7 @@ Use stable, searchable Markdown:
 
 Tickets are current execution units; Scope Areas are stable product units. A Ticket may reference several related Scope Areas, and a Scope Area may require sequential Tickets. One implementation Ticket has one active child owner. A separate verifier Ticket may evaluate the same output independently.
 
-The controller accepts a compact machine graph with `version`, `scope_areas`, `shared_context`, `cohorts`, and `tickets`. Each Ticket supplies `id`, `epic_id`, `title`, `objective`, `scope_area_ids`, `cohort_id`, `dependencies`, `ownership`, `constraints`, `acceptance`, `proof`, `return_contract`, `ask_parent_policy`, and relevant `source_files`. `proof` contains a behavioral `claim`, observable `oracle`, plausible `wrong_case`, and `non_effects`. This normalized JSON is local controller input, not a child packet or a second product specification; the controller renders immutable prose Tickets and sends only one bounded bundle to each child.
+The controller accepts a compact machine graph with `version`, `scope_areas`, `shared_context`, `cohorts`, and `tickets`. `scope_areas` is only the sorted list of locked PRD Scope Area IDs; do not duplicate or rewrite their product descriptions in the graph. Each Ticket supplies `id`, `epic_id`, `title`, `objective`, `scope_area_ids`, `cohort_id`, `dependencies`, `ownership`, `constraints`, `acceptance`, `proof`, `return_contract`, `ask_parent_policy`, and relevant `source_files`. Scheduling fields are `kind` (`implementation` or `verification`), numeric `priority`, `interface_first`, and `affinity`. `proof` contains a behavioral `claim`, observable `oracle`, plausible `wrong_case`, and `non_effects`. This normalized JSON is local controller input, not a child packet or a second product specification; the controller validates it against locked target Epic/Scope sections, renders a searchable Markdown graph and immutable prose Tickets, and sends only one bounded bundle to each child.
 
 ## Durable Run
 
@@ -34,17 +34,22 @@ executions/<run-id>/
   source-lock.json
   manifest.json
   ticket-graph.json
+  ticket-graph.md
   shared-context/global-v1.md
   shared-context/<cohort>-v<N>.md
   resume.md
   events.jsonl
   tickets/*.md
   receipts/*.json
+  handoffs/*.bundle.md
+  handoffs/*.receipt.json
   evidence/*.md
   cohorts/*.md
-  release/integration.md
+  release/prd-verification.md
+  release/merge.md
   release/deployment.md
   release/production-verification.md
+  release/rollback.md
 ```
 
 The parent alone changes the manifest, resume state, cohorts, and release evidence. Children own their isolated code worktree plus the assigned receipt and evidence paths. Write state atomically. Claims contain the agent ID and attempt. Dispatched Ticket revisions are immutable. Append events; never reconstruct current state by replaying chat.
@@ -66,21 +71,26 @@ After compaction or restart, read `resume.md`, `manifest.json`, and `source-lock
 Use the installed controller at `$GAUNTLET_ROOT/scripts/prd-run.py` (or the repository copy while changing Gauntlet):
 
 ```text
-init --executions <canonical-root>/executions --run-id <ID> --source <prd.md>
+init --executions <canonical-root>/executions --run-id <ID> --source <prd.md> --target <EPIC-ID> [--target <EPIC-ID>] --release-contract <version-or-hash> --release-stages merge[,deployment,production-verification]
 transition --run <run> --to <next-state>
 compile --run <run> --graph <ticket-graph.json>
+ready --run <run> [--affinity <context-key>]
+resume --run <run>
 claim --run <run> --ticket <ID> --agent <agent-id> --attempt <N>
 materialize-ticket --run <run> --ticket <ID> [--output <path>]
 record-receipt --run <run> --ticket <ID> --receipt <receipt.json>
 integrate --run <run> --ticket <ID> --evidence <parent-proof> --summary <claim>
 verify-cohort --run <run> --cohort <ID> --result pass|fail --evidence <run-file>
-record-release --run <run> --stage integration|deployment|production-verification --result pass|fail --summary <claim> --evidence <reference>
+verify-prd --run <run> --result pass|fail --summary <claim> --evidence <run-file>
+record-merge --run <run> --pr <reference> --merged-sha <sha> --main-sha <sha> --evidence <reference>
+record-release --run <run> --stage deployment|production-verification --result pass|fail|skipped --summary <claim> --evidence <reference> [--revision <merged-main-sha>]
+record-rollback --run <run> --trigger <condition> --action <action> --result pass|fail --evidence <reference>
 reconcile --run <run> --source <prd.md> --graph <ticket-graph.json>
 ```
 
-Move `discussing` to `accepted` with `transition` before compilation; `compile` performs the `accepted` to `compiled` transition. The parent must supply verification evidence distinct from the child's receipt before `integrate` accepts a Ticket.
+`init` rejects target Epics that differ from `Implementation target`, are not `Accepted`, or lack searchable Scope Area sections. Move `discussing` to `accepted` with `transition` before compilation; `compile` performs the `accepted` to `compiled` transition and rejects graph Epic/Scope coverage that differs from the source lock. Claim before materializing so the bundle contains exact evidence and receipt handoff paths. The parent must supply verification evidence with distinct content from the child's evidence before `integrate` accepts a Ticket.
 
-Materialize one bounded child bundle from a stable prefix, applicable instruction version, relevant cohort context version, named dependency contracts, and required source slices. Keep run IDs, timestamps, absolute paths, live status, hashes, and agent nicknames out of the stable prefix and place unavoidable volatile values last.
+Materialize one bounded child bundle from a stable prefix, applicable instruction version, relevant cohort context version, named dependency contracts, and relevant source paths. The canonical handoff names the exact receipt schema and writable evidence/receipt destinations. Keep run IDs, timestamps, absolute paths, live status, hashes, and agent nicknames out of the stable prefix and place unavoidable volatile values last.
 
 ## Meaningful Verification
 
