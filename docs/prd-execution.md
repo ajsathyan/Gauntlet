@@ -110,4 +110,4 @@ Optimize for stable prefixes without claiming guaranteed cache hits. Cache behav
 - Keep delegation depth at one unless a concrete dependency structure justifies more.
 - Read `resume.md` only for restart or compaction recovery; read `events.jsonl` only for debugging.
 
-Subagent model selection is intentionally outside this contract. Model routing must be designed and verified separately rather than encoded as an unenforced ticket field.
+Subagent model selection is defined separately in `docs/custom-agent-routing.md`. Execution Runs may record the resulting requested profile, but the routing contract and Codex native usage audit—not a self-reported Ticket field—establish which profile actually started.

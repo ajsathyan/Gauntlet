@@ -14,6 +14,7 @@ Gauntlet v2.0.2 is a product-thinking and proof harness for coding agents. This 
 - `docs/production-quality-bar.md`: bounded launch/hardening checks when production risk triggers them.
 - `docs/local-documentation.md`: opt-in local product-document organization, tracked/private boundaries, and scaffolding behavior.
 - `docs/prd-execution.md`: PRD terminology, Ticket Graph compilation, durable execution state, scheduling, and end-to-end implementation authority.
+- `docs/custom-agent-routing.md`: deterministic Ticket classification, named Codex profile selection, bounded context, and audit requirements.
 - `scripts/check-gauntlet-workflow.py`: end-to-end workflow regression suite.
 
 Use repository-relative `docs/...` and `scripts/...` paths only for work inside this repository. Portable guidance must use the installed-path contract rendered by the installer.
@@ -81,6 +82,8 @@ Standing authorization: automatically use subagents when two or more useful lane
 - The Ticket Graph uses a dynamic ready queue: prioritize critical-path and interface-first work, preserve useful agent affinity, integrate completed tickets continuously, and wait at selective Cohort Verification barriers only where tickets share an invariant or interface.
 - Dispatch each child directly from one bounded ticket. Include only the material objective, ownership, dependencies, constraints, proof expectations, return contract, and ask-parent policy; proof fields are optional and proportional.
 - Native Codex state and main-chat messages own live coordination.
+- Codex children must be started with the explicit `gauntlet-*` profile returned by `scripts/route-codex-agent.py` under `docs/custom-agent-routing.md`. A profile mismatch is a routing failure, not permission to substitute silently.
+- After a Gauntlet child reaches a terminal state, sync the privacy-bounded local audit with `scripts/subagent-audit.py`; Codex native state remains the immediate source of truth.
 - Keep files, mutable state, and proof targets disjoint. Avoid splitting one tightly coupled decision tree across lanes.
 - Children report `Needs decision` to the orchestrator instead of asking AJS directly.
 - The main chat owns the oracle, independently reruns or resolves child evidence, integrates commits into one branch as results arrive, runs targeted integration checks, and runs combined proof after all required tickets finish. It opens one final PR.

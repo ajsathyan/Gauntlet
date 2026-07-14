@@ -13,6 +13,10 @@ SKILLS_SRC="$ROOT/skills"
 if [ ! -d "$SKILLS_SRC" ] && [ -d "$ROOT/../skills" ]; then
   SKILLS_SRC="$ROOT/../skills"
 fi
+AGENTS_SRC="$ROOT/agents/codex"
+if [ ! -d "$AGENTS_SRC" ] && [ -d "$ROOT/../agents/codex" ]; then
+  AGENTS_SRC="$ROOT/../agents/codex"
+fi
 
 usage() {
   cat <<'USAGE'
@@ -632,6 +636,11 @@ case "$TARGET" in
 esac
 set -e
 
+if [ "$TARGET" = "codex" ]; then
+  python3 "$ROOT/scripts/install-codex-agents.py" check \
+    --source "$AGENTS_SRC" --agent-home "$AGENT_HOME"
+fi
+
 if [ "$instruction_review_status" -ne 0 ] || [ "$codex_preference_status" -ne 0 ]; then
   cat "$instruction_review_log" "$codex_preference_log" >&2
   if [ "$instruction_review_status" -eq 1 ] || [ "$codex_preference_status" -eq 1 ]; then
@@ -672,6 +681,9 @@ if [ "$source_is_installed_payload" != "1" ]; then
   cp -R "$ROOT/scripts" "$AGENT_HOME/gauntlet/"
   rm -rf "$AGENT_HOME/gauntlet/templates"
   cp -R "$ROOT/templates" "$AGENT_HOME/gauntlet/"
+  rm -rf "$AGENT_HOME/gauntlet/agents"
+  mkdir -p "$AGENT_HOME/gauntlet/agents"
+  cp -R "$ROOT/agents/codex" "$AGENT_HOME/gauntlet/agents/"
   mkdir -p "$AGENT_HOME/gauntlet/evals"
   rsync -a --delete \
     --exclude '/generated-prompts/' \
@@ -700,6 +712,9 @@ for required_path in \
   "$AGENT_HOME/gauntlet/docs/prd-execution.md" \
   "$AGENT_HOME/gauntlet/scripts/gauntlet.py" \
   "$AGENT_HOME/gauntlet/scripts/prd-run.py" \
+  "$AGENT_HOME/gauntlet/scripts/install-codex-agents.py" \
+  "$AGENT_HOME/gauntlet/scripts/subagent-audit.py" \
+  "$AGENT_HOME/gauntlet/scripts/route-codex-agent.py" \
   "$AGENT_HOME/gauntlet/templates/local-docs/doc_org.md.tmpl" \
   "$AGENT_HOME/skills/intake/SKILL.md" \
   "$AGENT_HOME/skills/planner/SKILL.md" \
@@ -712,6 +727,13 @@ do
     exit 1
   fi
 done
+
+if [ "$TARGET" = "codex" ]; then
+  python3 "$ROOT/scripts/install-codex-agents.py" apply \
+    --source "$AGENTS_SRC" --agent-home "$AGENT_HOME"
+  python3 "$ROOT/scripts/install-codex-agents.py" verify \
+    --source "$AGENTS_SRC" --agent-home "$AGENT_HOME"
+fi
 
 # Activate the router only after the installed payload is complete.
 case "$TARGET" in
