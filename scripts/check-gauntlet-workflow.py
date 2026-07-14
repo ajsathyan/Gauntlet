@@ -909,6 +909,9 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         "test-plan.py",
         "review-pack.py",
         "gauntlet.py changelog pr",
+        "prd-run.py project-pr",
+        "--run \"$RUN_PATH\"",
+        "--handoff \"$HANDOFF_PATH\"",
         "gauntlet.py followup thread",
         "accepted spec and canonical plan remain the sources",
         "create_thread",
@@ -945,7 +948,7 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         assert_contains("\n".join([agents, read(ROUTER_MD), readme, planner]), marker, "workflow speedup routing")
 
 
-def test_execution_run_uses_parent_integration_boundary_without_child_prompt_duplication():
+def test_execution_run_freezes_parent_review_topology_without_child_prompt_duplication():
     prd = read(ROOT / "docs" / "prd-execution.md")
     github = read(ROOT / "docs" / "github-discipline.md")
     local_docs = read(ROOT / "docs" / "local-documentation.md")
@@ -953,19 +956,32 @@ def test_execution_run_uses_parent_integration_boundary_without_child_prompt_dup
     router = read(ROUTER_MD)
     for marker in [
         "Each Execution Run uses one parent-owned integration branch",
-        "one final PR per run",
-        "independent release boundaries",
-        "parent-owned run state",
+        "Choose and freeze the PR strategy",
+        "`single-final-pr`",
+        "`review-prs-plus-final`",
+        "Project PR projection must cover every locked Epic and Scope Area deterministically",
+        "topology remains parent-owned and is absent from child bundles",
+        "merge prepare|plan|execute --run <run>",
+        "schema v1 handoff",
     ]:
         assert_contains(prd, marker, "Ticket Graph integration topology")
     for marker in [
         "parent integration branch",
         "child branches do not target `main`",
+        "Review Unit PRs target only the integration branch",
+        "Independently shippable outcomes belong in separate Execution Runs",
     ]:
         assert_contains(github, marker, "GitHub integration topology")
-    assert_contains(local_docs, "manifest carries run-specific integration metadata", "local document run state")
-    assert_contains(template, "dedicated parent integration branch", "local document release contract")
-    assert_contains(router, "For multi-Ticket runs, keep `main` clean", "global integration topology")
+    for marker in [
+        "manifest carries run-specific integration metadata",
+        "frozen PR strategy",
+        "this parent-owned topology is not copied into child prompts",
+    ]:
+        assert_contains(local_docs, marker, "local document run state")
+    for marker in ["dedicated parent integration branch", "complete Project PR", "every locked Epic and Scope Area"]:
+        assert_contains(template, marker, "local document release contract")
+    for marker in ["For multi-Ticket runs, keep `main` clean", "Review Unit PRs", "complete Project PR"]:
+        assert_contains(router, marker, "global integration topology")
 
 
 def test_contextual_merge_contract_is_documented():
@@ -975,9 +991,9 @@ def test_contextual_merge_contract_is_documented():
     combined = "\n".join([agents, etiquette, github])
     for marker in [
         '"Merge this," "land this," or "merge this to main" authorizes',
-        "prepare the contextual handoff",
+        "prepare the non-run handoff or run-backed Project PR projection",
         "update `CHANGELOG.md`",
-        "create or update one pull request",
+        "create or update the applicable PR",
         "wait for required checks",
         "verify the default branch",
         '"push to git" means push the current branch',
@@ -1469,6 +1485,113 @@ def merge_handoff_fixture():
     }
 
 
+def merge_run_handoff_fixture(repo, run_path):
+    head = git(["rev-parse", "HEAD"], cwd=repo).stdout.strip()
+    branch = git(["branch", "--show-current"], cwd=repo).stdout.strip()
+    repository = run(["git", "config", "--get", "remote.origin.url"], cwd=repo, check=False).stdout.strip() or str(repo.resolve())
+    digest = "a" * 64
+    return {
+        "schemaVersion": "2.0",
+        "title": "workflow: merge verified PRD outcomes",
+        "problem": {
+            "context": "Execution Run outcomes were previously flattened into caller-authored merge prose.",
+            "impact": "Reviewers could not trace canonical Epic and Scope Area outcomes to proof and release gates.",
+        },
+        "solution": {
+            "outcome": "Project the closed Execution Run into a bound review handoff.",
+            "invariants": ["The controller remains the only source of run-backed merge prose."],
+            "preserved": ["Unrelated non-run patches may still use schema v1."],
+            "nonGoals": ["No file-tour PR body."],
+        },
+        "changelog": "Gauntlet now binds PRD Execution Run merges to canonical Epic and Scope Area outcomes, proof, and post-merge gates.",
+        "testing": [{
+            "command": "python3 scripts/check-gauntlet-workflow.py",
+            "result": "PASS",
+            "proves": "Run-backed merge projection, drift rejection, and action ordering pass.",
+        }],
+        "securityRisk": None,
+        "substantialChanges": [{
+            "epicId": "GNT-101",
+            "title": "Deterministic project review",
+            "outcome": "Run-backed merges preserve canonical review context.",
+            "scopeAreas": [{
+                "scopeAreaId": "GNT-101-S1",
+                "responsibility": "Merge projection",
+                "outcome": "Review prose is projected by the run controller.",
+                "claim": "Caller-authored hashes and prose cannot replace the controller projection.",
+                "proofLayer": "parent-integration",
+                "evidenceRefs": ["evidence/project-pr.md"],
+                "cannotVerify": [],
+            }],
+            "decisions": [{
+                "id": "D1",
+                "outcome": "Require schema v2 for run branches.",
+                "rationale": "The run owns durable intent and proof.",
+                "provenance": "project-summary.json",
+            }],
+            "risks": [{
+                "id": "R1",
+                "summary": "Deployment follows merge.",
+                "disposition": "Retain an explicit post-merge gate.",
+                "blocking": False,
+                "gateId": "deployment",
+                "evidenceRefs": ["release/deployment.md"],
+            }],
+        }],
+        "releaseGates": [{
+            "id": "deployment",
+            "stage": "deployment",
+            "summary": "Deploy the exact verified default-branch revision after merge.",
+            "status": "pending",
+            "blocking": False,
+            "evidenceRefs": [],
+        }],
+        "binding": {
+            "runId": run_path.name,
+            "generation": 3,
+            "sourceLockSha256": digest,
+            "graphSha256": "b" * 64,
+            "repository": repository,
+            "branch": branch,
+            "headSha": head,
+            "prdVerificationSha256": "c" * 64,
+        },
+    }
+
+
+def write_fake_project_pr(repo, run_path, projection):
+    run_path.mkdir(parents=True, exist_ok=True)
+    (run_path / "project-pr.json").write_text(json.dumps(projection), encoding="utf-8")
+    controller = repo / "scripts" / "prd-run.py"
+    controller.parent.mkdir(parents=True, exist_ok=True)
+    controller.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, pathlib, sys\n"
+        "args = sys.argv[1:]\n"
+        "if args[0:2] == ['project-pr', '--run'] and len(args) == 3:\n"
+        "    print(json.dumps(json.loads((pathlib.Path(args[2]) / 'project-pr.json').read_text()), sort_keys=True))\n"
+        "elif args[0:2] == ['authority-status', '--run'] and '--capability' in args:\n"
+        "    run = pathlib.Path(args[2]); capability = args[args.index('--capability') + 1]\n"
+        "    print(json.dumps({'schemaVersion':'1.0','runId':run.name,'capability':capability,'granted':(run / (capability + '.granted')).is_file(),'source':'test fixture'}))\n"
+        "else:\n"
+        "    print('unexpected prd-run invocation', file=sys.stderr); raise SystemExit(2)\n",
+        encoding="utf-8",
+    )
+    os.environ["GAUNTLET_ALLOW_DEV_CONTROLLER"] = "1"
+    os.environ["GAUNTLET_DEV_PRD_CONTROLLER"] = str(controller)
+
+
+def prepare_run_merge_fixture(cli, repo, run_path):
+    projection = merge_run_handoff_fixture(repo, run_path)
+    write_fake_project_pr(repo, run_path, projection)
+    body_path = repo / ".gauntlet" / "run-pr-body.md"
+    result = run([
+        str(cli), "merge", "prepare", "--git-root", str(repo), "--run", str(run_path),
+        "--body-output", str(body_path), "--json",
+    ], cwd=repo, check=False)
+    return projection, body_path, result
+
+
 def test_gauntlet_cli_merge_prepare_renders_contextual_handoff():
     cli = SCRIPTS / "gauntlet.py"
     with tempfile.TemporaryDirectory() as tmp:
@@ -1549,6 +1672,288 @@ def test_gauntlet_cli_merge_prepare_renders_contextual_handoff():
             raise AssertionError(f"multiline changelog should fail: {invalid.stdout}")
 
 
+def test_gauntlet_cli_run_merge_uses_closed_v2_projection_and_rejects_drift():
+    cli = SCRIPTS / "gauntlet.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        run_path = Path(tmp) / "RUN-V2"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / ".gitignore").write_text("/.gauntlet/\n", encoding="utf-8")
+        (repo / "README.md").write_text("# Repo\n", encoding="utf-8")
+        changelog = "Gauntlet now binds PRD Execution Run merges to canonical Epic and Scope Area outcomes, proof, and post-merge gates."
+        (repo / "CHANGELOG.md").write_text(f"# Changelog\n\n## Unreleased\n\n- {changelog}\n", encoding="utf-8")
+        commit_all(repo, "baseline")
+        git(["checkout", "-b", "codex/run-v2"], cwd=repo)
+        projection = merge_run_handoff_fixture(repo, run_path)
+        write_fake_project_pr(repo, run_path, projection)
+        (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
+        commit_all(repo, "run implementation")
+        projection = merge_run_handoff_fixture(repo, run_path)
+        write_fake_project_pr(repo, run_path, projection)
+
+        body_path = repo / ".gauntlet" / "run-pr-body.md"
+        dev_controller = os.environ.pop("GAUNTLET_DEV_PRD_CONTROLLER")
+        dev_allow = os.environ.pop("GAUNTLET_ALLOW_DEV_CONTROLLER")
+        shadow = run([
+            str(cli), "merge", "prepare", "--git-root", str(repo), "--run", str(run_path),
+            "--body-output", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        os.environ["GAUNTLET_DEV_PRD_CONTROLLER"] = dev_controller
+        os.environ["GAUNTLET_ALLOW_DEV_CONTROLLER"] = dev_allow
+        if shadow.returncode != 1 or "project_pr_projection_failed" not in {item["code"] for item in json.loads(shadow.stdout)["findings"]}:
+            raise AssertionError(f"target-repository shadow controller must be ignored outside explicit development mode: {shadow.stdout}")
+        prepared = run([
+            str(cli), "merge", "prepare", "--git-root", str(repo), "--run", str(run_path),
+            "--body-output", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if prepared.returncode != 0:
+            raise AssertionError(f"run merge prepare should pass:\n{prepared.stdout}\n{prepared.stderr}")
+        prepared_data = json.loads(prepared.stdout)
+        if prepared_data["changelogChanged"]:
+            raise AssertionError(f"exact existing changelog line must remain unchanged: {prepared_data}")
+        body = body_path.read_text(encoding="utf-8")
+        for marker in [
+            "## Substantial Changes",
+            "### Epic GNT-101: Deterministic project review",
+            "#### Scope Area GNT-101-S1: Merge projection",
+            "Decisions:",
+            "Risks:",
+            "## Pending Post-Merge Gates",
+            "gauntlet-merge-binding:",
+        ]:
+            assert_contains(body, marker, "run-backed PR body")
+        for forbidden in ["Files changed", "Source Files", "ticket-graph.json", "Implementation target:"]:
+            assert_not_contains(body, forbidden, "run-backed PR body file tour or PRD dump")
+        bullet = f"- {projection['changelog']}"
+        if body.count(bullet) != 1 or (repo / "CHANGELOG.md").read_text(encoding="utf-8").count(bullet) != 1:
+            raise AssertionError("run-backed changelog must remain one exact line in both artifacts")
+
+        gh_log = Path(tmp) / "gh.log"
+        gh_state = Path(tmp) / "gh-state"
+        env = write_merge_fake_gh(Path(tmp) / "gh", gh_log, gh_state)
+        plan = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo), "--run", str(run_path),
+            "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if plan.returncode != 0:
+            raise AssertionError(f"bound run merge plan should pass: {plan.stdout}\n{plan.stderr}")
+        plan_data = json.loads(plan.stdout)
+        if plan_data.get("runBinding") != projection["binding"]:
+            raise AssertionError(f"plan must expose the exact controller binding: {plan_data}")
+        action_types = [item["type"] for item in plan_data["mergePlan"]["actions"]]
+        expected_actions = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch", "delete_remote_branch"]
+        if action_types != expected_actions or action_types.index("delete_remote_branch") < action_types.index("verify_default_branch"):
+            raise AssertionError(f"cleanup must follow verified reachability: {action_types}")
+
+        generation_drift = json.loads(json.dumps(projection))
+        generation_drift["binding"]["generation"] += 1
+        write_fake_project_pr(repo, run_path, generation_drift)
+        stale_generation = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo), "--run", str(run_path),
+            "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if stale_generation.returncode != 1 or "pr_body_out_of_date" not in {item["code"] for item in json.loads(stale_generation.stdout)["findings"]}:
+            raise AssertionError(f"manifest generation drift must require prepare again: {stale_generation.stdout}")
+
+        hash_drift = json.loads(json.dumps(projection))
+        hash_drift["binding"]["sourceLockSha256"] = "d" * 64
+        write_fake_project_pr(repo, run_path, hash_drift)
+        stale_hash = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo), "--run", str(run_path),
+            "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if stale_hash.returncode != 1 or "pr_body_out_of_date" not in {item["code"] for item in json.loads(stale_hash.stdout)["findings"]}:
+            raise AssertionError(f"source-lock hash drift must require prepare again: {stale_hash.stdout}")
+
+        write_fake_project_pr(repo, run_path, projection)
+        (repo / "head-drift.txt").write_text("new head\n", encoding="utf-8")
+        commit_all(repo, "advance head")
+        stale_head = subprocess.run([
+            str(cli), "merge", "plan", "--git-root", str(repo), "--run", str(run_path),
+            "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if stale_head.returncode != 1 or "integration_head_drift" not in {item["code"] for item in json.loads(stale_head.stdout)["findings"]}:
+            raise AssertionError(f"HEAD drift must require prepare again: {stale_head.stdout}")
+
+        current_projection = merge_run_handoff_fixture(repo, run_path)
+        write_fake_project_pr(repo, run_path, current_projection)
+        git(["checkout", "-b", "codex/wrong-run-branch"], cwd=repo)
+        wrong_branch = run([
+            str(cli), "merge", "prepare", "--git-root", str(repo), "--run", str(run_path),
+            "--body-output", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if wrong_branch.returncode != 1 or "integration_branch_drift" not in {item["code"] for item in json.loads(wrong_branch.stdout)["findings"]}:
+            raise AssertionError(f"branch drift must fail closed: {wrong_branch.stdout}")
+
+        repo_drift = merge_run_handoff_fixture(repo, run_path)
+        repo_drift["binding"]["repository"] = "https://example.test/other/repo.git"
+        write_fake_project_pr(repo, run_path, repo_drift)
+        wrong_repo = run([
+            str(cli), "merge", "prepare", "--git-root", str(repo), "--run", str(run_path),
+            "--body-output", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if wrong_repo.returncode != 1 or "repository_drift" not in {item["code"] for item in json.loads(wrong_repo.stdout)["findings"]}:
+            raise AssertionError(f"repository drift must fail closed: {wrong_repo.stdout}")
+
+
+def test_gauntlet_cli_run_merge_rejects_downgrade_and_incomplete_projection():
+    cli = SCRIPTS / "gauntlet.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        run_path = Path(tmp) / "RUN-V2"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / ".gitignore").write_text("/.gauntlet/\n", encoding="utf-8")
+        (repo / "README.md").write_text("# Repo\n", encoding="utf-8")
+        commit_all(repo, "baseline")
+        git(["checkout", "-b", "codex/run-v2"], cwd=repo)
+        projection = merge_run_handoff_fixture(repo, run_path)
+        write_fake_project_pr(repo, run_path, projection)
+        commit_all(repo, "fake project-pr controller")
+        projection = merge_run_handoff_fixture(repo, run_path)
+        write_fake_project_pr(repo, run_path, projection)
+        body_path = repo / ".gauntlet" / "pr-body.md"
+        handoff_path = repo / ".gauntlet" / "merge-handoff.json"
+        handoff_path.parent.mkdir(parents=True, exist_ok=True)
+        handoff_path.write_text(json.dumps(merge_handoff_fixture()), encoding="utf-8")
+
+        explicit_downgrade = run([
+            str(cli), "merge", "prepare", "--git-root", str(repo), "--run", str(run_path),
+            "--handoff", str(handoff_path), "--body-output", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if explicit_downgrade.returncode != 1 or "run_handoff_downgrade_rejected" not in {item["code"] for item in json.loads(explicit_downgrade.stdout)["findings"]}:
+            raise AssertionError(f"explicit run-to-v1 downgrade must fail: {explicit_downgrade.stdout}")
+
+        handoff_path.write_text(json.dumps(projection), encoding="utf-8")
+        caller_v2 = run([
+            str(cli), "merge", "prepare", "--git-root", str(repo), "--handoff", str(handoff_path),
+            "--body-output", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if caller_v2.returncode != 1 or "run_projection_requires_run" not in {item["code"] for item in json.loads(caller_v2.stdout)["findings"]}:
+            raise AssertionError(f"caller-authored schema v2 must fail: {caller_v2.stdout}")
+        handoff_path.write_text(json.dumps(merge_handoff_fixture()), encoding="utf-8")
+
+        bound_run = repo / ".gauntlet" / "executions" / "RUN-V2"
+        bound_run.mkdir(parents=True, exist_ok=True)
+        (bound_run / "manifest.json").write_text(json.dumps({"integration": {"branch": "codex/run-v2", "pr_strategy": "single-final-pr"}}), encoding="utf-8")
+        implicit_downgrade = run([
+            str(cli), "merge", "prepare", "--git-root", str(repo), "--handoff", str(handoff_path),
+            "--body-output", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if implicit_downgrade.returncode != 1 or "run_handoff_downgrade_rejected" not in {item["code"] for item in json.loads(implicit_downgrade.stdout)["findings"]}:
+            raise AssertionError(f"bound branch v1 downgrade must fail: {implicit_downgrade.stdout}")
+
+        shutil.rmtree(bound_run)
+        custom_run = Path(tmp) / "custom-execution-root" / "RUN-CUSTOM"
+        custom_run.mkdir(parents=True)
+        (custom_run / "manifest.json").write_text(json.dumps({"integration": {"branch": "codex/run-v2", "pr_strategy": "single-final-pr"}}), encoding="utf-8")
+        registry = repo / ".git" / "gauntlet" / "run-bindings.json"
+        registry.parent.mkdir(parents=True)
+        registry.write_text(json.dumps({"codex/run-v2": {"repository": str(repo), "run": str(custom_run)}}), encoding="utf-8")
+        custom_downgrade = run([
+            str(cli), "merge", "prepare", "--git-root", str(repo), "--handoff", str(handoff_path),
+            "--body-output", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if custom_downgrade.returncode != 1 or "run_handoff_downgrade_rejected" not in {item["code"] for item in json.loads(custom_downgrade.stdout)["findings"]}:
+            raise AssertionError(f"custom-root run binding must reject schema-v1 downgrade: {custom_downgrade.stdout}")
+
+        cases = [
+            ("missing Epic", lambda item: item.__setitem__("substantialChanges", []), "missing_substantial_changes"),
+            ("missing Scope Area", lambda item: item["substantialChanges"][0].__setitem__("scopeAreas", []), "missing_scope_area_outcome"),
+            ("missing gate", lambda item: item.__setitem__("releaseGates", []), "missing_release_gate"),
+            ("multiline changelog", lambda item: item.__setitem__("changelog", "invalid\nentry"), "multiline_changelog_entry"),
+        ]
+        for label, mutate, expected_code in cases:
+            candidate = json.loads(json.dumps(projection))
+            mutate(candidate)
+            write_fake_project_pr(repo, run_path, candidate)
+            result = run([
+                str(cli), "merge", "prepare", "--git-root", str(repo), "--run", str(run_path),
+                "--body-output", str(body_path), "--json",
+            ], cwd=repo, check=False)
+            codes = {item["code"] for item in json.loads(result.stdout)["findings"]}
+            if result.returncode != 1 or expected_code not in codes:
+                raise AssertionError(f"{label} must fail with {expected_code}: {result.stdout}")
+
+
+def test_gauntlet_cli_run_merge_execute_uses_bound_projection_and_safe_cleanup_order():
+    cli = SCRIPTS / "gauntlet.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        remote = Path(tmp) / "remote.git"
+        run_path = Path(tmp) / "RUN-V2"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        git(["init", "--bare", str(remote)], cwd=tmp)
+        git(["remote", "add", "origin", str(remote)], cwd=repo)
+        (repo / ".gitignore").write_text("/.gauntlet/\n", encoding="utf-8")
+        (repo / "README.md").write_text("# Repo\n", encoding="utf-8")
+        changelog = "Gauntlet now binds PRD Execution Run merges to canonical Epic and Scope Area outcomes, proof, and post-merge gates."
+        (repo / "CHANGELOG.md").write_text(f"# Changelog\n\n## Unreleased\n\n- {changelog}\n", encoding="utf-8")
+        commit_all(repo, "baseline")
+        git(["push", "-u", "origin", "main"], cwd=repo)
+        git(["checkout", "-b", "codex/run-v2"], cwd=repo)
+        projection = merge_run_handoff_fixture(repo, run_path)
+        write_fake_project_pr(repo, run_path, projection)
+        (repo / "feature.txt").write_text("run feature\n", encoding="utf-8")
+        commit_all(repo, "run feature")
+        projection = merge_run_handoff_fixture(repo, run_path)
+        write_fake_project_pr(repo, run_path, projection)
+        body_path = repo / ".gauntlet" / "run-pr-body.md"
+        prepared = run([
+            str(cli), "merge", "prepare", "--git-root", str(repo), "--run", str(run_path),
+            "--body-output", str(body_path), "--json",
+        ], cwd=repo, check=False)
+        if prepared.returncode != 0:
+            raise AssertionError(f"run execute fixture prepare failed: {prepared.stdout}\n{prepared.stderr}")
+
+        env = write_merge_fake_gh(
+            Path(tmp) / "gh", Path(tmp) / "gh.log", Path(tmp) / "gh-state",
+            empty_checks_once=True, head_branch="codex/run-v2",
+        )
+        denied = subprocess.run([
+            str(cli), "merge", "execute", "--git-root", str(repo), "--run", str(run_path),
+            "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        denied_data = json.loads(denied.stdout)
+        if denied.returncode != 1 or "merge_to_default_authority_missing" not in {item["code"] for item in denied_data["findings"]}:
+            raise AssertionError(f"run merge must fail before side effects without merge authority: {denied.stdout}")
+        if "pr merge" in Path(tmp, "gh.log").read_text(encoding="utf-8"):
+            raise AssertionError("missing merge-to-default authority must not invoke gh pr merge")
+
+        (run_path / "merge-to-default.granted").write_text("granted\n", encoding="utf-8")
+        drift_env = {**os.environ, **env, "GH_DRIFT_HEAD_AFTER_CHECKS": "1"}
+        drifted = subprocess.run([
+            str(cli), "merge", "execute", "--git-root", str(repo), "--run", str(run_path),
+            "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=drift_env)
+        drifted_data = json.loads(drifted.stdout)
+        if drifted.returncode != 1 or "pull_request_head_drift" not in {item["code"] for item in drifted_data["findings"]}:
+            raise AssertionError(f"advanced PR head must fail closed: {drifted.stdout}")
+        drift_marker = Path(str(Path(tmp) / "gh-state") + ".drift")
+        if drift_marker.exists():
+            drift_marker.unlink()
+
+        result = subprocess.run([
+            str(cli), "merge", "execute", "--git-root", str(repo), "--run", str(run_path),
+            "--body", str(body_path), "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
+        if result.returncode != 0:
+            raise AssertionError(f"run-backed merge execute should pass:\n{result.stdout}\n{result.stderr}")
+        data = json.loads(result.stdout)
+        action_types = [item["type"] for item in data["executedActions"]]
+        expected = ["git_push", "gh_pr_edit", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch", "delete_remote_branch"]
+        if action_types != expected:
+            raise AssertionError(f"run-backed execute action order mismatch: {action_types}")
+        merge_log = Path(tmp, "gh.log").read_text(encoding="utf-8")
+        if f"--match-head-commit {projection['binding']['headSha']}" not in merge_log:
+            raise AssertionError(f"final merge was not bound to the projected head: {merge_log}")
+        git(["fetch", "origin", "main"], cwd=repo)
+        if git(["merge-base", "--is-ancestor", projection["binding"]["headSha"], "origin/main"], cwd=repo).returncode != 0:
+            raise AssertionError("run-backed execute did not verify the bound integration HEAD on origin/main")
+
+
 def prepare_merge_fixture(cli, repo):
     (repo / ".gitignore").write_text("/.gauntlet/\n")
     handoff = merge_handoff_fixture()
@@ -1565,7 +1970,7 @@ def prepare_merge_fixture(cli, repo):
     return handoff_path, body_path
 
 
-def write_merge_fake_gh(path, log_path, state_path, check_conclusion="SUCCESS", empty_checks_once=False):
+def write_merge_fake_gh(path, log_path, state_path, check_conclusion="SUCCESS", empty_checks_once=False, head_branch="codex/merge-flow"):
     path.write_text(
         "\n".join([
             "#!/usr/bin/env bash",
@@ -1577,13 +1982,15 @@ def write_merge_fake_gh(path, log_path, state_path, check_conclusion="SUCCESS", 
             "fi",
             "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then",
             "  if [ ! -f \"$GH_STATE\" ]; then exit 1; fi",
+            "  head_oid=$(git rev-parse HEAD)",
+            "  if [ -f \"${GH_STATE}.drift\" ]; then head_oid=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; fi",
             "  if [ \"${GH_EMPTY_CHECKS_ONCE:-0}\" = \"1\" ] && [ ! -f \"${GH_STATE}.empty-served\" ]; then",
             "    touch \"${GH_STATE}.empty-served\"",
-            "    printf '%s\\n' '{\"number\":7,\"state\":\"OPEN\",\"isDraft\":false,\"mergeable\":\"MERGEABLE\",\"mergedAt\":null,\"statusCheckRollup\":[],\"url\":\"https://example.test/pr/7\",\"baseRefName\":\"main\",\"headRefName\":\"codex/merge-flow\",\"reviewDecision\":\"\"}'",
+            f"    printf '{{\"number\":7,\"state\":\"OPEN\",\"isDraft\":false,\"mergeable\":\"MERGEABLE\",\"mergedAt\":null,\"statusCheckRollup\":[],\"url\":\"https://example.test/pr/7\",\"baseRefName\":\"main\",\"headRefName\":\"{head_branch}\",\"headRefOid\":\"%s\",\"reviewDecision\":\"\"}}\\n' \"$head_oid\"",
             "    exit 0",
             "  fi",
             "  touch \"${GH_STATE}.checks-ready\"",
-            f"  printf '%s\\n' '{{\"number\":7,\"state\":\"OPEN\",\"isDraft\":false,\"mergeable\":\"MERGEABLE\",\"mergedAt\":null,\"statusCheckRollup\":[{{\"__typename\":\"CheckRun\",\"name\":\"gauntlet\",\"status\":\"COMPLETED\",\"conclusion\":\"{check_conclusion}\"}}],\"url\":\"https://example.test/pr/7\",\"baseRefName\":\"main\",\"headRefName\":\"codex/merge-flow\",\"reviewDecision\":\"\"}}'",
+            f"  printf '{{\"number\":7,\"state\":\"OPEN\",\"isDraft\":false,\"mergeable\":\"MERGEABLE\",\"mergedAt\":null,\"statusCheckRollup\":[{{\"__typename\":\"CheckRun\",\"name\":\"gauntlet\",\"status\":\"COMPLETED\",\"conclusion\":\"{check_conclusion}\"}}],\"url\":\"https://example.test/pr/7\",\"baseRefName\":\"main\",\"headRefName\":\"{head_branch}\",\"headRefOid\":\"%s\",\"reviewDecision\":\"\"}}\\n' \"$head_oid\"",
             "  exit 0",
             "fi",
             "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"create\" ]; then",
@@ -1597,6 +2004,7 @@ def write_merge_fake_gh(path, log_path, state_path, check_conclusion="SUCCESS", 
             "    printf '%s\\n' 'no checks reported' >&2",
             "    exit 1",
             "  fi",
+            "  if [ \"${GH_DRIFT_HEAD_AFTER_CHECKS:-0}\" = \"1\" ]; then touch \"${GH_STATE}.drift\"; fi",
             "  exit 0",
             "fi",
             "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"merge\" ]; then",
@@ -1613,6 +2021,180 @@ def write_merge_fake_gh(path, log_path, state_path, check_conclusion="SUCCESS", 
         "GH_STATE": str(state_path),
         "GH_EMPTY_CHECKS_ONCE": "1" if empty_checks_once else "0",
     }
+
+
+def test_gauntlet_cli_review_unit_executes_checked_integration_merge_and_recovers_state():
+    cli = SCRIPTS / "gauntlet.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        remote = Path(tmp) / "remote.git"
+        run_root = Path(tmp) / "run"
+        state_path = Path(tmp) / "review-state.json"
+        gh_state = Path(tmp) / "gh-state.json"
+        gh_log = Path(tmp) / "gh.log"
+        init_repo(repo)
+        git(["branch", "-M", "main"], cwd=repo)
+        (repo / "README.md").write_text("# Repo\n")
+        commit_all(repo, "baseline")
+        git(["init", "--bare", str(remote)], cwd=tmp)
+        git(["remote", "add", "origin", str(remote)], cwd=repo)
+        git(["push", "-u", "origin", "main"], cwd=repo)
+        git(["checkout", "-b", "run/integration"], cwd=repo)
+        git(["push", "-u", "origin", "run/integration"], cwd=repo)
+        git(["checkout", "-b", "review/RU1"], cwd=repo)
+        (repo / "feature.txt").write_text("feature\n")
+        commit_all(repo, "feature")
+        (repo / ".gitignore").write_text("/.gauntlet/\n/scripts/prd-run.py\n")
+        commit_all(repo, "ignore generated bodies")
+        (repo / "scripts").mkdir()
+        controller = repo / "scripts" / "prd-run.py"
+        controller.write_text(
+            """#!/usr/bin/env python3
+import json, os, subprocess, sys
+from pathlib import Path
+state_path = Path(os.environ['FAKE_RUN_STATE'])
+state = json.loads(state_path.read_text())
+args = sys.argv[1:]
+if args[0] == 'review-unit-status':
+    print(json.dumps({
+        'schemaVersion':'1.0','runId':'RUN','prStrategy':'review-prs-plus-final',
+        'integrationBranch':'run/integration','dependencyStates':{},
+        'authority':{'push-review-branch':True,'open-review-pr':True,'merge-to-integration':True},
+        'unit':{'id':'RU1','state':state['state'],'dependencies':[],'ticket_ids':['T1'],
+                'tickets':[{'id':'T1','epicId':'E1','title':'Feature','objective':'Ship feature.','status':'integrated'}],
+                **state.get('unit',{})}
+    }, sort_keys=True))
+elif args[0] == 'review-unit':
+    action = args[args.index('--action') + 1]
+    if action == 'merged' and os.environ.get('FAKE_FAIL_MERGED_ONCE'):
+        marker = Path(os.environ['FAKE_FAIL_MERGED_ONCE'])
+        if not marker.exists():
+            marker.write_text('failed once')
+            print('injected interruption after integration push', file=sys.stderr)
+            raise SystemExit(3)
+    order = ['pending','opened','checked','merge-locked','merged','verified','cleanup-eligible','cleaned']
+    if action == 'checked' and state['state'] in ('checked','merge-locked'):
+        state['state'] = 'checked'
+    elif order.index(action) > order.index(state['state']):
+        state['state'] = action
+    unit = state.setdefault('unit', {})
+    def value(flag):
+        return args[args.index(flag)+1] if flag in args else None
+    if action == 'opened': unit.update(branch=value('--branch'), pr=value('--pr'))
+    if action == 'checked': unit['check']={'head_sha':value('--head-sha'),'tested_base_sha':value('--tested-base-sha'),'tested_tree_sha':value('--tested-tree-sha')}
+    if action == 'merge-locked': unit['merge_lock']={'base_sha':value('--current-base-sha')}
+    if action == 'merged': unit.update(merge_sha=value('--merge-sha'), merged_tree_sha=value('--merged-tree-sha'))
+    state_path.write_text(json.dumps(state, sort_keys=True))
+    if action == 'merge-locked' and os.environ.get('FAKE_ADVANCE_AFTER_LOCK_ONCE'):
+        marker = Path(os.environ['FAKE_ADVANCE_AFTER_LOCK_ONCE'])
+        if not marker.exists():
+            marker.write_text('advanced once')
+            subprocess.run(['git','fetch','origin','run/integration'], check=True)
+            base = subprocess.run(['git','rev-parse','origin/run/integration'], text=True, capture_output=True, check=True).stdout.strip()
+            tree = subprocess.run(['git','rev-parse',base+'^{tree}'], text=True, capture_output=True, check=True).stdout.strip()
+            descendant = subprocess.run(['git','commit-tree',tree,'-p',base,'-m','competing integration advance'], text=True, capture_output=True, check=True).stdout.strip()
+            subprocess.run(['git','push','origin',descendant+':refs/heads/run/integration','--force-with-lease=refs/heads/run/integration:'+base], check=True)
+else:
+    raise SystemExit(2)
+"""
+        )
+        controller.chmod(0o755)
+        os.environ["GAUNTLET_ALLOW_DEV_CONTROLLER"] = "1"
+        os.environ["GAUNTLET_DEV_PRD_CONTROLLER"] = str(controller)
+        state_path.write_text(json.dumps({"state": "pending", "unit": {}}))
+        run_root.mkdir()
+        (run_root / "evidence").mkdir()
+        fake_gh = Path(tmp) / "gh"
+        fake_gh.write_text(
+            """#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$GH_LOG"
+if [ "$1" = "pr" ] && [ "$2" = "list" ]; then
+  if [ ! -f "$GH_STATE" ]; then printf '%s\n' '[]'; exit 0; fi
+  head_oid=$(git rev-parse HEAD)
+  if [ "${GH_REVIEW_HEAD_DRIFT:-0}" = "1" ]; then head_oid=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; fi
+  state=$(python3 -c 'import json,os; print(json.load(open(os.environ["GH_STATE"]))["state"])')
+  merge=$(python3 -c 'import json,os; print(json.load(open(os.environ["GH_STATE"])).get("merge",""))')
+  if [ "$state" = "MERGED" ]; then
+    printf '[{"number":7,"state":"MERGED","isDraft":false,"mergeable":"MERGEABLE","mergedAt":"now","mergeCommit":{"oid":"%s"},"statusCheckRollup":[{"__typename":"CheckRun","name":"gauntlet","status":"COMPLETED","conclusion":"SUCCESS"}],"url":"https://example.test/pr/7","baseRefName":"run/integration","headRefName":"review/RU1","headRefOid":"%s","reviewDecision":""}]\n' "$merge" "$head_oid"
+  else
+    printf '[{"number":7,"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","mergedAt":null,"mergeCommit":null,"statusCheckRollup":[{"__typename":"CheckRun","name":"gauntlet","status":"COMPLETED","conclusion":"SUCCESS"}],"url":"https://example.test/pr/7","baseRefName":"run/integration","headRefName":"review/RU1","headRefOid":"%s","reviewDecision":""}]\n' "$head_oid"
+  fi
+  exit 0
+fi
+if [ "$1" = "pr" ] && [ "$2" = "create" ]; then
+  printf '%s\n' '{"state":"OPEN"}' > "$GH_STATE"; printf '%s\n' 'https://example.test/pr/7'; exit 0
+fi
+if [ "$1" = "pr" ] && { [ "$2" = "edit" ] || [ "$2" = "checks" ]; }; then exit 0; fi
+exit 1
+"""
+        )
+        fake_gh.chmod(0o755)
+        env = {
+            **os.environ,
+            "FAKE_RUN_STATE": str(state_path),
+            "FAKE_ADVANCE_AFTER_LOCK_ONCE": str(Path(tmp) / "advance-after-lock-once"),
+            "FAKE_FAIL_MERGED_ONCE": str(Path(tmp) / "merged-once"),
+            "GAUNTLET_GH": str(fake_gh),
+            "GH_STATE": str(gh_state),
+            "GH_LOG": str(gh_log),
+        }
+        prepared = subprocess.run([
+            str(cli), "review-unit", "prepare", "--git-root", str(repo), "--run", str(run_root), "--unit", "RU1", "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        if prepared.returncode != 0:
+            raise AssertionError(f"review-unit prepare failed:\n{prepared.stdout}\n{prepared.stderr}")
+        drifted = subprocess.run([
+            str(cli), "review-unit", "execute", "--git-root", str(repo), "--run", str(run_root), "--unit", "RU1", "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**env, "GH_REVIEW_HEAD_DRIFT": "1"})
+        if drifted.returncode != 1 or "review_unit_pr_identity_mismatch" not in {item["code"] for item in json.loads(drifted.stdout)["findings"]}:
+            raise AssertionError(f"review-unit PR head drift must fail closed:\n{drifted.stdout}\n{drifted.stderr}")
+        if json.loads(state_path.read_text())["state"] != "pending":
+            raise AssertionError("head drift must not advance durable Review Unit state")
+        git(["push", "origin", ":refs/heads/review/RU1"], cwd=repo)
+        if gh_state.exists():
+            gh_state.unlink()
+        competed = subprocess.run([
+            str(cli), "review-unit", "execute", "--git-root", str(repo), "--run", str(run_root), "--unit", "RU1", "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        competed_data = json.loads(competed.stdout)
+        if competed.returncode != 1 or "review_unit_base_changed_after_lock" not in {item["code"] for item in competed_data["findings"]}:
+            raise AssertionError(f"competing integration advance should require a recheck:\n{competed.stdout}\n{competed.stderr}")
+        executed = subprocess.run([
+            str(cli), "review-unit", "execute", "--git-root", str(repo), "--run", str(run_root), "--unit", "RU1", "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        if executed.returncode == 0 or "record_review_merged_failed" not in {item["code"] for item in json.loads(executed.stdout)["findings"]}:
+            raise AssertionError(f"injected interruption should preserve a recoverable failure:\n{executed.stdout}\n{executed.stderr}")
+        first_data = json.loads(executed.stdout)
+        git(["fetch", "origin", "run/integration"], cwd=repo)
+        pushed_merge = git(["rev-parse", "origin/run/integration"], cwd=repo).stdout.strip()
+        pushed_tree = git(["rev-parse", f"{pushed_merge}^{{tree}}"], cwd=repo).stdout.strip()
+        descendant = git(["commit-tree", pushed_tree, "-p", pushed_merge, "-m", "concurrent integration descendant"], cwd=repo).stdout.strip()
+        git([
+            "push", "origin", f"{descendant}:refs/heads/run/integration",
+            f"--force-with-lease=refs/heads/run/integration:{pushed_merge}",
+        ], cwd=repo)
+        recovered = subprocess.run([
+            str(cli), "review-unit", "execute", "--git-root", str(repo), "--run", str(run_root), "--unit", "RU1", "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        if recovered.returncode != 0:
+            raise AssertionError(f"review-unit recovery failed:\n{recovered.stdout}\n{recovered.stderr}")
+        data = json.loads(recovered.stdout)
+        if json.loads(state_path.read_text())["state"] != "cleaned":
+            raise AssertionError(f"review-unit controller did not reach cleaned: {state_path.read_text()}")
+        action_types = [item["type"] for item in competed_data["executedActions"] + first_data["executedActions"] + data["executedActions"]]
+        required = ["git_push", "gh_pr_create", "record_review_opened", "gh_pr_checks_watch", "record_review_checked", "record_review_merge_lock", "gh_pr_checks_watch", "record_review_checked", "record_review_merge_lock", "git_push_integration_with_lease", "record_review_merged", "record_review_verified", "record_review_cleanup_eligible", "cleanup_review_branch"]
+        if action_types != required:
+            raise AssertionError(f"review-unit action ordering mismatch: {action_types}")
+        if git(["merge-base", "--is-ancestor", "HEAD", "origin/run/integration"], cwd=repo).returncode != 0:
+            raise AssertionError("reviewed head is not present on the integration branch")
+        if run(["git", "ls-remote", "--exit-code", "--heads", "origin", "review/RU1"], cwd=repo, check=False).returncode != 2:
+            raise AssertionError("review-unit remote branch was not cleaned")
+        repeated = subprocess.run([
+            str(cli), "review-unit", "execute", "--git-root", str(repo), "--run", str(run_root), "--unit", "RU1", "--json",
+        ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        if repeated.returncode != 0 or json.loads(repeated.stdout).get("executedActions") != []:
+            raise AssertionError(f"completed review-unit execution must be idempotent: {repeated.stdout}\n{repeated.stderr}")
 
 
 def test_gauntlet_cli_merge_plan_requires_clean_task_branch():
@@ -1661,7 +2243,7 @@ def test_gauntlet_cli_merge_plan_requires_clean_task_branch():
             raise AssertionError(f"clean merge plan should pass:\n{plan_result.stdout}\n{plan_result.stderr}")
         data = json.loads(plan_result.stdout)
         action_types = [action["type"] for action in data["mergePlan"]["actions"]]
-        expected = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "delete_remote_branch", "verify_default_branch"]
+        expected = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch", "delete_remote_branch"]
         if action_types != expected:
             raise AssertionError(f"new-PR merge action order mismatch: {action_types}")
 
@@ -1671,7 +2253,7 @@ def test_gauntlet_cli_merge_plan_requires_clean_task_branch():
             "--handoff", str(handoff_path), "--body", str(body_path), "--json",
         ], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **env})
         existing_actions = [action["type"] for action in json.loads(existing_result.stdout)["mergePlan"]["actions"]]
-        expected_existing = ["git_push", "gh_pr_edit", "gh_pr_checks_watch", "gh_pr_merge", "delete_remote_branch", "verify_default_branch"]
+        expected_existing = ["git_push", "gh_pr_edit", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch", "delete_remote_branch"]
         if existing_result.returncode != 0 or existing_actions != expected_existing:
             raise AssertionError(f"existing PR should be updated, not duplicated: {existing_result.stdout}")
 
@@ -1740,7 +2322,7 @@ def test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main():
             raise AssertionError(f"merge execute should pass:\n{result.stdout}\n{result.stderr}")
         data = json.loads(result.stdout)
         executed = [action["type"] for action in data["executedActions"]]
-        expected = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "delete_remote_branch", "verify_default_branch"]
+        expected = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch", "delete_remote_branch"]
         if executed != expected:
             raise AssertionError(f"executed merge order mismatch: {executed}")
         git(["fetch", "origin", "main"], cwd=repo)
@@ -1814,7 +2396,7 @@ def test_gauntlet_cli_closeout_execute_commits_merges_cleans_and_returns_archive
         if data.get("commit", {}).get("subject") != merge_handoff_fixture()["title"]:
             raise AssertionError(f"closeout should commit with the handoff title: {data}")
         merge_actions = [action["type"] for action in data.get("merge", {}).get("executedActions", [])]
-        expected_merge = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "delete_remote_branch", "verify_default_branch"]
+        expected_merge = ["git_push", "gh_pr_create", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch", "delete_remote_branch"]
         if merge_actions != expected_merge:
             raise AssertionError(f"closeout merge actions mismatch: {merge_actions}")
         current_branch = git(["branch", "--show-current"], cwd=repo).stdout.strip()
@@ -1859,6 +2441,17 @@ def test_remote_branch_cleanup_accepts_concurrent_auto_delete():
     result = gauntlet_cli.delete_remote_branch(Path("/test/repo"), "codex/merge-flow", git_runner=fake_git)
     if result.returncode != 0:
         raise AssertionError("remote cleanup should pass when the branch is absent after a concurrent auto-delete")
+
+    calls = []
+    def moved_git(args, _repo):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, "b" * 40 + "\trefs/heads/review/RU1\n", "")
+
+    moved = gauntlet_cli.delete_remote_branch(
+        Path("/test/repo"), "review/RU1", expected_sha="a" * 40, git_runner=moved_git,
+    )
+    if moved.returncode == 0 or len(calls) != 1:
+        raise AssertionError("leased cleanup must preserve a review branch that moved after verification")
 
 
 def test_closeout_forwards_install_conflict_choices_to_preflight_and_apply():
@@ -4357,7 +4950,7 @@ def main():
         test_instruction_surfaces_are_not_classified_as_docs_only,
         test_workflow_helpers_filter_artifacts_and_find_python_tests,
         test_workflow_speedup_helpers_are_documented_as_advisory,
-        test_execution_run_uses_parent_integration_boundary_without_child_prompt_duplication,
+        test_execution_run_freezes_parent_review_topology_without_child_prompt_duplication,
         test_contextual_merge_contract_is_documented,
         test_response_style_guidance_is_single_global_policy,
         test_version_changelog_preserves_release_history,
@@ -4366,6 +4959,10 @@ def main():
         test_workflow_etiquette_checker_pauses_archive_on_followups_and_git_state,
         test_workflow_etiquette_checker_builds_archive_action_plan,
         test_gauntlet_cli_merge_prepare_renders_contextual_handoff,
+        test_gauntlet_cli_run_merge_uses_closed_v2_projection_and_rejects_drift,
+        test_gauntlet_cli_run_merge_rejects_downgrade_and_incomplete_projection,
+        test_gauntlet_cli_run_merge_execute_uses_bound_projection_and_safe_cleanup_order,
+        test_gauntlet_cli_review_unit_executes_checked_integration_merge_and_recovers_state,
         test_gauntlet_cli_merge_plan_requires_clean_task_branch,
         test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main,
         test_gauntlet_cli_closeout_execute_commits_merges_cleans_and_returns_archive_actions,

@@ -116,10 +116,10 @@ Use the installed generated-context renderer and its versioned prompt-family tem
 
 This is the single reusable release contract for local documents. PRDs do not copy it. Compiled Ticket Graphs reference it and resolve their implementation-specific fields.
 
-1. Use a dedicated parent integration branch for each multi-Ticket run, with isolated child branches or worktrees; produce one final PR per run. Split independent release boundaries into separate runs.
+1. Use a dedicated parent integration branch for each multi-Ticket run, with isolated child branches or worktrees. Freeze `single-final-pr` at initialization for a small reviewable target, or `review-prs-plus-final` for a large tightly coupled target that needs parent-owned Review Unit PRs into the integration branch. Produce one complete Project PR to `main` with deterministic coverage of every locked Epic and Scope Area. Split independently shippable outcomes into separate runs.
 2. Compile the accepted Implementation Target into bounded Tickets and delegate only independent Tickets with separate ownership, state, and proof paths.
 3. Continue autonomously through reversible, in-scope, authorized work. Stop for a material decision, missing authority, unsafe side effect, preservation risk, or unavailable required proof.
-4. The main task integrates work and runs changed-surface proof before proposing merge.
+4. The main task owns Review Unit membership, integration, run-backed PR projections, and changed-surface proof. Keep this topology out of child contexts.
 5. An explicit `implement the PRD` request authorizes the build-ready target end to end: branch/worktree, Tickets, integration, commits, pull request, required-check merge, deployment of the exact verified `main` revision, and documented production changes and verification named by the accepted PRD. A narrower explicit request controls.
 6. Stop before merge, deployment, or a production change when credentials or permissions are missing, a material product decision is unresolved, the side effect is destructive or absent from the accepted PRD, production reality invalidates the rollout or rollback, or required production proof cannot be obtained.
 7. Record non-secret release evidence and follow the accepted rollback path when verification fails.

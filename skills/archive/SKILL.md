@@ -5,59 +5,46 @@ description: Use when the user invokes /Archive or explicitly asks to apply comp
 
 # Archive
 
-Complete one authorized closeout without widening the accepted scope. An explicit `/Archive` invocation authorizes the current task’s scoped commit, push, PR creation or update, required checks, merge, safe branch cleanup, requested local Gauntlet install, and task archival.
+Complete one authorized closeout without widening scope. An explicit `/Archive` invocation authorizes the task’s scoped commit, push, PR, required checks, merge, cleanup, requested local Gauntlet install, and archival.
 
 ## Prepare
 
-1. Confirm the requested work is complete and proportionally proved. Run the relevant check if its result is not current.
-2. Inspect `git status` and the diff. Build an explicit list of intended repository paths; never stage the whole worktree by default.
-3. Create a merge-handoff JSON file outside the repository using Gauntlet’s required handoff schema. State the exact test command and result.
-4. Create an archive-summary Markdown file outside the repository with an `## Archive Summary` heading and concise outcome bullets.
-5. Read the current task title. If it is not in `p#: four word goal` or `p#-auto: four word goal` form, supply a valid four-word `--suggested-title`.
+1. Confirm completion and current proportional proof.
+2. Inspect status and diff. Build an explicit list of intended repository paths; never stage the whole worktree by default.
+3. Detect whether the branch belongs to an Execution Run. Run-backed work uses its path and controller-owned schema v2 Project PR projection. Non-run work uses a schema v1 handoff outside the repository. Record the exact test result.
+4. Create an external Markdown file headed `## Archive Summary`.
+5. Supply a conforming `--suggested-title` only when the current title is invalid.
 
 ## Execute
 
-Use the repository’s `scripts/gauntlet.py` when changing Gauntlet itself. Otherwise use the installed CLI at `$CODEX_HOME/gauntlet/scripts/gauntlet.py`, falling back to `$HOME/.codex/gauntlet/scripts/gauntlet.py` when `CODEX_HOME` is unset.
+Use the repository CLI for Gauntlet changes and the installed CLI otherwise.
 
-Run exactly one shell-side closeout command:
+For a non-run patch, invoke one `closeout execute` with the schema v1 `--handoff`, every intended `--stage`, title, Archive Summary, and install target.
 
-```sh
-python3 "$GAUNTLET_CLI" closeout execute \
-  --git-root "$PROJECT_ROOT" \
-  --handoff "$HANDOFF_PATH" \
-  --stage path/to/changed-file \
-  --install-target codex \
-  --title "$THREAD_TITLE" \
-  --suggested-title "p3-auto: complete guarded release closeout" \
-  --content "$ARCHIVE_SUMMARY_PATH" \
-  --json
-```
+For an Execution Run, complete required frozen Review Unit PRs first, then use `merge prepare|plan|execute --run <run>` for the Project PR. Never substitute schema v1 `--handoff`. Finish with `archive plan` and `archive execute`. Perform and verify any requested local install separately.
 
-Repeat `--stage` once for every intended path. Use `--install-target codex` for Gauntlet changes that should become active locally; use `none` for ordinary downstream repositories.
-
-Closeout preflights local installation before commit or merge. On conflicts, show passages or values and ask. Rerun after the choice with `--instructions-reviewed`, `--response-style gauntlet|existing`, and `--codex-preferences gauntlet|existing|skip`; never bypass preflight.
+Closeout preflights local installation. Resolve reported conflicts, then rerun with `--instructions-reviewed`, `--response-style gauntlet|existing`, and `--codex-preferences gauntlet|existing|skip`; never bypass preflight.
 
 ## Finish In Codex
 
-Read the JSON result. Continue only when its status is `pass` or `warn` and `remainingAppActions` is present.
-
-Execute every returned app action in order:
+Continue only when JSON status is `pass` or `warn` and `remainingAppActions` exists. Execute actions in order:
 
 1. Rename the current task when `set_thread_title` is returned.
 2. Present the returned Archive Summary.
 3. Archive the current task with the Codex task-archive tool when `archive_thread` is returned.
 
-Do not emit raw archive directives or claim the task is archived before the app tool succeeds.
+Do not emit raw directives or claim archival before the app tool succeeds.
 
 ## Output Contract
 
-Return only material closeout facts before the task disappears: PR URL and merged state, local install result, proof result, and any unresolved risk. `Cannot verify` must name any missing app action, merge proof, or install proof and the exact next check. Do not claim completion when `remainingAppActions` is empty because of a failure.
+Return only the PR and merge state, install and proof results, and unresolved risk. `Cannot verify` names missing proof and the next check.
 
 Optional example: read `examples/standard-closeout.md` when the handoff files or returned app-action sequence are unclear.
 
 ## Stop Conditions
 
 - Stop before committing when archive inputs are invalid or dirty work falls outside the explicit paths.
+- Stop if a run-backed branch is offered a schema v1 handoff, the Project PR projection does not cover the locked target, or required Review Units remain unintegrated.
 - Stop without archiving when checks, merge, cleanup, local installation, or archive planning fails.
-- Preserve the committed task branch for recovery when failure occurs before merge.
-- Do not ask for another confirmation after an explicit `/Archive` invocation unless a new material scope, data-loss, permission, or preservation risk appears.
+- Preserve the task branch when failure occurs before merge.
+- Do not ask for another confirmation after `/Archive` unless a new material scope, data-loss, permission, or preservation risk appears.

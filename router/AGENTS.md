@@ -96,7 +96,7 @@ For material Gauntlet work, apply the durable control architecture by default: h
 
 - Read before editing, match repository patterns, keep interfaces narrow, and avoid unrelated cleanup.
 - Preserve unrelated dirty work. Never overwrite, discard, archive over, or include it without authority.
-- Use a branch for persisted changes. For multi-Ticket runs, keep `main` clean and use one parent integration branch; use a separate worktree for p0-p2, broad, dirty-worktree, or write-heavy delegated work.
+- Use a branch for persisted changes. For multi-Ticket runs, keep `main` clean and use one parent integration branch. Freeze a single Project PR for small targets or parent-owned Review Unit PRs plus one complete Project PR for large tightly coupled targets; split independently shippable outcomes into separate runs. Use a separate worktree for p0-p2, broad, dirty-worktree, or write-heavy delegated work.
 - Add or update tests when behavior changes. When a practical harness exists, observe the relevant failure, implement the smallest source fix, and refactor while green.
 - Diagnose before fixing unexpected behavior: reproduce, trace the earliest divergence, state a falsifiable cause, and run the smallest discriminating check.
 - Evidence precedes completion claims. State what proof establishes and what remains unverifiable.
@@ -118,7 +118,7 @@ Detailed Git and archive guidance: `{{GAUNTLET_ROOT}}/docs/github-discipline.md`
 
 Archive behavior is authority-sensitive: use the installed archive planner and execute only the actions it returns. Preserve the user's requested merge behavior and do not invent an additional confirmation after merge authority has already been granted.
 
-“Merge this” or “land this” authorizes the accepted branch-to-PR, required-check, merge, verification, and safe-cleanup sequence. “Push to git” authorizes only the current branch, and a request to open a PR does not authorize merging it. Use `{{GAUNTLET_ROOT}}/scripts/gauntlet.py merge prepare|plan|execute`; run `execute` only with merge authority.
+“Merge this” or “land this” authorizes the accepted branch-to-PR, required-check, merge, verification, and safe-cleanup sequence. “Push to git” authorizes only the current branch, and a request to open a PR does not authorize merging it. Use `{{GAUNTLET_ROOT}}/scripts/gauntlet.py merge prepare|plan|execute --run <run>` for a run-backed schema v2 Project PR; retain schema v1 `--handoff` only for non-run patches. Run `execute` only with merge authority.
 
 “Implement the PRD” authorizes the accepted build-ready target through branch/worktree creation, Ticket Graph execution, incremental integration, proof, PR, merge, exact-default-branch deployment when specified, documented production changes, verification, required rollback, durable updates, and cleanup. Exclude proposed, deferred, and materially unresolved work. Stop for missing authority or credentials, an unsafe or destructive effect absent from the PRD, production reality that invalidates rollout or rollback, or required production proof that cannot be obtained.
 
@@ -126,7 +126,7 @@ When the user asks to apply Gauntlet locally, merge it through a new PR, and the
 
 ## Delegation And Quiet Execution
 
-Parallelism must beat its context cost. Delegate only independent files, state, contracts, or evidence lanes with separate proof paths. The main task owns user decisions, integration, synthesis, the final branch, and the pull request.
+Parallelism must beat its context cost. Delegate only independent files, state, contracts, or evidence lanes with separate proof paths. The main task owns user decisions, integration, synthesis, the integration branch, frozen Review Unit topology, and complete Project PR.
 
 Standing authorization: when two or more useful lanes meet that independence test, spawn subagents automatically without waiting for the user to request delegation. The work itself is the trigger; Release classification is not required. Stay end-to-end in the main task when splitting would duplicate context, serialize on shared state, or weaken proof.
 
@@ -138,7 +138,7 @@ Schedule a dynamic ready queue: prioritize critical-path and interface-first wor
 
 After an Execution Run starts, its source lock, manifest, and resume artifact are authoritative for execution state. Resume from disk after compaction or restart. Keep stable instructions first and ticket-specific data last, with canonical ordering and stable formatting; this improves prefix reuse but does not guarantee cache hits.
 
-Children work quietly. Implementation children return compact receipts that point to evidence; research and review children return the requested artifact or findings compactly. The main task owns the oracle, independently verifies child evidence, integrates commits into one branch as results arrive, runs targeted integration checks, waits for all required tickets before combined proof, and opens one final pull request.
+Children work quietly. Implementation children return compact receipts that point to evidence; research and review children return the requested artifact or findings compactly. The main task owns the oracle, independently verifies child evidence, integrates commits as results arrive, runs targeted integration checks, waits for all required tickets before combined proof, and owns every Review Unit PR plus the complete Project PR. Parent integration and PR topology stay out of child context.
 
 Codex records each started child in its native local state. Reconcile its child ID and requested profile with `subagent-audit.py verify`; require the effective read-only sandbox for `gauntlet_security_reviewer`. After a Gauntlet child reaches a terminal state, silently run `python3 {{GAUNTLET_ROOT}}/scripts/subagent-audit.py sync --agent-home {{AGENT_HOME}}` so the privacy-bounded Gauntlet JSONL audit stays current. The sync may be rerun after compaction or restart; it durably merges native records and never exports prompts or transcript content.
 

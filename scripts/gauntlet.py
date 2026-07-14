@@ -40,6 +40,21 @@ REQUIRED_HANDOFF_FIELDS = {
     "testing",
     "securityRisk",
 }
+REQUIRED_RUN_HANDOFF_FIELDS = REQUIRED_HANDOFF_FIELDS | {
+    "substantialChanges",
+    "releaseGates",
+    "binding",
+}
+RUN_BINDING_FIELDS = {
+    "runId",
+    "generation",
+    "sourceLockSha256",
+    "graphSha256",
+    "repository",
+    "branch",
+    "headSha",
+    "prdVerificationSha256",
+}
 SECTION_REQUIRED = [
     ("goal", ["goal"]),
     ("scope", ["scope"]),
@@ -1307,15 +1322,15 @@ def handoff_finding(code, message):
     return {"code": code, "severity": "fail", "message": message}
 
 
-def validate_merge_handoff(data):
+def validate_handoff_v1_fields(data, expected_schema="1.0"):
     findings = []
     if not isinstance(data, dict):
         return [handoff_finding("invalid_handoff", "Merge handoff must be a JSON object.")]
     missing = sorted(REQUIRED_HANDOFF_FIELDS - set(data))
     for field in missing:
         findings.append(handoff_finding("missing_handoff_field", f"Merge handoff is missing: {field}."))
-    if data.get("schemaVersion") != "1.0":
-        findings.append(handoff_finding("unsupported_handoff_schema", "Merge handoff schemaVersion must be 1.0."))
+    if data.get("schemaVersion") != expected_schema:
+        findings.append(handoff_finding("unsupported_handoff_schema", f"Merge handoff schemaVersion must be {expected_schema}."))
 
     title = data.get("title")
     if not isinstance(title, str) or not re.fullmatch(r"[^:\n]+: [^\n]+", title.strip()):
@@ -1366,7 +1381,218 @@ def validate_merge_handoff(data):
     return findings
 
 
+def nonempty_string(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
+def validate_string_list(findings, value, code, label, allow_empty=True):
+    if not isinstance(value, list) or (not allow_empty and not value) or not all(nonempty_string(item) for item in value):
+        findings.append(handoff_finding(code, f"{label} must be {'a non-empty' if not allow_empty else 'a'} list of non-empty strings."))
+
+
+def validate_run_merge_handoff(data):
+    findings = validate_handoff_v1_fields(data, expected_schema="2.0")
+    if not isinstance(data, dict):
+        return findings
+    for field in sorted(REQUIRED_RUN_HANDOFF_FIELDS - set(data)):
+        findings.append(handoff_finding("missing_run_handoff_field", f"Run merge handoff is missing: {field}."))
+
+    binding = data.get("binding")
+    if not isinstance(binding, dict):
+        findings.append(handoff_finding("invalid_run_binding", "binding must be an object."))
+    else:
+        for field in sorted(RUN_BINDING_FIELDS - set(binding)):
+            findings.append(handoff_finding("missing_run_binding", f"binding is missing: {field}."))
+        if not nonempty_string(binding.get("runId")):
+            findings.append(handoff_finding("invalid_run_binding", "binding.runId must be non-empty."))
+        if not isinstance(binding.get("generation"), int) or isinstance(binding.get("generation"), bool) or binding.get("generation", -1) < 0:
+            findings.append(handoff_finding("invalid_run_binding", "binding.generation must be a non-negative integer."))
+        repository = binding.get("repository")
+        if not nonempty_string(repository) and not (
+            isinstance(repository, dict)
+            and nonempty_string(repository.get("root"))
+            and nonempty_string(repository.get("identity"))
+        ):
+            findings.append(handoff_finding("invalid_run_binding", "binding.repository must identify the repository, optionally with root and identity."))
+        for field in ["branch", "headSha"]:
+            if not nonempty_string(binding.get(field)):
+                findings.append(handoff_finding("invalid_run_binding", f"binding.{field} must be non-empty."))
+        for field in ["sourceLockSha256", "graphSha256", "prdVerificationSha256"]:
+            if not isinstance(binding.get(field), str) or not re.fullmatch(r"[0-9a-f]{64}", binding[field]):
+                findings.append(handoff_finding("invalid_run_binding_hash", f"binding.{field} must be a lowercase SHA-256 digest."))
+
+    changes = data.get("substantialChanges")
+    if not isinstance(changes, list) or not changes:
+        findings.append(handoff_finding("missing_substantial_changes", "substantialChanges must contain at least one canonical Epic outcome."))
+    else:
+        seen_epics = set()
+        seen_scopes = set()
+        for change_index, change in enumerate(changes, 1):
+            if not isinstance(change, dict):
+                findings.append(handoff_finding("invalid_substantial_change", f"substantialChanges item {change_index} must be an object."))
+                continue
+            epic_id = change.get("epicId")
+            if not nonempty_string(epic_id) or not nonempty_string(change.get("title")) or not nonempty_string(change.get("outcome")):
+                findings.append(handoff_finding("missing_epic_outcome", f"substantialChanges item {change_index} must identify an Epic with title and outcome."))
+            elif epic_id in seen_epics:
+                findings.append(handoff_finding("duplicate_epic_outcome", f"Epic {epic_id} appears more than once."))
+            else:
+                seen_epics.add(epic_id)
+            scopes = change.get("scopeAreas")
+            if not isinstance(scopes, list) or not scopes:
+                findings.append(handoff_finding("missing_scope_area_outcome", f"Epic {epic_id or change_index} must contain at least one Scope Area outcome."))
+            else:
+                for scope_index, scope in enumerate(scopes, 1):
+                    if not isinstance(scope, dict):
+                        findings.append(handoff_finding("invalid_scope_area_outcome", f"Epic {epic_id or change_index} Scope Area {scope_index} must be an object."))
+                        continue
+                    scope_id = scope.get("scopeAreaId")
+                    for field in ["scopeAreaId", "responsibility", "outcome", "claim", "proofLayer"]:
+                        if not nonempty_string(scope.get(field)):
+                            findings.append(handoff_finding("missing_scope_area_outcome", f"Epic {epic_id or change_index} Scope Area {scope_index}.{field} must be non-empty."))
+                    if nonempty_string(scope_id):
+                        if scope_id in seen_scopes:
+                            findings.append(handoff_finding("duplicate_scope_area_outcome", f"Scope Area {scope_id} appears more than once."))
+                        seen_scopes.add(scope_id)
+                    validate_string_list(findings, scope.get("evidenceRefs"), "invalid_scope_evidence", f"Scope Area {scope_id or scope_index}.evidenceRefs", allow_empty=False)
+                    cannot_verify = scope.get("cannotVerify")
+                    validate_string_list(findings, cannot_verify, "invalid_cannot_verify", f"Scope Area {scope_id or scope_index}.cannotVerify")
+            decisions = change.get("decisions")
+            if not isinstance(decisions, list):
+                findings.append(handoff_finding("invalid_substantial_change_decisions", f"Epic {epic_id or change_index}.decisions must be a list."))
+            else:
+                for decision_index, decision in enumerate(decisions, 1):
+                    if not isinstance(decision, dict) or any(not nonempty_string(decision.get(field)) for field in ["id", "outcome", "rationale", "provenance"]):
+                        findings.append(handoff_finding("invalid_substantial_change_decision", f"Epic {epic_id or change_index} decision {decision_index} is incomplete."))
+            risks = change.get("risks")
+            if not isinstance(risks, list):
+                findings.append(handoff_finding("invalid_substantial_change_risks", f"Epic {epic_id or change_index}.risks must be a list."))
+            else:
+                for risk_index, risk in enumerate(risks, 1):
+                    if not isinstance(risk, dict):
+                        findings.append(handoff_finding("invalid_substantial_change_risk", f"Epic {epic_id or change_index} risk {risk_index} must be an object."))
+                        continue
+                    for field in ["id", "summary", "disposition"]:
+                        if not nonempty_string(risk.get(field)):
+                            findings.append(handoff_finding("invalid_substantial_change_risk", f"Epic {epic_id or change_index} risk {risk_index}.{field} must be non-empty."))
+                    if not isinstance(risk.get("blocking"), bool):
+                        findings.append(handoff_finding("invalid_substantial_change_risk", f"Epic {epic_id or change_index} risk {risk_index}.blocking must be boolean."))
+                    if risk.get("gateId") is not None and not nonempty_string(risk.get("gateId")):
+                        findings.append(handoff_finding("invalid_substantial_change_risk", f"Epic {epic_id or change_index} risk {risk_index}.gateId must be null or non-empty."))
+                    validate_string_list(findings, risk.get("evidenceRefs"), "invalid_risk_evidence", f"Epic {epic_id or change_index} risk {risk_index}.evidenceRefs")
+
+    gates = data.get("releaseGates")
+    gate_ids = set()
+    if not isinstance(gates, list) or not gates:
+        findings.append(handoff_finding("missing_release_gate", "releaseGates must contain the pending post-merge gates, including skipped stages."))
+    else:
+        for gate_index, gate in enumerate(gates, 1):
+            if not isinstance(gate, dict):
+                findings.append(handoff_finding("invalid_release_gate", f"releaseGates item {gate_index} must be an object."))
+                continue
+            for field in ["id", "stage", "summary", "status"]:
+                if not nonempty_string(gate.get(field)):
+                    findings.append(handoff_finding("invalid_release_gate", f"releaseGates item {gate_index}.{field} must be non-empty."))
+            if nonempty_string(gate.get("id")):
+                if gate["id"] in gate_ids:
+                    findings.append(handoff_finding("duplicate_release_gate", f"Release gate {gate['id']} appears more than once."))
+                gate_ids.add(gate["id"])
+            if not isinstance(gate.get("blocking"), bool):
+                findings.append(handoff_finding("invalid_release_gate", f"releaseGates item {gate_index}.blocking must be boolean."))
+            validate_string_list(findings, gate.get("evidenceRefs"), "invalid_release_gate_evidence", f"Release gate {gate.get('id') or gate_index}.evidenceRefs")
+    for change in changes if isinstance(changes, list) else []:
+        if not isinstance(change, dict):
+            continue
+        for risk in change.get("risks", []) if isinstance(change.get("risks"), list) else []:
+            if isinstance(risk, dict) and risk.get("gateId") and risk["gateId"] not in gate_ids:
+                findings.append(handoff_finding("unknown_risk_gate", f"Risk {risk.get('id', '<unknown>')} references missing release gate {risk['gateId']}."))
+    return findings
+
+
+def validate_merge_handoff(data):
+    if isinstance(data, dict) and data.get("schemaVersion") == "2.0":
+        return validate_run_merge_handoff(data)
+    return validate_handoff_v1_fields(data)
+
+
+def merge_binding_digest(data):
+    return hashlib.sha256(json.dumps(data["binding"], sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def render_run_pr_body(data):
+    lines = [
+        "## Problem",
+        "",
+        data["problem"]["context"].strip(),
+        "",
+        data["problem"]["impact"].strip(),
+        "",
+        "## Solution",
+        "",
+        data["solution"]["outcome"].strip(),
+        "",
+        "## Substantial Changes",
+        "",
+    ]
+    for change in data["substantialChanges"]:
+        lines.extend([
+            f"### Epic {change['epicId']}: {change['title'].strip()}",
+            "",
+            change["outcome"].strip(),
+            "",
+        ])
+        for scope in change["scopeAreas"]:
+            lines.extend([
+                f"#### Scope Area {scope['scopeAreaId']}: {scope['responsibility'].strip()}",
+                "",
+                f"- Outcome: {scope['outcome'].strip()}",
+                f"- Claim: {scope['claim'].strip()}",
+                f"- Proof layer: {scope['proofLayer'].strip()}",
+                f"- Evidence: {', '.join(item.strip() for item in scope['evidenceRefs'])}",
+            ])
+            if scope["cannotVerify"]:
+                lines.append(f"- Cannot verify: {'; '.join(item.strip() for item in scope['cannotVerify'])}")
+            lines.append("")
+        if change["decisions"]:
+            lines.extend(["Decisions:", ""])
+            for decision in change["decisions"]:
+                lines.append(
+                    f"- **{decision['id'].strip()} — {decision['outcome'].strip()}**: "
+                    f"{decision['rationale'].strip()} (provenance: {decision['provenance'].strip()})"
+                )
+            lines.append("")
+        if change["risks"]:
+            lines.extend(["Risks:", ""])
+            for risk in change["risks"]:
+                gate = f"; gate: {risk['gateId'].strip()}" if risk.get("gateId") else ""
+                evidence = f"; evidence: {', '.join(item.strip() for item in risk['evidenceRefs'])}" if risk["evidenceRefs"] else ""
+                lines.append(
+                    f"- **{risk['id'].strip()}**: {risk['summary'].strip()} — {risk['disposition'].strip()} "
+                    f"(blocking: {'yes' if risk['blocking'] else 'no'}{gate}{evidence})"
+                )
+            lines.append("")
+
+    lines.extend(["## Changelog", "", f"- {data['changelog'].strip()}", "", "## Testing", ""])
+    lines.extend(
+        f"- `{item['command'].strip()}` — **{item['result'].strip().upper()}** — {item['proves'].strip()}"
+        for item in data["testing"]
+    )
+    if data.get("securityRisk"):
+        lines.extend(["", "## Security / Risk", "", data["securityRisk"].strip()])
+    lines.extend(["", "## Pending Post-Merge Gates", ""])
+    for gate in data["releaseGates"]:
+        evidence = f" Evidence: {', '.join(item.strip() for item in gate['evidenceRefs'])}." if gate["evidenceRefs"] else ""
+        lines.append(
+            f"- **{gate['id'].strip()} — {gate['stage'].strip()}**: {gate['status'].strip()} — "
+            f"{gate['summary'].strip()} (blocking: {'yes' if gate['blocking'] else 'no'}).{evidence}"
+        )
+    lines.extend(["", f"<!-- gauntlet-merge-binding: {merge_binding_digest(data)} -->"])
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def render_pr_body(data):
+    if data.get("schemaVersion") == "2.0":
+        return render_run_pr_body(data)
     solution = data["solution"]
     solution_parts = [solution["outcome"].strip()]
     for label, field in [("Invariants", "invariants"), ("Preserved", "preserved"), ("Non-goals", "nonGoals")]:
@@ -1432,11 +1658,609 @@ def ensure_unreleased_changelog(changelog_path, entry):
     return True
 
 
+def repository_identity(repo):
+    remote = git(["config", "--get", "remote.origin.url"], repo)
+    if remote.returncode == 0 and remote.stdout.strip():
+        return remote.stdout.strip()
+    return str(Path(repo).resolve())
+
+
+def current_head(repo):
+    result = git(["rev-parse", "HEAD"], repo)
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def run_project_pr(repo, run_path):
+    controller = prd_controller_path()
+    if not controller.is_file():
+        return None, f"Execution Run projection controller does not exist: {controller}"
+    result = run_cmd([sys.executable, str(controller), "project-pr", "--run", str(Path(run_path).resolve())], cwd=repo)
+    if result.returncode != 0:
+        return None, result.stderr.strip() or result.stdout.strip() or "project-pr failed"
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        return None, f"project-pr did not emit JSON: {error}"
+    return data, None
+
+
+def run_prd_controller(repo, arguments):
+    controller = prd_controller_path()
+    if not controller.is_file():
+        return None, f"Execution Run controller does not exist: {controller}"
+    result = run_cmd([sys.executable, str(controller), *arguments], cwd=repo)
+    if result.returncode != 0:
+        return None, result.stderr.strip() or result.stdout.strip() or "prd-run command failed"
+    return result.stdout, None
+
+
+def prd_controller_path():
+    override = os.environ.get("GAUNTLET_DEV_PRD_CONTROLLER")
+    if override:
+        if os.environ.get("GAUNTLET_ALLOW_DEV_CONTROLLER") != "1":
+            return Path("/__gauntlet_untrusted_controller_override_rejected__")
+        return Path(override).resolve()
+    return SCRIPTS / "prd-run.py"
+
+
+def run_authority_granted(repo, run_path, capability):
+    output, error = run_prd_controller(repo, [
+        "authority-status", "--run", str(Path(run_path).resolve()), "--capability", capability,
+    ])
+    if error:
+        return False, error
+    try:
+        status = json.loads(output)
+    except json.JSONDecodeError as exc:
+        return False, f"authority-status did not emit JSON: {exc}"
+    if status.get("capability") != capability or status.get("granted") is not True:
+        return False, f"Execution Run has not granted {capability} authority"
+    return True, None
+
+
+def review_unit_status(repo, run_path, unit_id):
+    output, error = run_prd_controller(repo, [
+        "review-unit-status", "--run", str(Path(run_path).resolve()), "--unit", unit_id,
+    ])
+    if error:
+        return None, error
+    try:
+        return json.loads(output), None
+    except json.JSONDecodeError as exc:
+        return None, f"review-unit-status did not emit JSON: {exc}"
+
+
+def update_review_unit(repo, run_path, unit_id, action, **fields):
+    arguments = ["review-unit", "--run", str(Path(run_path).resolve()), "--unit", unit_id, "--action", action]
+    for key, value in fields.items():
+        if value is not None:
+            arguments.extend(["--" + key.replace("_", "-"), str(value)])
+    _, error = run_prd_controller(repo, arguments)
+    return error
+
+
+def review_unit_pr(repo, branch):
+    result = gh([
+        "pr", "list", "--head", branch, "--state", "open", "--limit", "1", "--json",
+        "number,state,isDraft,mergeable,mergedAt,mergeCommit,statusCheckRollup,url,baseRefName,headRefName,headRefOid,reviewDecision",
+    ], repo)
+    if result.returncode != 0:
+        return None, result.stderr.strip() or result.stdout.strip()
+    try:
+        values = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        return None, f"GitHub review-unit query returned invalid JSON: {exc}"
+    return (values[0] if values else None), None
+
+
+def review_pr_identity_error(pr, integration_branch, branch, head_sha):
+    if not pr:
+        return "No open review-unit PR exists for the review branch."
+    if pr.get("state") != "OPEN":
+        return "Review-unit PR must be open."
+    if pr.get("baseRefName") != integration_branch or pr.get("headRefName") != branch:
+        return "Review-unit PR base or head branch does not match the frozen Review Unit."
+    if pr.get("headRefOid") != head_sha:
+        return "Review-unit PR head changed; rerun checks against the exact remote head."
+    return None
+
+
+def render_review_unit_body(status):
+    unit = status["unit"]
+    epics = sorted({ticket["epicId"] for ticket in unit["tickets"]})
+    lines = [
+        "## Review Unit",
+        "",
+        f"Unit `{unit['id']}` covers Epics {', '.join(epics)} and targets integration branch `{status['integrationBranch']}`.",
+        "",
+        "## Included Tickets",
+        "",
+    ]
+    for ticket in unit["tickets"]:
+        lines.append(f"- **{ticket['id']} — {ticket['title']}**: {ticket['objective']}")
+    lines.extend([
+        "",
+        "## Integration Contract",
+        "",
+        "- Checks bind this review branch to the current integration-branch commit and its synthetic merge tree.",
+        "- Advancing the integration branch invalidates the merge-sensitive check and requires a recheck.",
+        "- Merging this PR grants no authority to merge the final Project PR to the default branch.",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def review_unit_title(status):
+    unit = status["unit"]
+    titles = ", ".join(ticket["title"] for ticket in unit["tickets"][:2])
+    if len(unit["tickets"]) > 2:
+        titles += f" and {len(unit['tickets']) - 2} more"
+    return f"review({unit['id'].lower()}): {titles}"
+
+
+def review_unit_body_path(repo, unit_id, requested=None):
+    path = Path(requested) if requested else Path(".gauntlet") / f"review-unit-{unit_id.lower()}.md"
+    return path if path.is_absolute() else Path(repo) / path
+
+
+def review_unit_plan_payload(args, write_body=False):
+    repo = Path(args.git_root).resolve()
+    run_path = merge_input_path(repo, args.run)
+    payload = {
+        "schemaVersion": "1.0", "status": "pass", "findings": [], "actions": [],
+        "run": str(run_path), "unit": args.unit,
+    }
+    status, error = review_unit_status(repo, run_path, args.unit)
+    if error:
+        add_finding(payload, "review_unit_status_failed", "fail", error)
+        payload["status"] = status_for(payload)
+        return payload
+    payload["reviewUnit"] = status
+    unit = status["unit"]
+    branch = branch_name(repo)
+    integration_branch = status["integrationBranch"]
+    payload["branch"] = branch
+    payload["integrationBranch"] = integration_branch
+    body_path = review_unit_body_path(repo, args.unit, getattr(args, "body", None) or getattr(args, "body_output", None))
+    payload["bodyPath"] = str(body_path)
+
+    if status.get("prStrategy") != "review-prs-plus-final":
+        add_finding(payload, "review_unit_strategy_required", "fail", "Review-unit PRs require review-prs-plus-final.")
+    if not branch or branch == integration_branch or branch in {"main", "master"}:
+        add_finding(payload, "review_unit_branch_required", "fail", "Run this command from the dedicated review-unit branch, not the integration or default branch.")
+    recorded_branch = unit.get("branch")
+    if recorded_branch and recorded_branch != branch:
+        add_finding(payload, "review_unit_branch_mismatch", "fail", f"Unit {args.unit} is bound to {recorded_branch}, not {branch}.")
+    if any(ticket["status"] != "integrated" for ticket in unit["tickets"]):
+        add_finding(payload, "review_unit_tickets_not_integrated", "fail", "Every review-unit Ticket must have parent integration evidence before its PR can open.")
+    incomplete_dependencies = [
+        dependency for dependency in unit.get("dependencies", [])
+        if status.get("dependencyStates", {}).get(dependency) not in {"merged", "verified", "cleanup-eligible", "cleaned"}
+    ]
+    if incomplete_dependencies:
+        add_finding(payload, "review_unit_dependencies_pending", "fail", "Review-unit dependencies are not merged: " + ", ".join(incomplete_dependencies))
+    required_authority = ("push-review-branch", "open-review-pr") + (() if write_body else ("merge-to-integration",))
+    missing_authority = [key for key in required_authority if not status.get("authority", {}).get(key)]
+    if missing_authority:
+        add_finding(payload, "review_unit_authority_missing", "fail", "Missing review-unit authority: " + ", ".join(missing_authority))
+    if dirty_paths(repo):
+        add_finding(payload, "uncommitted_review_unit_work", "fail", "Commit or preserve review-unit work before opening its PR.")
+
+    if write_body and not payload["findings"]:
+        body_path.parent.mkdir(parents=True, exist_ok=True)
+        body_path.write_text(render_review_unit_body(status), encoding="utf-8")
+    elif not write_body:
+        expected = render_review_unit_body(status)
+        if not body_path.is_file() or body_path.read_text(encoding="utf-8") != expected:
+            add_finding(payload, "review_unit_body_out_of_date", "fail", "Run review-unit prepare again before plan or execute.")
+
+    fetch = git(["fetch", "origin", integration_branch], repo)
+    if fetch.returncode != 0:
+        add_finding(payload, "review_unit_base_fetch_failed", "fail", fetch.stderr.strip() or fetch.stdout.strip())
+    else:
+        base = git(["rev-parse", f"origin/{integration_branch}"], repo)
+        if base.returncode == 0:
+            payload["testedBaseSha"] = base.stdout.strip()
+    pr, pr_error = review_unit_pr(repo, branch) if branch else (None, None)
+    payload["pr"] = pr
+    if pr_error:
+        add_finding(payload, "review_unit_pr_unverified", "warn", pr_error)
+    if pr:
+        if pr.get("baseRefName") != integration_branch or pr.get("headRefName") != branch:
+            add_finding(payload, "review_unit_pr_branch_mismatch", "fail", "Existing review PR does not match the frozen head/base branches.")
+    payload["status"] = status_for(payload)
+    if payload["status"] in {"pass", "warn"}:
+        payload["actions"] = [
+            {"type": "git_push", "branch": branch},
+            {"type": "gh_pr_edit" if pr else "gh_pr_create"},
+            {"type": "record_review_opened"},
+            {"type": "gh_pr_checks_watch"},
+            {"type": "record_review_checked"},
+            {"type": "record_review_merge_lock"},
+            {"type": "git_push_integration_with_lease"},
+            {"type": "verify_review_merge"},
+            {"type": "cleanup_review_branch"},
+        ]
+    return payload
+
+
+def command_review_unit_prepare(args):
+    payload = review_unit_plan_payload(args, write_body=True)
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def command_review_unit_plan(args):
+    payload = review_unit_plan_payload(args)
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def wait_for_review_unit_checks(repo, branch, timeout_seconds=60, poll_seconds=2):
+    deadline = time.monotonic() + timeout_seconds
+    last_error = None
+    while True:
+        pr, last_error = review_unit_pr(repo, branch)
+        if pr and pr.get("statusCheckRollup"):
+            return pr, None
+        if time.monotonic() >= deadline:
+            return pr, last_error or f"No review-unit checks were reported within {timeout_seconds} seconds."
+        time.sleep(poll_seconds)
+
+
+def synthetic_merge_tree(repo, base_sha, head_sha):
+    result = git(["merge-tree", "--write-tree", base_sha, head_sha], repo)
+    if result.returncode != 0:
+        return None, result.stderr.strip() or result.stdout.strip() or "synthetic merge failed"
+    first = result.stdout.splitlines()[0].strip() if result.stdout.splitlines() else ""
+    if not re.fullmatch(r"[0-9a-f]{40,64}", first):
+        return None, "git merge-tree did not return a merge tree object ID"
+    return first, None
+
+
+def find_review_merge(repo, tip, base_sha, head_sha, tree_sha):
+    history = git(["rev-list", "--first-parent", tip, f"^{base_sha}"], repo)
+    if history.returncode != 0:
+        return None
+    for commit in history.stdout.splitlines():
+        parents = git(["rev-list", "--parents", "-n", "1", commit], repo)
+        tree = git(["rev-parse", f"{commit}^{{tree}}"], repo)
+        values = parents.stdout.split() if parents.returncode == 0 else []
+        if len(values) == 3 and values[1:] == [base_sha, head_sha] and tree.returncode == 0 and tree.stdout.strip() == tree_sha:
+            return commit
+    return None
+
+
+def review_unit_evidence_path(run_path, unit_id, kind, discriminator):
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", unit_id.lower())
+    return Path(run_path) / "evidence" / f"review-unit-{safe}-{kind}-{discriminator[:12]}.md"
+
+
+def command_review_unit_execute(args):
+    payload = review_unit_plan_payload(args)
+    if payload["status"] not in {"pass", "warn"}:
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+    repo = Path(args.git_root).resolve()
+    run_path = merge_input_path(repo, args.run)
+    branch = payload["branch"]
+    integration_branch = payload["integrationBranch"]
+    body_path = Path(payload["bodyPath"])
+    executed = []
+
+    def fail(code, message):
+        add_finding(payload, code, "fail", message)
+        payload["status"] = status_for(payload)
+
+    status, error = review_unit_status(repo, run_path, args.unit)
+    if error:
+        fail("review_unit_status_failed", error)
+    unit = (status or {}).get("unit", {})
+
+    if payload["status"] in {"pass", "warn"} and unit.get("state") == "pending":
+        result = git(["push", "-u", "origin", f"HEAD:{branch}"], repo)
+        if result.returncode != 0:
+            fail("review_unit_push_failed", result.stderr.strip() or result.stdout.strip())
+        else:
+            executed.append({"type": "git_push", "branch": branch})
+            pr, _ = review_unit_pr(repo, branch)
+            if pr:
+                result = gh(["pr", "edit", str(pr["number"]), "--title", review_unit_title(status), "--body-file", str(body_path)], repo)
+                action = "gh_pr_edit"
+            else:
+                result = gh([
+                    "pr", "create", "--title", review_unit_title(status), "--body-file", str(body_path),
+                    "--base", integration_branch, "--head", branch,
+                ], repo)
+                action = "gh_pr_create"
+            if result.returncode != 0:
+                fail(f"review_unit_{action}_failed", result.stderr.strip() or result.stdout.strip())
+            else:
+                executed.append({"type": action})
+                pr, pr_error = review_unit_pr(repo, branch)
+                if not pr:
+                    fail("review_unit_pr_missing", pr_error or "Review-unit PR was not discoverable after publication.")
+                else:
+                    identity_error = review_pr_identity_error(pr, integration_branch, branch, current_head(repo))
+                    if identity_error:
+                        fail("review_unit_pr_identity_mismatch", identity_error)
+                    else:
+                        error = update_review_unit(
+                            repo, run_path, args.unit, "opened", branch=branch,
+                            pr=pr.get("url") or f"#{pr.get('number')}",
+                        )
+                        if error:
+                            fail("record_review_opened_failed", error)
+                        else:
+                            executed.append({"type": "record_review_opened"})
+                            status, _ = review_unit_status(repo, run_path, args.unit)
+                            unit = status["unit"]
+
+    local_head = current_head(repo)
+    checked = unit.get("check", {})
+    base_drift = unit.get("state") == "merge-locked" and payload.get("testedBaseSha") != checked.get("tested_base_sha")
+    recoverable_merge = None
+    if base_drift:
+        recoverable_merge = find_review_merge(
+            repo, f"origin/{integration_branch}", checked.get("tested_base_sha"),
+            checked.get("head_sha"), checked.get("tested_tree_sha"),
+        )
+    should_check = unit.get("state") in {"opened", "checked"} or (
+        unit.get("state") == "merge-locked" and (
+            local_head != checked.get("head_sha") or (base_drift and recoverable_merge is None)
+        )
+    )
+    if payload["status"] in {"pass", "warn"} and should_check:
+        refresh = git(["fetch", "origin", integration_branch, branch], repo)
+        if refresh.returncode != 0:
+            fail("review_unit_refresh_failed", refresh.stderr.strip() or refresh.stdout.strip())
+        else:
+            base = git(["rev-parse", f"origin/{integration_branch}"], repo).stdout.strip()
+            head = git(["rev-parse", f"origin/{branch}"], repo).stdout.strip()
+            local_head = current_head(repo)
+            pr, checks_error = wait_for_review_unit_checks(repo, branch)
+            identity_error = review_pr_identity_error(pr, integration_branch, branch, head)
+            if checks_error:
+                fail("review_unit_checks_missing", checks_error)
+            elif local_head != head:
+                fail("review_unit_local_head_drift", "Local HEAD must equal the exact remote review branch head before checks are accepted.")
+            elif identity_error:
+                fail("review_unit_pr_identity_mismatch", identity_error)
+            else:
+                check_state, check_message = checks_state(pr.get("statusCheckRollup", []))
+                if check_state != "passing":
+                    fail(f"review_unit_checks_{check_state}", check_message)
+                else:
+                    result = gh(["pr", "checks", str(pr["number"]), "--watch"], repo)
+                    if result.returncode != 0:
+                        fail("review_unit_checks_failed", result.stderr.strip() or result.stdout.strip())
+                    else:
+                        executed.append({"type": "gh_pr_checks_watch", "prNumber": pr["number"]})
+                        fetch = git(["fetch", "origin", integration_branch, branch], repo)
+                        refreshed_pr, pr_error = review_unit_pr(repo, branch)
+                        refreshed_base = git(["rev-parse", f"origin/{integration_branch}"], repo).stdout.strip() if fetch.returncode == 0 else ""
+                        refreshed_head = git(["rev-parse", f"origin/{branch}"], repo).stdout.strip() if fetch.returncode == 0 else ""
+                        identity_error = review_pr_identity_error(refreshed_pr, integration_branch, branch, head)
+                        if fetch.returncode != 0:
+                            fail("review_unit_refresh_failed", fetch.stderr.strip() or fetch.stdout.strip())
+                        elif pr_error:
+                            fail("review_unit_pr_refresh_failed", pr_error)
+                        elif refreshed_base != base or refreshed_head != head or current_head(repo) != head:
+                            fail("review_unit_head_changed_after_checks", "Review or integration branch changed while checks were running; recheck the new tuple.")
+                        elif identity_error:
+                            fail("review_unit_pr_identity_mismatch", identity_error)
+                        else:
+                            tree, tree_error = synthetic_merge_tree(repo, base, head)
+                            if tree_error:
+                                fail("review_unit_synthetic_merge_failed", tree_error)
+                            else:
+                                evidence = review_unit_evidence_path(run_path, args.unit, "check", base + head)
+                                evidence.write_text(
+                                    "# Review unit check\n\n"
+                                    f"Unit: {args.unit}\n\nHead: {head}\n\nTested base: {base}\n\n"
+                                    f"Synthetic merge tree: {tree}\n\nGitHub checks: pass\n",
+                                    encoding="utf-8",
+                                )
+                                error = update_review_unit(
+                                    repo, run_path, args.unit, "checked", head_sha=head,
+                                    tested_base_sha=base, tested_tree_sha=tree,
+                                    proof_command=f"gh pr checks {pr['number']} --watch", proof_result="pass",
+                                    proof_evidence=evidence,
+                                )
+                                if error:
+                                    fail("record_review_checked_failed", error)
+                                else:
+                                    executed.append({"type": "record_review_checked", "testedBaseSha": base, "testedTreeSha": tree})
+                                    error = update_review_unit(repo, run_path, args.unit, "merge-locked", current_base_sha=base)
+                                    if error:
+                                        fail("record_review_merge_lock_failed", error)
+                                    else:
+                                        executed.append({"type": "record_review_merge_lock"})
+                                        status, _ = review_unit_status(repo, run_path, args.unit)
+                                        unit = status["unit"]
+
+    if payload["status"] in {"pass", "warn"} and unit.get("state") == "merge-locked":
+        fetch = git(["fetch", "origin", integration_branch], repo)
+        current_base = git(["rev-parse", f"origin/{integration_branch}"], repo).stdout.strip() if fetch.returncode == 0 else ""
+        locked_base = unit.get("merge_lock", {}).get("base_sha")
+        head = unit.get("check", {}).get("head_sha")
+        tested_tree = unit.get("check", {}).get("tested_tree_sha")
+        merge_commit = None
+        if fetch.returncode == 0 and current_base != locked_base:
+            merge_commit = find_review_merge(repo, f"origin/{integration_branch}", locked_base, head, tested_tree)
+            if merge_commit is None:
+                fail("review_unit_base_changed_after_lock", "Integration branch advanced after merge lock; rerun execute to recheck against the new base.")
+        elif fetch.returncode != 0:
+            fail("review_unit_base_refresh_failed", fetch.stderr.strip() or fetch.stdout.strip())
+        if payload["status"] in {"pass", "warn"} and merge_commit is None:
+            commit = run_cmd([
+                "git", "commit-tree", tested_tree, "-p", locked_base, "-p", head,
+                "-m", f"Merge review unit {args.unit} into {integration_branch}",
+            ], cwd=repo)
+            if commit.returncode != 0:
+                fail("review_unit_merge_commit_failed", commit.stderr.strip() or commit.stdout.strip())
+            else:
+                merge_commit = commit.stdout.strip()
+                push = git([
+                    "push", "origin", f"{merge_commit}:refs/heads/{integration_branch}",
+                    f"--force-with-lease=refs/heads/{integration_branch}:{locked_base}",
+                ], repo)
+                if push.returncode != 0:
+                    fail("review_unit_integration_push_failed", push.stderr.strip() or push.stdout.strip())
+                else:
+                    executed.append({"type": "git_push_integration_with_lease", "mergeSha": merge_commit})
+        if payload["status"] in {"pass", "warn"} and merge_commit:
+            refreshed = git(["fetch", "origin", integration_branch], repo)
+            tree_result = git(["rev-parse", f"{merge_commit}^{{tree}}"], repo)
+            reachable = git(["merge-base", "--is-ancestor", merge_commit, f"origin/{integration_branch}"], repo) if refreshed.returncode == 0 else refreshed
+            if refreshed.returncode != 0:
+                fail("review_unit_base_refresh_failed", refreshed.stderr.strip() or refreshed.stdout.strip())
+            elif tree_result.returncode != 0:
+                fail("review_unit_merge_tree_missing", tree_result.stderr.strip() or tree_result.stdout.strip())
+            elif reachable.returncode != 0:
+                fail("review_unit_merge_not_on_integration", "Recorded review merge is not reachable from the remote integration branch.")
+            else:
+                merged_tree = tree_result.stdout.strip()
+                error = update_review_unit(
+                    repo, run_path, args.unit, "merged", merge_sha=merge_commit,
+                    merged_tree_sha=merged_tree,
+                )
+                if error:
+                    fail("record_review_merged_failed", error)
+                else:
+                    executed.append({"type": "record_review_merged", "mergeSha": merge_commit})
+                    status, _ = review_unit_status(repo, run_path, args.unit)
+                    unit = status["unit"]
+
+    if payload["status"] in {"pass", "warn"} and unit.get("state") == "merged":
+        head = unit.get("check", {}).get("head_sha")
+        merge_sha = unit.get("merge_sha")
+        refreshed = git(["fetch", "origin", integration_branch], repo)
+        ancestor = git(["merge-base", "--is-ancestor", head, merge_sha], repo)
+        remote_ancestor = git(["merge-base", "--is-ancestor", merge_sha, f"origin/{integration_branch}"], repo) if refreshed.returncode == 0 else refreshed
+        if refreshed.returncode != 0:
+            fail("review_unit_verification_refresh_failed", refreshed.stderr.strip() or refreshed.stdout.strip())
+        elif ancestor.returncode != 0:
+            fail("review_unit_merge_not_verified", "Reviewed head is not reachable from the recorded merge commit.")
+        elif remote_ancestor.returncode != 0:
+            fail("review_unit_merge_not_on_integration", "Recorded review merge is absent from the remote integration branch.")
+        else:
+            evidence = review_unit_evidence_path(run_path, args.unit, "verified", merge_sha)
+            evidence.write_text(
+                f"# Review unit verification\n\nUnit: {args.unit}\n\nHead: {head}\n\nMerge commit: {merge_sha}\n\nReachability: pass\n",
+                encoding="utf-8",
+            )
+            error = update_review_unit(
+                repo, run_path, args.unit, "verified", evidence=evidence,
+                summary="The reviewed head is reachable from the recorded integration merge commit and its tree matches the tested synthetic merge.",
+            )
+            if error:
+                fail("record_review_verified_failed", error)
+            else:
+                executed.append({"type": "record_review_verified"})
+                status, _ = review_unit_status(repo, run_path, args.unit)
+                unit = status["unit"]
+
+    if payload["status"] in {"pass", "warn"} and unit.get("state") == "verified":
+        error = update_review_unit(repo, run_path, args.unit, "cleanup-eligible")
+        if error:
+            fail("record_review_cleanup_eligible_failed", error)
+        else:
+            executed.append({"type": "record_review_cleanup_eligible"})
+            status, _ = review_unit_status(repo, run_path, args.unit)
+            unit = status["unit"]
+
+    if payload["status"] in {"pass", "warn"} and unit.get("state") == "cleanup-eligible":
+        deletion = delete_remote_branch(repo, branch, expected_sha=unit.get("check", {}).get("head_sha"))
+        if deletion.returncode != 0:
+            fail("review_unit_remote_cleanup_failed", deletion.stderr.strip() or deletion.stdout.strip())
+        else:
+            error = update_review_unit(repo, run_path, args.unit, "cleaned")
+            if error:
+                fail("record_review_cleaned_failed", error)
+            else:
+                executed.append({"type": "cleanup_review_branch", "branch": branch})
+
+    payload["executedActions"] = executed
+    payload["status"] = status_for(payload)
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def run_binding_findings(repo, run_path, data):
+    findings = []
+    binding = data.get("binding") if isinstance(data, dict) else None
+    if not isinstance(binding, dict):
+        return findings
+    expected_run = Path(run_path).resolve().name
+    if binding.get("runId") != expected_run:
+        findings.append(handoff_finding("run_id_drift", f"Run projection is bound to {binding.get('runId')}, not {expected_run}; run merge prepare again."))
+    expected_repository = repository_identity(repo)
+    projected_repository = binding.get("repository")
+    if isinstance(projected_repository, dict):
+        projected_repository = projected_repository.get("identity")
+    if projected_repository != expected_repository:
+        findings.append(handoff_finding("repository_drift", "Run projection repository identity does not match --git-root; run merge prepare again."))
+    current_branch = branch_name(repo)
+    if binding.get("branch") != current_branch:
+        findings.append(handoff_finding("integration_branch_drift", f"Run projection is bound to branch {binding.get('branch')}, not {current_branch}; run merge prepare again."))
+    head = current_head(repo)
+    if binding.get("headSha") != head:
+        findings.append(handoff_finding("integration_head_drift", f"Run projection is bound to HEAD {binding.get('headSha')}, not {head}; run merge prepare again."))
+    return findings
+
+
+def primary_worktree(repo):
+    result = git(["worktree", "list", "--porcelain"], repo)
+    if result.returncode != 0:
+        return Path(repo).resolve()
+    for line in result.stdout.splitlines():
+        if line.startswith("worktree "):
+            return Path(line.removeprefix("worktree ")).resolve()
+    return Path(repo).resolve()
+
+
+def branch_bound_run(repo, branch):
+    if not branch:
+        return None
+    common = git(["rev-parse", "--git-common-dir"], repo)
+    if common.returncode == 0:
+        raw = Path(common.stdout.strip())
+        common_path = raw if raw.is_absolute() else (Path(repo).resolve() / raw).resolve()
+        registry = common_path / "gauntlet" / "run-bindings.json"
+        if registry.is_file():
+            try:
+                records = json.loads(registry.read_text(encoding="utf-8"))
+                record = records.get(branch) if isinstance(records, dict) else None
+                candidate = Path(record.get("run", "")).resolve() if isinstance(record, dict) else None
+                if candidate and (candidate / "manifest.json").is_file():
+                    return candidate
+            except (json.JSONDecodeError, OSError):
+                return Path("/__gauntlet_invalid_run_binding_registry__")
+    roots = []
+    for root in [primary_worktree(repo), Path(repo).resolve()]:
+        for relative in [Path("local-docs/executions"), Path(".gauntlet/executions"), Path("executions")]:
+            candidate = root / relative
+            if candidate not in roots:
+                roots.append(candidate)
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for manifest_path in sorted(root.glob("*/manifest.json")):
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            integration = manifest.get("integration") or {}
+            if integration.get("branch") == branch and integration.get("pr_strategy") in {"single-final-pr", "review-prs-plus-final"}:
+                return manifest_path.parent
+    return None
+
+
 def command_merge_prepare(args):
     repo = Path(args.git_root).resolve()
-    handoff_path = Path(args.handoff)
-    if not handoff_path.is_absolute():
-        handoff_path = repo / handoff_path
+    handoff_path = merge_input_path(repo, args.handoff) if args.handoff else None
+    run_path = merge_input_path(repo, args.run) if args.run else None
     body_path = Path(args.body_output)
     if not body_path.is_absolute():
         body_path = repo / body_path
@@ -1450,8 +2274,19 @@ def command_merge_prepare(args):
         "changelogPath": str(changelog_path),
         "changelogEntry": None,
         "changelogChanged": False,
+        "runPath": str(run_path) if run_path else None,
     }
-    if not handoff_path.is_file():
+    data = None
+    if run_path and handoff_path:
+        add_finding(payload, "run_handoff_downgrade_rejected", "fail", "A PRD Execution Run must use the controller's schema v2 projection; do not supply a caller-authored handoff.")
+    elif run_path:
+        data, error = run_project_pr(repo, run_path)
+        if error:
+            add_finding(payload, "project_pr_projection_failed", "fail", error)
+        elif data is not None:
+            payload["findings"].extend(validate_run_merge_handoff(data))
+            payload["findings"].extend(run_binding_findings(repo, run_path, data))
+    elif not handoff_path or not handoff_path.is_file():
         add_finding(payload, "missing_handoff_file", "fail", f"Merge handoff does not exist: {handoff_path}")
     else:
         try:
@@ -1460,13 +2295,19 @@ def command_merge_prepare(args):
             add_finding(payload, "invalid_handoff_file", "fail", str(error))
             data = None
         if data is not None:
+            if data.get("schemaVersion") == "2.0":
+                add_finding(payload, "run_projection_requires_run", "fail", "Schema v2 is accepted only from `project-pr --run`; use --run instead of --handoff.")
+            bound_run = branch_bound_run(repo, branch_name(repo))
+            if bound_run:
+                add_finding(payload, "run_handoff_downgrade_rejected", "fail", f"Branch {branch_name(repo)} is bound to Execution Run {bound_run}; use --run and schema v2.")
             payload["findings"].extend(validate_merge_handoff(data))
-            payload["title"] = data.get("title")
-            payload["changelogEntry"] = data.get("changelog")
-            if not payload["findings"]:
-                body_path.parent.mkdir(parents=True, exist_ok=True)
-                body_path.write_text(render_pr_body(data), encoding="utf-8")
-                payload["changelogChanged"] = ensure_unreleased_changelog(changelog_path, data["changelog"])
+    if data is not None:
+        payload["title"] = data.get("title")
+        payload["changelogEntry"] = data.get("changelog")
+        if not payload["findings"]:
+            body_path.parent.mkdir(parents=True, exist_ok=True)
+            body_path.write_text(render_pr_body(data), encoding="utf-8")
+            payload["changelogChanged"] = ensure_unreleased_changelog(changelog_path, data["changelog"])
     payload["status"] = status_for(payload)
     print_payload(payload, args.json)
     return EXIT_CODES[payload["status"]]
@@ -1503,13 +2344,25 @@ def merge_input_path(repo, path):
 
 def load_merge_inputs(args, payload):
     repo = Path(args.git_root).resolve()
-    handoff_path = merge_input_path(repo, args.handoff)
+    handoff_arg = getattr(args, "handoff", None)
+    run_arg = getattr(args, "run", None)
+    handoff_path = merge_input_path(repo, handoff_arg) if handoff_arg else None
+    run_path = merge_input_path(repo, run_arg) if run_arg else None
     body_path = merge_input_path(repo, args.body)
     data = None
     body = ""
     if git(["rev-parse", "--is-inside-work-tree"], repo).returncode != 0:
         add_finding(payload, "git_root_not_repo", "fail", f"Not a git repository: {repo}")
-    if not handoff_path.is_file():
+    if run_path and handoff_path:
+        add_finding(payload, "run_handoff_downgrade_rejected", "fail", "A PRD Execution Run must use the controller's schema v2 projection; do not supply a caller-authored handoff.")
+    elif run_path:
+        data, error = run_project_pr(repo, run_path)
+        if error:
+            add_finding(payload, "project_pr_projection_failed", "fail", error)
+        elif data is not None:
+            payload["findings"].extend(validate_run_merge_handoff(data))
+            payload["findings"].extend(run_binding_findings(repo, run_path, data))
+    elif not handoff_path or not handoff_path.is_file():
         add_finding(payload, "missing_handoff_file", "fail", f"Merge handoff does not exist: {handoff_path}")
     else:
         try:
@@ -1517,12 +2370,18 @@ def load_merge_inputs(args, payload):
         except (json.JSONDecodeError, OSError) as error:
             add_finding(payload, "invalid_handoff_file", "fail", str(error))
         if data is not None:
+            if data.get("schemaVersion") == "2.0":
+                add_finding(payload, "run_projection_requires_run", "fail", "Schema v2 is accepted only from `project-pr --run`; use --run instead of --handoff.")
+            bound_run = branch_bound_run(repo, branch_name(repo))
+            if bound_run:
+                add_finding(payload, "run_handoff_downgrade_rejected", "fail", f"Branch {branch_name(repo)} is bound to Execution Run {bound_run}; use --run and schema v2.")
             payload["findings"].extend(validate_merge_handoff(data))
     if not body_path.is_file():
         add_finding(payload, "missing_pr_body", "fail", f"PR body does not exist: {body_path}")
     else:
         body = body_path.read_text(encoding="utf-8")
-    payload["handoffPath"] = str(handoff_path)
+    payload["handoffPath"] = str(handoff_path) if handoff_path else None
+    payload["runPath"] = str(run_path) if run_path else None
     payload["bodyPath"] = str(body_path)
     return repo, data, body
 
@@ -1568,6 +2427,7 @@ def collect_merge_state(git_root, handoff, body):
         "defaultCounts": default_counts,
         "pr": pr,
         "prError": pr_error,
+        "runBacked": handoff.get("schemaVersion") == "2.0" if isinstance(handoff, dict) else False,
     }
 
 
@@ -1580,6 +2440,7 @@ def build_merge_plan(state):
         "branch": state.get("branch"),
         "defaultBranch": state.get("defaultBranch"),
         "pr": state.get("pr"),
+        "runBinding": (state.get("handoff") or {}).get("binding") if state.get("runBacked") else None,
     }
     handoff = state.get("handoff") or {}
     branch = state.get("branch") or ""
@@ -1600,7 +2461,9 @@ def build_merge_plan(state):
 
     counts = state.get("defaultCounts")
     if counts and counts.get("behind"):
-        add_finding(payload, "branch_behind_default", "review", f"Task branch is behind origin/{state['defaultBranch']} by {counts['behind']} commit(s).")
+        severity = "fail" if state.get("runBacked") else "review"
+        code = "stale_tested_base" if state.get("runBacked") else "branch_behind_default"
+        add_finding(payload, code, severity, f"Task branch is behind origin/{state['defaultBranch']} by {counts['behind']} commit(s); update and verify again before merge.")
 
     if state.get("settingsError"):
         add_finding(payload, "merge_settings_unverified", "warn", "Could not verify repository merge settings; using merge-commit fallback.")
@@ -1608,6 +2471,11 @@ def build_merge_plan(state):
     if not merge_method:
         add_finding(payload, "no_allowed_merge_method", "fail", "Repository reports no allowed pull-request merge method.")
     add_existing_pr_blockers(payload, state.get("pr"))
+    if state.get("pr"):
+        if state["pr"].get("headRefName") != branch:
+            add_finding(payload, "pull_request_head_mismatch", "fail", "The existing pull request head does not match the bound integration branch.")
+        if state["pr"].get("baseRefName") != state.get("defaultBranch"):
+            add_finding(payload, "pull_request_base_mismatch", "fail", "The existing pull request base does not match the repository default branch.")
 
     payload["status"] = status_for(payload)
     pr = state.get("pr")
@@ -1620,8 +2488,8 @@ def build_merge_plan(state):
         pr_action,
         {"type": "gh_pr_checks_watch", "prNumber": pr.get("number") if pr else None},
         {"type": "gh_pr_merge", "prNumber": pr.get("number") if pr else None, "mergeMethod": merge_method},
-        {"type": "delete_remote_branch", "branch": branch},
         {"type": "verify_default_branch", "branch": state.get("defaultBranch")},
+        {"type": "delete_remote_branch", "branch": branch},
     ]
     blockers = [item["code"] for item in payload["findings"] if item["severity"] in {"review", "fail"}]
     warnings = [item["code"] for item in payload["findings"] if item["severity"] == "warn"]
@@ -1645,12 +2513,14 @@ def build_merge_payload(args):
     return build_merge_plan(state)
 
 
-def refreshed_pr_is_mergeable(payload, pr):
+def refreshed_pr_is_mergeable(payload, pr, expected_head=None):
     if not pr:
         add_finding(payload, "pull_request_missing_after_publish", "fail", "Could not find the pull request after publishing it.")
         return False
     before = len(payload["findings"])
     add_existing_pr_blockers(payload, pr)
+    if expected_head and pr.get("headRefOid") != expected_head:
+        add_finding(payload, "pull_request_head_drift", "fail", "Pull request head no longer matches the revision bound during merge preparation.")
     check_status, check_message = checks_state(pr.get("statusCheckRollup", []))
     if check_status != "passing":
         add_finding(payload, f"pull_request_checks_{check_status}", "fail", check_message)
@@ -1669,15 +2539,25 @@ def wait_for_pr_checks(repo, timeout_seconds=60, poll_seconds=2):
         time.sleep(poll_seconds)
 
 
-def delete_remote_branch(repo, branch, git_runner=None):
+def delete_remote_branch(repo, branch, expected_sha=None, git_runner=None):
     git_runner = git_runner or git
     probe = git_runner(["ls-remote", "--exit-code", "--heads", "origin", branch], repo)
     if probe.returncode == 2:
         return subprocess.CompletedProcess(probe.args, 0, probe.stdout, probe.stderr)
     if probe.returncode != 0:
         return probe
+    remote_values = probe.stdout.split()
+    remote_sha = remote_values[0] if remote_values else ""
+    if expected_sha and remote_sha != expected_sha:
+        return subprocess.CompletedProcess(
+            probe.args, 1, probe.stdout,
+            f"remote branch {branch} changed from expected {expected_sha} to {remote_sha}; refusing cleanup",
+        )
 
-    deletion = git_runner(["push", "origin", "--delete", branch], repo)
+    deletion_args = ["push", "origin", f":refs/heads/{branch}"]
+    if expected_sha:
+        deletion_args.append(f"--force-with-lease=refs/heads/{branch}:{expected_sha}")
+    deletion = git_runner(deletion_args, repo)
     if deletion.returncode == 0:
         return deletion
 
@@ -1687,13 +2567,14 @@ def delete_remote_branch(repo, branch, git_runner=None):
     return deletion
 
 
-def execute_merge_plan(payload, git_root, handoff_path, body_path):
+def execute_merge_plan(payload, git_root, handoff_source, body_path, run_path=None):
     repo = Path(git_root).resolve()
     executed = []
     branch = payload.get("branch")
     default_branch = payload.get("defaultBranch") or "main"
-    handoff = load_merge_handoff(handoff_path)
+    handoff = handoff_source if isinstance(handoff_source, dict) else load_merge_handoff(handoff_source)
     pr = payload.get("pr")
+    expected_head = (payload.get("runBinding") or {}).get("headSha") or current_head(repo)
     for action in payload.get("mergePlan", {}).get("actions", []):
         action_type = action["type"]
         if action_type == "git_push":
@@ -1710,23 +2591,34 @@ def execute_merge_plan(payload, git_root, handoff_path, body_path):
             if checks_error:
                 add_finding(payload, "pull_request_checks_missing", "fail", checks_error)
                 break
+            if pr.get("headRefOid") != expected_head:
+                add_finding(payload, "pull_request_head_drift", "fail", "Pull request head changed before checks were accepted.")
+                break
             action["prNumber"] = pr.get("number")
             result = gh(["pr", "checks", str(pr.get("number")), "--watch"], repo)
         elif action_type == "gh_pr_merge":
             pr, _ = current_pr(repo)
-            if not refreshed_pr_is_mergeable(payload, pr):
+            if not refreshed_pr_is_mergeable(payload, pr, expected_head):
                 break
+            if run_path:
+                granted, authority_error = run_authority_granted(repo, run_path, "merge-to-default")
+                if not granted:
+                    add_finding(payload, "merge_to_default_authority_missing", "fail", authority_error)
+                    break
             action["prNumber"] = pr.get("number")
             method = action.get("mergeMethod") or "merge"
-            result = gh(["pr", "merge", str(pr.get("number")), f"--{method}"], repo)
+            result = gh([
+                "pr", "merge", str(pr.get("number")), f"--{method}",
+                "--match-head-commit", expected_head,
+            ], repo)
         elif action_type == "delete_remote_branch":
-            result = delete_remote_branch(repo, branch)
+            result = delete_remote_branch(repo, branch, expected_sha=expected_head)
         elif action_type == "verify_default_branch":
             fetch = git(["fetch", "origin", default_branch], repo)
             if fetch.returncode != 0:
                 result = fetch
             else:
-                result = git(["merge-base", "--is-ancestor", "HEAD", f"origin/{default_branch}"], repo)
+                result = git(["merge-base", "--is-ancestor", expected_head, f"origin/{default_branch}"], repo)
         else:
             add_finding(payload, "unknown_merge_action", "fail", f"Unknown merge action: {action_type}")
             break
@@ -1753,9 +2645,37 @@ def command_merge_execute(args):
         print_payload(payload, args.json)
         return EXIT_CODES[payload["status"]]
     repo = Path(args.git_root).resolve()
-    handoff_path = merge_input_path(repo, args.handoff)
     body_path = merge_input_path(repo, args.body)
-    payload = execute_merge_plan(payload, repo, handoff_path, body_path)
+    if getattr(args, "run", None):
+        run_path = merge_input_path(repo, args.run)
+        handoff, error = run_project_pr(repo, run_path)
+        if error:
+            add_finding(payload, "project_pr_projection_failed", "fail", error)
+            payload["status"] = status_for(payload)
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+        payload["findings"].extend(validate_run_merge_handoff(handoff))
+        payload["findings"].extend(run_binding_findings(repo, run_path, handoff))
+        if handoff.get("binding") != payload.get("runBinding") or render_pr_body(handoff) != body_path.read_text(encoding="utf-8"):
+            add_finding(payload, "run_projection_changed_during_execute", "fail", "Execution Run projection changed after planning; run merge prepare again.")
+        payload["status"] = status_for(payload)
+        if payload["status"] not in {"pass", "warn"}:
+            payload["mergePlan"]["canMerge"] = False
+            payload["mergePlan"]["actions"] = []
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+        granted, authority_error = run_authority_granted(repo, run_path, "merge-to-default")
+        if not granted:
+            add_finding(payload, "merge_to_default_authority_missing", "fail", authority_error)
+            payload["mergePlan"]["canMerge"] = False
+            payload["mergePlan"]["actions"] = []
+            payload["status"] = status_for(payload)
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+    else:
+        handoff = merge_input_path(repo, args.handoff)
+        run_path = None
+    payload = execute_merge_plan(payload, repo, handoff, body_path, run_path=run_path)
     print_payload(payload, args.json)
     return EXIT_CODES[payload["status"]]
 
@@ -1818,6 +2738,8 @@ def command_closeout_execute(args):
         closeout_fail(payload, "invalid_handoff_file", str(error))
         print_payload(payload, args.json)
         return EXIT_CODES[payload["status"]]
+    if isinstance(handoff, dict) and handoff.get("schemaVersion") == "2.0":
+        add_finding(payload, "run_projection_requires_run", "fail", "Schema v2 must be projected by merge --run and cannot be supplied to closeout as a file.")
     payload["findings"].extend(validate_merge_handoff(handoff))
     if payload["findings"]:
         payload["status"] = status_for(payload)
@@ -2111,7 +3033,7 @@ def current_pr(repo):
         "pr",
         "view",
         "--json",
-        "number,state,isDraft,mergeable,mergedAt,statusCheckRollup,url,baseRefName,headRefName,reviewDecision",
+        "number,state,isDraft,mergeable,mergedAt,statusCheckRollup,url,baseRefName,headRefName,headRefOid,reviewDecision",
     ], cwd=repo)
     if result.returncode != 0:
         return None, result.stderr.strip() or result.stdout.strip()
@@ -3036,17 +3958,37 @@ def build_parser():
     merge_subcommands = merge.add_subparsers(dest="merge_command", required=True)
     merge_prepare = merge_subcommands.add_parser("prepare")
     merge_prepare.add_argument("--git-root", type=Path, default=Path.cwd())
-    merge_prepare.add_argument("--handoff", type=Path, required=True)
+    merge_prepare.add_argument("--handoff", type=Path, default=None)
+    merge_prepare.add_argument("--run", type=Path, default=None)
     merge_prepare.add_argument("--body-output", type=Path, default=Path(".gauntlet/pr-body.md"))
     merge_prepare.add_argument("--json", action="store_true")
     merge_prepare.set_defaults(func=command_merge_prepare)
     for name, func in [("plan", command_merge_plan), ("execute", command_merge_execute)]:
         merge_command = merge_subcommands.add_parser(name)
         merge_command.add_argument("--git-root", type=Path, default=Path.cwd())
-        merge_command.add_argument("--handoff", type=Path, required=True)
+        merge_command.add_argument("--handoff", type=Path, default=None)
+        merge_command.add_argument("--run", type=Path, default=None)
         merge_command.add_argument("--body", type=Path, default=Path(".gauntlet/pr-body.md"))
         merge_command.add_argument("--json", action="store_true")
         merge_command.set_defaults(func=func)
+
+    review_unit = subcommands.add_parser("review-unit", help="Prepare or execute a parent-owned review-unit PR into an Execution Run integration branch.")
+    review_unit_subcommands = review_unit.add_subparsers(dest="review_unit_command", required=True)
+    for name, func in [
+        ("prepare", command_review_unit_prepare),
+        ("plan", command_review_unit_plan),
+        ("execute", command_review_unit_execute),
+    ]:
+        review_command = review_unit_subcommands.add_parser(name)
+        review_command.add_argument("--git-root", type=Path, default=Path.cwd())
+        review_command.add_argument("--run", type=Path, required=True)
+        review_command.add_argument("--unit", required=True)
+        if name == "prepare":
+            review_command.add_argument("--body-output", type=Path, default=None)
+        else:
+            review_command.add_argument("--body", type=Path, default=None)
+        review_command.add_argument("--json", action="store_true")
+        review_command.set_defaults(func=func)
 
     closeout = subcommands.add_parser("closeout", help="Commit scoped work, merge it through a PR, install it locally, and plan task archival.")
     closeout_subcommands = closeout.add_subparsers(dest="closeout_command", required=True)

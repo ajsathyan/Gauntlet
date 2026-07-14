@@ -70,6 +70,8 @@ Runs live under `local-docs/executions/<run-id>/`. Source locks, manifests, comp
 
 One active implementation Ticket per child is the default. Related sequential Tickets may reuse a child for context affinity. One implementation Ticket is never co-owned; independent checking uses a verifier Ticket. The parent integrates continuously and verifies Ticket, cohort, full-PRD, and release/production layers.
 
+At initialization, freeze `single-final-pr` for a small reviewable target or `review-prs-plus-final` for a large, tightly coupled target. The latter compiles exact Review Unit membership and dependencies, uses parent-owned unit PRs into the integration branch, and still ends in one complete Project PR to `main` covering every locked Epic and Scope Area. Independently shippable outcomes use separate Execution Runs.
+
 ## Release Contract
 
 The generated `doc_org.md` contains one implementation and release contract. PRDs record product-level release constraints. Compiled Ticket Graphs resolve the worktree, branch, integration order, proof, rollout, rollback, and release source for that implementation and reference the current contract.
@@ -84,7 +86,7 @@ The phrase **implement the PRD** applies only to the explicit build-ready target
 
 Generated Ticket Graphs and live execution state belong below `local-docs/executions/<run-id>/`, not beside the PRD as another human-authored source. After a run starts, its source lock, manifest, and resume file are authoritative for execution progress. Conversation continues to own user decisions, while compaction recovery reads the durable artifacts.
 
-The Execution Run manifest carries run-specific integration metadata such as the parent branch and PR strategy. `doc_org.md` remains the reusable contract; it is not a per-run status ledger, and its contents are not copied into every child prompt.
+The Execution Run manifest carries run-specific integration metadata such as the parent branch, frozen PR strategy, Review Unit state, and merge authority; the compiled graph carries frozen Review Unit membership. `doc_org.md` remains the reusable contract; it is not a per-run status ledger, and this parent-owned topology is not copied into child prompts.
 
 Children receive one materialized ticket context plus relevant shared context, named dependency outputs, and owned source paths. They do not need the full PRD or execution history. The parent owns state transitions, integration, oracle verification, cohort results, and release records. See `docs/prd-execution.md` for the artifact and scheduling contract.
 
