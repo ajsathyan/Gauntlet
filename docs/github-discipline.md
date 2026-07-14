@@ -10,11 +10,17 @@ Use the startup-safe path for real repository changes:
 branch from main -> commit coherent checkpoints -> open a PR -> verify -> merge with a merge commit -> delete the branch
 ```
 
-For a multi-Ticket Execution Run, the parent branch is the integration boundary:
+For a multi-Ticket Execution Run, the parent branch is the integration boundary. The run freezes one of two review topologies at initialization:
 
 ```text
-main -> parent integration branch -> integrate child checkpoints -> one final PR -> verify -> merge commit -> delete the branch
+small target:
+main <- complete Project PR <- parent integration branch <- child checkpoints
+
+large, tightly coupled target:
+main <- complete Project PR <- parent integration branch <- parent-owned Review Unit PRs <- child checkpoints
 ```
+
+Independently shippable outcomes belong in separate Execution Runs. Review Unit PRs target only the integration branch and never replace the complete Project PR to `main`.
 
 This gives solo builders and AI-assisted teams a durable trail: what changed, who or which agent did it, what proof ran, what review happened, and why the work landed.
 
@@ -42,10 +48,10 @@ This gives solo builders and AI-assisted teams a durable trail: what changed, wh
 The main chat owns the final Git story:
 
 - Selects or creates the task branch.
-- For a multi-Ticket run, selects or creates the parent integration branch; child branches do not target `main`.
+- For a multi-Ticket run, selects or creates the parent integration branch and freezes `single-final-pr` or `review-prs-plus-final`; child branches do not target `main`.
 - Tracks child-lane decisions and integration state without printing a routine lane ledger.
 - Integrates child implementation work.
-- Opens or updates the final PR.
+- Opens or updates parent-owned Review Unit PRs when the compiled graph requires them, then opens the complete Project PR.
 - Decides whether checks and review are enough to merge.
 
 Child chats should stay bounded:
@@ -93,11 +99,13 @@ Human or agent judgment should remain conversational:
 
 ## Changelog And Closeout
 
-"Merge this," "land this," or "merge this to main" authorizes the complete safe closeout for the current scoped work: prepare the contextual handoff, update `CHANGELOG.md`, commit coherent local changes, push the task branch, create or update one pull request, wait for required checks and blocking review state, merge, delete the remote branch, verify the default branch, and remove local branch/worktree state only when no unique work remains.
+"Merge this," "land this," or "merge this to main" authorizes the complete safe closeout for the current scoped work: prepare the non-run handoff or run-backed Project PR projection, update `CHANGELOG.md`, commit coherent local changes, push the task branch, create or update the applicable PR, wait for required checks and blocking review state, merge, delete the remote branch, verify the default branch, and remove local branch/worktree state only when no unique work remains.
 
 "push to git" means push the current branch. It does not imply direct-push to `main` or merge.
 
-Use `scripts/gauntlet.py merge prepare` before committing the changelog, `scripts/gauntlet.py merge plan` for a read-only preflight, and `scripts/gauntlet.py merge execute` after the worktree is clean. The helper creates or updates one PR, waits for checks, refreshes PR state, merges through repository policy, deletes the remote branch, and verifies the landed commit on the default branch. It does not create commits; the main task owns coherent commit boundaries.
+Use `scripts/gauntlet.py merge prepare` before committing the changelog, `scripts/gauntlet.py merge plan` for a read-only preflight, and `scripts/gauntlet.py merge execute` after the worktree is clean. For an Execution Run, pass `--run <run>` so the helper consumes the controller's schema v2 Project PR projection and verifies its source, graph, repository, branch, head, and full-PRD proof bindings. For a non-run patch, pass the caller-authored schema v1 `--handoff <handoff.json>`. Never use `--handoff` to downgrade a branch bound to an Execution Run.
+
+With `review-prs-plus-final`, the parent uses `scripts/gauntlet.py review-unit prepare|plan|execute --run <run> --unit <id>` to bind each frozen unit PR to the current integration-branch commit and exact GitHub head object ID, wait for its checks, merge it serially, verify the tested merge tree remains on the remote integration branch, and clean its remote branch with a lease on the reviewed head before preparing the Project PR. In both strategies, `merge ... --run` creates or updates the complete Project PR, waits for checks, refreshes PR state, requires distinct `merge-to-default` authority, merges through repository policy with the projected head as GitHub's expected head, deletes the remote branch with a lease, and verifies that exact revision on the default branch. Run-backed commands use the installed Gauntlet controller; candidate repositories cannot substitute their own verifier. The helpers create only the deterministic Review Unit merge commit; the parent owns all implementation commit boundaries.
 
 For explicit standalone drafts, use `scripts/gauntlet.py changelog pr --accepted-spec "$SPEC_PATH" --plan "$PLAN_PATH" --git-root "$PROJECT_ROOT"`. The hidden `--implementation-memory` alias remains migration-only.
 

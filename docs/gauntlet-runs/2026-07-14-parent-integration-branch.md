@@ -1,5 +1,7 @@
 # Parent Integration Branch Workflow
 
+> Superseded on 2026-07-14 by `2026-07-14-prd-project-pr-review-units.md`. The parent integration branch remains authoritative, but the one-final-PR-only policy below has been replaced by a frozen choice between `single-final-pr` and `review-prs-plus-final`, both ending in one complete Project PR to `main`.
+
 ## Decision
 
 Multi-Ticket Execution Runs use one parent-owned integration branch and one final PR per run. `main` remains the clean product line. Independent release boundaries should become separate runs rather than task-level PRs merged into local `main`.

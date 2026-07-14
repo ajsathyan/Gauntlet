@@ -112,7 +112,7 @@ Main-task behavior:
 - owns user decisions, synthesis, integration, PR, and merge;
 - treats receipts as evidence pointers, independently checks the oracle, reruns or resolves returned evidence, and checks integration boundaries;
 - does not duplicate full child assignments;
-- integrates child commits into one branch and runs targeted checks as results arrive, then runs combined proof after all required tickets finish and opens one final PR;
+- integrates child commits as results arrive and runs targeted checks, owns any frozen Review Unit PRs into the integration branch, then runs combined proof and opens the complete Project PR;
 - waits 30–60 seconds or for meaningful state change instead of repeatedly polling unchanged state;
 - archives a child task after its report is integrated when the product supports it.
 
@@ -191,7 +191,7 @@ Use `--confirm-git-risk` only when the user explicitly accepts dirty, unpushed, 
 
 Use a branch for persisted work. Use a worktree for p0–p2, broad, dirty-worktree, or write-heavy delegated work. Preserve unrelated files. The main task owns integration and merge.
 
-"Merge this," "land this," or "merge this to main" authorizes the contextual changelog → commit → push → PR → checks → merge-commit → remote cleanup → default-branch verification flow for the current scope. Use `scripts/gauntlet.py merge prepare`, `merge plan`, and `merge execute`; ask only for a new material choice or preservation risk.
+"Merge this," "land this," or "merge this to main" authorizes the contextual changelog → commit → push → PR → checks → merge-commit → remote cleanup → default-branch verification flow for the current scope. For an Execution Run, use `scripts/gauntlet.py merge prepare|plan|execute --run <run>` and its controller-owned schema v2 Project PR projection; use schema v1 `--handoff` only for non-run patches. Ask only for a new material choice or preservation risk.
 
 "Implement the PRD" authorizes its accepted build-ready target through branch/worktree setup, Ticket Graph execution, incremental integration, proof, PR, merge, exact-default-branch deployment when specified, documented production changes, verification, required rollback, durable updates, and safe cleanup. It does not include proposed, deferred, or materially unresolved work. Stop for missing credentials or authority, an unsafe or destructive effect absent from the PRD, production conditions that invalidate rollout or rollback, or required production proof that cannot be obtained.
 
