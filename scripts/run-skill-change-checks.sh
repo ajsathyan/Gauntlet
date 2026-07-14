@@ -40,7 +40,7 @@ if [ "${#changed_files[@]}" -gt 0 ]; then
 fi
 
 if [ "$skill_change" -eq 0 ]; then
-  echo "No Gauntlet skill changes detected; skipping skill text coverage."
+  echo "No Gauntlet skill changes detected; skipping skill evals."
   exit 0
 fi
 
@@ -57,7 +57,7 @@ skill_names="$(
   printf '%s\n' "${changed_skill_names[@]}" | sort -u | paste -sd, -
 )"
 
-echo "targeted skill text coverage: $skill_names"
+echo "targeted skill evals: $skill_names"
 
 configured_skill_names="$(python3 - "$ROOT/evals/skill-evals.json" "$skill_names" <<'PY'
 import json
@@ -76,7 +76,7 @@ if [ -n "$configured_skill_names" ]; then
     --scorer-smoke-responses "$ROOT/evals/scorer-smoke-fixtures.json" \
     --results "$ROOT/evals/results/skill-change-check.json"
 else
-  echo "No configured text-coverage cases apply; using structural lint and task-appropriate forward testing."
+  echo "No deterministic skill cases apply; using structural lint and forward testing."
 fi
 
 "$ROOT/scripts/run-orchestration-evals.py" \

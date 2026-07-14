@@ -3787,7 +3787,7 @@ def test_skill_changes_are_guarded_by_pre_commit():
             raise AssertionError("non-skill changes should skip skill text coverage")
 
     result = run([str(skill_check), "--changed-files", "skills/planner/SKILL.md"], cwd=ROOT)
-    for marker in ["Gauntlet skill changes detected", "targeted skill text coverage: planner", "skill text coverage:", "declared trace-field scorer contracts:", "skill linter"]:
+    for marker in ["Gauntlet skill changes detected", "targeted skill evals: planner", "skill text coverage:", "declared trace-field scorer contracts:", "skill linter"]:
         assert_contains(result.stdout, marker, "skill change checks")
 
     result = run([
