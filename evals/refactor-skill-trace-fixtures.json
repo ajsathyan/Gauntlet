@@ -4,7 +4,7 @@
   "description": "Paired deterministic traces for refactor skill routing, authority, parity, completion, and delegation boundaries.",
   "baselineProvenance": {
     "current": "synthetic:pre-refactor-skill-family",
-    "candidate": "git:72ca6c9-refactor-skill-family",
+    "candidate": "git:8435d00d6822368eed41a28e3105c26a90ae47e3-refactor-cache-safe",
     "contractRef": "skills/refactor-codebase/SKILL.md; skills/refactor-performance/SKILL.md"
   },
   "pairs": [
