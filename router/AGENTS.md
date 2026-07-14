@@ -78,6 +78,8 @@ Do not invoke a second overlapping lifecycle when Gauntlet already owns the work
 
 When a specification, plan, implementation, or review creates or changes customer-facing email behavior, invoke `craft-customer-email` to define the message, lifecycle, and attention policy.
 
+When product work introduces or changes names for public concepts or the internal capabilities, services, components, or modules that support them, invoke `craft-product-terminology` to map responsibilities and boundaries before naming.
+
 Create every Gauntlet-owned skill under the source repository's `skills/` directory. The Codex and Claude Code plugins bundle that directory automatically; do not create a separate installed copy as the source of truth.
 
 Stop planning when the first coherent build step and its proof path are clear. Do not create redundant specs, plans, packets, or reports.
