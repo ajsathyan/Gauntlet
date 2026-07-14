@@ -242,6 +242,29 @@ class EvalRunTests(unittest.TestCase):
         with self.assertRaisesRegex(eval_run.EvalRunError, "requires passing A/A conformance"):
             self.fixture.execute(adapters=adapters)
 
+    def test_external_adapter_rejects_self_attested_conformance(self) -> None:
+        adapters = copy.deepcopy(self.fixture.adapters)
+        proof = adapters["adapters"]["wrapped"]["conformance"]
+        adapters["adapters"]["wrapped"]["conformance"] = {
+            "dimensions": list(eval_run.DIMENSIONS),
+            "mismatches": [],
+            "native_command_digest": proof["native_command_digest"],
+            "schema_version": 1,
+            "status": "pass",
+            "wrapped_command_digest": proof["wrapped_command_digest"],
+        }
+        with self.assertRaisesRegex(eval_run.EvalRunError, "complete comparison evidence"):
+            self.fixture.execute(adapters=adapters)
+
+    def test_report_is_bound_to_exact_study_plan(self) -> None:
+        run = self.fixture.execute()
+        unrelated = copy.deepcopy(self.fixture.plan)
+        unrelated["study_id"] = "unrelated-study"
+        with self.assertRaisesRegex(eval_run.EvalRunError, "does not match the supplied study plan"):
+            eval_run.report(unrelated, run)
+        with self.assertRaisesRegex(eval_run.EvalRunError, "schema_version must be 1"):
+            eval_run.report({}, run)
+
     def test_adapter_cannot_redefine_canonical_state(self) -> None:
         wrapped = [sys.executable, str(self.fixture.adapter), "--wrapped", "--override-state"]
         proof = eval_run.conformance(self.fixture.native, wrapped)

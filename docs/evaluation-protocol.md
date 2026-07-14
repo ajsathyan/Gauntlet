@@ -56,7 +56,7 @@ python3 scripts/eval-run.py replay \
 
 ## Estimands and report
 
-Task is the generalization unit. The report first averages matched repetition effects within task, then averages task effects and computes uncertainty across tasks. It does not treat repetitions as independent task samples.
+Task is the generalization unit. The report first verifies that the supplied plan's canonical digest and study ID match the run, then averages matched repetition effects within task, averages task effects, and computes uncertainty across tasks. It does not treat repetitions as independent task samples. Replay deliberately remains state-conditional: it requires the same study, then records `not_run` rather than hiding a changed starting state or condition package.
 
 The total-package estimand compares automatic correctness for `total-package` versus `baseline`. Infrastructure-invalid launches remain in intention-to-run correctness as non-passes and are also reported by condition-blind invalidity code. Replays are counted separately and never substituted. Correctness-conditional efficiency uses duration only when both members of the matched pair pass.
 
@@ -88,7 +88,7 @@ Example report excerpt:
 
 ## Adapter conformance
 
-Native and wrapped adapters must produce identical observations for selector behavior, nested-agent behavior, permissions, timeout propagation, artifacts, and telemetry. The conformance command writes command digests and a suite digest. Any wrapped, Mastra, or Harbor adapter used by a plan must carry a passing record for every dimension, tied to its exact command and a registered native command.
+Native and wrapped adapters must produce identical observations for selector behavior, nested-agent behavior, permissions, timeout propagation, artifacts, and telemetry. The conformance command writes the complete comparisons, command digests, and a suite digest. Any wrapped, Mastra, or Harbor adapter used by a plan must carry a structurally complete passing record for every dimension, tied to its exact command and a registered native command. Plan admission reruns the six comparisons and requires the live suite digest to match the record; a self-attested status or command digest is not sufficient.
 
 ```sh
 python3 scripts/eval-run.py conformance \

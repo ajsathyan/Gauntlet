@@ -4316,6 +4316,7 @@ def test_subagent_orchestration_v2_behavior():
         read(AGENTS_MD),
         read(ROUTER_MD),
         read(ROOT / "docs" / "workflow-etiquette.md"),
+        read(ROOT / "docs" / "workflow-speedups.md"),
         read(ROOT / "docs" / "generated-context.md"),
         read(ROOT / "docs" / "evaluation-tasks.md"),
         read(ROOT / "docs" / "evaluation-protocol.md"),

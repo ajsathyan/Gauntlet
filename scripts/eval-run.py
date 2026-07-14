@@ -87,6 +87,10 @@ def command_digest(command: list[str]) -> str:
     return "sha256:" + digest(command)
 
 
+def plan_digest(plan: dict[str, Any]) -> str:
+    return "sha256:" + digest(plan)
+
+
 def validate_command(value: Any, label: str) -> list[str]:
     if not isinstance(value, list) or not value or any(not isinstance(item, str) or not item for item in value):
         raise EvalRunError(f"{label} must be a non-empty string list")
@@ -104,15 +108,48 @@ def contains_gauntlet_artifact(value: Any) -> bool:
     return "gauntlet" in canonical_json(value).casefold()
 
 
+def validate_conformance_record(proof: Any, adapter_id: str) -> dict[str, Any]:
+    proof = require_object(proof, f"adapter {adapter_id}.conformance")
+    if proof.get("schema_version") != SCHEMA_VERSION:
+        raise EvalRunError(f"adapter {adapter_id} conformance schema_version must be 1")
+    if proof.get("status") != "pass" or proof.get("dimensions") != list(DIMENSIONS) or proof.get("mismatches") != []:
+        raise EvalRunError(f"adapter {adapter_id} requires passing A/A conformance for every dimension")
+    comparisons = proof.get("comparisons")
+    if not isinstance(comparisons, list) or len(comparisons) != len(DIMENSIONS):
+        raise EvalRunError(f"adapter {adapter_id} conformance requires complete comparison evidence")
+    for dimension, raw_comparison in zip(DIMENSIONS, comparisons):
+        comparison = require_object(raw_comparison, f"adapter {adapter_id} conformance comparison {dimension}")
+        if set(comparison) != {"dimension", "native", "passed", "wrapped"}:
+            raise EvalRunError(f"adapter {adapter_id} conformance comparison {dimension} has invalid fields")
+        native = require_object(comparison.get("native"), f"adapter {adapter_id} conformance native {dimension}")
+        wrapped = require_object(comparison.get("wrapped"), f"adapter {adapter_id} conformance wrapped {dimension}")
+        if (
+            comparison.get("dimension") != dimension
+            or comparison.get("passed") is not True
+            or native != wrapped
+            or native.get("dimension") != dimension
+            or "observation" not in native
+        ):
+            raise EvalRunError(f"adapter {adapter_id} conformance comparison {dimension} did not pass")
+    expected_suite_digest = "sha256:" + digest(comparisons)
+    if proof.get("suite_digest") != expected_suite_digest:
+        raise EvalRunError(f"adapter {adapter_id} conformance suite digest does not match its comparisons")
+    return proof
+
+
 def validate_adapters(raw: Any, used: set[str]) -> dict[str, dict[str, Any]]:
     registry = require_object(raw, "adapter registry")
     if registry.get("schema_version") != SCHEMA_VERSION:
         raise EvalRunError("adapter registry schema_version must be 1")
     adapters = require_object(registry.get("adapters"), "adapter registry.adapters")
-    native_digests = {
-        command_digest(validate_command(item.get("command"), f"adapter {key}.command"))
-        for key, item in adapters.items() if isinstance(item, dict) and item.get("kind") == "native"
-    }
+    native_adapters = {}
+    for key, item in adapters.items():
+        if isinstance(item, dict) and item.get("kind") == "native":
+            native_command = validate_command(item.get("command"), f"adapter {key}.command")
+            native_adapters[command_digest(native_command)] = {
+                "command": native_command,
+                "timeout_seconds": item.get("timeout_seconds", 30),
+            }
     output = {}
     for adapter_id in sorted(used):
         item = require_object(adapters.get(adapter_id), f"adapter {adapter_id}")
@@ -126,13 +163,16 @@ def validate_adapters(raw: Any, used: set[str]) -> dict[str, dict[str, Any]]:
         if kind != "native":
             if not isinstance(item.get("conformance"), dict):
                 raise EvalRunError(f"adapter {adapter_id} requires passing A/A conformance for every dimension")
-            proof = item["conformance"]
-            if proof.get("status") != "pass" or proof.get("dimensions") != list(DIMENSIONS):
-                raise EvalRunError(f"adapter {adapter_id} requires passing A/A conformance for every dimension")
+            proof = validate_conformance_record(item.get("conformance"), adapter_id)
             if proof.get("wrapped_command_digest") != command_digest(command):
                 raise EvalRunError(f"adapter {adapter_id} conformance does not match its command")
-            if proof.get("native_command_digest") not in native_digests:
+            native_adapter = native_adapters.get(proof.get("native_command_digest"))
+            if native_adapter is None:
                 raise EvalRunError(f"adapter {adapter_id} conformance does not match a registered native adapter")
+            live_timeout = min(float(timeout), float(native_adapter["timeout_seconds"]))
+            live_proof = conformance(native_adapter["command"], command, live_timeout)
+            if live_proof.get("status") != "pass" or live_proof.get("suite_digest") != proof.get("suite_digest"):
+                raise EvalRunError(f"adapter {adapter_id} failed live A/A conformance at plan admission")
         output[adapter_id] = {**item, "command": command, "timeout_seconds": float(timeout)}
     return output
 
@@ -306,8 +346,9 @@ def execution_request(task: dict[str, Any], condition: dict[str, Any], repetitio
 
 def execute(plan_raw: Any, core_raw: Any, adapters_raw: Any, output: Path | None = None) -> dict[str, Any]:
     plan = validate_plan(plan_raw, core_raw, adapters_raw)
+    raw_plan = require_object(plan_raw, "plan")
     state = {
-        "intention_to_run": [], "plan_digest": "sha256:" + digest({k: v for k, v in plan.items() if k != "adapters"}),
+        "intention_to_run": [], "plan_digest": plan_digest(raw_plan),
         "replays": [], "schema_version": SCHEMA_VERSION, "study_id": plan["study_id"],
     }
     for task_index, task in enumerate(plan["tasks"]):
@@ -354,6 +395,8 @@ def replay(plan_raw: Any, core_raw: Any, adapters_raw: Any, run_raw: Any, output
     state = json.loads(json.dumps(run))
     if state.get("schema_version") != SCHEMA_VERSION or not isinstance(state.get("intention_to_run"), list):
         raise EvalRunError("run has an invalid schema")
+    if state.get("study_id") != plan["study_id"]:
+        raise EvalRunError("run does not match the supplied study")
     tasks = {item["task_id"]: item for item in plan["tasks"]}
     conditions = {identity(item): item for item in plan["conditions"]}
     replayed = {item.get("replay_of") for item in state.get("replays", [])}
@@ -410,6 +453,13 @@ def nested_estimate(pairs: list[tuple[dict[str, Any], dict[str, Any]]], metric) 
 def report(plan_raw: Any, run_raw: Any) -> dict[str, Any]:
     plan = require_object(plan_raw, "plan")
     run = require_object(run_raw, "run")
+    if plan.get("schema_version") != SCHEMA_VERSION:
+        raise EvalRunError("plan schema_version must be 1")
+    study_id = require_string(plan.get("study_id"), "study_id")
+    if run.get("schema_version") != SCHEMA_VERSION:
+        raise EvalRunError("run has an invalid schema")
+    if run.get("study_id") != study_id or run.get("plan_digest") != plan_digest(plan):
+        raise EvalRunError("run does not match the supplied study plan")
     records = run.get("intention_to_run")
     if not isinstance(records, list):
         raise EvalRunError("run.intention_to_run must be a list")

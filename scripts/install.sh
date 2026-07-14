@@ -708,6 +708,7 @@ chmod 0644 "$AGENT_HOME/gauntlet/AGENTS.md"
 for required_path in \
   "$AGENT_HOME/gauntlet/AGENTS.md" \
   "$AGENT_HOME/gauntlet/docs/workflow-etiquette.md" \
+  "$AGENT_HOME/gauntlet/docs/workflow-speedups.md" \
   "$AGENT_HOME/gauntlet/docs/local-documentation.md" \
   "$AGENT_HOME/gauntlet/docs/prd-execution.md" \
   "$AGENT_HOME/gauntlet/docs/generated-context.md" \
