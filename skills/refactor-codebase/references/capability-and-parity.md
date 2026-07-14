@@ -13,7 +13,7 @@
 4. Treat any reachable UI, documented workflow, fixture, test, saved format, external contract, accessibility interaction, or recoverable intent as capability evidence. Broken behavior becomes `repair`, not deletion.
 5. Record each row as `preserve`, `repair`, `consolidate`, `remove-artifact`, or `needs-user-decision`. Use `remove-artifact` only when no distinct user-observable contract or supported consumer exists. Never classify a feature for removal.
 6. Build a compatibility matrix for every saved or external format: old-to-new load; semantic load/save and unknown-field preservation; new-to-old requirement; versions and unsupported versions; identifiers, ordering, defaults, precision, errors; interrupted recovery and idempotence; export content equivalence.
-7. Record unresolved discovery areas separately. Freeze the inventory version before architecture work.
+7. Store inventory areas and capability rows in `parity-ledger.json`. Record unresolved discovery areas explicitly and validate the draft with [validate_parity_ledger.py](../scripts/validate_parity_ledger.py) using `--allow-incomplete`. Freeze the inventory version before architecture work.
 
 ## Gate
 
@@ -21,7 +21,7 @@ Pass when the product job and capability boundaries are coherent, every discover
 
 ## Receipt
 
-Write `capability-map.md`, `parity-ledger.tsv`, and `compatibility-matrix.tsv`. Update `refactor-state.json` with their hashes, inventory version, gate result, and unresolved areas.
+Write `capability-map.md`, `parity-ledger.json`, and `compatibility-matrix.tsv`. Update `refactor-state.json` with their hashes, inventory version, gate result, and unresolved areas.
 
 ## Invalidation
 

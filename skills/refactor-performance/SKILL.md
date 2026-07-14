@@ -31,7 +31,7 @@ Report unmeasured surfaces as unmeasured. Faster tests do not prove a faster pro
 2. Record the baseline and its variability. In `baseline-only` mode, write the benchmark receipt and stop.
 3. In `optimize` mode, read [optimization-loop.md](references/optimization-loop.md) completely. Profile the representative workload, identify the dominant measured bottleneck, and state a falsifiable hypothesis.
 4. Make the smallest change that tests the hypothesis. Preserve assertions, coverage intent, inputs, outputs, supported environments, and benchmark conditions.
-5. Compare repeated measurements under the same protocol. Reject incomparable runs rather than normalizing them informally.
+5. Compare repeated measurements under the same protocol with the bundled [compare_benchmarks.py](scripts/compare_benchmarks.py). Reject incomparable runs rather than normalizing them informally.
 6. Inspect for displaced complexity, hidden generated work, excluded files, dependency outsourcing, degraded cold paths, and regressions on adjacent metrics.
 7. Read [benchmark-receipt.md](references/benchmark-receipt.md) completely and write a durable receipt in the target repository's established Gauntlet or documentation area.
 

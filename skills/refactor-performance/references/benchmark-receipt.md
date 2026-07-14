@@ -4,6 +4,8 @@ Write receipts to the target repository's established Gauntlet or documentation 
 
 Prefer structured JSON for reproducibility and a short Markdown decision note only when material reasoning does not fit cleanly in fields. Keep raw measurement output in linked files when it is large. Do not rely on chat history.
 
+Store baseline and candidate sample files in the schema accepted by [compare_benchmarks.py](../scripts/compare_benchmarks.py), then preserve its deterministic comparison output alongside this richer receipt.
+
 ## Required receipt fields
 
 Record at minimum:
