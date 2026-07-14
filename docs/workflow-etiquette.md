@@ -122,6 +122,10 @@ The Execution Run owns durable progress. After dispatch begins, its source lock,
 
 Keep stable instruction text first and ticket-specific context last. Canonical field order, sorted IDs, stable formatting, omitted empty fields, and delayed volatile metadata improve prefix reuse and token efficiency. Do not promise cache hits: the host, model, routing, and exact prompt bytes still control caching.
 
+Material Gauntlet workflows use deterministic controls for deterministic facts: the generated-context renderer owns prompt serialization, the router owns profile selection, the PRD controller owns Ticket and lane state, and the evaluation controllers own task admission and experiment records. Human-readable sources remain authoritative for meaning. External harnesses remain adapters, and model prose never becomes the canonical mechanism for state transitions, authority enforcement, or executable acceptance. Normal Requests bypass this machinery.
+
+Reconcile native start metadata asynchronously. A profile/version mismatch opens the non-blocking dispatch circuit for new affected work without killing already-running ordinary children. Keep analytics ingestion outside scheduler locks. A multi-Ticket lane persists and integrates each Ticket independently so a blocked sibling cannot hold completed work.
+
 Do not narrate the delegation lifecycle to the user unless a higher-priority host instruction explicitly requires disclosure. All applicable workflow etiquette remains active during quiet execution: perform classification, foresight, proof, state, and archive checks internally, then surface only a required user-facing action or material exception such as a title change, suggestion, decision, blocker, or safety stop.
 
 ## Execution

@@ -49,4 +49,8 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 - Schedule ready tickets by critical path and unlock value, preserve useful agent affinity, land interfaces first, and integrate continuously. Use selective cohort barriers for shared invariants instead of a global wait after every child.
 - Materialize bounded child context from stable instructions, one ticket, relevant versioned shared context, named dependencies, and owned source. Stable prefixes can improve cache reuse, but no helper may claim a guaranteed cache hit.
 - After an Execution Run starts, recover from its source lock, manifest, and resume file; use the append-only event stream only for debugging.
+- Use `scripts/generated_context.py` for repeated Gauntlet-owned machine context instead of rebuilding prompts in each workflow. Keep prompt-family templates minimal and separate.
+- Reconcile routing start metadata asynchronously and stop only new affected dispatches when a profile/version circuit opens; do not add a model handshake to healthy dispatch.
+- Persist and integrate constituent Tickets independently inside a context-affine lane so a stalled sibling never blocks downstream work.
+- Cache immutable evaluation admission checks, run one cheap current-liveness probe, and activate triage only after failure.
 - Keep `quality-check --surface ...`, `.gitignore` suggestions, broad worktree dependency classification, Mermaid rendering, and multi-repo attribution deferred until repeated runs prove a low-risk mechanical loop.

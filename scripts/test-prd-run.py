@@ -105,6 +105,9 @@ class PrdRunTests(unittest.TestCase):
 
     def complete(self, ticket: str, agent: str, attempt: int = 1) -> None:
         self.run_command("claim", "--run", str(self.run), "--ticket", ticket, "--agent", agent, "--attempt", str(attempt))
+        self.finish_dispatched(ticket, agent, attempt=attempt)
+
+    def finish_dispatched(self, ticket: str, agent: str, attempt: int = 1) -> None:
         evidence = self.run / "evidence" / f"{ticket}.r{self.manifest()['tickets'][ticket]['revision']}.a{attempt}.md"
         evidence.write_text(f"# Evidence {ticket}\n\nObserved behavior through the public interface.\n")
         revision = self.manifest()["tickets"][ticket]["revision"]
@@ -185,6 +188,9 @@ class PrdRunTests(unittest.TestCase):
         self.assertLess(first.index("# Global context"), first.index("# Cohort C1 context"))
         self.assertLess(first.index("# Cohort C1 context"), first.index("# Assigned ticket"))
         self.assertIn("handoffs/T1.r1.a1.receipt.json", first)
+        metadata = json.loads((self.run / "handoffs" / "T1.r1.a1.context.json").read_text())
+        self.assertEqual(metadata["contract"], "gauntlet/generated-context/v1")
+        self.assertNotIn(str(self.run), json.dumps(metadata))
         manifest_before = (self.run / "manifest.json").read_text()
         self.run_command("materialize-ticket", "--run", str(self.run), "--ticket", "T1", "--output", str(self.run / "manifest.json"), ok=False)
         self.assertEqual((self.run / "manifest.json").read_text(), manifest_before)
@@ -323,6 +329,65 @@ class PrdRunTests(unittest.TestCase):
         self.run_command("claim", "--run", str(self.run), "--ticket", "T2", "--agent", "agent-a", "--attempt", "1", ok=False)
         self.assertEqual(self.manifest()["tickets"]["T2"]["status"], "ready")
 
+    def test_lane_claims_and_materializes_multiple_compatible_tickets(self) -> None:
+        value = graph()
+        value["tickets"][0]["affinity"] = ["balance"]
+        value["tickets"][1].update({"dependencies": [], "affinity": ["balance"]})
+        self.write_graph(value)
+        self.compile_and_start()
+        self.run_command(
+            "claim-lane", "--run", str(self.run), "--lane", "wrong-lane", "--agent", "agent-a",
+            "--attempt", "1", "--affinity", "view", "--ticket", "T1", "--ticket", "T2", ok=False,
+        )
+        self.assertEqual(self.manifest()["lanes"], {})
+        self.run_command(
+            "claim-lane", "--run", str(self.run), "--lane", "balance-lane", "--agent", "agent-a",
+            "--attempt", "1", "--affinity", "balance", "--ticket", "T1", "--ticket", "T2",
+        )
+        current = self.manifest()
+        self.assertEqual(current["lanes"]["balance-lane"]["ticket_ids"], ["T1", "T2"])
+        self.assertEqual(current["tickets"]["T1"]["lease"]["lane"], "balance-lane")
+        self.assertEqual(current["tickets"]["T2"]["lease"]["lane"], "balance-lane")
+
+        result = json.loads(self.run_command("materialize-lane", "--run", str(self.run), "--lane", "balance-lane").stdout)
+        self.assertEqual([item["ticket"] for item in result["tickets"]], ["T1", "T2"])
+        self.assertEqual(len({item["stable_prefix_sha256"] for item in result["tickets"]}), 1)
+        for item in result["tickets"]:
+            self.assertTrue((self.run / item["bundle"]).is_file())
+            self.assertTrue((self.run / item["metadata"]).is_file())
+
+    def test_lane_sibling_stall_does_not_block_integration_or_dependency_release(self) -> None:
+        value = graph()
+        value["tickets"][0]["affinity"] = ["balance"]
+        value["tickets"][1].update({"dependencies": [], "affinity": ["balance"]})
+        third = dict(value["tickets"][1])
+        third.update({
+            "id": "T3", "title": "Consume balance", "dependencies": ["T1"],
+            "affinity": ["consumer"], "ownership": ["src/consumer.py"],
+            "source_files": ["src/consumer.py"],
+        })
+        value["tickets"].append(third)
+        value["cohorts"]["C1"]["ticket_ids"].append("T3")
+        self.write_graph(value)
+        self.compile_and_start()
+        self.run_command(
+            "claim-lane", "--run", str(self.run), "--lane", "balance-lane", "--agent", "agent-a",
+            "--attempt", "1", "--affinity", "balance", "--ticket", "T1", "--ticket", "T2",
+        )
+
+        blocked = self.root / "T2-blocked.json"
+        blocked.write_text(json.dumps({
+            "agent": "agent-a", "attempt": 1, "changed_paths": [], "evidence": [], "outputs": [],
+            "revision": 1, "risks": ["Fixture unavailable"], "status": "blocked",
+            "summary": "T2 cannot proceed in this attempt.", "ticket": "T2",
+        }))
+        self.run_command("record-receipt", "--run", str(self.run), "--ticket", "T2", "--receipt", str(blocked))
+        self.finish_dispatched("T1", "agent-a")
+        current = self.manifest()
+        self.assertEqual(current["tickets"]["T1"]["status"], "integrated")
+        self.assertEqual(current["tickets"]["T2"]["status"], "blocked")
+        self.assertEqual(current["tickets"]["T3"]["status"], "ready")
+
     def test_concurrent_parent_commands_preserve_both_claims(self) -> None:
         value = graph(); value["tickets"][1]["dependencies"] = []
         self.write_graph(value); self.compile_and_start()
@@ -336,6 +401,35 @@ class PrdRunTests(unittest.TestCase):
         current = self.manifest()
         self.assertEqual(current["tickets"]["T1"]["status"], "dispatched")
         self.assertEqual(current["tickets"]["T2"]["status"], "dispatched")
+        events = [json.loads(line) for line in (self.run / "events.jsonl").read_text().splitlines()]
+        self.assertEqual([item["sequence"] for item in events], list(range(1, len(events) + 1)))
+
+    def test_event_journal_recovers_uncommitted_append_and_partial_tail(self) -> None:
+        value = graph()
+        value["tickets"][0]["affinity"] = ["balance"]
+        value["tickets"][1].update({"dependencies": [], "affinity": ["balance"]})
+        self.write_graph(value)
+        self.compile_and_start()
+        events = self.run / "events.jsonl"
+        committed = events.read_bytes()
+        self.run_command(
+            "claim-lane", "--run", str(self.run), "--lane", "balance-lane", "--agent", "agent-a",
+            "--attempt", "1", "--affinity", "balance", "--ticket", "T1", "--ticket", "T2", ok=False,
+            env={"PRD_RUN_FAIL_EVENT_AFTER": "lane_claimed"},
+        )
+        self.assertGreater(len(events.read_bytes()), len(committed))
+        self.assertNotIn("balance-lane", self.manifest()["lanes"])
+        self.run_command("resume", "--run", str(self.run))
+        self.assertEqual(events.read_bytes(), committed)
+        self.run_command(
+            "claim-lane", "--run", str(self.run), "--lane", "balance-lane", "--agent", "agent-a",
+            "--attempt", "1", "--affinity", "balance", "--ticket", "T1", "--ticket", "T2",
+        )
+        with events.open("ab") as handle:
+            handle.write(b'{"action":"partial')
+        self.run_command("ready", "--run", str(self.run))
+        parsed = [json.loads(line) for line in events.read_text().splitlines()]
+        self.assertEqual(len(parsed), self.manifest()["event_sequence"])
 
     def test_pinned_receipt_tamper_stops_future_commands(self) -> None:
         self.compile_and_start()
@@ -377,6 +471,21 @@ class PrdRunTests(unittest.TestCase):
         (self.run / ".reconcile-backup.tmp").mkdir()
         self.run_command("resume", "--run", str(self.run))
         self.assertFalse((self.run / ".reconcile-backup.tmp").exists())
+
+    def test_repeated_noop_reconciliation_does_not_duplicate_events(self) -> None:
+        self.compile_and_start()
+        before_manifest = self.manifest()
+        before_events = (self.run / "events.jsonl").read_bytes()
+        first = json.loads(self.run_command(
+            "reconcile", "--run", str(self.run), "--source", str(self.source), "--graph", str(self.graph),
+        ).stdout)
+        second = json.loads(self.run_command(
+            "reconcile", "--run", str(self.run), "--source", str(self.source), "--graph", str(self.graph),
+        ).stdout)
+        self.assertEqual(first, {"changed_scopes": [], "invalidated_tickets": []})
+        self.assertEqual(second, first)
+        self.assertEqual((self.run / "events.jsonl").read_bytes(), before_events)
+        self.assertEqual(self.manifest()["generation"], before_manifest["generation"])
 
     def test_reconcile_rejects_tampered_source_lock_authority(self) -> None:
         self.compile_and_start()

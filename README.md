@@ -57,6 +57,8 @@ The workflow is built around Research, Patch, Feature, and Release paths; Standa
 | Run logs | Writes a tiny exceptions-first Markdown receipt for material Feature/Release work: assumptions, decisions, skipped checks, failures, `Cannot verify`, and follow-ups. |
 | Local product documents | Uses a default-on, lazily materialized ignored `local-docs/` profile in the primary worktree, with an explicit per-project opt-out, while preserving tracked repository documentation and Git/PR/release traceability. |
 | PRD execution | Compiles one accepted multi-Epic PRD's build-ready target into a durable Ticket Graph with bounded child context, resumable state, incremental integration, cohort proof, and end-to-end release authority. |
+| Subagent orchestration | Renders cache-oriented bounded context, audits model requests and routing, bundles compatible Tickets without head-of-line blocking, and preserves parent-only consequential authority. |
+| Comparative evaluation | Admits isolated automatic-oracle tasks and runs condition-blind paired Gauntlet-versus-baseline experiments with replay, ablations, sealed core slots, and replaceable harness adapters. |
 | Skill quality bar | Gives future skill and workflow edits a practical behavior-delta, trigger, completion, proof, and token-cost bar without making every Patch heavier. |
 | Coverage gaps | Captures pending candidates when missing reusable guidance forced a material assumption or repeated review finding. |
 | Workflow speedup helpers | Classifies changed surfaces, recommends bounded tests, and generates redacted review packets without making every Patch run a heavy quality gate. |
@@ -385,6 +387,9 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill text coverage, declared trace-field scorer contracts, and linting when staged Gauntlet skill files change. |
 | [scripts/install-git-hooks.sh](scripts/install-git-hooks.sh) | Installs the pre-commit hook that enforces skill-change checks. |
 | [scripts/prd-run.py](scripts/prd-run.py) | Creates, validates, resumes, and advances deterministic disk-backed PRD Execution Runs. |
+| [scripts/generated_context.py](scripts/generated_context.py) | Renders versioned bounded machine projections with stable-prefix metadata and adversarial validation. |
+| [scripts/eval-task.py](scripts/eval-task.py) | Admits development evaluation tasks with separate hidden verifiers, cached immutable checks, current liveness, and quarantine. |
+| [scripts/eval-run.py](scripts/eval-run.py) | Records paired executions, state-conditional replay, adapter conformance, total-package and ablation estimands, and sealed core-study state. |
 | [evals/skill-evals.json](evals/skill-evals.json) | Pressure scenarios for skill contract coverage. |
 | [evals/scorer-smoke-fixtures.json](evals/scorer-smoke-fixtures.json) | One positive and one negative matcher canary that prove phrase-scorer wiring—not agent behavior. |
 | [evals/orchestration-trace-fixtures.json](evals/orchestration-trace-fixtures.json) | Paired declared trace-field scorer cases, including wrong-outcome, self-attested-proof, different-prose, authority, verbosity, and subjective-judgment canaries. |

@@ -708,14 +708,24 @@ chmod 0644 "$AGENT_HOME/gauntlet/AGENTS.md"
 for required_path in \
   "$AGENT_HOME/gauntlet/AGENTS.md" \
   "$AGENT_HOME/gauntlet/docs/workflow-etiquette.md" \
+  "$AGENT_HOME/gauntlet/docs/workflow-speedups.md" \
   "$AGENT_HOME/gauntlet/docs/local-documentation.md" \
   "$AGENT_HOME/gauntlet/docs/prd-execution.md" \
+  "$AGENT_HOME/gauntlet/docs/generated-context.md" \
+  "$AGENT_HOME/gauntlet/docs/evaluation-tasks.md" \
+  "$AGENT_HOME/gauntlet/docs/evaluation-protocol.md" \
   "$AGENT_HOME/gauntlet/scripts/gauntlet.py" \
   "$AGENT_HOME/gauntlet/scripts/prd-run.py" \
+  "$AGENT_HOME/gauntlet/scripts/generated_context.py" \
+  "$AGENT_HOME/gauntlet/scripts/eval-task.py" \
+  "$AGENT_HOME/gauntlet/scripts/eval-run.py" \
   "$AGENT_HOME/gauntlet/scripts/install-codex-agents.py" \
   "$AGENT_HOME/gauntlet/scripts/subagent-audit.py" \
   "$AGENT_HOME/gauntlet/scripts/route-codex-agent.py" \
   "$AGENT_HOME/gauntlet/templates/local-docs/doc_org.md.tmpl" \
+  "$AGENT_HOME/gauntlet/templates/generated-context/implementation-v1.md" \
+  "$AGENT_HOME/gauntlet/templates/evaluation/core-slots.json" \
+  "$AGENT_HOME/gauntlet/templates/evaluation/core-registry.json" \
   "$AGENT_HOME/skills/intake/SKILL.md" \
   "$AGENT_HOME/skills/planner/SKILL.md" \
   "$AGENT_HOME/skills/implementer/SKILL.md" \

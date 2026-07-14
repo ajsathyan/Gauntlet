@@ -1,0 +1,23 @@
+{
+  "adapter": {
+    "command": ["replace-with-isolated-verifier-adapter"],
+    "kind": "command-v1"
+  },
+  "cases": {
+    "reference_solution": {"expected": true, "path": "fixtures/reference"},
+    "regressions": [
+      {"expected": false, "path": "fixtures/regression-01"}
+    ],
+    "starting_state": {"expected": false, "path": "fixtures/starting-state"},
+    "wrong_solutions": [
+      {"expected": false, "path": "fixtures/plausible-wrong-01"}
+    ]
+  },
+  "image_digest": "sha256:<64 lowercase hex characters>",
+  "liveness": {"probe": "replace-with-cheap-probe-name"},
+  "mode": "isolated",
+  "mutable": false,
+  "schema_version": 1,
+  "task_id": "replace-with-development-task-id",
+  "verifier_id": "replace-with-hidden-verifier-id"
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "slots": [
+    {"slot": "CORE-01", "status": "reserved-undefined"},
+    {"slot": "CORE-02", "status": "reserved-undefined"},
+    {"slot": "CORE-03", "status": "reserved-undefined"},
+    {"slot": "CORE-04", "status": "reserved-undefined"},
+    {"slot": "CORE-05", "status": "reserved-undefined"},
+    {"slot": "CORE-06", "status": "reserved-undefined"},
+    {"slot": "CORE-07", "status": "reserved-undefined"},
+    {"slot": "CORE-08", "status": "reserved-undefined"},
+    {"slot": "CORE-09", "status": "reserved-undefined"},
+    {"slot": "CORE-10", "status": "reserved-undefined"},
+    {"slot": "CORE-11", "status": "reserved-undefined"},
+    {"slot": "CORE-12", "status": "reserved-undefined"}
+  ]
+}

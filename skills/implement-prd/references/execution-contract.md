@@ -52,7 +52,7 @@ executions/<run-id>/
   release/rollback.md
 ```
 
-The parent alone changes the manifest, resume state, cohorts, and release evidence. Children own their isolated code worktree plus the assigned receipt and evidence paths. Write state atomically. Claims contain the agent ID and attempt. Dispatched Ticket revisions are immutable. Append events; never reconstruct current state by replaying chat.
+The parent alone changes the manifest, resume state, lanes, cohorts, and release evidence. Children own their isolated code worktree plus the assigned receipt and evidence paths. Write state atomically. Claims contain the agent ID and attempt. Dispatched Ticket revisions are immutable. Append events; never reconstruct current state by replaying chat. On restart, reconcile `events.jsonl` to the manifest's committed sequence: remove an uncommitted or partial tail, reject a missing committed event, and never replay a committed event. Repeating reconciliation with identical source and graph bytes is a no-op.
 
 Validate transitions:
 
@@ -77,7 +77,9 @@ compile --run <run> --graph <ticket-graph.json>
 ready --run <run> [--affinity <context-key>]
 resume --run <run>
 claim --run <run> --ticket <ID> --agent <agent-id> --attempt <N>
+claim-lane --run <run> --lane <lane-id> --agent <agent-id> --attempt <N> --affinity <context-key> --ticket <ID> [--ticket <ID> ...]
 materialize-ticket --run <run> --ticket <ID> [--output <path>]
+materialize-lane --run <run> --lane <lane-id>
 record-receipt --run <run> --ticket <ID> --receipt <receipt.json>
 integrate --run <run> --ticket <ID> --evidence <parent-proof> --summary <claim>
 verify-cohort --run <run> --cohort <ID> --result pass|fail --evidence <run-file>
@@ -90,7 +92,11 @@ reconcile --run <run> --source <prd.md> --graph <ticket-graph.json>
 
 `init` rejects target Epics that differ from `Implementation target`, are not `Accepted`, or lack searchable Scope Area sections. Move `discussing` to `accepted` with `transition` before compilation; `compile` performs the `accepted` to `compiled` transition and rejects graph Epic/Scope coverage that differs from the source lock. Claim before materializing so the bundle contains exact evidence and receipt handoff paths. The parent must supply verification evidence with distinct content from the child's evidence before `integrate` accepts a Ticket.
 
-Materialize one bounded child bundle from a stable prefix, applicable instruction version, relevant cohort context version, named dependency contracts, and relevant source paths. The canonical handoff names the exact receipt schema and writable evidence/receipt destinations. Keep run IDs, timestamps, absolute paths, live status, hashes, agent nicknames, and parent PR strategy out of the stable prefix and place unavoidable volatile values last. The run manifest, not the child bundle, records the parent integration branch and one-final-PR strategy; it records the parent as the merge executor only after user authority, not as a grant of authority.
+`claim` preserves the single-Ticket path. `claim-lane` atomically leases any number of ready Tickets to one agent only when every Ticket declares the requested affinity and all share one cohort and an identical dependency contract. `materialize-lane` writes one generated-context bundle and privacy-safe metadata record per dispatched Ticket and returns their common stable-prefix digest. Lane membership is scheduling metadata; Ticket state remains authoritative. Record and integrate a completed Ticket immediately even while a sibling is blocked, then release only the completed Ticket's dependents.
+
+The persisted protocol remains `prd-run/v1`. Existing manifests need no migration because `lanes` is optional and initialized lazily; existing immutable bundles remain readable and materializable through the single-Ticket command. New materializations add generated-context metadata beside the bundle.
+
+Materialize each bounded child bundle through `scripts/generated_context.py::render_manifest` from a stable prefix, applicable instruction version, relevant cohort context version, named dependency contracts, and relevant source paths. The canonical handoff names the exact receipt schema and writable evidence/receipt destinations. Keep run IDs, timestamps, absolute paths, live status, hashes, agent nicknames, and parent PR strategy out of the stable prefix and place unavoidable volatile values last. The run manifest, not the child bundle, records the parent integration branch and one-final-PR strategy; it records the parent as the merge executor only after user authority, not as a grant of authority.
 
 ## Meaningful Verification
 
