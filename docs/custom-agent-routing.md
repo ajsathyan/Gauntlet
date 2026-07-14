@@ -15,6 +15,17 @@ Each delegated Ticket records these routing inputs:
 
 These fields describe the assignment, not permission. A selected profile never gains authority that the parent and ticket do not already have.
 
+## Pre-Dispatch Efficiency And Drift Check
+
+Before classifying a delegated Ticket, ask:
+
+- **Is this cache-hit friendly in every step?** Keep reusable instructions and shared contracts byte-stable; put Ticket-specific and volatile data last.
+- **Are there ways to improve token efficiency?** Remove unrelated history, empty fields, duplicate contracts, and source the selected profile can discover cheaply from its owned files.
+- **Is this being assigned to the right custom agent?** Recheck the routing fields against the actual work, then require the classifier result and started profile to match.
+- **Is this Ticket structured to avoid response drift from its instructions?** Keep one objective, one ownership boundary, explicit dependencies, a checkable return contract, and an ask-parent policy. Split conflicting branches or keep the work in the parent.
+
+If the first two answers expose a tightly coupled or context-heavy handoff, keep the work in the parent unless parallelism or independent evidence still beats that cost. If the third answer changes after dispatch, stop and reclassify instead of silently substituting a profile.
+
 ## Ordered selection rules
 
 Apply the first matching rule:

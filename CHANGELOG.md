@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet skill creation now checks cache-friendly prompt structure, token efficiency, custom-agent fit, and instruction-drift resistance, with the same review applied before delegated Ticket dispatch.
+
 - Gauntlet now records a parent-owned integration branch and one-final-PR strategy per Ticket Graph run while keeping that run metadata out of bounded child context.
 
 - Gauntlet now installs seven deterministic Codex custom-agent profiles, routes bounded Tickets by explicit work and risk fields, and maintains a privacy-bounded local usage audit backed by Codex native state.
