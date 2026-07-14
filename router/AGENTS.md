@@ -64,8 +64,10 @@ Use the relevant installed Gauntlet skill from `{{AGENT_HOME}}/skills/<skill>/SK
 - `researcher`: produce bounded evidence-backed research without importing implementation ceremony.
 - `debugger`: reproduce, isolate, and prove root cause before a fix.
 - `product-architect`: shape user-facing workflow, information architecture, first value, trust, and meaningful metrics.
+- `maintain-prd`: keep the canonical multi-Epic PRD current without implementing it.
 - `planner`: turn an accepted spec into bounded implementation tasks.
 - `implementer`: execute accepted tasks with scoped changes and proof.
+- `implement-prd`: compile and execute an accepted PRD target through its authorized release path.
 - `issue-triager`: classify and route plans, findings, failures, and follow-ups.
 - `adversarial-reviewer`: stress-test assumptions, edge cases, authority, recovery, and regressions.
 - `black-box-tester`: validate behavior through external outcomes.

@@ -118,7 +118,7 @@ Use the Production Quality Bar only for near-launch, private-beta, production-bo
 
 Use the narrowest Gauntlet role skill that adds value:
 
-- `intake`, `product-architect`, `planner`, `issue-triager`, `implementer`;
+- `intake`, `product-architect`, `maintain-prd`, `planner`, `issue-triager`, `implementer`, `implement-prd`;
 - `researcher`, `debugger`;
 - `adversarial-reviewer`, `black-box-tester`, `experience-reviewer`, `deep-code-reviewer`;
 - `run-log-builder`, `promotion-scanner`, and `ian-xiaohei-illustrations` when their triggers apply.

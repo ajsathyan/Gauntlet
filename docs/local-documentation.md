@@ -117,4 +117,13 @@ python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs epic create \
   --title "Message surfaces"
 ```
 
-Initialization and epic creation refuse tracked-path collisions and preserve existing local documents.
+Append the next stable Epic to an existing multi-Epic PRD:
+
+```sh
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs epic create \
+  --project-root "$PROJECT_ROOT" \
+  --title "Delivery controls" \
+  --prd "epics/001/001_MESSAGE_SURFACES_PRD.md"
+```
+
+Epic allocation scans both the index and canonical PRDs, so manually appended indexed Epics cannot silently reuse an ID. Initialization and epic creation refuse tracked-path collisions and preserve existing local documents.

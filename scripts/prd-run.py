@@ -164,7 +164,7 @@ def normalize_graph(raw: Any) -> dict[str, Any]:
             raise RunError(f"ticket {ticket_id} proof oracle and wrong_case must differ")
         ticket_out.append({
             "acceptance": string_list(item.get("acceptance"), f"ticket {ticket_id}.acceptance", allow_empty=False),
-            "ask_user_policy": require_string(item.get("ask_user_policy"), f"ticket {ticket_id}.ask_user_policy"),
+            "ask_parent_policy": require_string(item.get("ask_parent_policy"), f"ticket {ticket_id}.ask_parent_policy"),
             "cohort_id": cohort_id,
             "constraints": string_list(item.get("constraints", []), f"ticket {ticket_id}.constraints"),
             "dependencies": sorted(string_list(item.get("dependencies", []), f"ticket {ticket_id}.dependencies")),
@@ -343,9 +343,9 @@ Non-effects:
 
 {ticket['return_contract']}
 
-## Ask-user policy
+## Ask-parent policy
 
-{ticket['ask_user_policy']}
+{ticket['ask_parent_policy']}
 """
 
 
@@ -603,10 +603,25 @@ def cmd_integrate(args: argparse.Namespace) -> None:
     item = get_ticket(manifest, args.ticket)
     if item["status"] != "completed":
         raise RunError(f"ticket {args.ticket} is not completed")
+    evidence = Path(args.evidence)
+    try:
+        relative = evidence.resolve().relative_to(run)
+    except ValueError as exc:
+        raise RunError("ticket integration evidence must be inside the run") from exc
+    if not evidence.is_file() or not evidence.read_text().strip():
+        raise RunError("ticket integration evidence must exist and be non-empty")
+    receipt_path = run / "receipts" / f"{args.ticket}.r{item['revision']}.json"
+    child_evidence = set(read_json(receipt_path).get("evidence", []))
+    if str(relative) in child_evidence:
+        raise RunError("parent integration evidence must be distinct from child-reported evidence")
+    item["integration_verification"] = {
+        "evidence": str(relative),
+        "summary": require_string(args.summary, "integration summary"),
+    }
     item["status"] = "integrated"
     item["lease"] = None
     refresh_readiness(manifest)
-    event(run, manifest, "ticket_integrated", {"revision": item["revision"], "ticket": args.ticket})
+    event(run, manifest, "ticket_integrated", {"evidence": str(relative), "revision": item["revision"], "ticket": args.ticket})
     save_manifest(run, manifest)
 
 
@@ -737,7 +752,7 @@ def parser() -> argparse.ArgumentParser:
     receipt = commands.add_parser("record-receipt")
     receipt.add_argument("--run", required=True); receipt.add_argument("--ticket", required=True); receipt.add_argument("--receipt", required=True); receipt.set_defaults(func=cmd_receipt)
     integrate = commands.add_parser("integrate")
-    integrate.add_argument("--run", required=True); integrate.add_argument("--ticket", required=True); integrate.set_defaults(func=cmd_integrate)
+    integrate.add_argument("--run", required=True); integrate.add_argument("--ticket", required=True); integrate.add_argument("--evidence", required=True); integrate.add_argument("--summary", required=True); integrate.set_defaults(func=cmd_integrate)
     cohort = commands.add_parser("verify-cohort")
     cohort.add_argument("--run", required=True); cohort.add_argument("--cohort", required=True); cohort.add_argument("--result", required=True, choices=("pass", "fail")); cohort.add_argument("--evidence", required=True); cohort.set_defaults(func=cmd_verify_cohort)
     release = commands.add_parser("record-release")

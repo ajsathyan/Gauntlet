@@ -18,6 +18,7 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 | Local document profile | `scripts/gauntlet.py docs init --project-root "$PROJECT_ROOT" --epic-prefix "$PREFIX"` |
 | Local document check | `scripts/gauntlet.py docs check --project-root "$PROJECT_ROOT"` |
 | Stable local epic | `scripts/gauntlet.py docs epic create --project-root "$PROJECT_ROOT" --title "$TITLE"` |
+| Epic in an existing PRD | Add `--prd "epics/<home>/<file>_PRD.md"` to `docs epic create` |
 | PRD execution contract | `docs/prd-execution.md` |
 | Contextual merge handoff | `scripts/gauntlet.py merge prepare --git-root "$PROJECT_ROOT" --title "$PR_TITLE" --changelog "$CHANGELOG_BULLET" --problem "$PROBLEM" --solution "$SOLUTION" --testing "$TESTING" --pr-note "$PR_NOTE"` |
 | Merge preflight | `scripts/gauntlet.py merge plan --git-root "$PROJECT_ROOT" --json` |

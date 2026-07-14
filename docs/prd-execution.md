@@ -37,6 +37,8 @@ This default does not manufacture authority. Stop for missing credentials or per
 
 Compile the PRD deterministically from stable IDs and source hashes. One implementation plan may span multiple Epics. Prefer one active ticket per implementation agent; an agent may receive sequential related tickets when affinity reduces context cost. Do not co-own one implementation ticket across agents. Independent verifier tickets may inspect the same integrated output.
 
+The controller stores one normalized `ticket-graph.json` for validation and state transitions, then renders immutable prose Tickets for dispatch. The JSON is a machine artifact, not a giant child prompt; children receive only their individual Markdown bundle.
+
 Schedule from a dynamic ready queue:
 
 - prioritize the critical path and tickets that unlock the most downstream work;
@@ -57,7 +59,9 @@ An Execution Run lives below the canonical local-document root declared by `doc_
 executions/<run-id>/
   source-lock.json
   manifest.json
-  shared-context.md
+  ticket-graph.json
+  shared-context/global-v1.md
+  shared-context/<cohort>-v<N>.md
   resume.md
   events.jsonl
   tickets/

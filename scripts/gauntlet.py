@@ -481,6 +481,38 @@ def valid_epic_title(title):
     return bool(title.strip()) and len(title) <= 120 and "\n" not in title and "\r" not in title and "|" not in title
 
 
+def allocated_epic_numbers(context, prefix):
+    pattern = re.compile(rf"\b{re.escape(prefix)}-(\d{{3}})\b")
+    numbers = {int(match) for match in pattern.findall(context["indexPath"].read_text(encoding="utf-8"))}
+    epics_root = context["docsRoot"] / "epics"
+    if epics_root.exists():
+        for path in epics_root.rglob("*.md"):
+            if path.is_file() and not path.is_symlink():
+                numbers.update(int(match) for match in pattern.findall(path.read_text(encoding="utf-8")))
+    return numbers
+
+
+def existing_prd_path(context, supplied):
+    candidate = Path(supplied).expanduser()
+    if not candidate.is_absolute():
+        candidate = context["docsRoot"] / candidate
+    candidate = candidate.absolute()
+    epics_root = (context["docsRoot"] / "epics").resolve()
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(epics_root)
+    except ValueError as exc:
+        raise RuntimeError("An appended PRD must be inside local-docs/epics.") from exc
+    current = candidate
+    while current != context["docsRoot"]:
+        if current.is_symlink():
+            raise RuntimeError(f"An appended PRD path must not use symlinks: {candidate}")
+        current = current.parent
+    if not candidate.is_file():
+        raise RuntimeError(f"An appended PRD must already exist: {candidate}")
+    return candidate
+
+
 def command_docs_epic_create(args):
     context = local_docs_context(args.project_root)
     findings = local_docs_path_findings(context)
@@ -513,17 +545,17 @@ def command_docs_epic_create(args):
     if not re.fullmatch(r"[A-Z][A-Z0-9]{1,11}", prefix):
         raise RuntimeError(f"Local document index has an invalid epic prefix: {prefix}")
     epics_root = context["docsRoot"] / "epics"
-    existing = sorted(
-        int(path.name) for path in epics_root.iterdir()
-        if path.is_dir() and re.fullmatch(r"\d{3}", path.name)
-    ) if epics_root.exists() else []
-    number = args.number if args.number is not None else ((existing[-1] + 1) if existing else 1)
+    existing = allocated_epic_numbers(context, prefix)
+    number = args.number if args.number is not None else ((max(existing) + 1) if existing else 1)
     if number < 1 or number > 999:
         findings.append({"code": "invalid_epic_number", "severity": "fail", "message": "Epic number must be between 001 and 999."})
         return local_docs_payload(args, context, findings)
     sequence = f"{number:03d}"
+    if number in existing:
+        findings.append({"code": "epic_id_exists", "severity": "fail", "message": f"Epic ID already exists: {prefix}-{sequence}"})
+        return local_docs_payload(args, context, findings)
     epic_root = epics_root / sequence
-    if epic_root.exists():
+    if not args.prd and epic_root.exists():
         findings.append({"code": "epic_exists", "severity": "fail", "message": f"Epic folder already exists: {epic_root}"})
         return local_docs_payload(args, context, findings)
 
@@ -533,25 +565,35 @@ def command_docs_epic_create(args):
         raise RuntimeError(f"Local document index is missing its epic insertion marker: {context['indexPath']}")
     date = datetime.now().astimezone().date().isoformat()
     epic_id = f"{prefix}-{sequence}"
-    prd_name = f"{sequence}_{epic_title_slug(args.title)}_PRD.md"
-    prd_path = epic_root / prd_name
+    section = render_local_doc_template("EPIC_SECTION.md.tmpl", {
+        "EPIC_ID": epic_id,
+        "TITLE": args.title,
+    })
+    prd_path = existing_prd_path(context, args.prd) if args.prd else epic_root / f"{sequence}_{epic_title_slug(args.title)}_PRD.md"
+    prd_before = prd_path.read_text(encoding="utf-8") if args.prd else None
     try:
-        epic_root.mkdir(parents=True)
-        for child in ["prompts", "research", "decisions", "runs"]:
-            (epic_root / child).mkdir()
-        write_new_file(prd_path, render_local_doc_template("EPIC_PRD.md.tmpl", {
-            "EPIC_ID": epic_id,
-            "TITLE": args.title,
-            "DATE": date,
-        }))
+        if args.prd:
+            separator = "" if prd_before.endswith("\n\n") else ("\n" if prd_before.endswith("\n") else "\n\n")
+            atomic_write_text(prd_path, prd_before + separator + section.rstrip() + "\n")
+        else:
+            epic_root.mkdir(parents=True)
+            for child in ["prompts", "research", "decisions", "runs"]:
+                (epic_root / child).mkdir()
+            write_new_file(prd_path, render_local_doc_template("EPIC_PRD.md.tmpl", {
+                "TITLE": args.title,
+                "DATE": date,
+                "EPIC_SECTION": section.rstrip(),
+            }))
         relative = prd_path.relative_to(context["docsRoot"])
         row = f"| `{epic_id}` | [{args.title}]({relative.as_posix()}) | PRD | Proposed | {date} | None | None | Not implemented | Not verified |\n"
         atomic_write_text(context["indexPath"], index_text.replace(marker, row + marker, 1))
     except Exception:
-        if epic_root.exists():
+        if args.prd and prd_before is not None:
+            atomic_write_text(prd_path, prd_before)
+        elif epic_root.exists():
             shutil.rmtree(epic_root)
         raise
-    return local_docs_payload(args, context, findings, epicId=epic_id, epicRoot=str(epic_root), prdPath=str(prd_path))
+    return local_docs_payload(args, context, findings, epicId=epic_id, epicRoot=str(prd_path.parent), prdPath=str(prd_path), appended=bool(args.prd))
 
 
 def payload_key_is_sensitive(key):
@@ -2882,6 +2924,7 @@ def build_parser():
     docs_epic_create.add_argument("--project-root", type=Path, default=Path.cwd())
     docs_epic_create.add_argument("--title", required=True)
     docs_epic_create.add_argument("--number", type=int, default=None)
+    docs_epic_create.add_argument("--prd", default=None, help="Append the new Epic to an existing PRD under local-docs/epics.")
     docs_epic_create.add_argument("--json", action="store_true")
     docs_epic_create.set_defaults(func=command_docs_epic_create)
 

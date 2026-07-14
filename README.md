@@ -322,9 +322,11 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [skills/researcher/SKILL.md](skills/researcher/SKILL.md) | Produces bounded evidence-backed research without importing implementation ceremony. |
 | [skills/debugger/SKILL.md](skills/debugger/SKILL.md) | Reproduces and isolates root cause before a fix is implemented. |
 | [skills/product-architect/SKILL.md](skills/product-architect/SKILL.md) | Shapes Feature work around workflow, IA, activation, retention, growth, trust, and handoff. |
+| [skills/maintain-prd/SKILL.md](skills/maintain-prd/SKILL.md) | Maintains one canonical human-readable multi-Epic PRD without starting implementation. |
 | [skills/planner/SKILL.md](skills/planner/SKILL.md) | Converts accepted specs into bounded implementation steps. |
 | [skills/issue-triager/SKILL.md](skills/issue-triager/SKILL.md) | Routes plans, findings, test failures, bugs, and open questions into ready tasks. |
 | [skills/implementer/SKILL.md](skills/implementer/SKILL.md) | Executes scoped code changes while preserving repo patterns and collecting proof. |
+| [skills/implement-prd/SKILL.md](skills/implement-prd/SKILL.md) | Compiles a build-ready PRD into a durable Ticket Graph and coordinates its authorized end-to-end release path. |
 | [skills/adversarial-reviewer/SKILL.md](skills/adversarial-reviewer/SKILL.md) | Stress-tests assumptions, edge cases, trust boundaries, and regressions. |
 | [skills/black-box-tester/SKILL.md](skills/black-box-tester/SKILL.md) | Validates behavior externally through user-visible outcomes. |
 | [skills/experience-reviewer/SKILL.md](skills/experience-reviewer/SKILL.md) | Reviews workflow clarity, IA, states, metrics, accessibility, trust, activation, retention, and growth. |
@@ -366,6 +368,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [scripts/lint-skills.py](scripts/lint-skills.py) | Lints skill frontmatter, word budget, contract slots, optional examples, and bounded subagent guidance. |
 | [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill text coverage, declared trace-field scorer contracts, and linting when staged Gauntlet skill files change. |
 | [scripts/install-git-hooks.sh](scripts/install-git-hooks.sh) | Installs the pre-commit hook that enforces skill-change checks. |
+| [scripts/prd-run.py](scripts/prd-run.py) | Creates, validates, resumes, and advances deterministic disk-backed PRD Execution Runs. |
 | [evals/skill-evals.json](evals/skill-evals.json) | Pressure scenarios for skill contract coverage. |
 | [evals/scorer-smoke-fixtures.json](evals/scorer-smoke-fixtures.json) | One positive and one negative matcher canary that prove phrase-scorer wiring—not agent behavior. |
 | [evals/orchestration-trace-fixtures.json](evals/orchestration-trace-fixtures.json) | Paired declared trace-field scorer cases, including wrong-outcome, self-attested-proof, different-prose, authority, verbosity, and subjective-judgment canaries. |

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now maintains human-readable multi-Epic PRDs and compiles build-ready targets into durable Ticket Graph runs with bounded cache-oriented child context, parent-owned verification, cohort gates, and authorized end-to-end release handling.
+
 - Gauntlet now offers an opt-in `local-docs/` profile with stable epic scaffolding, primary-worktree canonical documents, tracked-document boundaries, one release contract, configuration and secret classification, and a global three-question discipline shared by every skill.
 
 - Gauntlet now includes `craft-product-terminology` for naming public product concepts and internal system pieces from their actual responsibilities and boundaries.

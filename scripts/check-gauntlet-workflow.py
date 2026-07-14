@@ -3871,11 +3871,27 @@ def test_local_document_profile_preserves_tracked_docs_and_primary_canonical_cop
         epic_data = json.loads(epic.stdout)
         if epic_data.get("epicId") != "DEMO-001" or not Path(epic_data["prdPath"]).is_file():
             raise AssertionError(f"stable epic creation failed: {epic.stdout}")
+        appended = run([
+            str(cli), "docs", "epic", "create", "--project-root", str(linked),
+            "--title", "Delivery controls", "--prd", str(Path(epic_data["prdPath"]).resolve().relative_to((repo / "local-docs").resolve())), "--json",
+        ])
+        appended_data = json.loads(appended.stdout)
+        if appended_data.get("epicId") != "DEMO-002" or appended_data.get("prdPath") != epic_data["prdPath"] or not appended_data.get("appended"):
+            raise AssertionError(f"multi-Epic PRD append failed: {appended.stdout}")
+        prd_text = Path(epic_data["prdPath"]).read_text()
+        if prd_text.count("## Epic DEMO-") != 2 or "## Epic DEMO-002: Delivery controls" not in prd_text:
+            raise AssertionError("appended Epic must share the canonical PRD with a stable searchable heading")
+        duplicate = run([
+            str(cli), "docs", "epic", "create", "--project-root", str(linked),
+            "--title", "Duplicate", "--number", "2", "--json",
+        ], check=False)
+        if duplicate.returncode == 0 or json.loads(duplicate.stdout)["status"] != "fail":
+            raise AssertionError("Epic allocation must reject IDs already present inside a multi-Epic PRD")
         bad_title = run([
             str(cli), "docs", "epic", "create", "--project-root", str(linked),
             "--title", "Bad | table", "--json",
         ], check=False)
-        if bad_title.returncode == 0 or (repo / "local-docs" / "epics" / "002").exists():
+        if bad_title.returncode == 0 or (repo / "local-docs" / "epics" / "003").exists():
             raise AssertionError("invalid epic titles must fail without a partial epic")
         wrong_prefix = run([
             str(cli), "docs", "init", "--project-root", str(linked),
@@ -3909,6 +3925,12 @@ def test_local_document_profile_preserves_tracked_docs_and_primary_canonical_cop
         ], check=False)
         if symlink_refused.returncode == 0 or any(outside.iterdir()):
             raise AssertionError("local-document symlinks must fail without writing outside the primary worktree")
+
+
+def test_prd_execution_run_controller_behavior():
+    result = run(["python3", str(SCRIPTS / "test-prd-run.py")], check=False)
+    if result.returncode != 0 or "Ran 9 tests" not in result.stderr or "OK" not in result.stderr:
+        raise AssertionError(f"PRD execution-run controller behavior failed:\n{result.stdout}\n{result.stderr}")
 
 
 def main():
@@ -3965,6 +3987,7 @@ def main():
         test_codex_install_merges_preferences_without_silent_overwrite,
         test_install_docs_explain_codex_and_claude_targets,
         test_local_document_profile_preserves_tracked_docs_and_primary_canonical_copy,
+        test_prd_execution_run_controller_behavior,
     ]
     for test in tests:
         test()

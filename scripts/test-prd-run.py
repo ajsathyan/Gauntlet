@@ -36,7 +36,7 @@ def graph(scope_one: str = "Account balance behavior", ticket_one: str = "Implem
                     "non_effects": ["Persistence format remains unchanged."],
                 },
                 "return_contract": "Return changed paths and test evidence.",
-                "ask_user_policy": "Ask only if the persistence contract must change.",
+                "ask_parent_policy": "Ask only if the persistence contract must change.",
                 "source_files": ["src/balance.py"],
             },
             {
@@ -52,7 +52,7 @@ def graph(scope_one: str = "Account balance behavior", ticket_one: str = "Implem
                     "non_effects": ["Other account fields remain unchanged."],
                 },
                 "return_contract": "Return changed paths and black-box evidence.",
-                "ask_user_policy": "Ask only if the public view contract is ambiguous.",
+                "ask_parent_policy": "Ask only if the public view contract is ambiguous.",
                 "source_files": ["src/view.py"],
             },
         ],
@@ -108,7 +108,12 @@ class PrdRunTests(unittest.TestCase):
             "summary": f"Completed {ticket} and observed its external behavior.", "ticket": ticket,
         }))
         self.run_command("record-receipt", "--run", str(self.run), "--ticket", ticket, "--receipt", str(receipt))
-        self.run_command("integrate", "--run", str(self.run), "--ticket", ticket)
+        parent_evidence = self.run / "evidence" / f"{ticket}-parent.md"
+        parent_evidence.write_text(f"# Parent verification {ticket}\n\nIndependently reran the public behavior oracle.\n")
+        self.run_command(
+            "integrate", "--run", str(self.run), "--ticket", ticket,
+            "--evidence", str(parent_evidence), "--summary", "Parent independently verified the ticket oracle.",
+        )
 
     def test_init_creates_canonical_artifacts_and_validates_order(self) -> None:
         expected = {
@@ -159,6 +164,24 @@ class PrdRunTests(unittest.TestCase):
         receipt.write_text(json.dumps(receipt_data))
         self.run_command("record-receipt", "--run", str(self.run), "--ticket", "T1", "--receipt", str(receipt), ok=False)
         self.assertEqual(self.manifest()["tickets"]["T1"]["status"], "dispatched")
+
+    def test_integration_requires_distinct_parent_verification(self) -> None:
+        self.compile_and_start()
+        self.run_command("claim", "--run", str(self.run), "--ticket", "T1", "--agent", "agent-a", "--attempt", "1")
+        child_evidence = self.run / "evidence" / "T1.md"
+        child_evidence.write_text("# Child evidence\n\nObserved the public result.\n")
+        receipt = self.root / "T1-receipt.json"
+        receipt.write_text(json.dumps({
+            "agent": "agent-a", "attempt": 1, "changed_paths": ["src/T1.py"],
+            "evidence": ["evidence/T1.md"], "outputs": ["contract:T1"], "revision": 1,
+            "risks": [], "status": "complete", "summary": "Completed T1.", "ticket": "T1",
+        }))
+        self.run_command("record-receipt", "--run", str(self.run), "--ticket", "T1", "--receipt", str(receipt))
+        self.run_command(
+            "integrate", "--run", str(self.run), "--ticket", "T1",
+            "--evidence", str(child_evidence), "--summary", "Reused child evidence.", ok=False,
+        )
+        self.assertEqual(self.manifest()["tickets"]["T1"]["status"], "completed")
 
     def test_blocked_receipt_can_be_retried_only_with_a_new_attempt(self) -> None:
         self.compile_and_start()

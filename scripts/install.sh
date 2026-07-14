@@ -697,11 +697,15 @@ for required_path in \
   "$AGENT_HOME/gauntlet/AGENTS.md" \
   "$AGENT_HOME/gauntlet/docs/workflow-etiquette.md" \
   "$AGENT_HOME/gauntlet/docs/local-documentation.md" \
+  "$AGENT_HOME/gauntlet/docs/prd-execution.md" \
   "$AGENT_HOME/gauntlet/scripts/gauntlet.py" \
+  "$AGENT_HOME/gauntlet/scripts/prd-run.py" \
   "$AGENT_HOME/gauntlet/templates/local-docs/doc_org.md.tmpl" \
   "$AGENT_HOME/skills/intake/SKILL.md" \
   "$AGENT_HOME/skills/planner/SKILL.md" \
-  "$AGENT_HOME/skills/implementer/SKILL.md"
+  "$AGENT_HOME/skills/implementer/SKILL.md" \
+  "$AGENT_HOME/skills/maintain-prd/SKILL.md" \
+  "$AGENT_HOME/skills/implement-prd/SKILL.md"
 do
   if [ ! -s "$required_path" ]; then
     echo "Gauntlet install payload is incomplete: $required_path" >&2

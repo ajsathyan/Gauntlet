@@ -23,6 +23,8 @@ Use stable, searchable Markdown:
 
 Tickets are current execution units; Scope Areas are stable product units. A Ticket may reference several related Scope Areas, and a Scope Area may require sequential Tickets. One implementation Ticket has one active child owner. A separate verifier Ticket may evaluate the same output independently.
 
+The controller accepts a compact machine graph with `version`, `scope_areas`, `shared_context`, `cohorts`, and `tickets`. Each Ticket supplies `id`, `epic_id`, `title`, `objective`, `scope_area_ids`, `cohort_id`, `dependencies`, `ownership`, `constraints`, `acceptance`, `proof`, `return_contract`, `ask_parent_policy`, and relevant `source_files`. `proof` contains a behavioral `claim`, observable `oracle`, plausible `wrong_case`, and `non_effects`. This normalized JSON is local controller input, not a child packet or a second product specification; the controller renders immutable prose Tickets and sends only one bounded bundle to each child.
+
 ## Durable Run
 
 Store the run under the canonical local-document root declared by `doc_org.md`:
@@ -31,7 +33,9 @@ Store the run under the canonical local-document root declared by `doc_org.md`:
 executions/<run-id>/
   source-lock.json
   manifest.json
-  shared-context.md
+  ticket-graph.json
+  shared-context/global-v1.md
+  shared-context/<cohort>-v<N>.md
   resume.md
   events.jsonl
   tickets/*.md
@@ -58,6 +62,23 @@ Do not skip a required state because a receipt says `done`. Invalidate and recom
 ## Resume And Materialization
 
 After compaction or restart, read `resume.md`, `manifest.json`, and `source-lock.json`, then validate them against the canonical PRD before dispatching more work. Use the deterministic controller for validate/freeze, compile, materialize, claim, receipt, integrate, cohort/full/release transitions, and resume operations. Do not hand-edit machine-owned state when the controller is available.
+
+Use the installed controller at `$GAUNTLET_ROOT/scripts/prd-run.py` (or the repository copy while changing Gauntlet):
+
+```text
+init --executions <canonical-root>/executions --run-id <ID> --source <prd.md>
+transition --run <run> --to <next-state>
+compile --run <run> --graph <ticket-graph.json>
+claim --run <run> --ticket <ID> --agent <agent-id> --attempt <N>
+materialize-ticket --run <run> --ticket <ID> [--output <path>]
+record-receipt --run <run> --ticket <ID> --receipt <receipt.json>
+integrate --run <run> --ticket <ID> --evidence <parent-proof> --summary <claim>
+verify-cohort --run <run> --cohort <ID> --result pass|fail --evidence <run-file>
+record-release --run <run> --stage integration|deployment|production-verification --result pass|fail --summary <claim> --evidence <reference>
+reconcile --run <run> --source <prd.md> --graph <ticket-graph.json>
+```
+
+Move `discussing` to `accepted` with `transition` before compilation; `compile` performs the `accepted` to `compiled` transition. The parent must supply verification evidence distinct from the child's receipt before `integrate` accepts a Ticket.
 
 Materialize one bounded child bundle from a stable prefix, applicable instruction version, relevant cohort context version, named dependency contracts, and required source slices. Keep run IDs, timestamps, absolute paths, live status, hashes, and agent nicknames out of the stable prefix and place unavoidable volatile values last.
 
