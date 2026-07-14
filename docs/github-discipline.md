@@ -10,6 +10,12 @@ Use the startup-safe path for real repository changes:
 branch from main -> commit coherent checkpoints -> open a PR -> verify -> merge with a merge commit -> delete the branch
 ```
 
+For a multi-Ticket Execution Run, the parent branch is the integration boundary:
+
+```text
+main -> parent integration branch -> integrate child checkpoints -> one final PR -> verify -> merge commit -> delete the branch
+```
+
 This gives solo builders and AI-assisted teams a durable trail: what changed, who or which agent did it, what proof ran, what review happened, and why the work landed.
 
 ## Beginner Mental Model
@@ -36,6 +42,7 @@ This gives solo builders and AI-assisted teams a durable trail: what changed, wh
 The main chat owns the final Git story:
 
 - Selects or creates the task branch.
+- For a multi-Ticket run, selects or creates the parent integration branch; child branches do not target `main`.
 - Tracks child-lane decisions and integration state without printing a routine lane ledger.
 - Integrates child implementation work.
 - Opens or updates the final PR.

@@ -11,7 +11,7 @@ Read [the execution contract](references/execution-contract.md) before compiling
 
 ## Authority And Stop Conditions
 
-Treat an explicit `implement the PRD` request as authority for the accepted, build-ready target's normal end-to-end path: branch/worktree, implementation, tests, commits, one pull request, required-check merge, deployment of the exact verified `main` revision, documented production changes named by the PRD, production verification, canonical-document updates, and safe cleanup. A narrower explicit request controls.
+Treat an explicit `implement the PRD` request as authority for the accepted, build-ready target's normal end-to-end path: branch/worktree, implementation, tests, commits, one final PR per Execution Run, required-check merge, deployment of the exact verified `main` revision, documented production changes named by the PRD, production verification, canonical-document updates, and safe cleanup. A narrower explicit request controls.
 
 Stop for credentials or permissions that are unavailable; a materially unresolved product decision; a destructive, unsafe, or external effect absent from the accepted PRD; production reality that invalidates rollout or rollback; a preservation conflict; or required production proof that cannot be obtained. Do not expand the Implementation Target to proposed, deferred, or unresolved Epics.
 
@@ -24,7 +24,7 @@ Stop for credentials or permissions that are unavailable; a materially unresolve
 5. Materialize only ready Tickets. Dispatch one active Ticket per child by default; reuse a child sequentially for related Tickets when context affinity saves work. Keep recursion shallow and the parent in control of scheduling and integration.
 6. Integrate completed Tickets as they become ready. Independently inspect or rerun their evidence, then record the receipt and immediate Ticket verification.
 7. Run selective cohort barriers for Tickets sharing an interface or invariant. After all required cohorts pass, run full-PRD verification against the accepted source and parent-owned oracle.
-8. Complete the pull request, required-check merge, exact-main deployment, documented production changes, production verification, canonical-document updates, and safe cleanup. Record rollback evidence when verification fails.
+8. Complete the final PR for the Execution Run, required-check merge, exact-main deployment, documented production changes, production verification, canonical-document updates, and safe cleanup. Record rollback evidence when verification fails.
 9. Mark the run complete only after every required state and proof layer is satisfied or an explicit stop condition is recorded.
 
 ## Scheduling And Context

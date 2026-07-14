@@ -112,7 +112,7 @@ Resume after compaction from the source lock, manifest, and resume file. Dispatc
 
 This is the single reusable release contract for local documents. PRDs do not copy it. Compiled Ticket Graphs reference it and resolve their implementation-specific fields.
 
-1. Use a dedicated branch and an isolated worktree when Gauntlet or repository policy requires one.
+1. Use a dedicated parent integration branch for each multi-Ticket run, with isolated child branches or worktrees; produce one final PR per run. Split independent release boundaries into separate runs.
 2. Compile the accepted Implementation Target into bounded Tickets and delegate only independent Tickets with separate ownership, state, and proof paths.
 3. Continue autonomously through reversible, in-scope, authorized work. Stop for a material decision, missing authority, unsafe side effect, preservation risk, or unavailable required proof.
 4. The main task integrates work and runs changed-surface proof before proposing merge.

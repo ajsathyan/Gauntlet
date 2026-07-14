@@ -82,6 +82,8 @@ The phrase **implement the PRD** applies only to the explicit build-ready target
 
 Generated Ticket Graphs and live execution state belong below `local-docs/executions/<run-id>/`, not beside the PRD as another human-authored source. After a run starts, its source lock, manifest, and resume file are authoritative for execution progress. Conversation continues to own user decisions, while compaction recovery reads the durable artifacts.
 
+The Execution Run manifest carries run-specific integration metadata such as the parent branch and PR strategy. `doc_org.md` remains the reusable contract; it is not a per-run status ledger, and its contents are not copied into every child prompt.
+
 Children receive one materialized ticket context plus relevant shared context, named dependency outputs, and owned source paths. They do not need the full PRD or execution history. The parent owns state transitions, integration, oracle verification, cohort results, and release records. See `docs/prd-execution.md` for the artifact and scheduling contract.
 
 ## Configuration Boundary

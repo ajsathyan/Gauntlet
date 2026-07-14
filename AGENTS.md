@@ -148,6 +148,7 @@ Keep deterministic coverage, scorer plumbing, and behavioral outcome evidence di
 ## Git, contextual merge, and PR discipline
 
 - Branch from `main`; use isolated worktrees when the workspace is dirty, the work is p0-p2, the change is broad, or child lanes write files.
+- For a multi-Ticket run, keep `main` clean and use one parent integration branch; integrate child checkpoints there and open one final PR per run. Split independent release boundaries into separate runs.
 - Commit coherent checkpoints. Preserve useful commits; do not squash or rebase unless AJS or the repository asks.
 - Treat the PR as the proof and decision bundle: changed files, execution-backed checks, review context, run log, changelog, and residual risk.
 - Automated merges use merge commits. Direct push to `main` is an explicit tiny-change shortcut, not the default.
