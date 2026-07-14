@@ -262,7 +262,19 @@ def render(
     protected_paths = validate_packet(kind, load_json(packet, "invalid-packet"), root)
     destination = assignment["receipt_destination"]
     if destination != "return-to-root":
-        protected_paths.append(ensure_within(root, Path(destination), "receipt_destination"))
+        receipt_path = ensure_within(root, Path(destination), "receipt_destination")
+        frozen_paths = {
+            packet.resolve(),
+            assignment_path.resolve(),
+            template_path.resolve(),
+            *protected_paths,
+        }
+        if receipt_path in frozen_paths or receipt_path.is_dir():
+            raise PromptError(
+                "path-collision",
+                "receipt_destination cannot replace a frozen input or identify a directory",
+            )
+        protected_paths.append(receipt_path)
     populated = {
         **assignment,
         "packet_path": str(packet.resolve()),

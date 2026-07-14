@@ -205,6 +205,17 @@ class RenderAgentPromptTests(unittest.TestCase):
             self.assertEqual(json.loads(receipt_collision.stdout)["error"]["code"], "path-collision")
             self.assertFalse(receipt.exists())
 
+            frozen_artifact = root / "contract.json"
+            frozen_bytes = frozen_artifact.read_bytes()
+            review_value["receipt_destination"] = str(frozen_artifact)
+            review_assignment.write_text(json.dumps(review_value), encoding="utf-8")
+            frozen_receipt = run(
+                *render_args("observable-review", review_packet, review_assignment, root / "review-prompt.md")
+            )
+            self.assertEqual(frozen_receipt.returncode, 2)
+            self.assertEqual(json.loads(frozen_receipt.stdout)["error"]["code"], "path-collision")
+            self.assertEqual(frozen_artifact.read_bytes(), frozen_bytes)
+
     def test_writes_distinct_metadata_atomically(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
