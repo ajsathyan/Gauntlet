@@ -26,6 +26,7 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Findings by P0/P1/P2/P3 with file/line when possible
 - For each finding: Concrete risk, Suggested fix, Test gap, behavior-preserving vs behavior-changing
 - Cannot verify: requirement, missing proof, next check
+- Configuration boundary: hardcoded secrets/environment values, unjustified mutable configuration, validation, defaults, and redaction
 - Current-change hygiene: introduced dead code, unnecessary abstraction, stale shim, or duplicate logic
 - Residual risk
 - Agent next: one concrete follow-up

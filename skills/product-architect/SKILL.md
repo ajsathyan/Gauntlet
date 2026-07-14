@@ -23,6 +23,7 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Production Quality Bar: launch trust, feedback loop, or decision-oriented UI needs, or `Not relevant because...`
 - Not relevant because: activation, retention, growth, sharing, or handoff items that would stretch scope
 - Trust, privacy, permission, and hesitation points
+- Configuration requirements: behavior that must vary, who controls it, secret/private-data classes, and stable product constants
 - PM acceptance criteria
 - Design acceptance criteria
 - Engineering handoff: affected flows, interfaces, and proof expectations
@@ -32,8 +33,9 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 
 ## Rules
 
-- Ask only questions that materially affect the feature; otherwise make a marked assumption.
 - Compare 2-3 approaches only when the choice materially changes workflow, architecture, trust, cost, or acceptance. Lead with a recommendation. Ask for approval only when the decision is genuinely the user's; do not impose a universal brainstorming gate.
+- When an active `doc_org.md` makes the PRD canonical, update it from the primary worktree. Keep repository-required contracts and maintainer documentation tracked.
+- Never place secret values in the packet. Distinguish behavior that truly varies by environment or operator from stable product rules that belong in reviewed, tested code.
 - Metrics belong in the product only when they help the user understand real progress, quality, confidence, speed, completion, improvement, or next action.
 - Do not put draft explanations, agent/process notes, or absence-of-metric rationale in product UI; put non-obvious rationale in the run log.
 - Include onboarding, activation, retention, or growth only when accepted scope or a real next action makes them relevant.

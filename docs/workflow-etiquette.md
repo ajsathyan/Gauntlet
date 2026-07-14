@@ -55,9 +55,15 @@ If priority is unchanged, say nothing. If it changes, state the old and new valu
 
 The legacy five-field kickoff block is deprecated. `scripts/check-workflow-etiquette.py --require-kickoff` remains warning-only for migration and must not block execution.
 
-## Decisions And Edge Cases
+## Minimum Useful Questions
 
-Ask only when an answer materially changes product behavior, data, money, privacy, security, acceptance, cost, or an external side effect.
+Use an 80/20 question rule across every Gauntlet path and skill. Start from existing context. Make and label safe assumptions when missing detail would not materially change the result.
+
+Ask only when the answer could materially change the result, product behavior, document purpose or audience, scope, acceptance, authority, data, money, privacy, security, cost, or an external effect. When clarification is necessary, ask at most three short questions in one message. Prefer one or two. Keep each question focused on one decision, do not send a generic questionnaire, and otherwise provide a provisional result.
+
+Questioning is complete when every question asked maps to a consequential decision whose outcome could change. This is a judgment rule, not a phrase-counting or questionnaire-format check.
+
+## Decisions And Edge Cases
 
 Before consequential implementation, perform a bounded foresight check:
 

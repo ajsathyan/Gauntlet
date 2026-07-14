@@ -3698,6 +3698,109 @@ def test_superpowers_sources_are_attributed_and_retirement_is_allowlisted():
                 raise AssertionError(f"unverified plugin disablement must preserve skills and config: {label}")
 
 
+def test_local_document_profile_preserves_tracked_docs_and_primary_canonical_copy():
+    cli = SCRIPTS / "gauntlet.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        repo = root / "repo"
+        init_repo(repo)
+        (repo / "docs").mkdir()
+        (repo / "docs" / "public-contract.md").write_text("# Public contract\n")
+        commit_all(repo, "tracked docs")
+        linked = root / "linked"
+        git(["worktree", "add", "-b", "feature/local-docs", str(linked)], cwd=repo)
+
+        exclude = repo / ".git" / "info" / "exclude"
+        exclude_before = exclude.read_text() if exclude.exists() else ""
+        dry_run = run([
+            str(cli), "docs", "init", "--project-root", str(linked),
+            "--epic-prefix", "DEMO", "--dry-run", "--json",
+        ])
+        if json.loads(dry_run.stdout)["status"] != "pass":
+            raise AssertionError(f"local docs dry-run should pass: {dry_run.stdout}")
+        if (repo / "doc_org.md").exists() or (repo / "local-docs").exists():
+            raise AssertionError("local docs dry-run must not create canonical paths")
+        if (exclude.read_text() if exclude.exists() else "") != exclude_before:
+            raise AssertionError("local docs dry-run must not change Git exclusions")
+
+        initialized = run([
+            str(cli), "docs", "init", "--project-root", str(linked),
+            "--epic-prefix", "DEMO", "--json",
+        ])
+        initialized_data = json.loads(initialized.stdout)
+        if initialized_data["status"] != "pass":
+            raise AssertionError(f"local docs init should pass: {initialized.stdout}")
+        if Path(initialized_data["primaryRoot"]).resolve() != repo.resolve():
+            raise AssertionError("linked-worktree initialization must resolve the primary worktree")
+        if not (repo / "doc_org.md").is_file() or not (repo / "local-docs" / "INDEX.md").is_file():
+            raise AssertionError("local docs init must create canonical files in the primary worktree")
+        if (linked / "doc_org.md").exists() or (linked / "local-docs").exists():
+            raise AssertionError("linked worktree must not receive alternate canonical local documents")
+        if git(["status", "--porcelain"], cwd=repo).stdout.strip():
+            raise AssertionError("ignored local documents must not dirty the tracked repository")
+        if git(["ls-files", "docs/public-contract.md"], cwd=repo).stdout.strip() != "docs/public-contract.md":
+            raise AssertionError("existing tracked documentation must remain tracked")
+        policy_before = (repo / "doc_org.md").read_text()
+        index_before = (repo / "local-docs" / "INDEX.md").read_text()
+        repeated = run([
+            str(cli), "docs", "init", "--project-root", str(linked),
+            "--epic-prefix", "DEMO", "--json",
+        ])
+        if json.loads(repeated.stdout)["status"] != "pass":
+            raise AssertionError(f"repeat local docs init should pass: {repeated.stdout}")
+        if (repo / "doc_org.md").read_text() != policy_before or (repo / "local-docs" / "INDEX.md").read_text() != index_before:
+            raise AssertionError("repeat local docs init must preserve existing canonical documents")
+
+        checked = run([str(cli), "docs", "check", "--project-root", str(linked), "--json"])
+        if json.loads(checked.stdout)["status"] != "pass":
+            raise AssertionError(f"local docs check should pass: {checked.stdout}")
+        epic = run([
+            str(cli), "docs", "epic", "create", "--project-root", str(linked),
+            "--title", "Message surfaces", "--json",
+        ])
+        epic_data = json.loads(epic.stdout)
+        if epic_data.get("epicId") != "DEMO-001" or not Path(epic_data["prdPath"]).is_file():
+            raise AssertionError(f"stable epic creation failed: {epic.stdout}")
+        bad_title = run([
+            str(cli), "docs", "epic", "create", "--project-root", str(linked),
+            "--title", "Bad | table", "--json",
+        ], check=False)
+        if bad_title.returncode == 0 or (repo / "local-docs" / "epics" / "002").exists():
+            raise AssertionError("invalid epic titles must fail without a partial epic")
+        wrong_prefix = run([
+            str(cli), "docs", "init", "--project-root", str(linked),
+            "--epic-prefix", "OTHER", "--json",
+        ], check=False)
+        if wrong_prefix.returncode == 0 or json.loads(wrong_prefix.stdout)["status"] != "fail":
+            raise AssertionError("repeat initialization must preserve the established epic prefix")
+
+        collision = root / "collision"
+        init_repo(collision)
+        (collision / "doc_org.md").write_text("# Tracked policy\n")
+        commit_all(collision, "tracked policy")
+        refused = run([
+            str(cli), "docs", "init", "--project-root", str(collision),
+            "--epic-prefix", "DEMO", "--json",
+        ], check=False)
+        refused_data = json.loads(refused.stdout)
+        if refused.returncode == 0 or refused_data["status"] != "fail":
+            raise AssertionError("initialization must refuse tracked local-document collisions")
+        if (collision / "local-docs").exists():
+            raise AssertionError("collision failure must not partially initialize local documents")
+
+        symlink_repo = root / "symlink"
+        init_repo(symlink_repo)
+        outside = root / "outside"
+        outside.mkdir()
+        (symlink_repo / "local-docs").symlink_to(outside, target_is_directory=True)
+        symlink_refused = run([
+            str(cli), "docs", "init", "--project-root", str(symlink_repo),
+            "--epic-prefix", "DEMO", "--json",
+        ], check=False)
+        if symlink_refused.returncode == 0 or any(outside.iterdir()):
+            raise AssertionError("local-document symlinks must fail without writing outside the primary worktree")
+
+
 def main():
     tests = [
         test_plugin_manifests_bundle_shared_skills,
@@ -3749,6 +3852,7 @@ def main():
         test_install_requires_review_before_layering_over_existing_instructions,
         test_codex_install_merges_preferences_without_silent_overwrite,
         test_install_docs_explain_codex_and_claude_targets,
+        test_local_document_profile_preserves_tracked_docs_and_primary_canonical_copy,
     ]
     for test in tests:
         test()

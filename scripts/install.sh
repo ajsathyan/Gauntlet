@@ -670,12 +670,13 @@ if [ "$source_is_installed_payload" != "1" ]; then
   cp -R "$ROOT/docs" "$AGENT_HOME/gauntlet/"
   rm -rf "$AGENT_HOME/gauntlet/scripts"
   cp -R "$ROOT/scripts" "$AGENT_HOME/gauntlet/"
+  rm -rf "$AGENT_HOME/gauntlet/templates"
+  cp -R "$ROOT/templates" "$AGENT_HOME/gauntlet/"
   mkdir -p "$AGENT_HOME/gauntlet/evals"
   rsync -a --delete \
     --exclude '/generated-prompts/' \
     --exclude '/results/' \
     "$ROOT/evals/" "$AGENT_HOME/gauntlet/evals/"
-  rm -rf "$AGENT_HOME/gauntlet/templates"
   rm -f "$AGENT_HOME/gauntlet/review-brief.html"
   rm -f "$AGENT_HOME/gauntlet/review-brief-data.json"
   rm -f "$AGENT_HOME/gauntlet/review-brief-data.schema.json"
@@ -695,7 +696,9 @@ chmod 0644 "$AGENT_HOME/gauntlet/AGENTS.md"
 for required_path in \
   "$AGENT_HOME/gauntlet/AGENTS.md" \
   "$AGENT_HOME/gauntlet/docs/workflow-etiquette.md" \
+  "$AGENT_HOME/gauntlet/docs/local-documentation.md" \
   "$AGENT_HOME/gauntlet/scripts/gauntlet.py" \
+  "$AGENT_HOME/gauntlet/templates/local-docs/doc_org.md.tmpl" \
   "$AGENT_HOME/skills/intake/SKILL.md" \
   "$AGENT_HOME/skills/planner/SKILL.md" \
   "$AGENT_HOME/skills/implementer/SKILL.md"

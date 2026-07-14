@@ -11,6 +11,7 @@
 - Meaningful metrics: save success rate, because it shows completion
 - Not relevant because: retention emails and sharing stretch scope
 - Trust/privacy: saved query may contain sensitive terms
+- Configuration requirements: query retention is operator-configured; stable duplicate-name behavior remains in code
 - PM acceptance: save/reopen/delete works
 - Design acceptance: empty and error states are clear
 - Cannot verify: analytics event names

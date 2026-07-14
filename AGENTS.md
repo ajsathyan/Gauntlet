@@ -11,6 +11,7 @@ Gauntlet v2.0.2 is a product-thinking and proof harness for coding agents. This 
 - `docs/github-discipline.md`: branches, worktrees, commits, PRs, merge commits, and cleanup.
 - `docs/skill-quality-bar.md`: requirements for meaningful skill and workflow changes.
 - `docs/production-quality-bar.md`: bounded launch/hardening checks when production risk triggers them.
+- `docs/local-documentation.md`: opt-in local product-document organization, tracked/private boundaries, and scaffolding behavior.
 - `scripts/check-gauntlet-workflow.py`: end-to-end workflow regression suite.
 
 Use repository-relative `docs/...` and `scripts/...` paths only for work inside this repository. Portable guidance must use the installed-path contract rendered by the installer.
@@ -49,9 +50,11 @@ Before substantial implementation, establish one accepted source and one canonic
 - ordered tasks, exact file/state ownership, and the first ready task;
 - explicit deferrals and `Cannot verify` where proof is unavailable.
 
-Ask no more than three short questions in one turn. Apply the 80/20 rule: ask only for missing facts most likely to change product behavior, data/money/privacy/security risk, acceptance criteria, authority, meaningful cost, or the recommendation. Infer the rest from current context and established domain conventions. Give the most concrete, well-supported recommendation the evidence allows, and state material uncertainty instead of extending intake with low-value questions.
+Use an 80/20 question rule across every Gauntlet skill. Start from existing context and make safe assumptions explicit. Ask only when the answer could materially change the result, scope, acceptance, authority, data/money/privacy/security risk, cost, or external effect. When clarification is necessary, ask at most three short questions in one message, preferably one or two, with each question focused on one decision. Do not send a generic questionnaire. Otherwise provide a provisional result.
 
 For genuine scope additions, check the added scope and its boundary with accepted work. Record `Scope delta checked: no material change.` in the plan when clean; update the plan before implementation when material.
+
+When `doc_org.md` activates the local-document profile, read it and `local-docs/INDEX.md` before creating or changing covered documents. Canonical local documents stay in the primary worktree; tracked documentation stays in the repository's established documentation location.
 
 ## Quiet autonomous execution
 
@@ -145,7 +148,7 @@ When AJS asks to apply Gauntlet locally, merge it through a new PR, and then arc
 
 ## Run logs and coverage gaps
 
-For Feature, Release, or Tier 2/3 work with material decisions or exceptions, maintain:
+For Feature, Release, or Tier 2/3 work with material decisions or exceptions, maintain the active profile's canonical run log. Without a local-document profile, use:
 
 ```text
 docs/gauntlet-runs/YYYY-MM-DD-<slug>.md

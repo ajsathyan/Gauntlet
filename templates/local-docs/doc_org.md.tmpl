@@ -1,0 +1,97 @@
+# Document organization
+
+This file governs local product, research, decision, planning, and implementation-history documents for this repository. Read it with `local-docs/INDEX.md` before creating or changing one of those documents.
+
+## Locations
+
+- Primary worktree policy: `doc_org.md`
+- Canonical local documents: `local-docs/`
+- Tracked repository documentation: the repository's existing tracked documentation location, commonly `docs/`
+- Linked implementation worktrees: follow the repository's Git/worktree convention
+
+`doc_org.md` and `local-docs/` are ignored locally. They are not a security boundary.
+
+## Local And Tracked Documentation
+
+Use `local-docs/` for local product working documents, exploratory research, execution prompts, private implementation plans, and local run history.
+
+Documents required by another checkout, contributor, CI process, operator, auditor, or future maintainer belong in the repository's tracked documentation location. This includes public contracts, contributor guidance, durable architectural decisions, operational runbooks, release notes, compliance evidence, and other documentation required to understand or operate the repository.
+
+If an accepted rule is necessary to maintain the software, make it durable through tracked code, tests, a pull request, or tracked documentation. The ignored product history cannot be its only home.
+
+Never put credentials, secret values, private destinations, personal data, or sensitive resource identifiers in either document tree. Refer to settings by name and keep real values in approved configuration and secret-management systems.
+
+## Canonical Local Documents
+
+Canonical local documents live only under the primary worktree's `local-docs/` tree. Linked implementation worktrees contain tracked source, tests, and disposable artifacts. They read canonical local documents from the primary worktree and return durable decisions, exceptions, unresolved gaps, and proof to the main task.
+
+The main task updates canonical documents before a linked worktree is removed. Local-document changes are not committed, merged, or deployed.
+
+## Minimum Useful Questions
+
+Gauntlet's global question discipline applies. For documentation work, ask only when the answer could materially change the document's purpose, audience, scope, authority, organization, acceptance criteria, or another consequential decision. Use existing context first and produce a provisional artifact with explicit safe assumptions when clarification is unnecessary.
+
+## Epic Organization
+
+This project uses prefix `{{EPIC_PREFIX}}`. Accepted epics receive stable three-digit numbers such as `{{EPIC_PREFIX}}-001`. Existing repository or issue-tracker identifiers remain canonical when project policy says so; record the local epic ID as an alias rather than replacing them.
+
+```text
+local-docs/
+  INDEX.md
+  epics/
+    001/
+      001_EXAMPLE_PRD.md
+      prompts/
+      research/
+      decisions/
+      runs/
+  research/
+```
+
+Do not assign an epic number to unowned research or a small addition already owned by an existing epic. Never renumber an accepted epic because its title, order, or implementation changed.
+
+## Document Roles
+
+- A PRD owns accepted user-facing behavior and acceptance.
+- Research preserves evidence, contradictions, uncertainty, and deferred investigation. Research does not authorize implementation.
+- A decision record preserves a durable choice whose reasoning would otherwise be lost.
+- An implementation plan directs one accepted run. It does not own new product requirements.
+- A run log preserves material decisions, exceptions, proof limits, and unresolved gaps.
+
+Keep these roles distinct and link them rather than copying their content.
+
+## Configuration, Secrets, And Constants
+
+Every PRD states what behavior must be configurable, who controls it, and which secret or private-data classes are involved. Every build-ready implementation plan inventories values likely to be externalized and classifies each as a secret, environment configuration, user or operator setting, feature flag, derived value, or stable code constant.
+
+Never hardcode secrets, credentials, private resource identifiers, environment-specific endpoints, deployment identifiers, or values that legitimately vary by environment or operator. Store production secrets in the project's approved secret-management system and non-secret environment values in the project's validated configuration mechanism.
+
+Stable product rules, protocol constants, enum values, legal state transitions, and safe defaults may remain in code when they are typed, reviewed, and tested. Do not turn stable behavior into mutable environment configuration without a real operator or deployment need.
+
+## Git Traceability
+
+Git owns exact implementation history. When the local epic ID is the project's chosen work identifier, use it consistently in branches and pull-request descriptions. Follow the repository's commit convention; do not force epic scopes where they conflict. Tests should describe behavior and use requirement IDs only when the repository already follows that convention.
+
+Each pull request records the work identifier, accepted scope, dependencies, proof, rollout, rollback, and unresolved risk. It must not depend on a link to an ignored local document.
+
+Workers own bounded implementation and proof. The main task owns user decisions, canonical-document updates, integration, pull-request sequencing, merges, and production release decisions.
+
+## Implementation And Release Contract
+
+This is the single reusable release contract for local documents. PRDs do not copy it. Build-ready plans reference it and resolve their implementation-specific fields.
+
+1. Use a dedicated branch and an isolated worktree when Gauntlet or repository policy requires one.
+2. Delegate only independent workstreams with separate ownership, state, and proof paths.
+3. Continue autonomously through reversible, in-scope, authorized work. Stop for a material decision, missing authority, unsafe side effect, preservation risk, or unavailable required proof.
+4. The main task integrates work and runs changed-surface proof before proposing merge.
+5. Opening a pull request does not authorize merge. Merge only with explicit merge authority and after required checks and review.
+6. Deployment requires production authority. Release an exact verified revision or artifact derived from `main`, following the repository's staged, multi-service, GitOps, canary, or other approved topology.
+7. Record non-secret release evidence and follow the accepted rollback path when verification fails.
+8. Update `local-docs/INDEX.md` and the owning epic from the primary worktree with durable decisions, PRs, release status, proof, and unresolved gaps.
+9. Remove disposable worktrees only after Git preserves all implementation work and canonical local documents preserve every material local update.
+
+A material change to this contract invalidates an active implementation plan until its resolved release section is reviewed.
+
+## Future Tasks
+
+Tell planning and implementation tasks to read `doc_org.md` and `local-docs/INDEX.md`, keep canonical local documents in the primary worktree, use the owning stable epic, and follow the implementation and release contract only when implementation is authorized.
