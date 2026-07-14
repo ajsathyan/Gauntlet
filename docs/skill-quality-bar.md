@@ -23,6 +23,17 @@ Run this cheap check for every meaningful skill or workflow-guidance change. It 
 
 If a proposed skill change cannot pass the baseline bar, rewrite it before adding more process.
 
+## Efficiency, Assignment, And Drift Pass
+
+Before finalizing a skill or skill-like workflow, ask:
+
+- **Is this cache-hit friendly in every step?** Review each repeated or delegated context handoff. Keep stable instructions first, preserve canonical order and whitespace, and move volatile values to the end. Treat cache reuse as an optimization; report `Cannot verify` unless the host exposes cache telemetry.
+- **Are there ways to improve token efficiency?** Remove no-ops and duplicated context, disclose branch-specific reference material only when needed, use deterministic scripts for repeated mechanics, and pass artifacts or bounded source slices instead of replaying history.
+- **Is this being assigned to the right custom agent?** Ask only when the skill delegates. Classify the Ticket through `scripts/route-codex-agent.py`, verify the started profile against `docs/custom-agent-routing.md`, and keep the work in the parent when delegation does not beat its context cost.
+- **How should this skill be structured to avoid response drift from its instructions?** Give each branch one clear path, co-locate rules with the step they govern, end steps with checkable completion criteria, and keep one authoritative copy of each instruction. Use a schema, deterministic guard, or negative canary when prose alone cannot reliably constrain the output.
+
+Complete this pass when the skill reflects every material improvement or the unchanged choice is supported by an existing control. Do not add a user-facing checklist or a permanent no-op field merely to record that the questions were asked.
+
 ## Escalation Bar
 
 Use this section only when the work is high-impact: new Gauntlet role skills, major workflow changes, Release guidance, repeated failures, eval infrastructure, or user-approved Deep work. These checks can spend meaningful tokens, so they must name their trigger, cap, artifact, and exit condition.
