@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,7 @@ from thread_titles import parse_thread_title
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 CHECKER = SCRIPTS / "check-workflow-etiquette.py"
+LOCAL_DOC_TEMPLATES = ROOT / "templates" / "local-docs"
 STATUS_ORDER = {"pass": 0, "warn": 1, "review": 2, "fail": 3}
 EXIT_CODES = {"pass": 0, "warn": 0, "review": 2, "fail": 1}
 DEFERRED_AGENT_ACTIONS = {
@@ -216,6 +218,340 @@ def git_root(repo):
     if result.returncode != 0:
         return ""
     return result.stdout.strip()
+
+
+def parse_worktree_roots(project_root):
+    result = git(["worktree", "list", "--porcelain"], project_root)
+    if result.returncode != 0:
+        raise RuntimeError(f"Cannot list repository worktrees:\n{result.stderr.strip()}")
+    roots = []
+    for line in result.stdout.splitlines():
+        if line.startswith("worktree "):
+            roots.append(Path(line.removeprefix("worktree ")).resolve())
+    if not roots:
+        raise RuntimeError("Git did not report a primary worktree.")
+    return roots
+
+
+def local_docs_context(project_root):
+    supplied = Path(project_root).expanduser().resolve()
+    repository = git_root(supplied)
+    if not repository:
+        raise RuntimeError(f"Not a Git worktree: {supplied}")
+    worktrees = parse_worktree_roots(repository)
+    primary = worktrees[0]
+    exclude_result = git(["rev-parse", "--git-path", "info/exclude"], primary)
+    if exclude_result.returncode != 0:
+        raise RuntimeError(f"Cannot resolve the local Git exclude file:\n{exclude_result.stderr.strip()}")
+    exclude = Path(exclude_result.stdout.strip())
+    if not exclude.is_absolute():
+        exclude = (primary / exclude).resolve()
+    return {
+        "requestedRoot": supplied,
+        "primaryRoot": primary,
+        "worktrees": worktrees,
+        "policyPath": primary / "doc_org.md",
+        "docsRoot": primary / "local-docs",
+        "indexPath": primary / "local-docs" / "INDEX.md",
+        "excludePath": exclude,
+    }
+
+
+def tracked_local_doc_paths(primary):
+    result = git(["ls-files", "--", "doc_org.md", "local-docs"], primary)
+    if result.returncode != 0:
+        raise RuntimeError(f"Cannot inspect tracked local-document paths:\n{result.stderr.strip()}")
+    return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def local_docs_path_findings(context):
+    findings = []
+    for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]:
+        if path.is_symlink():
+            findings.append({
+                "code": "local_document_symlink",
+                "severity": "fail",
+                "message": f"Canonical local-document paths must not be symlinks: {path}",
+            })
+    if context["policyPath"].exists() and not context["policyPath"].is_file():
+        findings.append({"code": "invalid_doc_org_path", "severity": "fail", "message": f"Policy path is not a file: {context['policyPath']}"})
+    if context["docsRoot"].exists() and not context["docsRoot"].is_dir():
+        findings.append({"code": "invalid_local_docs_path", "severity": "fail", "message": f"Local document root is not a directory: {context['docsRoot']}"})
+    if context["indexPath"].exists() and not context["indexPath"].is_file():
+        findings.append({"code": "invalid_local_docs_index", "severity": "fail", "message": f"Local document index is not a file: {context['indexPath']}"})
+    return findings
+
+
+def render_local_doc_template(name, replacements):
+    path = LOCAL_DOC_TEMPLATES / name
+    if not path.exists():
+        raise RuntimeError(f"Gauntlet local-document template is missing: {path}")
+    rendered = path.read_text(encoding="utf-8")
+    for key, value in replacements.items():
+        rendered = rendered.replace("{{" + key + "}}", str(value))
+    unresolved = re.findall(r"\{\{[A-Z0-9_]+\}\}", rendered)
+    if unresolved:
+        raise RuntimeError(f"Template {name} has unresolved placeholders: {', '.join(sorted(set(unresolved)))}")
+    return rendered
+
+
+def write_new_file(path, content):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    fd = os.open(path, flags, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(content)
+
+
+def atomic_write_text(path, content, mode=0o600):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing_mode = path.stat().st_mode & 0o777 if path.exists() else mode
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary_path = Path(temporary)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+        os.chmod(temporary_path, existing_mode)
+        os.replace(temporary_path, path)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
+
+
+def ensure_local_excludes(exclude_path, dry_run=False):
+    required = ["/doc_org.md", "/local-docs/"]
+    existing = exclude_path.read_text(encoding="utf-8") if exclude_path.exists() else ""
+    lines = {line.strip() for line in existing.splitlines()}
+    missing = [entry for entry in required if entry not in lines]
+    if missing and not dry_run:
+        exclude_path.parent.mkdir(parents=True, exist_ok=True)
+        prefix = existing
+        if prefix and not prefix.endswith("\n"):
+            prefix += "\n"
+        atomic_write_text(exclude_path, prefix + "\n".join(missing) + "\n", mode=0o644)
+    return missing
+
+
+def local_docs_payload(args, context, findings, **extra):
+    payload = {
+        "schemaVersion": "1.0",
+        "status": "pass",
+        "primaryRoot": str(context["primaryRoot"]),
+        "policyPath": str(context["policyPath"]),
+        "localDocsRoot": str(context["docsRoot"]),
+        "findings": findings,
+        **extra,
+    }
+    payload["status"] = status_for(payload)
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def command_docs_init(args):
+    context = local_docs_context(args.project_root)
+    tracked = tracked_local_doc_paths(context["primaryRoot"])
+    findings = local_docs_path_findings(context)
+    if tracked:
+        findings.append({
+            "code": "tracked_local_document_collision",
+            "severity": "fail",
+            "message": "Refusing to initialize because local-document paths are already tracked.",
+            "paths": tracked,
+        })
+    if findings:
+        return local_docs_payload(args, context, findings, created=[], preserved=[])
+
+    prefix = args.epic_prefix.upper()
+    if not re.fullmatch(r"[A-Z][A-Z0-9]{1,11}", prefix):
+        findings.append({
+            "code": "invalid_epic_prefix",
+            "severity": "fail",
+            "message": "Epic prefix must be 2-12 uppercase letters or digits and begin with a letter.",
+        })
+        return local_docs_payload(args, context, findings, created=[], preserved=[])
+
+    created = []
+    preserved = []
+    candidates = [
+        (context["policyPath"], "doc_org.md.tmpl"),
+        (context["indexPath"], "INDEX.md.tmpl"),
+    ]
+    rendered = {
+        path: render_local_doc_template(template, {"EPIC_PREFIX": prefix})
+        for path, template in candidates if not path.exists()
+    }
+    if context["indexPath"].exists():
+        existing_prefix = local_epic_prefix(context["indexPath"])
+        if existing_prefix != prefix:
+            findings.append({
+                "code": "epic_prefix_mismatch",
+                "severity": "fail",
+                "message": f"Existing local document index uses epic prefix {existing_prefix}, not {prefix}.",
+            })
+            return local_docs_payload(args, context, findings, created=[], preserved=[])
+
+    missing_excludes = ensure_local_excludes(context["excludePath"], dry_run=args.dry_run)
+    for path, template in candidates:
+        if path.exists():
+            preserved.append(str(path))
+            continue
+        created.append(str(path))
+        if not args.dry_run:
+            write_new_file(path, rendered[path])
+    for directory in [context["docsRoot"] / "epics", context["docsRoot"] / "research"]:
+        if directory.exists():
+            preserved.append(str(directory))
+        else:
+            created.append(str(directory))
+            if not args.dry_run:
+                directory.mkdir(parents=True, exist_ok=False)
+
+    if missing_excludes:
+        findings.append({
+            "code": "local_excludes_added" if not args.dry_run else "local_excludes_planned",
+            "severity": "pass",
+            "message": "Local Git exclusions protect the canonical local-document paths.",
+            "patterns": missing_excludes,
+        })
+    return local_docs_payload(
+        args,
+        context,
+        findings,
+        epicPrefix=prefix,
+        dryRun=args.dry_run,
+        created=created,
+        preserved=preserved,
+        excludePath=str(context["excludePath"]),
+    )
+
+
+def command_docs_check(args):
+    context = local_docs_context(args.project_root)
+    findings = local_docs_path_findings(context)
+    tracked = tracked_local_doc_paths(context["primaryRoot"])
+    if tracked:
+        findings.append({
+            "code": "tracked_local_document_collision",
+            "severity": "fail",
+            "message": "Local-document paths must not be tracked.",
+            "paths": tracked,
+        })
+    for key, code in [("policyPath", "missing_doc_org"), ("indexPath", "missing_local_docs_index")]:
+        if not context[key].is_file():
+            findings.append({"code": code, "severity": "fail", "message": f"Missing {context[key]}"})
+    for relative in ["doc_org.md", "local-docs/INDEX.md"]:
+        ignored = git(["check-ignore", "-q", "--", relative], context["primaryRoot"])
+        if ignored.returncode != 0:
+            findings.append({
+                "code": "local_document_not_ignored",
+                "severity": "fail",
+                "message": f"Canonical local path is not ignored: {relative}",
+            })
+    duplicates = []
+    for worktree in context["worktrees"][1:]:
+        for relative in ["doc_org.md", "local-docs"]:
+            candidate = worktree / relative
+            if candidate.exists():
+                duplicates.append(str(candidate))
+    if duplicates:
+        findings.append({
+            "code": "linked_worktree_canonical_copy",
+            "severity": "fail",
+            "message": "Linked worktrees contain alternate canonical local-document paths.",
+            "paths": duplicates,
+        })
+    return local_docs_payload(args, context, findings, checked=True)
+
+
+def local_epic_prefix(index_path):
+    if not index_path.is_file():
+        raise RuntimeError(f"Local document index does not exist: {index_path}")
+    match = re.search(r"^Epic prefix:\s*`([^`]+)`\s*$", index_path.read_text(encoding="utf-8"), re.MULTILINE)
+    if not match:
+        raise RuntimeError(f"Local document index does not declare an epic prefix: {index_path}")
+    return match.group(1)
+
+
+def epic_title_slug(title):
+    slug = re.sub(r"[^A-Z0-9]+", "_", title.upper()).strip("_")
+    return slug[:64] or "UNTITLED"
+
+
+def valid_epic_title(title):
+    return bool(title.strip()) and len(title) <= 120 and "\n" not in title and "\r" not in title and "|" not in title
+
+
+def command_docs_epic_create(args):
+    context = local_docs_context(args.project_root)
+    findings = local_docs_path_findings(context)
+    tracked = tracked_local_doc_paths(context["primaryRoot"])
+    if tracked:
+        findings.append({
+            "code": "tracked_local_document_collision",
+            "severity": "fail",
+            "message": "Refusing to create an epic while local-document paths are tracked.",
+            "paths": tracked,
+        })
+    if findings:
+        return local_docs_payload(args, context, findings)
+    for key, code in [("policyPath", "missing_doc_org"), ("indexPath", "missing_local_docs_index")]:
+        if not context[key].is_file():
+            findings.append({"code": code, "severity": "fail", "message": f"Missing {context[key]}"})
+    for relative in ["doc_org.md", "local-docs/INDEX.md"]:
+        if git(["check-ignore", "-q", "--", relative], context["primaryRoot"]).returncode != 0:
+            findings.append({"code": "local_document_not_ignored", "severity": "fail", "message": f"Canonical local path is not ignored: {relative}"})
+    if findings:
+        return local_docs_payload(args, context, findings)
+    if not valid_epic_title(args.title):
+        findings.append({
+            "code": "invalid_epic_title",
+            "severity": "fail",
+            "message": "Epic title must be one non-empty line, at most 120 characters, without a table separator.",
+        })
+        return local_docs_payload(args, context, findings)
+    prefix = local_epic_prefix(context["indexPath"])
+    if not re.fullmatch(r"[A-Z][A-Z0-9]{1,11}", prefix):
+        raise RuntimeError(f"Local document index has an invalid epic prefix: {prefix}")
+    epics_root = context["docsRoot"] / "epics"
+    existing = sorted(
+        int(path.name) for path in epics_root.iterdir()
+        if path.is_dir() and re.fullmatch(r"\d{3}", path.name)
+    ) if epics_root.exists() else []
+    number = args.number if args.number is not None else ((existing[-1] + 1) if existing else 1)
+    if number < 1 or number > 999:
+        findings.append({"code": "invalid_epic_number", "severity": "fail", "message": "Epic number must be between 001 and 999."})
+        return local_docs_payload(args, context, findings)
+    sequence = f"{number:03d}"
+    epic_root = epics_root / sequence
+    if epic_root.exists():
+        findings.append({"code": "epic_exists", "severity": "fail", "message": f"Epic folder already exists: {epic_root}"})
+        return local_docs_payload(args, context, findings)
+
+    index_text = context["indexPath"].read_text(encoding="utf-8")
+    marker = "<!-- EPICS -->"
+    if marker not in index_text:
+        raise RuntimeError(f"Local document index is missing its epic insertion marker: {context['indexPath']}")
+    date = datetime.now().astimezone().date().isoformat()
+    epic_id = f"{prefix}-{sequence}"
+    prd_name = f"{sequence}_{epic_title_slug(args.title)}_PRD.md"
+    prd_path = epic_root / prd_name
+    try:
+        epic_root.mkdir(parents=True)
+        for child in ["prompts", "research", "decisions", "runs"]:
+            (epic_root / child).mkdir()
+        write_new_file(prd_path, render_local_doc_template("EPIC_PRD.md.tmpl", {
+            "EPIC_ID": epic_id,
+            "TITLE": args.title,
+            "DATE": date,
+        }))
+        relative = prd_path.relative_to(context["docsRoot"])
+        row = f"| `{epic_id}` | [{args.title}]({relative.as_posix()}) | PRD | Proposed | {date} | None | None | Not implemented | Not verified |\n"
+        atomic_write_text(context["indexPath"], index_text.replace(marker, row + marker, 1))
+    except Exception:
+        if epic_root.exists():
+            shutil.rmtree(epic_root)
+        raise
+    return local_docs_payload(args, context, findings, epicId=epic_id, epicRoot=str(epic_root), prdPath=str(prd_path))
 
 
 def payload_key_is_sensitive(key):
@@ -2408,6 +2744,8 @@ def command_install_verify(args):
     require(agent_home / "gauntlet" / "router" / "response-style.md", "missing_response_style_source")
     require(agent_home / "gauntlet" / "scripts" / "check-gauntlet-workflow.py", "missing_installed_workflow_check")
     require(agent_home / "gauntlet" / "scripts" / "gauntlet.py", "missing_installed_gauntlet_cli")
+    require(agent_home / "gauntlet" / "docs" / "local-documentation.md", "missing_local_documentation_policy")
+    require(agent_home / "gauntlet" / "templates" / "local-docs" / "doc_org.md.tmpl", "missing_local_document_template")
     require(agent_home / "skills", "missing_installed_skills")
 
     installed_router = agent_home / "gauntlet" / "AGENTS.md"
@@ -2525,6 +2863,27 @@ def build_parser():
     install_verify.add_argument("--agent-home", required=True)
     install_verify.add_argument("--json", action="store_true")
     install_verify.set_defaults(func=command_install_verify)
+
+    docs = subcommands.add_parser("docs", help="Initialize and inspect canonical local product documents.")
+    docs_subcommands = docs.add_subparsers(dest="docs_command", required=True)
+    docs_init = docs_subcommands.add_parser("init")
+    docs_init.add_argument("--project-root", type=Path, default=Path.cwd())
+    docs_init.add_argument("--epic-prefix", required=True)
+    docs_init.add_argument("--dry-run", action="store_true")
+    docs_init.add_argument("--json", action="store_true")
+    docs_init.set_defaults(func=command_docs_init)
+    docs_check = docs_subcommands.add_parser("check")
+    docs_check.add_argument("--project-root", type=Path, default=Path.cwd())
+    docs_check.add_argument("--json", action="store_true")
+    docs_check.set_defaults(func=command_docs_check)
+    docs_epic = docs_subcommands.add_parser("epic")
+    docs_epic_subcommands = docs_epic.add_subparsers(dest="docs_epic_command", required=True)
+    docs_epic_create = docs_epic_subcommands.add_parser("create")
+    docs_epic_create.add_argument("--project-root", type=Path, default=Path.cwd())
+    docs_epic_create.add_argument("--title", required=True)
+    docs_epic_create.add_argument("--number", type=int, default=None)
+    docs_epic_create.add_argument("--json", action="store_true")
+    docs_epic_create.set_defaults(func=command_docs_epic_create)
 
     followup = subcommands.add_parser("followup", help="Follow-up helpers.")
     followup_subcommands = followup.add_subparsers(dest="followup_command", required=True)

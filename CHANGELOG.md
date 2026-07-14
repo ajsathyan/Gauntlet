@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now offers an opt-in `local-docs/` profile with stable epic scaffolding, primary-worktree canonical documents, tracked-document boundaries, one release contract, configuration and secret classification, and a global three-question discipline shared by every skill.
+
 - Gauntlet now includes `craft-product-terminology` for naming public product concepts and internal system pieces from their actual responsibilities and boundaries.
 
 - Gauntlet now ships one Codex and Claude Code plugin bundle from its shared skills tree, adds the `craft-customer-email` workflow, namespaces the vendored eval suite under `eval-`, and limits intake to three high-value questions.

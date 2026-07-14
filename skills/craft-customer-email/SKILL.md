@@ -11,7 +11,7 @@ Write for the decision or understanding the reader needs after opening the messa
 
 Draft immediately when the supplied material establishes enough context to make a grounded recommendation.
 
-When information is missing, ask at most three short questions whose answers would change the composition mode, conclusion, requested behavior, timing, severity, or trusted evidence. Apply the 80/20 rule: ask only for the few missing facts most likely to change the draft. Infer the rest from the current context and established conventions. State material uncertainty instead of extending intake with low-value questions.
+For this skill, a question is consequential when its answer could change the composition mode, conclusion, requested behavior, timing, severity, or trusted evidence.
 
 Useful questions include:
 

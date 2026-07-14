@@ -54,7 +54,9 @@ Priorities are consequence-based: p0 for material Release harm, p1 for substanti
 
 ## Intake And Planning
 
-Before substantial implementation, establish the goal, scope, non-goals, affected interfaces, acceptance criteria, proof, constraints, and material assumptions. Ask no more than three short questions in one turn. Apply the 80/20 rule: ask only for missing facts most likely to change product behavior, risk, acceptance, or the recommendation. Infer the rest from the current context and established domain conventions. Give the most concrete, well-supported recommendation the available evidence allows, and state material uncertainty instead of extending intake with low-value questions.
+Before substantial implementation, establish the goal, scope, non-goals, affected interfaces, acceptance criteria, proof, constraints, and material assumptions.
+
+Use an 80/20 question rule across every Gauntlet skill. Start from existing context and make safe assumptions explicit. Ask only when the answer could materially change the result, scope, acceptance, authority, risk, cost, or external effect. When clarification is necessary, ask at most three short questions in one message, preferably one or two, with each question focused on one decision. Do not send a generic questionnaire. Otherwise provide a provisional result.
 
 Use the relevant installed Gauntlet skill from `{{AGENT_HOME}}/skills/<skill>/SKILL.md` when its trigger applies. The core roles are:
 
@@ -81,6 +83,8 @@ When product work introduces or changes names for public concepts or the interna
 Create every Gauntlet-owned skill under the source repository's `skills/` directory. The Codex and Claude Code plugins bundle that directory automatically; do not create a separate installed copy as the source of truth.
 
 Stop planning when the first coherent build step and its proof path are clear. Do not create redundant specs, plans, packets, or reports.
+
+When a repository has an active `doc_org.md`, read it and its local document index before creating or changing product, research, decision, planning, or run-log documents. Keep ignored canonical documents in the primary worktree and tracked repository documentation in the repository's established public or maintainer-facing location.
 
 ## Implementation And Proof
 

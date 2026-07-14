@@ -9,6 +9,7 @@
 - Produces: expiry check and regression test
 - Implementation outline: inspect route, add failing test, implement check, verify
 - Proof: targeted invite test plus workflow smoke
+- Configuration and secret handling: expiry duration comes from validated existing config; no secret values enter the plan
 - Cannot verify: production legacy invite policy
 - Done when: expired invite test fails before fix and passes after
 - Review target: deep-code-reviewer

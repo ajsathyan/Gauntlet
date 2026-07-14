@@ -9,6 +9,8 @@ This map prevents the compact global router from becoming a silent rule deletion
 | Depth | Keep + move | Use Deep only when search value or consequence earns it. | `docs/skill-quality-bar.md`, reviewer skills |
 | Proof Scope | Keep + move | Prove the changed behavior; widen proof only when triggered. | Role skills and `docs/production-quality-bar.md` |
 | Workflow Etiquette | Keep + move | Ask only material questions; otherwise execute autonomously and quietly. | `docs/workflow-etiquette.md` |
+| Minimum useful questions | Keep + move | Every skill uses existing context, asks at most three short single-decision questions only when the answer is consequential, and otherwise provides a provisional result. | `docs/workflow-etiquette.md` |
+| Local product documents | Add + move | An active `doc_org.md` keeps ignored canonical working documents in the primary worktree while preserving tracked repository documentation and the existing Gauntlet lifecycle. | `docs/local-documentation.md` and relevant role skills |
 | Priority/title mechanics | Move | Classification is internal unless it changes scope, cost, authority, proof, or a user decision. | `docs/workflow-etiquette.md` |
 | Edge-case and scope-delta foresight | Keep + move | Resolve material edge cases and additions before implementation. | `intake`, `planner`, `docs/workflow-etiquette.md` |
 | Git Discipline | Keep + move | Preserve dirty work, branch/worktree broad changes, use PRs as proof bundles. | Repository `AGENTS.md`, `docs/github-discipline.md` |

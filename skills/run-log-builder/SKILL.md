@@ -5,7 +5,7 @@ description: Use when Feature or Release work needs an exceptions-first Markdown
 
 # Run Log Builder
 
-Create or update durable repo memory, not a report. Default path:
+Create or update durable memory, not a report. When an active `doc_org.md` assigns the run to an epic, use its primary-worktree `local-docs/epics/NNN/runs/` location. Otherwise the default tracked path is:
 
 `docs/gauntlet-runs/YYYY-MM-DD-<slug>.md`
 

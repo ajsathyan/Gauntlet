@@ -31,3 +31,4 @@ If research is outside scope, return `Not relevant because...`.
 - Separate source claims, local observations, and your inferences.
 - Stop when the question is answered to the required confidence or the remaining gap is explicitly Cannot verify.
 - Do not create an implementation plan unless the user asks for one or accepts a change direction.
+- When research is persisted under an active `doc_org.md`, keep observations and evidence in the canonical primary-worktree document and move only accepted behavior into the owning PRD.

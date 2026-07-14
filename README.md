@@ -55,6 +55,7 @@ The workflow is built around Research, Patch, Feature, and Release paths; Standa
 | Product-thinking loop | Shapes rough asks into coherent product features before implementation and checks consistency after. |
 | Scoped role skills | Adds product architecture, planning, triage, implementation, black-box testing, experience review, and deep code review only at smoke, delta, or full scope when useful. |
 | Run logs | Writes a tiny exceptions-first Markdown receipt for material Feature/Release work: assumptions, decisions, skipped checks, failures, `Cannot verify`, and follow-ups. |
+| Local product documents | Optionally scaffolds ignored `local-docs/` in the primary worktree while preserving tracked repository documentation and Git/PR/release traceability. |
 | Skill quality bar | Gives future skill and workflow edits a practical behavior-delta, trigger, completion, proof, and token-cost bar without making every Patch heavier. |
 | Coverage gaps | Captures pending candidates when missing reusable guidance forced a material assumption or repeated review finding. |
 | Workflow speedup helpers | Classifies changed surfaces, recommends bounded tests, and generates redacted review packets without making every Patch run a heavy quality gate. |
@@ -129,6 +130,20 @@ The run log is exceptions-first. It records only what future agents would regret
 - For Release, a compact proof summary or launch cut line when it affects risk.
 
 Routine successful checks stay in the final chat summary. The run log should feel like a receipt, not a project report.
+
+## Local Product Documents
+
+Projects that need private local PRDs, research, decisions, plans, or run history can initialize an opt-in profile:
+
+```sh
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs init \
+  --project-root "$PROJECT_ROOT" \
+  --epic-prefix PROJECT
+```
+
+The profile creates ignored `doc_org.md` and `local-docs/` paths in the primary worktree through Git's local exclude file. It never repurposes or ignores the repository's tracked `docs/` directory. Linked implementation worktrees read the primary copies and return durable updates to the main task.
+
+`doc_org.md` owns one release contract; PRDs record product constraints, and build-ready plans resolve authority, proof, rollout, rollback, and release-source details without copying the general procedure. See [docs/local-documentation.md](docs/local-documentation.md).
 
 ## 🧰 Skill Quality Bar
 
@@ -325,6 +340,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [skills/eval-validate-evaluator/SKILL.md](skills/eval-validate-evaluator/SKILL.md) | Calibrates an LLM judge against human labels. |
 | [docs/upstream-superpowers.md](docs/upstream-superpowers.md) | Attributes adapted techniques and explains selective upstream update review and runtime retirement. |
 | [docs/upstream-eval-skills.md](docs/upstream-eval-skills.md) | Records the vendored eval-skill source, namespace mapping, update procedure, and license location. |
+| [docs/local-documentation.md](docs/local-documentation.md) | Defines the opt-in ignored local-document profile, tracked/private boundary, canonical primary-worktree rule, and release/configuration contracts. |
 | [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
 | [docs/github-discipline.md](docs/github-discipline.md) | Beginner-friendly branch, worktree, commit, PR, merge, child-chat, and solo-builder defaults. |
 | [docs/ui-constitution.md](docs/ui-constitution.md) | Bounded frontend quality gate for prototypes and product UI. |
@@ -333,6 +349,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [docs/promotion-scanner.md](docs/promotion-scanner.md) | Trigger policy and gap-routing guidance for promotion scans. |
 | [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
 | [scripts/gauntlet.py](scripts/gauntlet.py) | Deterministic CLI for guarded one-command closeout, merge/archive actions, analytics, install verification, follow-up packets, compatibility memory linting, and PR/changelog drafts. |
+| [templates/local-docs/](templates/local-docs) | Scaffolds `doc_org.md`, the local index, epic PRDs, research, decisions, implementation plans, and run logs. |
 | [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals with instruction-conflict preflight and conflict-aware Codex response defaults. |
 | [scripts/classify-ts-durability.sh](scripts/classify-ts-durability.sh) | Classifies whether TypeScript durability standards are required for the current work. |
 | [scripts/diff-intel.py](scripts/diff-intel.py) | Writes advisory changed-file, package-root, risk-trigger, dirty-worktree, confidence, and `Cannot verify` intel. |
@@ -373,6 +390,7 @@ Selected techniques are adapted from Jesse Vincent's [Superpowers](https://githu
 | [AGENTS.md](AGENTS.md) | Contributor guidance for this repository. |
 | [skills/](skills) | Role-specific reusable instructions. |
 | [docs/](docs) | Coverage gaps, UI constitution, Production Quality Bar, workflow speedups, promotion scanner, design lint candidates, and historical plans. |
+| [templates/](templates) | Reusable downstream scaffolds, including the opt-in local product-document profile. |
 | [scripts/](scripts) | Installer, durability classifier, workflow speedup helpers, workflow checks, skill evals, and skill linter. |
 | [evals/](evals) | Skill coverage, scorer-smoke, orchestration-trace fixtures, and baselines. |
 | [LICENSE](LICENSE) | MIT license. |

@@ -38,8 +38,8 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 
 ## Rules
 
-- Ask up to five questions; for minor gaps, make an assumption and record it.
 - Keep intake in the conversation or canonical plan. Do not create a second permanent intake artifact unless the user explicitly asks for a spec document.
+- When an active `doc_org.md` makes a local artifact canonical, use that location without creating a second intake or plan.
 - Research intake bounds the question, evidence, freshness, and consequence; it does not force a Patch, Feature, or Release mode before implementation exists.
 - For optimization, security, reliability, or audit work, separate scope from depth and clarify whether the user wants an acceptable improvement or the best improvement worth searching for when cost changes.
 - For follow-ups, run delta intake: changed assumptions, new acceptance criteria, and new proof.
