@@ -4307,6 +4307,7 @@ def test_subagent_orchestration_v2_behavior():
         "test-subagent-orchestration.py",
         "test-eval-task.py",
         "test-eval-run.py",
+        "test-eval-harness.py",
     ]:
         result = run(["python3", str(SCRIPTS / script)], check=False)
         if result.returncode != 0:
@@ -4320,6 +4321,7 @@ def test_subagent_orchestration_v2_behavior():
         read(ROOT / "docs" / "generated-context.md"),
         read(ROOT / "docs" / "evaluation-tasks.md"),
         read(ROOT / "docs" / "evaluation-protocol.md"),
+        read(ROOT / "docs" / "evaluation-harnesses.md"),
     ])
     for marker in [
         "human-readable sources",
@@ -4330,6 +4332,7 @@ def test_subagent_orchestration_v2_behavior():
         "multi-Ticket lane",
         "cheap current-liveness probe",
         "replaceable",
+        "same harness and harness version",
     ]:
         assert_contains(combined, marker, "durable orchestration architecture")
 

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "adapters": {
+    "direct-reference": {
+      "kind": "native",
+      "command": [
+        "{{PYTHON_EXECUTABLE}}",
+        "{{GAUNTLET_ROOT}}/scripts/eval-harness.py",
+        "adapter",
+        "--manifest",
+        "{{HARNESS_MANIFEST}}",
+        "--tasks",
+        "{{TRUSTED_TASK_REGISTRY}}",
+        "--workspace-root",
+        "{{ISOLATED_WORKSPACE_ROOT}}",
+        "--timeout",
+        "270"
+      ],
+      "timeout_seconds": 300,
+      "harness_cell": {
+        "harness": "{{HARNESS_KIND}}",
+        "harness_version": "{{HARNESS_VERSION}}",
+        "model": "{{MODEL}}",
+        "reasoning_effort": {{REASONING_EFFORT_JSON}},
+        "permission_mode": "{{PERMISSION_MODE}}",
+        "resource_profile": "{{RESOURCE_PROFILE}}"
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "harness_id": "codex-cli-{{VERSION}}-{{MODEL}}",
+  "kind": "codex-cli",
+  "executable": ["{{CODEX_EXECUTABLE}}"],
+  "model": "{{MODEL}}",
+  "reasoning_effort": "{{REASONING_EFFORT}}",
+  "permission_mode": "workspace-write",
+  "max_turns": null,
+  "version_pin": "{{VERSION}}",
+  "extra_args": [],
+  "inherit_env": ["OPENAI_API_KEY"],
+  "profiles": {
+    "baseline": {"environment": {"CODEX_HOME": "{{BASELINE_CODEX_HOME}}", "GAUNTLET_EVAL_PROFILE": "baseline"}},
+    "treatment": {"environment": {"CODEX_HOME": "{{TREATMENT_CODEX_HOME}}", "GAUNTLET_EVAL_PROFILE": "treatment"}}
+  },
+  "capabilities": {
+    "single-agent": "required",
+    "custom-profile": "required",
+    "nested-agent": "required",
+    "concurrent-lanes": "required",
+    "resume-interrupt": "required",
+    "permission": "required",
+    "pty": "required",
+    "timeout": "required",
+    "artifact": "required",
+    "telemetry": "required",
+    "failure": "required"
+  }
+}

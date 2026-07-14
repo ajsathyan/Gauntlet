@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "harness_id": "claude-code-{{VERSION}}-{{MODEL}}",
+  "kind": "claude-code",
+  "executable": ["{{CLAUDE_EXECUTABLE}}"],
+  "model": "{{MODEL}}",
+  "reasoning_effort": null,
+  "permission_mode": "acceptEdits",
+  "max_turns": null,
+  "version_pin": "{{VERSION}}",
+  "extra_args": [],
+  "inherit_env": ["ANTHROPIC_API_KEY"],
+  "profiles": {
+    "baseline": {"environment": {"CLAUDE_CONFIG_DIR": "{{BASELINE_CLAUDE_CONFIG_DIR}}", "GAUNTLET_EVAL_PROFILE": "baseline"}},
+    "treatment": {"environment": {"CLAUDE_CONFIG_DIR": "{{TREATMENT_CLAUDE_CONFIG_DIR}}", "GAUNTLET_EVAL_PROFILE": "treatment"}}
+  },
+  "capabilities": {
+    "single-agent": "required",
+    "custom-profile": "required",
+    "nested-agent": "required",
+    "concurrent-lanes": "required",
+    "resume-interrupt": "required",
+    "permission": "required",
+    "pty": "required",
+    "timeout": "required",
+    "artifact": "required",
+    "telemetry": "required",
+    "failure": "required"
+  }
+}

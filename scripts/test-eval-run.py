@@ -6,10 +6,12 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).with_name("eval-run.py")
@@ -66,6 +68,24 @@ def state_digest(character: str) -> str:
     return "sha256:" + character * 64
 
 
+def equivalence_record(native: list[str], wrapped: list[str]) -> dict:
+    comparisons = []
+    for dimension in eval_run.DIMENSIONS:
+        request = eval_run.equivalence_request(dimension)
+        observation = {"dimension": dimension, "observation": request["fixture"]}
+        comparisons.append({"dimension": dimension, "native": observation, "passed": True, "wrapped": observation})
+    return {
+        "comparisons": comparisons,
+        "dimensions": list(eval_run.DIMENSIONS),
+        "mismatches": [],
+        "native_command_digest": eval_run.command_digest(native),
+        "schema_version": 1,
+        "status": "pass",
+        "suite_digest": "sha256:" + eval_run.digest(comparisons),
+        "wrapped_command_digest": eval_run.command_digest(wrapped),
+    }
+
+
 class RunnerFixture:
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -74,16 +94,15 @@ class RunnerFixture:
         self.native = [sys.executable, str(self.adapter)]
         self.wrapped = [sys.executable, str(self.adapter), "--wrapped"]
         self.core = json.loads((SCRIPT.parent.parent / "templates" / "evaluation" / "core-registry.json").read_text())
-        self.conformance = eval_run.conformance(self.native, self.wrapped)
-        assert self.conformance["status"] == "pass"
-        self.adapters = self.adapter_registry(self.native, self.wrapped, self.conformance)
+        self.equivalence = equivalence_record(self.native, self.wrapped)
+        self.adapters = self.adapter_registry(self.native, self.wrapped, self.equivalence)
         self.plan = self.make_plan()
 
     def adapter_registry(self, native: list[str], wrapped: list[str], proof: dict) -> dict:
         return {
             "adapters": {
                 "native": {"command": native, "kind": "native"},
-                "wrapped": {"command": wrapped, "conformance": proof, "kind": "wrapped"},
+                "wrapped": {"command": wrapped, "equivalence": proof, "kind": "wrapped"},
             },
             "schema_version": 1,
         }
@@ -123,7 +142,16 @@ class RunnerFixture:
         }
 
     def execute(self, plan: dict | None = None, adapters: dict | None = None) -> dict:
-        return eval_run.execute(plan or self.plan, self.core, adapters or self.adapters)
+        registry = adapters or self.adapters
+        proof = next((
+            item.get("equivalence", item.get("conformance"))
+            for item in registry["adapters"].values()
+            if item.get("kind") != "native" and isinstance(item.get("equivalence", item.get("conformance")), dict)
+        ), None)
+        if proof is None:
+            return eval_run.execute(plan or self.plan, self.core, registry)
+        with patch.object(eval_run, "adapter_equivalence", return_value=proof):
+            return eval_run.execute(plan or self.plan, self.core, registry)
 
 
 class EvalRunTests(unittest.TestCase):
@@ -181,7 +209,7 @@ class EvalRunTests(unittest.TestCase):
         gate = self.fixture.root / "gate"
         gate.write_text("fail-once")
         wrapped = [sys.executable, str(self.fixture.adapter), "--wrapped", "--gate", str(gate)]
-        proof = eval_run.conformance(self.fixture.native, wrapped)
+        proof = eval_run.adapter_equivalence(self.fixture.native, wrapped)
         adapters = self.fixture.adapter_registry(self.fixture.native, wrapped, proof)
         run = self.fixture.execute(adapters=adapters)
         invalid = [item for item in run["intention_to_run"] if item["outcome"] == "infrastructure_invalid"]
@@ -227,25 +255,73 @@ class EvalRunTests(unittest.TestCase):
         with self.assertRaisesRegex(eval_run.EvalRunError, "core slots are sealed"):
             self.fixture.execute(plan)
 
-    def test_conformance_detects_each_broken_adapter_dimension(self) -> None:
+    def test_equivalence_detects_each_broken_adapter_dimension(self) -> None:
+        broken = [sys.executable, str(self.fixture.adapter), "--wrapped", "--break-dimension", "permission"]
+        live = eval_run.adapter_equivalence(self.fixture.native, broken)
+        self.assertEqual(live["status"], "fail")
+        self.assertIn("permission", live["mismatches"])
+
         for dimension in eval_run.DIMENSIONS:
             with self.subTest(dimension=dimension):
-                broken = [sys.executable, str(self.fixture.adapter), "--wrapped", "--break-dimension", dimension]
-                result = eval_run.conformance(self.fixture.native, broken)
-                self.assertEqual(result["status"], "fail")
-                self.assertIn(dimension, result["mismatches"])
+                proof = copy.deepcopy(self.fixture.equivalence)
+                index = list(eval_run.DIMENSIONS).index(dimension)
+                proof["comparisons"][index]["wrapped"] = {"dimension": dimension, "observation": {"broken": True}}
+                proof["suite_digest"] = "sha256:" + eval_run.digest(proof["comparisons"])
+                with self.assertRaisesRegex(eval_run.EvalRunError, f"comparison {dimension} did not pass"):
+                    eval_run.validate_equivalence_record(proof, "wrapped")
 
-    def test_optional_external_adapter_requires_matching_conformance(self) -> None:
+    def test_plan_admission_rechecks_live_equivalence(self) -> None:
+        mismatch = copy.deepcopy(self.fixture.equivalence)
+        mismatch["suite_digest"] = "sha256:" + "0" * 64
+        with patch.object(eval_run, "adapter_equivalence", return_value=mismatch):
+            with self.assertRaisesRegex(eval_run.EvalRunError, "failed live A/A equivalence"):
+                eval_run.execute(self.fixture.plan, self.fixture.core, self.fixture.adapters)
+
+    def test_optional_external_adapter_requires_matching_equivalence(self) -> None:
         adapters = copy.deepcopy(self.fixture.adapters)
         adapters["adapters"]["wrapped"]["kind"] = "mastra"
-        del adapters["adapters"]["wrapped"]["conformance"]
-        with self.assertRaisesRegex(eval_run.EvalRunError, "requires passing A/A conformance"):
+        del adapters["adapters"]["wrapped"]["equivalence"]
+        with self.assertRaisesRegex(eval_run.EvalRunError, "requires passing A/A equivalence"):
             self.fixture.execute(adapters=adapters)
 
-    def test_external_adapter_rejects_self_attested_conformance(self) -> None:
+    def test_adapter_environment_passes_provider_auth_names_only(self) -> None:
+        with patch.dict(os.environ, {
+            "OPENAI_API_KEY": "openai-secret", "ANTHROPIC_API_KEY": "anthropic-secret",
+            "UNRELATED_SECRET": "must-not-pass",
+        }, clear=False):
+            environment = eval_run.adapter_environment()
+        self.assertEqual(environment["OPENAI_API_KEY"], "openai-secret")
+        self.assertEqual(environment["ANTHROPIC_API_KEY"], "anthropic-secret")
+        self.assertNotIn("UNRELATED_SECRET", environment)
+
+    def test_adapter_result_rejects_nonfinite_metrics_and_unsafe_artifact_references(self) -> None:
+        adapter = {"command": ["unused"], "timeout_seconds": 1}
+        result = {"artifacts": [], "metrics": {"duration_ms": float("nan")}, "outcome": "pass", "telemetry": {}}
+        with patch.object(eval_run, "run_process", return_value=result):
+            with self.assertRaisesRegex(eval_run.AdapterFailure, "metrics must be numeric"):
+                eval_run.invoke_execution(adapter, {})
+        result = {"artifacts": ["../private"], "metrics": {}, "outcome": "pass", "telemetry": {}}
+        with patch.object(eval_run, "run_process", return_value=result):
+            with self.assertRaisesRegex(eval_run.AdapterFailure, "safe bounded relative"):
+                eval_run.invoke_execution(adapter, {})
+
+    def test_paired_plan_requires_one_matched_harness_model_cell(self) -> None:
         adapters = copy.deepcopy(self.fixture.adapters)
-        proof = adapters["adapters"]["wrapped"]["conformance"]
-        adapters["adapters"]["wrapped"]["conformance"] = {
+        cell = {
+            "harness": "codex-cli", "model": "gpt-test", "permission_mode": "workspace-write",
+            "harness_version": "9.9.0", "reasoning_effort": "medium", "resource_profile": "standard",
+        }
+        adapters["adapters"]["native"]["harness_cell"] = copy.deepcopy(cell)
+        adapters["adapters"]["wrapped"]["harness_cell"] = copy.deepcopy(cell)
+        self.fixture.execute(adapters=adapters)
+        adapters["adapters"]["wrapped"]["harness_cell"]["model"] = "different-model"
+        with self.assertRaisesRegex(eval_run.EvalRunError, "same harness version, model, effort"):
+            self.fixture.execute(adapters=adapters)
+
+    def test_external_adapter_rejects_self_attested_equivalence(self) -> None:
+        adapters = copy.deepcopy(self.fixture.adapters)
+        proof = adapters["adapters"]["wrapped"]["equivalence"]
+        adapters["adapters"]["wrapped"]["equivalence"] = {
             "dimensions": list(eval_run.DIMENSIONS),
             "mismatches": [],
             "native_command_digest": proof["native_command_digest"],
@@ -267,7 +343,7 @@ class EvalRunTests(unittest.TestCase):
 
     def test_adapter_cannot_redefine_canonical_state(self) -> None:
         wrapped = [sys.executable, str(self.fixture.adapter), "--wrapped", "--override-state"]
-        proof = eval_run.conformance(self.fixture.native, wrapped)
+        proof = eval_run.adapter_equivalence(self.fixture.native, wrapped)
         adapters = self.fixture.adapter_registry(self.fixture.native, wrapped, proof)
         run = self.fixture.execute(adapters=adapters)
         treatment = [item for item in run["intention_to_run"] if item["condition_identity"] == "total-package"]

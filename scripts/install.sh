@@ -714,11 +714,13 @@ for required_path in \
   "$AGENT_HOME/gauntlet/docs/generated-context.md" \
   "$AGENT_HOME/gauntlet/docs/evaluation-tasks.md" \
   "$AGENT_HOME/gauntlet/docs/evaluation-protocol.md" \
+  "$AGENT_HOME/gauntlet/docs/evaluation-harnesses.md" \
   "$AGENT_HOME/gauntlet/scripts/gauntlet.py" \
   "$AGENT_HOME/gauntlet/scripts/prd-run.py" \
   "$AGENT_HOME/gauntlet/scripts/generated_context.py" \
   "$AGENT_HOME/gauntlet/scripts/eval-task.py" \
   "$AGENT_HOME/gauntlet/scripts/eval-run.py" \
+  "$AGENT_HOME/gauntlet/scripts/eval-harness.py" \
   "$AGENT_HOME/gauntlet/scripts/install-codex-agents.py" \
   "$AGENT_HOME/gauntlet/scripts/subagent-audit.py" \
   "$AGENT_HOME/gauntlet/scripts/route-codex-agent.py" \
@@ -726,6 +728,10 @@ for required_path in \
   "$AGENT_HOME/gauntlet/templates/generated-context/implementation-v1.md" \
   "$AGENT_HOME/gauntlet/templates/evaluation/core-slots.json" \
   "$AGENT_HOME/gauntlet/templates/evaluation/core-registry.json" \
+  "$AGENT_HOME/gauntlet/templates/evaluation/harnesses/trusted-tasks.json" \
+  "$AGENT_HOME/gauntlet/templates/evaluation/harnesses/adapter-registry.json.tmpl" \
+  "$AGENT_HOME/gauntlet/templates/evaluation/harnesses/codex-cli.json.tmpl" \
+  "$AGENT_HOME/gauntlet/templates/evaluation/harnesses/claude-code.json.tmpl" \
   "$AGENT_HOME/skills/intake/SKILL.md" \
   "$AGENT_HOME/skills/planner/SKILL.md" \
   "$AGENT_HOME/skills/implementer/SKILL.md" \

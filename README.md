@@ -389,7 +389,8 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [scripts/prd-run.py](scripts/prd-run.py) | Creates, validates, resumes, and advances deterministic disk-backed PRD Execution Runs. |
 | [scripts/generated_context.py](scripts/generated_context.py) | Renders versioned bounded machine projections with stable-prefix metadata and adversarial validation. |
 | [scripts/eval-task.py](scripts/eval-task.py) | Admits development evaluation tasks with separate hidden verifiers, cached immutable checks, current liveness, and quarantine. |
-| [scripts/eval-run.py](scripts/eval-run.py) | Records paired executions, state-conditional replay, adapter conformance, total-package and ablation estimands, and sealed core-study state. |
+| [scripts/eval-run.py](scripts/eval-run.py) | Records paired executions, state-conditional replay, adapter equivalence, total-package and ablation estimands, and sealed core-study state. |
+| [scripts/eval-harness.py](scripts/eval-harness.py) | Launches version-pinned Codex CLI or Claude Code study cells, normalizes bounded telemetry, scores through trusted task registries, and checks same-harness/model A/A equivalence. |
 | [evals/skill-evals.json](evals/skill-evals.json) | Pressure scenarios for skill contract coverage. |
 | [evals/scorer-smoke-fixtures.json](evals/scorer-smoke-fixtures.json) | One positive and one negative matcher canary that prove phrase-scorer wiring—not agent behavior. |
 | [evals/orchestration-trace-fixtures.json](evals/orchestration-trace-fixtures.json) | Paired declared trace-field scorer cases, including wrong-outcome, self-attested-proof, different-prose, authority, verbosity, and subjective-judgment canaries. |

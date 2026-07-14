@@ -1,6 +1,6 @@
 # Paired Evaluation Protocol
 
-`scripts/eval-run.py` runs deterministic paired development evaluations, records every launch, replays only independently invalid infrastructure attempts against unchanged state, checks adapter A/A conformance, and reports total-package and matching-ablation estimands. It is Python-stdlib-only.
+`scripts/eval-run.py` runs deterministic paired development evaluations, records every launch, replays only independently invalid infrastructure attempts against unchanged state, checks adapter A/A equivalence, and reports total-package and matching-ablation estimands. It is Python-stdlib-only. `docs/evaluation-harnesses.md` defines the direct Codex CLI and Claude Code launch boundary.
 
 The protocol consumes the task and hidden-oracle contract in `docs/evaluation-tasks.md`: task identity and starting state are versioned, scoring is automatic, implementation failures remain implementation failures, and verifier infrastructure is separately admitted. The runner does not inspect hidden verifier content.
 
@@ -14,6 +14,8 @@ A version 1 plan declares:
 - a condition package and adapter reference;
 - nested repetitions; and
 - cache states in canonical `cold`, `steady` order.
+
+When adapters declare a `harness_cell`, every condition in one paired plan must use the same harness version, model, provider-native reasoning setting, permission mode, and resource profile. Codex CLI and Claude Code or different models run as separate paired plans; cross-harness or cross-model results are not A/A observations.
 
 The baseline package is rejected if it contains a Gauntlet artifact. It may declare native subagent use. Core tasks are rejected. `templates/evaluation/core-registry.json` contains exactly twelve `reserved-undefined` slots and no task identity or task content.
 
@@ -86,18 +88,18 @@ Example report excerpt:
 }
 ```
 
-## Adapter conformance
+## Adapter equivalence
 
-Native and wrapped adapters must produce identical observations for selector behavior, nested-agent behavior, permissions, timeout propagation, artifacts, and telemetry. The conformance command writes the complete comparisons, command digests, and a suite digest. Any wrapped, Mastra, or Harbor adapter used by a plan must carry a structurally complete passing record for every dimension, tied to its exact command and a registered native command. Plan admission reruns the six comparisons and requires the live suite digest to match the record; a self-attested status or command digest is not sufficient.
+Native and wrapped command adapters must produce identical neutral-fixture observations for single-agent execution, custom profiles, nested agents, concurrent lanes, resume and interrupt, permissions, PTY behavior, timeout propagation, artifacts, telemetry, and failures. The adapter-equivalence command writes the complete comparisons, command digests, and a suite digest. Any wrapped, Mastra, or Harbor adapter used by a plan must carry a structurally complete passing record for every dimension, tied to its exact command and a registered native command. Plan admission reruns the comparisons and requires the live suite digest to match the record; a self-attested status or command digest is not sufficient.
 
 ```sh
-python3 scripts/eval-run.py conformance \
+python3 scripts/eval-run.py adapter-equivalence \
   --native-command /trusted/native-command.json \
   --wrapped-command /trusted/wrapped-command.json \
-  --output /trusted/conformance.json
+  --output /trusted/adapter-equivalence.json
 ```
 
-Mastra and Harbor are registry kinds only; neither is bundled, installed, or treated as conformant by declaration. Remaining unknowns require real adapter implementations and isolated A/A runs: their selector equivalence, nested-agent semantics, sandbox/permission translation, timeout cancellation, artifact fidelity, telemetry completeness, and whether their runtimes leak condition labels or mutate canonical state.
+`conformance` remains a compatibility alias. Conformance is the broader standard term for satisfying a contract; A/A equivalence is the more precise name for comparing two paths that are supposed to be behaviorally interchangeable. Direct Codex CLI and Claude Code are separate reference harness cells, not equivalent arms. Mastra and Harbor remain optional wrappers and must pass against the matching direct launcher before use.
 
 ## Proof
 
@@ -107,4 +109,4 @@ Run:
 python3 scripts/test-eval-run.py
 ```
 
-The development-only suite covers full intention-to-run retention, reporting-label swaps, opposing component results, absent-ablation undecidability, task-nested repetitions, invalidity and state-conditional relabeled replay, cache-order balance, cold/steady reports, sealed registry enforcement, all six deliberately broken adapter dimensions, optional-adapter gates, and canonical-state override attempts. It does not define or launch a core task or external trial.
+The development-only suite covers full intention-to-run retention, reporting-label swaps, opposing component results, absent-ablation undecidability, task-nested repetitions, invalidity and state-conditional relabeled replay, cache-order balance, cold/steady reports, sealed registry enforcement, all eleven deliberately broken adapter dimensions, optional-adapter gates, and canonical-state override attempts. It does not define or launch a core task or external trial.
