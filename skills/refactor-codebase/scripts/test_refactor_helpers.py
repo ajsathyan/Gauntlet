@@ -195,7 +195,7 @@ class MeasureLocTests(unittest.TestCase):
             self.assertEqual(payload["categories"]["test"]["nonblankLines"], 2)
             self.assertEqual(payload["categories"]["fixture"]["files"], 1)
             self.assertEqual(payload["categories"]["migration"]["files"], 1)
-            self.assertEqual(payload["categories"]["generated"]["files"], 3)
+            self.assertEqual(payload["categories"]["generated"]["files"], 4)
             self.assertEqual(payload["categories"]["config"]["files"], 2)
 
             current_root = Path(temporary) / "current"
@@ -292,6 +292,18 @@ class MeasureLocTests(unittest.TestCase):
             self.assertEqual(run_script(MEASURE_LOC, "compare", str(saved), str(saved)).returncode, 0)
             self.assertEqual(run_script(MEASURE_LOC, "compare", str(saved), str(saved), "--verify-live").returncode, 2)
 
+    def test_tracked_work_area_output_is_excluded_exactly(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "root"
+            (root / "docs" / "refactor").mkdir(parents=True)
+            (root / "app.py").write_text("x = 1\n", encoding="utf-8")
+            receipt = root / "docs" / "refactor" / "loc.json"
+            self.assertEqual(run_script(MEASURE_LOC, "measure", str(root), "--output", str(receipt)).returncode, 0)
+            result = run_script(MEASURE_LOC, "compare", str(receipt), str(receipt), "--verify-live")
+            self.assertEqual(result.returncode, 0, result.stdout)
+            payload = json.loads(receipt.read_text(encoding="utf-8"))
+            self.assertEqual(payload["receiptExclusions"], ["docs/refactor/loc.json"])
+
     def test_comparison_blocks_vendor_and_unmeasured_extension_transfer(self) -> None:
         for destination in (Path("vendor/core.py"), Path("assets/core.txt")):
             with self.subTest(destination=str(destination)), tempfile.TemporaryDirectory() as temporary:
@@ -309,6 +321,34 @@ class MeasureLocTests(unittest.TestCase):
                 result = run_script(MEASURE_LOC, "compare", str(baseline), str(current))
                 self.assertEqual(result.returncode, 1, result.stdout)
                 self.assertTrue(json.loads(result.stdout)["excludedInventoryChanged"])
+
+    def test_comparison_blocks_hidden_symlink_and_same_loc_dependency_displacement(self) -> None:
+        scenarios = ("hidden", "symlink", "dependency")
+        for scenario in scenarios:
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as temporary:
+                baseline_root = Path(temporary) / "baseline-root"
+                current_root = Path(temporary) / "current-root"
+                (baseline_root / "src").mkdir(parents=True)
+                current_root.mkdir()
+                (baseline_root / "src" / "core.py").write_text("x = 1\n", encoding="utf-8")
+                if scenario == "hidden":
+                    (current_root / ".gauntlet").mkdir()
+                    (current_root / ".gauntlet" / "core.py").write_text("x = 1\n", encoding="utf-8")
+                elif scenario == "symlink":
+                    (current_root / "vendor").mkdir()
+                    external = Path(temporary) / "runtime.py"
+                    external.write_text("x = 1\n", encoding="utf-8")
+                    os.symlink(external, current_root / "vendor" / "core.py")
+                else:
+                    (baseline_root / "package.json").write_text('{"name":"x"}\n', encoding="utf-8")
+                    (current_root / "package.json").write_text('{"dependencies":{"outsourced":"1"}}\n', encoding="utf-8")
+                baseline = Path(temporary) / "baseline.json"
+                current = Path(temporary) / "current.json"
+                self.assertEqual(run_script(MEASURE_LOC, "measure", str(baseline_root), "--output", str(baseline)).returncode, 0)
+                self.assertEqual(run_script(MEASURE_LOC, "measure", str(current_root), "--output", str(current)).returncode, 0)
+                result = run_script(MEASURE_LOC, "compare", str(baseline), str(current))
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertTrue(json.loads(result.stdout)["displacedComplexity"])
 
 
 class ParityLedgerTests(unittest.TestCase):
