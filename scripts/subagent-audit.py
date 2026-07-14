@@ -15,17 +15,17 @@ SELECT t.id, e.parent_thread_id, t.agent_role, t.model, t.reasoning_effort,
        t.agent_nickname, t.source, t.tokens_used, t.cwd, t.created_at_ms, t.updated_at_ms
 FROM threads t
 LEFT JOIN thread_spawn_edges e ON e.child_thread_id = t.id
-WHERE t.agent_role LIKE 'gauntlet-%'
+WHERE t.agent_role GLOB 'gauntlet_*'
 ORDER BY t.created_at_ms, t.id
 """
 EXPECTED = {
-    "gauntlet-fast-reader": ("gpt-5.6-luna", "medium"),
-    "gauntlet-standard-worker": ("gpt-5.6-sol", "medium"),
-    "gauntlet-deep-worker": ("gpt-5.6-sol", "high"),
-    "gauntlet-independent-verifier": ("gpt-5.6-sol", "medium"),
-    "gauntlet-release-integrator": ("gpt-5.6-terra", "high"),
-    "gauntlet-deep-expert-researcher": ("gpt-5.6-sol", "xhigh"),
-    "gauntlet-security-reviewer": ("gpt-5.6-sol", "high"),
+    "gauntlet_fast_reader": ("gpt-5.6-luna", "medium"),
+    "gauntlet_standard_worker": ("gpt-5.6-sol", "medium"),
+    "gauntlet_deep_worker": ("gpt-5.6-sol", "high"),
+    "gauntlet_independent_verifier": ("gpt-5.6-sol", "medium"),
+    "gauntlet_release_integrator": ("gpt-5.6-terra", "high"),
+    "gauntlet_deep_expert_researcher": ("gpt-5.6-sol", "xhigh"),
+    "gauntlet_security_reviewer": ("gpt-5.6-sol", "high"),
 }
 
 

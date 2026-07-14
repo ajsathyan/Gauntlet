@@ -1,4 +1,4 @@
-name = "gauntlet-deep-expert-researcher"
+name = "gauntlet_deep_expert_researcher"
 description = "Deep expert research for niche or high-consequence Gauntlet questions."
 model = "gpt-5.6-sol"
 model_reasoning_effort = "xhigh"

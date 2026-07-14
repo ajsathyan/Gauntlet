@@ -1,4 +1,4 @@
-name = "gauntlet-release-integrator"
+name = "gauntlet_release_integrator"
 description = "Release preparation and integration verification under parent-owned authority."
 model = "gpt-5.6-terra"
 model_reasoning_effort = "high"

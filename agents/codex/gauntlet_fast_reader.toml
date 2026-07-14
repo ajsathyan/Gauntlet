@@ -1,4 +1,4 @@
-name = "gauntlet-fast-reader"
+name = "gauntlet_fast_reader"
 description = "Read-only repository and evidence scanning for bounded Gauntlet tickets."
 model = "gpt-5.6-luna"
 model_reasoning_effort = "medium"
