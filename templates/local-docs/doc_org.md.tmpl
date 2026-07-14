@@ -1,6 +1,6 @@
 # Document organization
 
-This file governs local product, research, decision, planning, and implementation-history documents for this repository. Read it with `local-docs/INDEX.md` before creating or changing one of those documents.
+This file governs local product, research, decision, planning, and implementation-history documents for this repository. The local-document profile is default-on and is materialized lazily when a covered document task needs it. Read this file with `local-docs/INDEX.md` before creating or changing one of those documents.
 
 ## Locations
 
@@ -10,6 +10,8 @@ This file governs local product, research, decision, planning, and implementatio
 - Linked implementation worktrees: follow the repository's Git/worktree convention
 
 `doc_org.md` and `local-docs/` are ignored locally. They are not a security boundary.
+
+To opt this project out of the default profile, run `python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs disable --project-root "$PROJECT_ROOT"`. Gauntlet records the opt-out in the ignored primary-worktree marker `.gauntlet/doc-org.disabled` and never deletes an existing local-document profile. Run `docs enable` before using the profile again.
 
 ## Local And Tracked Documentation
 

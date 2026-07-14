@@ -15,7 +15,7 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 | Release-candidate impact summary | `scripts/gauntlet.py analytics summarize --project-root "$PROJECT_ROOT" --baseline "$BASELINE" --candidate "$CANDIDATE"` |
 | Bounded attempt memory | `scripts/gauntlet.py attempt-memory add --project-root "$PROJECT_ROOT" --run-id "$RUN_ID" --kind proof_failure --fingerprint "$FINGERPRINT" --summary "$SUMMARY"` |
 | PR/changelog draft | `scripts/gauntlet.py changelog pr --accepted-spec "$SPEC_PATH" --plan "$PLAN_PATH" --git-root "$PROJECT_ROOT"` |
-| Local document profile | `scripts/gauntlet.py docs init --project-root "$PROJECT_ROOT" --epic-prefix "$PREFIX"` |
+| Local document profile | `scripts/gauntlet.py docs ensure --project-root "$PROJECT_ROOT" --epic-prefix "$PREFIX"` |
 | Local document check | `scripts/gauntlet.py docs check --project-root "$PROJECT_ROOT"` |
 | Stable local epic | `scripts/gauntlet.py docs epic create --project-root "$PROJECT_ROOT" --title "$TITLE"` |
 | Epic in an existing PRD | Add `--prd "epics/<home>/<file>_PRD.md"` to `docs epic create` |
@@ -33,7 +33,7 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 - Preserve unrelated dirty worktree changes.
 - The accepted spec and canonical plan remain the sources for intent, scope, edge cases, verification expectations, and follow-ups.
 - For PRD-backed work, the PRD is the human source and the generated Ticket Graph is the run plan. Compile only the explicit build-ready target.
-- When `doc_org.md` is active, local canonical documents live in the primary worktree; linked worktrees must not create alternate copies.
+- Unless `.gauntlet/doc-org.disabled` opts the project out, local canonical documents are default-on and live in the primary worktree; linked worktrees must not create alternate copies.
 - `memory lint` and `--implementation-memory` remain deprecated compatibility inputs for one migration window; new work must not create a third intent artifact.
 - Local analytics writes only under `.gauntlet/analytics/` by default, using local salted hashes for repo, branch, file, command, and fingerprint details.
 - Release-candidate summaries require explicit `--baseline` and `--candidate` labels; if either is missing, the helper asks for them instead of guessing.

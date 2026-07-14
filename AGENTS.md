@@ -12,7 +12,7 @@ Gauntlet v2.0.2 is a product-thinking and proof harness for coding agents. This 
 - `docs/meaningful-proof.md`: behavioral claims, observable oracles, evidence boundaries, and delegated proof.
 - `docs/skill-quality-bar.md`: requirements for meaningful skill and workflow changes.
 - `docs/production-quality-bar.md`: bounded launch/hardening checks when production risk triggers them.
-- `docs/local-documentation.md`: opt-in local product-document organization, tracked/private boundaries, and scaffolding behavior.
+- `docs/local-documentation.md`: default-on lazy local product-document organization, explicit project opt-out, tracked/private boundaries, and scaffolding behavior.
 - `docs/prd-execution.md`: PRD terminology, Ticket Graph compilation, durable execution state, scheduling, and end-to-end implementation authority.
 - `docs/custom-agent-routing.md`: deterministic Ticket classification, named Codex profile selection, bounded context, and audit requirements.
 - `scripts/check-gauntlet-workflow.py`: end-to-end workflow regression suite.
@@ -57,7 +57,7 @@ Use an 80/20 question rule across every Gauntlet skill. Start from existing cont
 
 For genuine scope additions, check the added scope and its boundary with accepted work. Update the plan and proof when the addition is material; do not emit a no-op scope phrase when it is clean.
 
-When `doc_org.md` activates the local-document profile, read it and `local-docs/INDEX.md` before creating or changing covered documents. Canonical local documents stay in the primary worktree; tracked documentation stays in the repository's established documentation location.
+Unless the primary worktree contains `.gauntlet/doc-org.disabled`, the global router's default local-document profile applies before creating or changing covered documents; read `doc_org.md` and `local-docs/INDEX.md` after the router materializes it. Canonical local documents stay in the primary worktree; tracked documentation stays in the repository's established documentation location.
 
 An accepted multi-Epic PRD is the human product source. At implementation time, compile only its explicit build-ready target into a Ticket Graph; do not turn proposed, deferred, or materially unresolved work into tickets. Follow `docs/prd-execution.md` for terminology, durable artifacts, resumption, scheduling, and release authority.
 
@@ -166,7 +166,7 @@ When AJS asks to apply Gauntlet locally, merge it through a new PR, and then arc
 
 ## Run logs and coverage gaps
 
-For Feature, Release, or Tier 2/3 work with material decisions or exceptions, maintain the active profile's canonical run log. Without a local-document profile, use:
+For Feature, Release, or Tier 2/3 work with material decisions or exceptions, maintain the default profile's canonical run log unless the project has explicitly opted out. Opted-out projects use:
 
 ```text
 docs/gauntlet-runs/YYYY-MM-DD-<slug>.md

@@ -1,6 +1,6 @@
 # Local Product Documentation
 
-Gauntlet projects may keep private working context outside Git without displacing the repository's tracked documentation. This is an opt-in profile for product documents, research, decisions, implementation plans, and run history that should remain local to one primary checkout.
+Gauntlet projects use a default-on local-document profile for product documents, research, decisions, implementation plans, and run history that should remain local to one primary checkout. The profile is materialized lazily when a covered document task needs it, so ordinary work does not create files in every repository. A project can opt out explicitly.
 
 The profile scaffolds:
 
@@ -14,6 +14,8 @@ local-docs/
 ```
 
 Both `doc_org.md` and `local-docs/` are ignored through the repository's local Git exclude file. Gauntlet does not add them to a tracked `.gitignore`, overwrite an existing document, or repurpose a tracked `docs/` directory.
+
+The project-local opt-out marker is `.gauntlet/doc-org.disabled` in the primary worktree. It is ignored by the normal Gauntlet project rule, persists across runs, and does not delete an existing local-document profile. Remove it with `docs enable` before creating or changing canonical local documents again.
 
 ## Visibility Boundary
 
@@ -96,7 +98,21 @@ Use the project's approved secret-management system for production secrets. An i
 
 ## Commands
 
-Initialize from either the primary checkout or a linked worktree:
+Check the default mode without changing the project. A repository with no local files reports `default-on`; this is intentional lazy activation.
+
+```sh
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs check \
+  --project-root "$PROJECT_ROOT"
+```
+
+Materialize the profile when a covered document task needs it. The prefix is inferred from the primary repository name unless supplied explicitly.
+
+```sh
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs ensure \
+  --project-root "$PROJECT_ROOT"
+```
+
+Initialize explicitly from either the primary checkout or a linked worktree:
 
 ```sh
 python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs init \
@@ -104,10 +120,17 @@ python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs init \
   --epic-prefix PROJECT
 ```
 
-Inspect the profile without changing it:
+Opt out for one project:
 
 ```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs check \
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs disable \
+  --project-root "$PROJECT_ROOT"
+```
+
+Re-enable the default:
+
+```sh
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs enable \
   --project-root "$PROJECT_ROOT"
 ```
 

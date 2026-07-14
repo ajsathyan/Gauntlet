@@ -34,7 +34,7 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 ## Rules
 
 - Compare 2-3 approaches only when the choice materially changes workflow, architecture, trust, cost, or acceptance. Lead with a recommendation. Ask for approval only when the decision is genuinely the user's; do not impose a universal brainstorming gate.
-- When an active `doc_org.md` makes the PRD canonical, update it from the primary worktree. Keep repository-required contracts and maintainer documentation tracked.
+- When the default local-document profile applies, update the canonical PRD from the primary worktree. Keep repository-required contracts and maintainer documentation tracked. Opted-out projects use the repository's established tracked documentation location.
 - Never place secret values in the packet. Distinguish behavior that truly varies by environment or operator from stable product rules that belong in reviewed, tested code.
 - Metrics belong in the product only when they help the user understand real progress, quality, confidence, speed, completion, improvement, or next action.
 - Do not put draft explanations, agent/process notes, or absence-of-metric rationale in product UI; put non-obvious rationale in the run log.
