@@ -1,0 +1,4 @@
+interface:
+  display_name: "Refactor Codebase"
+  short_description: "Preserve behavior while simplifying a codebase"
+  default_prompt: "Use $refactor-codebase to rebuild this codebase with simpler shared architecture while preserving every supported capability."

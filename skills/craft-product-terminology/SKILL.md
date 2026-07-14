@@ -1,6 +1,6 @@
 ---
 name: craft-product-terminology
-description: Use when naming or renaming a product, feature, capability, service, component, or internal module; when product work introduces canonical terminology; or when another Gauntlet skill needs responsibility-accurate names and a minimal public concept model.
+description: Use when the requested outcome is canonical naming or renaming for a product, feature, capability, service, component, or internal module; or when another Gauntlet skill needs a responsibility and boundary map to resolve a material product-concept decision.
 ---
 
 # Craft Product Terminology
@@ -8,6 +8,19 @@ description: Use when naming or renaming a product, feature, capability, service
 Create the smallest terminology system that makes the product's real responsibilities clear. Prefer names that a reader understands on first read and that still sound natural in use.
 
 When the request concerns one thing, name that thing without manufacturing a larger taxonomy.
+
+## Choose The Branch
+
+Use the **capability-map branch** when a downstream skill needs responsibility boundaries but the requested outcome does not include new canonical names. Complete only the capability mapping, public-versus-internal separation, and responsibility statements below. Retain existing terms as working labels and return:
+
+1. The minimum capability map.
+2. Each concept's responsibility and non-responsibility.
+3. Public concepts, internal components, relationships, and legacy aliases.
+4. Any unresolved boundary that materially affects downstream architecture or product work.
+
+Complete this branch when the downstream skill can assign ownership and design contracts without inventing a new public taxonomy.
+
+Use the **terminology branch** when naming or renaming is part of the requested outcome. Follow the complete workflow and return the naming result defined below.
 
 ## Map The Capability Before Naming It
 
@@ -40,6 +53,8 @@ Treat observation, decision, action, durable state, and presentation as differen
 Complete this step when no proposed boundary overstates what the component can decide or do.
 
 ## Identify Established Terms
+
+Continue from here only for the terminology branch.
 
 Prefer an established domain term when it describes the responsibility accurately. Preserve names the user already likes unless there is a concrete collision or misleading boundary.
 
@@ -87,7 +102,7 @@ Retain existing clear names. Prefer a familiar descriptive term over a less legi
 
 Complete the work when the recommendation exposes no more public concepts than users need and every recommended name passes the responsibility, sentence, interface, and collision tests.
 
-## Return The Result
+## Return The Terminology Result
 
 Return:
 
