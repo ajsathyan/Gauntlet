@@ -35,6 +35,8 @@ python3 "$GAUNTLET_CLI" closeout execute \
 
 Repeat `--stage` once for every intended path. Use `--install-target codex` for Gauntlet changes that should become active locally; use `none` for ordinary downstream repositories.
 
+Closeout preflights local installation before commit or merge. On conflicts, show passages or values and ask. Rerun after the choice with `--instructions-reviewed`, `--response-style gauntlet|existing`, and `--codex-preferences gauntlet|existing|skip`; never bypass preflight.
+
 ## Finish In Codex
 
 Read the JSON result. Continue only when its status is `pass` or `warn` and `remainingAppActions` is present.

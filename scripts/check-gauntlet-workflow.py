@@ -15,6 +15,8 @@ SKILLS = ROOT / "skills" if (ROOT / "skills").exists() else ROOT.parent / "skill
 AGENTS_MD = ROOT / "AGENTS.md" if (ROOT / "AGENTS.md").exists() else ROOT.parent / "AGENTS.md"
 ROUTER_MD = ROOT / "router" / "AGENTS.md" if (ROOT / "router" / "AGENTS.md").exists() else AGENTS_MD
 README_MD = ROOT / "README.md" if (ROOT / "README.md").exists() else ROOT.parent / "README.md"
+RESPONSE_STYLE_MD = ROOT / "router" / "response-style.md"
+GLOBAL_RESPONSE_STYLE = RESPONSE_STYLE_MD.read_text().strip()
 
 
 def read(path):
@@ -855,10 +857,24 @@ def test_contextual_merge_contract_is_documented():
         assert_contains("\n".join([agents, read(ROUTER_MD), github]), marker, "guarded closeout command guidance")
 
 
-def test_plain_language_guidance_is_global_and_contributor_facing():
-    marker = "Write user-facing explanations and prose artifacts in plain, concise language."
-    assert_contains(read(AGENTS_MD), marker, "contributor plain-language guidance")
-    assert_contains(read(ROUTER_MD), marker, "global plain-language guidance")
+def test_response_style_guidance_is_single_global_policy():
+    for marker in [
+        "without reducing technical precision",
+        "Start with the bottom line on top",
+        "Preserve material evidence, constraints, tradeoffs, caveats, and uncertainty",
+        "Do not rewrite code, identifiers, commands, quoted text, or prescribed formats",
+        "logically categorized chunks",
+        "practical, grounded examples",
+    ]:
+        assert_contains(GLOBAL_RESPONSE_STYLE, marker, "accepted response-style policy")
+    assert_contains(read(ROUTER_MD), "{{RESPONSE_STYLE}}", "global response-style install placeholder")
+    if (ROOT / ".git").exists():
+        assert_not_contains(read(AGENTS_MD), GLOBAL_RESPONSE_STYLE, "contributor response-style duplication")
+        assert_not_contains(
+            read(AGENTS_MD),
+            "Write user-facing explanations and prose artifacts in plain, concise language.",
+            "legacy contributor response-style duplication",
+        )
 
 
 def test_version_changelog_preserves_release_history():
@@ -1705,6 +1721,27 @@ def test_remote_branch_cleanup_accepts_concurrent_auto_delete():
     result = gauntlet_cli.delete_remote_branch(Path("/test/repo"), "codex/merge-flow", git_runner=fake_git)
     if result.returncode != 0:
         raise AssertionError("remote cleanup should pass when the branch is absent after a concurrent auto-delete")
+
+
+def test_closeout_forwards_install_conflict_choices_to_preflight_and_apply():
+    module_path = SCRIPTS / "gauntlet.py"
+    spec = importlib.util.spec_from_file_location("gauntlet_cli_install", module_path)
+    gauntlet_cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gauntlet_cli)
+    args = gauntlet_cli.argparse.Namespace(
+        install_target="codex",
+        instructions_reviewed=True,
+        response_style="existing",
+        codex_preferences="existing",
+    )
+    apply_command = gauntlet_cli.closeout_install_command(ROOT, args)
+    preflight_command = gauntlet_cli.closeout_install_command(ROOT, args, check=True)
+    for command in [apply_command, preflight_command]:
+        for marker in ["--instructions-reviewed", "--response-style", "--codex-preferences", "existing"]:
+            if marker not in command:
+                raise AssertionError(f"closeout install command should forward {marker}: {command}")
+    if "--check" in apply_command or "--check" not in preflight_command:
+        raise AssertionError("closeout should add --check only to the pre-merge install preflight")
 
 
 def test_gauntlet_cli_archive_plans_and_executes_github_merge():
@@ -2900,19 +2937,21 @@ def test_promotion_scanner_is_release_wrapup_not_patch_gate():
         raise AssertionError("promotion-scanner eval case is missing")
 
 
-def run_install(agent_home, target="codex"):
+def run_install(agent_home, target="codex", extra_args=None, check=True):
     env = os.environ.copy()
     env["AGENT_HOME"] = str(agent_home)
     env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
+    args = [str(SCRIPTS / "install.sh"), "--target", target]
+    args.extend(extra_args or [])
     result = subprocess.run(
-        [str(SCRIPTS / "install.sh"), "--target", target],
+        args,
         cwd=ROOT,
         env=env,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    if result.returncode != 0:
+    if check and result.returncode != 0:
         raise AssertionError(
             f"install.sh failed with {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
@@ -2930,11 +2969,15 @@ def assert_installed_gauntlet_layout(agent_home):
     if not router_source.exists():
         raise AssertionError("installed portable router source is missing")
     assert_contains(read(router_source), "{{GAUNTLET_ROOT}}", "installed router source placeholder")
+    assert_contains(read(router_source), "{{RESPONSE_STYLE}}", "installed response-style placeholder")
+    if not (agent_home / "gauntlet" / "router" / "response-style.md").is_file():
+        raise AssertionError("installed response-style source is missing")
     installed_agents = read(agent_home / "gauntlet" / "AGENTS.md")
     installed_root = str(agent_home / "gauntlet")
     installed_skills = str(agent_home / "skills")
     for marker in [
         "Gauntlet Workflow Router",
+        GLOBAL_RESPONSE_STYLE,
         installed_root,
         installed_skills,
         f"{installed_root}/docs/production-quality-bar.md",
@@ -2946,7 +2989,7 @@ def assert_installed_gauntlet_layout(agent_home):
         "compact machine receipts",
     ]:
         assert_contains(installed_agents, marker, "installed router guidance")
-    for unresolved in ["{{GAUNTLET_ROOT}}", "{{AGENT_HOME}}"]:
+    for unresolved in ["{{GAUNTLET_ROOT}}", "{{AGENT_HOME}}", "{{RESPONSE_STYLE}}"]:
         assert_not_contains(installed_agents, unresolved, "installed router path rendering")
     if len(installed_agents.encode("utf-8")) >= 32768:
         raise AssertionError("installed router exceeds the default 32 KiB instruction budget")
@@ -2971,8 +3014,11 @@ Keep this user-owned instruction across Gauntlet reinstalls.
             "Always preserve this unrelated company policy.\n"
         )
         (agent_home / "AGENTS.md").write_text(user_content)
-        run_install(agent_home, target="codex")
+        run_install(agent_home, target="codex", extra_args=["--instructions-reviewed"])
         assert_installed_gauntlet_layout(agent_home)
+        config = read(agent_home / "config.toml")
+        assert_contains(config, 'model_verbosity = "low"', "Codex low-verbosity default")
+        assert_contains(config, 'personality = "none"', "Codex no-personality default")
         installed_agents = read(agent_home / "AGENTS.md")
         if not installed_agents.startswith(user_content):
             raise AssertionError("Codex install must preserve every pre-existing user byte before the managed block")
@@ -3037,7 +3083,7 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         linked_target.chmod(0o600)
         (linked_home / "AGENTS.md").symlink_to(linked_target)
 
-        run_install(linked_home, target="codex")
+        run_install(linked_home, target="codex", extra_args=["--instructions-reviewed"])
         if not (linked_home / "AGENTS.md").is_symlink():
             raise AssertionError("Codex install must preserve an existing AGENTS.md symlink")
         linked_installed = linked_target.read_text()
@@ -3064,7 +3110,7 @@ def test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks():
         first_line_end = legacy.index("\n") + 1
         (agent_home / "AGENTS.md").write_text(legacy[:first_line_end] + "\n" + personal + legacy[first_line_end:])
 
-        run_install(agent_home, target="codex")
+        run_install(agent_home, target="codex", extra_args=["--instructions-reviewed"])
         migrated = read(agent_home / "AGENTS.md")
         assert_contains(migrated, personal.strip(), "legacy personal block migration")
         assert_contains(migrated, "BEGIN GAUNTLET MANAGED BLOCK", "legacy managed migration")
@@ -3119,7 +3165,7 @@ def test_claude_install_layout_adapts_agents_without_overwriting_user_memory():
         claude_md = agent_home / "CLAUDE.md"
         claude_md.write_text("# My Existing Claude Memory\n\nKeep this personal note.\n")
 
-        run_install(agent_home, target="claude")
+        run_install(agent_home, target="claude", extra_args=["--instructions-reviewed"])
         assert_installed_gauntlet_layout(agent_home)
 
         installed_claude = read(claude_md)
@@ -3127,8 +3173,11 @@ def test_claude_install_layout_adapts_agents_without_overwriting_user_memory():
         assert_contains(installed_claude, "BEGIN GAUNTLET MANAGED BLOCK", "Claude Gauntlet managed block")
         assert_contains(installed_claude, f"@{agent_home}/gauntlet/AGENTS.md", "Claude AGENTS import")
         assert_contains(installed_claude, "Gauntlet Adapter For Claude Code", "Claude adapter guidance")
+        assert_contains(read(agent_home / "gauntlet" / "AGENTS.md"), GLOBAL_RESPONSE_STYLE, "Claude imported response style")
         if (agent_home / "AGENTS.md").exists():
             raise AssertionError("Claude install should not write root AGENTS.md")
+        if (agent_home / "config.toml").exists():
+            raise AssertionError("Claude install should not write Codex config.toml")
 
         run_install(agent_home, target="claude")
         reinstalled_claude = read(claude_md)
@@ -3147,10 +3196,185 @@ def test_install_docs_explain_codex_and_claude_targets():
         "scripts/gauntlet.py",
         "managed import block",
         "preserving unrelated instructions",
+        "--instructions-reviewed",
+        "--response-style gauntlet",
+        "--response-style existing",
+        "--check",
+        "--codex-preferences gauntlet",
+        "--codex-preferences existing",
+        "model_verbosity = \"low\"",
+        "personality = \"none\"",
+        "show both conflicting passages",
+        "never removes or rewrites user-owned instructions",
         "reject malformed managed markers",
         "router/AGENTS.md",
     ]:
         assert_contains(readme, marker, "install target docs")
+    archive = read(SKILLS / "archive" / "SKILL.md")
+    for marker in [
+        "preflights local installation",
+        "--instructions-reviewed",
+        "--response-style gauntlet|existing",
+        "--codex-preferences gauntlet|existing|skip",
+    ]:
+        assert_contains(archive, marker, "archive install-conflict guidance")
+
+
+def test_install_requires_review_before_layering_over_existing_instructions():
+    if not (ROOT / ".git").exists():
+        return
+
+    for target, filename in [("codex", "AGENTS.md"), ("claude", "CLAUDE.md")]:
+        with tempfile.TemporaryDirectory() as tmp:
+            agent_home = Path(tmp) / "agent-home"
+            agent_home.mkdir()
+            instructions = agent_home / filename
+            original = "# Existing voice\n\nUse an exuberant, highly detailed style.\n"
+            instructions.write_text(original)
+
+            result = run_install(agent_home, target=target, check=False)
+            if result.returncode == 0:
+                raise AssertionError(f"{target} install should stop for unreviewed existing instructions")
+            if instructions.read_text() != original:
+                raise AssertionError(f"{target} conflict preflight must preserve existing instructions")
+            if (agent_home / "gauntlet").exists():
+                raise AssertionError(f"{target} conflict preflight must run before payload mutation")
+            for marker in [
+                "Existing user instructions require conflict review",
+                str(instructions),
+                "--instructions-reviewed",
+                "show both conflicting passages",
+            ]:
+                assert_contains(result.stderr, marker, f"{target} instruction conflict guidance")
+
+            run_install(agent_home, target=target, extra_args=["--instructions-reviewed"])
+            assert_contains(instructions.read_text(), original.strip(), f"{target} reviewed instruction preservation")
+            review_state = agent_home / "gauntlet" / f"install-review-{target}.json"
+            if not review_state.is_file():
+                raise AssertionError(f"{target} install should record the reviewed instruction and candidate hashes")
+            run_install(agent_home, target=target)
+
+            changed = "# Newly changed user guidance\n\n" + instructions.read_text()
+            instructions.write_text(changed)
+            changed_result = run_install(agent_home, target=target, check=False)
+            if changed_result.returncode == 0:
+                raise AssertionError(f"{target} install should re-review changed user instructions")
+            if instructions.read_text() != changed:
+                raise AssertionError(f"{target} re-review preflight must preserve changed user instructions")
+            assert_contains(changed_result.stderr, "--instructions-reviewed", f"{target} changed-instruction review guidance")
+            run_install(
+                agent_home,
+                target=target,
+                extra_args=["--instructions-reviewed", "--response-style", "existing"],
+            )
+            effective = instructions.read_text() if target == "codex" else read(agent_home / "gauntlet" / "AGENTS.md")
+            assert_not_contains(effective, GLOBAL_RESPONSE_STYLE, f"{target} existing-style choice")
+
+
+def test_codex_install_merges_preferences_without_silent_overwrite():
+    if not (ROOT / ".git").exists():
+        return
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+
+        clean_home = root / "clean"
+        clean_home.mkdir()
+        run_install(clean_home, extra_args=["--check"])
+        if any(clean_home.iterdir()):
+            raise AssertionError("Codex install --check should not create or modify agent-home files")
+        run_install(clean_home)
+        clean_config = read(clean_home / "config.toml")
+        if clean_config.count('model_verbosity = "low"') != 1 or clean_config.count('personality = "none"') != 1:
+            raise AssertionError("new Codex config should contain each Gauntlet preference exactly once")
+        run_install(clean_home)
+        if read(clean_home / "config.toml") != clean_config:
+            raise AssertionError("Codex preference reinstall should be byte-idempotent")
+
+        conflict_home = root / "conflict"
+        conflict_home.mkdir()
+        conflict_config = conflict_home / "config.toml"
+        original = 'model = "custom"\nmodel_verbosity = "high" # keep comment\n\n[features]\ngoals = true\n'
+        conflict_config.write_text(original)
+        conflict_config.chmod(0o600)
+        result = run_install(conflict_home, check=False)
+        if result.returncode == 0:
+            raise AssertionError("conflicting Codex preferences should require an explicit choice")
+        if conflict_config.read_text() != original or (conflict_home / "gauntlet").exists():
+            raise AssertionError("Codex preference conflict must stop before any mutation")
+        for marker in [
+            'model_verbosity = "high"',
+            'model_verbosity = "low"',
+            "--codex-preferences gauntlet",
+            "--codex-preferences existing",
+        ]:
+            assert_contains(result.stderr, marker, "Codex preference conflict report")
+
+        run_install(conflict_home, extra_args=["--codex-preferences", "gauntlet"])
+        resolved = conflict_config.read_text()
+        assert_contains(resolved, 'model = "custom"', "Codex unrelated config preservation")
+        assert_contains(resolved, 'model_verbosity = "low"', "Gauntlet verbosity choice")
+        assert_contains(resolved, 'personality = "none"', "Gauntlet personality insertion")
+        assert_contains(resolved, "# keep comment", "Codex config trailing-comment preservation")
+        assert_contains(resolved, "[features]\ngoals = true", "Codex table preservation")
+        if conflict_config.stat().st_mode & 0o777 != 0o600:
+            raise AssertionError("Codex config update should preserve permissions")
+
+        combined_home = root / "combined-conflict"
+        combined_home.mkdir()
+        combined_agents = combined_home / "AGENTS.md"
+        combined_config = combined_home / "config.toml"
+        combined_agents.write_text("# Existing voice\n\nAlways be expansive.\n")
+        combined_config.write_text('personality = "friendly"\n')
+        combined = run_install(combined_home, check=False)
+        if combined.returncode == 0:
+            raise AssertionError("combined instruction and preference conflicts should stop installation")
+        for marker in ["Existing user instructions require conflict review", "Codex preference conflict requires a user choice"]:
+            assert_contains(combined.stderr, marker, "combined Codex conflict report")
+        if (combined_home / "gauntlet").exists():
+            raise AssertionError("combined Codex conflicts must stop before payload mutation")
+
+        existing_home = root / "existing"
+        existing_home.mkdir()
+        existing_config = existing_home / "config.toml"
+        existing_original = 'model_verbosity = "high"\npersonality = "friendly"\n'
+        existing_config.write_text(existing_original)
+        run_install(existing_home, extra_args=["--codex-preferences", "existing"])
+        if existing_config.read_text() != existing_original:
+            raise AssertionError("existing Codex preference choice should preserve both values byte-for-byte")
+
+        skip_home = root / "skip"
+        skip_home.mkdir()
+        skip_config = skip_home / "config.toml"
+        skip_original = 'model_verbosity = "high"\n'
+        skip_config.write_text(skip_original)
+        run_install(skip_home, extra_args=["--codex-preferences", "skip"])
+        if skip_config.read_text() != skip_original:
+            raise AssertionError("skipped Codex preferences should not modify config.toml")
+
+        linked_home = root / "linked"
+        linked_home.mkdir()
+        linked_target = root / "shared-config.toml"
+        linked_target.write_text('model_verbosity = "low"\npersonality = "none"\n')
+        linked_target.chmod(0o600)
+        (linked_home / "config.toml").symlink_to(linked_target)
+        run_install(linked_home)
+        if not (linked_home / "config.toml").is_symlink():
+            raise AssertionError("Codex config install must preserve an existing symlink")
+        if linked_target.stat().st_mode & 0o777 != 0o600:
+            raise AssertionError("Codex config install must preserve symlink target permissions")
+
+        crlf_home = root / "crlf"
+        crlf_home.mkdir()
+        crlf_config = crlf_home / "config.toml"
+        crlf_config.write_bytes(b'personality_notes = "keep"\r\n[features]\r\ngoals = true\r\n')
+        run_install(crlf_home)
+        crlf_result = crlf_config.read_bytes()
+        for marker in [b'personality_notes = "keep"', b'model_verbosity = "low"', b'personality = "none"']:
+            if marker not in crlf_result:
+                raise AssertionError(f"Codex CRLF config missing preserved or inserted value: {marker!r}")
+        if b"\n" in crlf_result.replace(b"\r\n", b""):
+            raise AssertionError("Codex config insertion should preserve CRLF newline style")
 
 
 def test_skill_evals_compare_all_arms():
@@ -3435,7 +3659,7 @@ def main():
         test_workflow_helpers_filter_artifacts_and_find_python_tests,
         test_workflow_speedup_helpers_are_documented_as_advisory,
         test_contextual_merge_contract_is_documented,
-        test_plain_language_guidance_is_global_and_contributor_facing,
+        test_response_style_guidance_is_single_global_policy,
         test_version_changelog_preserves_release_history,
         test_contextual_pr_template_changelog_and_run_log_contract,
         test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions,
@@ -3446,6 +3670,7 @@ def main():
         test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main,
         test_gauntlet_cli_closeout_execute_commits_merges_cleans_and_returns_archive_actions,
         test_remote_branch_cleanup_accepts_concurrent_auto_delete,
+        test_closeout_forwards_install_conflict_choices_to_preflight_and_apply,
         test_gauntlet_cli_archive_plans_and_executes_github_merge,
         test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk,
         test_gauntlet_cli_small_helper_commands,
@@ -3463,6 +3688,8 @@ def main():
         test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks,
         test_superpowers_sources_are_attributed_and_retirement_is_allowlisted,
         test_claude_install_layout_adapts_agents_without_overwriting_user_memory,
+        test_install_requires_review_before_layering_over_existing_instructions,
+        test_codex_install_merges_preferences_without_silent_overwrite,
         test_install_docs_explain_codex_and_claude_targets,
     ]
     for test in tests:

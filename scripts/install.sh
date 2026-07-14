@@ -5,6 +5,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET="${GAUNTLET_INSTALL_TARGET:-codex}"
 AGENT_HOME="${AGENT_HOME:-${GAUNTLET_AGENT_HOME:-}}"
 SKIP_GIT_HOOKS="${GAUNTLET_SKIP_GIT_HOOKS:-0}"
+INSTRUCTIONS_REVIEWED="${GAUNTLET_INSTRUCTIONS_REVIEWED:-0}"
+CODEX_PREFERENCES="${GAUNTLET_CODEX_PREFERENCES:-prompt}"
+CHECK_ONLY="${GAUNTLET_INSTALL_CHECK_ONLY:-0}"
+RESPONSE_STYLE="${GAUNTLET_RESPONSE_STYLE:-gauntlet}"
 SKILLS_SRC="$ROOT/skills"
 if [ ! -d "$SKILLS_SRC" ] && [ -d "$ROOT/../skills" ]; then
   SKILLS_SRC="$ROOT/../skills"
@@ -12,7 +16,9 @@ fi
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/install.sh [--target codex|claude] [--agent-home PATH] [--skip-git-hooks]
+Usage: scripts/install.sh [--target codex|claude] [--agent-home PATH] [--check] [--instructions-reviewed]
+                          [--response-style gauntlet|existing]
+                          [--codex-preferences prompt|gauntlet|existing|skip] [--skip-git-hooks]
 
 Targets:
   codex   Install Gauntlet as AGENTS.md under the agent home. Default home: ~/.codex
@@ -22,6 +28,10 @@ Environment:
   GAUNTLET_INSTALL_TARGET  codex or claude
   AGENT_HOME              install destination override
   GAUNTLET_AGENT_HOME     install destination override when AGENT_HOME is unset
+  GAUNTLET_INSTRUCTIONS_REVIEWED set to 1 after existing instructions were checked for conflicts
+  GAUNTLET_CODEX_PREFERENCES prompt, gauntlet, existing, or skip (default: prompt)
+  GAUNTLET_INSTALL_CHECK_ONLY set to 1 to run conflict and safety preflight without installing
+  GAUNTLET_RESPONSE_STYLE   gauntlet or existing (default: gauntlet)
   GAUNTLET_SKIP_GIT_HOOKS set to 1 to skip this repo's pre-commit hook install
 USAGE
 }
@@ -56,6 +66,38 @@ while [ "$#" -gt 0 ]; do
       SKIP_GIT_HOOKS="1"
       shift
       ;;
+    --instructions-reviewed)
+      INSTRUCTIONS_REVIEWED="1"
+      shift
+      ;;
+    --check)
+      CHECK_ONLY="1"
+      shift
+      ;;
+    --codex-preferences)
+      if [ "$#" -lt 2 ]; then
+        echo "Missing value for --codex-preferences" >&2
+        exit 2
+      fi
+      CODEX_PREFERENCES="$2"
+      shift 2
+      ;;
+    --codex-preferences=*)
+      CODEX_PREFERENCES="${1#--codex-preferences=}"
+      shift
+      ;;
+    --response-style)
+      if [ "$#" -lt 2 ]; then
+        echo "Missing value for --response-style" >&2
+        exit 2
+      fi
+      RESPONSE_STYLE="$2"
+      shift 2
+      ;;
+    --response-style=*)
+      RESPONSE_STYLE="${1#--response-style=}"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -73,6 +115,44 @@ case "$TARGET" in
     ;;
   *)
     echo "Unsupported install target: $TARGET" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
+
+case "$INSTRUCTIONS_REVIEWED" in
+  0|1)
+    ;;
+  *)
+    echo "GAUNTLET_INSTRUCTIONS_REVIEWED must be 0 or 1" >&2
+    exit 2
+    ;;
+esac
+
+case "$CHECK_ONLY" in
+  0|1)
+    ;;
+  *)
+    echo "GAUNTLET_INSTALL_CHECK_ONLY must be 0 or 1" >&2
+    exit 2
+    ;;
+esac
+
+case "$CODEX_PREFERENCES" in
+  prompt|gauntlet|existing|skip)
+    ;;
+  *)
+    echo "Unsupported --codex-preferences value: $CODEX_PREFERENCES" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
+
+case "$RESPONSE_STYLE" in
+  gauntlet|existing)
+    ;;
+  *)
+    echo "Unsupported --response-style value: $RESPONSE_STYLE" >&2
     usage >&2
     exit 2
     ;;
@@ -99,6 +179,230 @@ PY
 
 MANAGED_BEGIN='<!-- BEGIN GAUNTLET MANAGED BLOCK -->'
 MANAGED_END='<!-- END GAUNTLET MANAGED BLOCK -->'
+
+require_instruction_review() {
+  local target_file="$1"
+  local candidate_block="$2"
+  local rendered_router="$3"
+  local review_state="$AGENT_HOME/gauntlet/install-review-${TARGET}.json"
+  python3 - "$target_file" "$candidate_block" "$review_state" "$INSTRUCTIONS_REVIEWED" "$MANAGED_BEGIN" "$MANAGED_END" "$rendered_router" "$ROOT/router/AGENTS.md" "$ROOT/router/response-style.md" <<'PY'
+from pathlib import Path
+import hashlib
+import json
+import sys
+
+target = Path(sys.argv[1])
+candidate = Path(sys.argv[2]).read_bytes()
+state_path = Path(sys.argv[3])
+reviewed = sys.argv[4] == "1"
+begin = sys.argv[5].encode()
+end = sys.argv[6].encode()
+effective_candidate = candidate + b"\0" + Path(sys.argv[7]).read_bytes()
+data = target.read_bytes() if target.exists() else b""
+
+start = data.find(begin)
+if start >= 0:
+    finish = data.find(end, start) + len(end)
+    user_content = data[:start] + data[finish:]
+else:
+    user_content = data
+
+if not user_content.strip():
+    raise SystemExit(0)
+
+current = {
+    "candidateSha256": hashlib.sha256(effective_candidate).hexdigest(),
+    "userInstructionsSha256": hashlib.sha256(user_content).hexdigest(),
+}
+previous = None
+if state_path.is_file():
+    try:
+        previous = json.loads(state_path.read_text())
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        previous = None
+if previous == current or reviewed:
+    raise SystemExit(0)
+
+print("Existing user instructions require conflict review before Gauntlet can modify this agent home.", file=sys.stderr)
+print(f"\nExisting instructions: {target}", file=sys.stderr)
+print(f"Gauntlet candidate: {sys.argv[8]} with response style {sys.argv[9]}", file=sys.stderr)
+print(
+    "\nAn installing agent must compare the two, preserve unrelated user content, and show both conflicting "
+    "passages to the user before asking which instruction should remain active. Gauntlet never removes or "
+    "rewrites user-owned instructions during this install.",
+    file=sys.stderr,
+)
+print("\nAfter resolving conflicts or confirming compatibility, rerun with --instructions-reviewed.", file=sys.stderr)
+print("No files were changed.", file=sys.stderr)
+raise SystemExit(3)
+PY
+}
+
+record_instruction_review() {
+  local target_file="$1"
+  local candidate_block="$2"
+  local rendered_router="$3"
+  local review_state="$AGENT_HOME/gauntlet/install-review-${TARGET}.json"
+  python3 - "$target_file" "$candidate_block" "$review_state" "$MANAGED_BEGIN" "$MANAGED_END" "$rendered_router" <<'PY'
+from pathlib import Path
+import hashlib
+import json
+import os
+import sys
+import tempfile
+
+target = Path(sys.argv[1])
+candidate = Path(sys.argv[2]).read_bytes()
+state_path = Path(sys.argv[3])
+begin = sys.argv[4].encode()
+end = sys.argv[5].encode()
+effective_candidate = candidate + b"\0" + Path(sys.argv[6]).read_bytes()
+data = target.read_bytes()
+start = data.find(begin)
+finish = data.find(end, start) + len(end)
+user_content = data[:start] + data[finish:]
+state = {
+    "candidateSha256": hashlib.sha256(effective_candidate).hexdigest(),
+    "userInstructionsSha256": hashlib.sha256(user_content).hexdigest(),
+}
+rendered = (json.dumps(state, indent=2, sort_keys=True) + "\n").encode()
+if state_path.is_file() and state_path.read_bytes() == rendered:
+    raise SystemExit(0)
+state_path.parent.mkdir(parents=True, exist_ok=True)
+fd, temporary = tempfile.mkstemp(prefix=f".{state_path.name}.", dir=state_path.parent)
+try:
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(rendered)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.chmod(temporary, 0o644)
+    os.replace(temporary, state_path)
+finally:
+    if os.path.exists(temporary):
+        os.unlink(temporary)
+PY
+}
+
+manage_codex_preferences() {
+  local phase="$1"
+  local config_file="$AGENT_HOME/config.toml"
+  [ "$CODEX_PREFERENCES" != "skip" ] || return 0
+
+  python3 - "$config_file" "$phase" "$CODEX_PREFERENCES" <<'PY'
+from pathlib import Path
+import ast
+import os
+import re
+import sys
+import tempfile
+
+target = Path(sys.argv[1])
+phase = sys.argv[2]
+choice = sys.argv[3]
+desired = {"model_verbosity": "low", "personality": "none"}
+data = target.read_bytes() if target.exists() else b""
+try:
+    text = data.decode("utf-8")
+except UnicodeDecodeError:
+    print(f"Cannot safely update non-UTF-8 Codex config: {target}", file=sys.stderr)
+    raise SystemExit(1)
+
+lines = text.splitlines(keepends=True)
+table_at = len(lines)
+for index, line in enumerate(lines):
+    stripped = line.lstrip()
+    if stripped.startswith("["):
+        table_at = index
+        break
+
+assignment = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<key>model_verbosity|personality)(?P<separator>[ \t]*=[ \t]*)"
+    r"(?P<value>\"(?:\\.|[^\"])*\"|'[^']*')(?P<suffix>[ \t]*(?:#.*)?)(?P<newline>\r?\n)?$"
+)
+found = {}
+for index, line in enumerate(lines[:table_at]):
+    stripped = line.lstrip()
+    if not re.match(r"^(model_verbosity|personality)[ \t]*=", stripped):
+        continue
+    match = assignment.match(line)
+    if not match:
+        print(f"Cannot safely update unsupported Codex preference syntax at {target}:{index + 1}", file=sys.stderr)
+        raise SystemExit(1)
+    key = match.group("key")
+    if key in found:
+        print(f"Cannot safely update duplicate top-level Codex preference {key} in {target}", file=sys.stderr)
+        raise SystemExit(1)
+    try:
+        value = ast.literal_eval(match.group("value"))
+    except (SyntaxError, ValueError):
+        print(f"Cannot safely parse Codex preference {key} at {target}:{index + 1}", file=sys.stderr)
+        raise SystemExit(1)
+    if not isinstance(value, str):
+        print(f"Codex preference {key} must be a string at {target}:{index + 1}", file=sys.stderr)
+        raise SystemExit(1)
+    found[key] = (index, value, match)
+
+conflicts = {key: value for key, (_, value, _) in found.items() if value != desired[key]}
+if phase == "check":
+    if conflicts and choice == "prompt":
+        print("Codex preference conflict requires a user choice before Gauntlet can install.", file=sys.stderr)
+        for key, current in conflicts.items():
+            print(f'Existing: {key} = "{current}"', file=sys.stderr)
+            print(f'Gauntlet: {key} = "{desired[key]}"', file=sys.stderr)
+        print("Rerun with --codex-preferences gauntlet to use Gauntlet defaults,", file=sys.stderr)
+        print("or --codex-preferences existing to preserve the existing values.", file=sys.stderr)
+        print("Use --codex-preferences skip to leave config.toml entirely unchanged.", file=sys.stderr)
+        print("No files were changed.", file=sys.stderr)
+        raise SystemExit(3)
+    raise SystemExit(0)
+
+if phase != "apply":
+    print(f"Unsupported Codex preference phase: {phase}", file=sys.stderr)
+    raise SystemExit(2)
+
+output = list(lines)
+if choice in {"prompt", "gauntlet"}:
+    for key, (index, value, match) in found.items():
+        if value == desired[key]:
+            continue
+        newline = match.group("newline") or ""
+        output[index] = (
+            f'{match.group("indent")}{key}{match.group("separator")}"{desired[key]}"'
+            f'{match.group("suffix")}{newline}'
+        )
+
+missing = [key for key in desired if key not in found]
+if missing:
+    newline_style = "\r\n" if any(line.endswith("\r\n") for line in lines) else "\n"
+    insertion = [f'{key} = "{desired[key]}"{newline_style}' for key in missing]
+    if table_at > 0 and output[table_at - 1] and not output[table_at - 1].endswith(("\n", "\r")):
+        output[table_at - 1] += newline_style
+    if table_at < len(output) and table_at > 0 and output[table_at - 1].strip():
+        insertion.insert(0, newline_style)
+    if table_at < len(output) and output[table_at].strip():
+        insertion.append(newline_style)
+    output[table_at:table_at] = insertion
+
+rendered = "".join(output).encode("utf-8")
+if rendered == data:
+    raise SystemExit(0)
+
+write_target = target.resolve() if target.is_symlink() else target
+write_target.parent.mkdir(parents=True, exist_ok=True)
+mode = write_target.stat().st_mode & 0o777 if write_target.exists() else 0o644
+fd, temporary = tempfile.mkstemp(prefix=f".{write_target.name}.", dir=write_target.parent)
+try:
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(rendered)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.chmod(temporary, mode)
+    os.replace(temporary, write_target)
+finally:
+    if os.path.exists(temporary):
+        os.unlink(temporary)
+PY
+}
 
 validate_managed_file() {
   local target_file="$1"
@@ -217,17 +521,20 @@ PY
 
 render_router() {
   local output_file="$1"
-  python3 - "$ROOT/router/AGENTS.md" "$output_file" "$AGENT_HOME" <<'PY'
+  python3 - "$ROOT/router/AGENTS.md" "$ROOT/router/response-style.md" "$output_file" "$AGENT_HOME" "$RESPONSE_STYLE" <<'PY'
 from pathlib import Path
 import re
 import sys
 
 source = Path(sys.argv[1]).read_text()
-output = Path(sys.argv[2])
-agent_home = sys.argv[3]
+response_style = Path(sys.argv[2]).read_text().strip()
+output = Path(sys.argv[3])
+agent_home = sys.argv[4]
+response_choice = sys.argv[5]
 replacements = {
     "{{AGENT_HOME}}": agent_home,
     "{{GAUNTLET_ROOT}}": str(Path(agent_home) / "gauntlet"),
+    "{{RESPONSE_STYLE}}": response_style if response_choice == "gauntlet" else "",
 }
 rendered = source
 for placeholder, value in replacements.items():
@@ -259,11 +566,8 @@ case "$TARGET" in
     ;;
 esac
 
-write_claude_adapter() {
-  local claude_file="$AGENT_HOME/CLAUDE.md"
-  local block_file
-  block_file="$(mktemp)"
-
+render_claude_adapter_block() {
+  local block_file="$1"
   {
     printf '%s\n' "$MANAGED_BEGIN"
     printf '@%s/gauntlet/AGENTS.md\n\n' "$AGENT_HOME"
@@ -273,42 +577,72 @@ write_claude_adapter() {
     printf '%s\n' '- Codex-specific thread, app, or skill actions should be mapped to available Claude Code, Git, or GitHub equivalents when possible.'
     printf '%s' "$MANAGED_END"
   } > "$block_file"
-
-  write_managed_file "$claude_file" "$block_file"
-  rm -f "$block_file"
 }
 
-write_codex_agents() {
-  local codex_file="$AGENT_HOME/AGENTS.md"
-  local router_file="$1"
-  local legacy_reference="$2"
-  local block_file
-  block_file="$(mktemp)"
-
+render_codex_agents_block() {
+  local block_file="$1"
+  local router_file="$2"
   {
     printf '%s\n' "$MANAGED_BEGIN"
     cat "$router_file"
     printf '%s' "$MANAGED_END"
   } > "$block_file"
-
-  write_managed_file "$codex_file" "$block_file" "$legacy_reference"
-  rm -f "$block_file"
 }
 
 rendered_router="$(mktemp)"
+candidate_block="$(mktemp)"
+instruction_review_log="$(mktemp)"
+codex_preference_log="$(mktemp)"
 legacy_installed_router=""
 if [ "$TARGET" = "codex" ] && [ -f "$AGENT_HOME/gauntlet/AGENTS.md" ]; then
   legacy_installed_router="$(mktemp)"
   cp "$AGENT_HOME/gauntlet/AGENTS.md" "$legacy_installed_router"
 fi
 cleanup_install() {
-  rm -f "$rendered_router"
+  rm -f "$rendered_router" "$candidate_block" "$instruction_review_log" "$codex_preference_log"
   if [ -n "$legacy_installed_router" ]; then
     rm -f "$legacy_installed_router"
   fi
 }
 trap cleanup_install EXIT
 render_router "$rendered_router"
+
+case "$TARGET" in
+  codex)
+    render_codex_agents_block "$candidate_block" "$rendered_router"
+    ;;
+  claude)
+    render_claude_adapter_block "$candidate_block"
+    ;;
+esac
+
+set +e
+case "$TARGET" in
+  codex)
+    require_instruction_review "$AGENT_HOME/AGENTS.md" "$candidate_block" "$rendered_router" 2>"$instruction_review_log"
+    instruction_review_status=$?
+    manage_codex_preferences check 2>"$codex_preference_log"
+    codex_preference_status=$?
+    ;;
+  claude)
+    require_instruction_review "$AGENT_HOME/CLAUDE.md" "$candidate_block" "$rendered_router" 2>"$instruction_review_log"
+    instruction_review_status=$?
+    codex_preference_status=0
+    ;;
+esac
+set -e
+
+if [ "$instruction_review_status" -ne 0 ] || [ "$codex_preference_status" -ne 0 ]; then
+  cat "$instruction_review_log" "$codex_preference_log" >&2
+  if [ "$instruction_review_status" -eq 1 ] || [ "$codex_preference_status" -eq 1 ]; then
+    exit 1
+  fi
+  exit 3
+fi
+
+if [ "$CHECK_ONLY" = "1" ]; then
+  exit 0
+fi
 
 mkdir -p "$AGENT_HOME/skills" "$AGENT_HOME/gauntlet"
 source_is_installed_payload="$(python3 - "$ROOT" "$AGENT_HOME/gauntlet" <<'PY'
@@ -322,7 +656,7 @@ PY
 if [ "$source_is_installed_payload" != "1" ]; then
   cp "$ROOT/README.md" "$AGENT_HOME/gauntlet/README.md"
   mkdir -p "$AGENT_HOME/gauntlet/router"
-  cp "$ROOT/router/AGENTS.md" "$AGENT_HOME/gauntlet/router/AGENTS.md"
+  cp -R "$ROOT/router/." "$AGENT_HOME/gauntlet/router/"
   rm -rf "$AGENT_HOME/skills/review-brief-builder"
   cp -R "$SKILLS_SRC/." "$AGENT_HOME/skills/"
   rm -rf "$AGENT_HOME/gauntlet/docs"
@@ -368,10 +702,13 @@ done
 # Activate the router only after the installed payload is complete.
 case "$TARGET" in
   codex)
-    write_codex_agents "$rendered_router" "$legacy_installed_router"
+    manage_codex_preferences apply
+    write_managed_file "$AGENT_HOME/AGENTS.md" "$candidate_block" "$legacy_installed_router"
+    record_instruction_review "$AGENT_HOME/AGENTS.md" "$candidate_block" "$rendered_router"
     ;;
   claude)
-    write_claude_adapter
+    write_managed_file "$AGENT_HOME/CLAUDE.md" "$candidate_block"
+    record_instruction_review "$AGENT_HOME/CLAUDE.md" "$candidate_block" "$rendered_router"
     ;;
 esac
 

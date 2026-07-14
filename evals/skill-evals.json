@@ -387,6 +387,10 @@
         "remainingAppActions",
         "set_thread_title",
         "archive_thread",
+        "preflights local installation",
+        "--instructions-reviewed",
+        "--response-style gauntlet|existing",
+        "--codex-preferences gauntlet|existing|skip",
         "Cannot verify",
         "Do not ask for another confirmation"
       ],

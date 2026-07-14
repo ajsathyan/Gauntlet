@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now installs one shared precision-preserving response style for Codex and Claude, applies conflict-aware Codex verbosity and personality defaults, and stops before layering over unreviewed user instructions.
+
 - Gauntlet now silently applies a conforming root-task title as soon as the goal is clear and no later than the third substantive user-authored message.
 
 - Gauntlet now provides /Archive and a guarded closeout command that commits explicit paths, merges through required PR checks, installs the merged workflow locally, and returns Codex archive actions.

@@ -198,6 +198,17 @@ Use the repo's files as the source of truth:
 
 Install or adapt those files into whatever persistent global instruction, skill, memory, workflow, or config system this agent environment supports.
 
+Before changing anything, inspect the target agent's existing global instructions and configuration. Preserve unrelated user content byte-for-byte. Compare existing guidance with Gauntlet's candidate guidance for semantic conflicts, including voice, tone, verbosity, workflow authority, approval, sandbox, merge, and destructive-action rules. When guidance conflicts, show both conflicting passages to the user, explain the practical difference, and ask which one should remain active. Do not install through an unresolved conflict or silently remove, disable, or rewrite user-owned guidance.
+
+For Codex, Gauntlet's response defaults are:
+
+```toml
+model_verbosity = "low"
+personality = "none"
+```
+
+If either key already has a different value, show the existing and Gauntlet values and ask which to keep. For Claude Code, install the response-style guidance through the managed `CLAUDE.md` import; do not add Codex-only configuration keys.
+
 Preserve these concepts:
 - Patch, Feature, and Release build stages
 - Standard and Deep depth
@@ -210,7 +221,7 @@ Preserve these concepts:
 - Triggered Production Quality Bar checks for near-launch, private-beta, production-bound, hardened, or audited work
 - Scoped role skills for planning, implementation, triage, adversarial review, black-box testing, experience review, deep code review, and run-log building
 
-Do not delete or overwrite unrelated existing user instructions. Merge carefully.
+Do not delete or overwrite unrelated existing user instructions. A user's explicit conflict choice authorizes resolving only the identified conflict; preserve the original passage in a user-visible backup before removing it from active instructions.
 
 After installing, tell me:
 1. What files you installed or adapted
@@ -229,9 +240,39 @@ Already cloned the repo?
 ./scripts/install.sh --target claude
 ```
 
+If the target already contains global instructions, the first install stops before changing files. Later installs stop again when either the user-owned instructions or Gauntlet's candidate guidance has changed since the last acknowledged review. Review the two, resolve or confirm compatibility, then rerun with:
+
+```sh
+./scripts/install.sh --target codex --instructions-reviewed
+./scripts/install.sh --target claude --instructions-reviewed
+```
+
+`--instructions-reviewed` is an acknowledgement, not a conflict override. Do not pass it until the comparison is complete. The installer never removes or rewrites user-owned instructions; it owns only its marked Gauntlet block.
+
+When a voice or response-style passage conflicts, use `--response-style gauntlet` to install Gauntlet's policy or `--response-style existing` to omit Gauntlet's policy while retaining the rest of its workflow. Choosing Gauntlet does not authorize the installer to delete the old passage; deactivate it separately only after the user chooses, and preserve the original in a visible backup.
+
+Use `--check` to run the same marker, instruction-review, and Codex-preference preflight without installing anything. Gauntlet's guarded `closeout execute` command runs this check before it commits or merges, so an unresolved local conflict cannot be discovered only after the repository change lands.
+
 `./scripts/install.sh` defaults to `--target codex`, which installs Gauntlet into `$HOME/.codex` unless `AGENT_HOME` or `GAUNTLET_AGENT_HOME` is set. For Claude Code, use `./scripts/install.sh --target claude` or `GAUNTLET_INSTALL_TARGET=claude ./scripts/install.sh`; this installs into `$HOME/.claude` by default.
 
-The Codex target writes or replaces one Gauntlet managed block inside the agent-home `AGENTS.md`, preserving unrelated instructions outside the block. The Claude Code target writes or updates `CLAUDE.md` with a managed import block pointing at the installed portable router because Claude Code reads `CLAUDE.md` rather than `AGENTS.md`. Both targets reject malformed managed markers and replace their own block idempotently.
+The Codex target writes or replaces one Gauntlet managed block inside the agent-home `AGENTS.md`, preserving unrelated instructions outside the block. It also adds `model_verbosity = "low"` and `personality = "none"` as top-level settings in `config.toml`. The update is atomic, preserves unrelated bytes, comments, permissions, and symlinks, and is idempotent.
+
+When Codex already has a different value, the installer stops before changing any files and prints both the existing and candidate values. After asking the user, rerun with one explicit choice:
+
+```sh
+# Use Gauntlet's low-verbosity, no-personality defaults.
+./scripts/install.sh --target codex --codex-preferences gauntlet
+
+# Keep existing values while adding only missing Gauntlet defaults.
+./scripts/install.sh --target codex --codex-preferences existing
+
+# Leave config.toml completely unchanged.
+./scripts/install.sh --target codex --codex-preferences skip
+```
+
+The Claude Code target writes or updates `CLAUDE.md` with a managed import block pointing at the installed portable router because Claude Code reads `CLAUDE.md` rather than `AGENTS.md`. The imported router contains the same response-style policy used by Codex, without duplicating it in the adapter. Claude installs do not create or modify `config.toml`.
+
+Both targets reject malformed managed markers and replace their own block idempotently. Shell code cannot reliably decide whether arbitrary prose instructions conflict, so the installation prompt requires the installing agent to perform that semantic comparison, show both conflicting passages, and ask the user. The direct installer stores only hashes of the reviewed user-owned and candidate instructions; it reopens the review gate when either hash changes without copying private instruction text into its state.
 
 Both targets install only the Gauntlet files that live in this repository: the global workflow, Gauntlet role skills, docs, scripts, and eval fixtures. They do not import personal skills or instructions from elsewhere on your machine.
 
@@ -242,6 +283,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | File Or Directory | Purpose |
 | --- | --- |
 | [router/AGENTS.md](router/AGENTS.md) | Compact portable global router installed into the target agent home with rendered stable Gauntlet paths. |
+| [router/response-style.md](router/response-style.md) | Single response-style policy rendered into the portable router unless the user keeps a conflicting existing style. |
 | [AGENTS.md](AGENTS.md) | Repository contributor guide for changing and proving Gauntlet itself; it is not installed as the portable router. |
 | `CLAUDE.md` | Claude Code adapter created by `--target claude`; imports the installed Gauntlet `AGENTS.md` through a managed block while preserving existing Claude instructions. |
 | [skills/intake/SKILL.md](skills/intake/SKILL.md) | Turns rough intent into an implementable spec. |
@@ -267,7 +309,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [docs/promotion-scanner.md](docs/promotion-scanner.md) | Trigger policy and gap-routing guidance for promotion scans. |
 | [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
 | [scripts/gauntlet.py](scripts/gauntlet.py) | Deterministic CLI for guarded one-command closeout, merge/archive actions, analytics, install verification, follow-up packets, compatibility memory linting, and PR/changelog drafts. |
-| [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals. |
+| [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals with instruction-conflict preflight and conflict-aware Codex response defaults. |
 | [scripts/classify-ts-durability.sh](scripts/classify-ts-durability.sh) | Classifies whether TypeScript durability standards are required for the current work. |
 | [scripts/diff-intel.py](scripts/diff-intel.py) | Writes advisory changed-file, package-root, risk-trigger, dirty-worktree, confidence, and `Cannot verify` intel. |
 | [scripts/test-plan.py](scripts/test-plan.py) | Recommends focused and broader verification commands from diff intel without defaulting to huge suites. |
@@ -299,6 +341,7 @@ Selected techniques are adapted from Jesse Vincent's [Superpowers](https://githu
 | File | Purpose |
 | --- | --- |
 | [router/AGENTS.md](router/AGENTS.md) | Portable global workflow router. |
+| [router/response-style.md](router/response-style.md) | Portable response-style policy rendered by the installer. |
 | [AGENTS.md](AGENTS.md) | Contributor guidance for this repository. |
 | [skills/](skills) | Role-specific reusable instructions. |
 | [docs/](docs) | Coverage gaps, UI constitution, Production Quality Bar, workflow speedups, promotion scanner, design lint candidates, and historical plans. |

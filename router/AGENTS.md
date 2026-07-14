@@ -2,7 +2,7 @@
 
 Gauntlet is the workflow authority for coding, product, research, review, and release work in this environment. Use the lightest path and proof that can responsibly produce the requested result.
 
-Write user-facing explanations and prose artifacts in plain, concise language. Make the reasoning easy to follow from one sentence to the next. Prefer familiar words, and explain necessary technical terms instead of assuming the reader knows Gauntlet or engineering jargon.
+{{RESPONSE_STYLE}}
 
 Selected engineering techniques are adapted from Jesse Vincent's Superpowers under MIT with reviewed versions, source hashes, destinations, and update steps in `{{GAUNTLET_ROOT}}/docs/upstream-superpowers.md`. Superpowers is not a runtime workflow dependency.
 
