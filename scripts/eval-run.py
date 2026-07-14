@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 import os
+import signal
 import statistics
 import subprocess
 import sys
@@ -17,11 +18,27 @@ from typing import Any
 
 
 SCHEMA_VERSION = 1
-DIMENSIONS = ("selector", "nested-agent", "permission", "timeout", "artifact", "telemetry")
+DIMENSIONS = (
+    "single-agent",
+    "custom-profile",
+    "nested-agent",
+    "concurrent-lanes",
+    "resume-interrupt",
+    "permission",
+    "pty",
+    "timeout",
+    "artifact",
+    "telemetry",
+    "failure",
+)
 ADAPTER_KINDS = ("native", "wrapped", "mastra", "harbor")
+HARNESS_CELL_FIELDS = (
+    "harness", "harness_version", "model", "reasoning_effort", "permission_mode", "resource_profile"
+)
 CACHE_STATES = ("cold", "steady")
 ROLES = ("baseline", "total-package", "ablation")
 HEX = set("0123456789abcdef")
+MAX_ADAPTER_BYTES = 10 * 1024 * 1024
 
 
 class EvalRunError(Exception):
@@ -108,21 +125,21 @@ def contains_gauntlet_artifact(value: Any) -> bool:
     return "gauntlet" in canonical_json(value).casefold()
 
 
-def validate_conformance_record(proof: Any, adapter_id: str) -> dict[str, Any]:
-    proof = require_object(proof, f"adapter {adapter_id}.conformance")
+def validate_equivalence_record(proof: Any, adapter_id: str) -> dict[str, Any]:
+    proof = require_object(proof, f"adapter {adapter_id}.equivalence")
     if proof.get("schema_version") != SCHEMA_VERSION:
-        raise EvalRunError(f"adapter {adapter_id} conformance schema_version must be 1")
+        raise EvalRunError(f"adapter {adapter_id} equivalence schema_version must be 1")
     if proof.get("status") != "pass" or proof.get("dimensions") != list(DIMENSIONS) or proof.get("mismatches") != []:
-        raise EvalRunError(f"adapter {adapter_id} requires passing A/A conformance for every dimension")
+        raise EvalRunError(f"adapter {adapter_id} requires passing A/A equivalence for every dimension")
     comparisons = proof.get("comparisons")
     if not isinstance(comparisons, list) or len(comparisons) != len(DIMENSIONS):
-        raise EvalRunError(f"adapter {adapter_id} conformance requires complete comparison evidence")
+        raise EvalRunError(f"adapter {adapter_id} equivalence requires complete comparison evidence")
     for dimension, raw_comparison in zip(DIMENSIONS, comparisons):
-        comparison = require_object(raw_comparison, f"adapter {adapter_id} conformance comparison {dimension}")
+        comparison = require_object(raw_comparison, f"adapter {adapter_id} equivalence comparison {dimension}")
         if set(comparison) != {"dimension", "native", "passed", "wrapped"}:
-            raise EvalRunError(f"adapter {adapter_id} conformance comparison {dimension} has invalid fields")
-        native = require_object(comparison.get("native"), f"adapter {adapter_id} conformance native {dimension}")
-        wrapped = require_object(comparison.get("wrapped"), f"adapter {adapter_id} conformance wrapped {dimension}")
+            raise EvalRunError(f"adapter {adapter_id} equivalence comparison {dimension} has invalid fields")
+        native = require_object(comparison.get("native"), f"adapter {adapter_id} equivalence native {dimension}")
+        wrapped = require_object(comparison.get("wrapped"), f"adapter {adapter_id} equivalence wrapped {dimension}")
         if (
             comparison.get("dimension") != dimension
             or comparison.get("passed") is not True
@@ -130,11 +147,14 @@ def validate_conformance_record(proof: Any, adapter_id: str) -> dict[str, Any]:
             or native.get("dimension") != dimension
             or "observation" not in native
         ):
-            raise EvalRunError(f"adapter {adapter_id} conformance comparison {dimension} did not pass")
+            raise EvalRunError(f"adapter {adapter_id} equivalence comparison {dimension} did not pass")
     expected_suite_digest = "sha256:" + digest(comparisons)
     if proof.get("suite_digest") != expected_suite_digest:
-        raise EvalRunError(f"adapter {adapter_id} conformance suite digest does not match its comparisons")
+        raise EvalRunError(f"adapter {adapter_id} equivalence suite digest does not match its comparisons")
     return proof
+
+
+validate_conformance_record = validate_equivalence_record
 
 
 def validate_adapters(raw: Any, used: set[str]) -> dict[str, dict[str, Any]]:
@@ -161,19 +181,31 @@ def validate_adapters(raw: Any, used: set[str]) -> dict[str, dict[str, Any]]:
         if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or not 0 < timeout <= 300:
             raise EvalRunError(f"adapter {adapter_id}.timeout_seconds must be from 0 to 300")
         if kind != "native":
-            if not isinstance(item.get("conformance"), dict):
-                raise EvalRunError(f"adapter {adapter_id} requires passing A/A conformance for every dimension")
-            proof = validate_conformance_record(item.get("conformance"), adapter_id)
+            if "equivalence" in item and "conformance" in item:
+                raise EvalRunError(f"adapter {adapter_id} cannot declare both equivalence and legacy conformance")
+            raw_proof = item.get("equivalence", item.get("conformance"))
+            if not isinstance(raw_proof, dict):
+                raise EvalRunError(f"adapter {adapter_id} requires passing A/A equivalence for every dimension")
+            proof = validate_equivalence_record(raw_proof, adapter_id)
             if proof.get("wrapped_command_digest") != command_digest(command):
-                raise EvalRunError(f"adapter {adapter_id} conformance does not match its command")
+                raise EvalRunError(f"adapter {adapter_id} equivalence does not match its command")
             native_adapter = native_adapters.get(proof.get("native_command_digest"))
             if native_adapter is None:
-                raise EvalRunError(f"adapter {adapter_id} conformance does not match a registered native adapter")
+                raise EvalRunError(f"adapter {adapter_id} equivalence does not match a registered native adapter")
             live_timeout = min(float(timeout), float(native_adapter["timeout_seconds"]))
-            live_proof = conformance(native_adapter["command"], command, live_timeout)
+            live_proof = adapter_equivalence(native_adapter["command"], command, live_timeout)
             if live_proof.get("status") != "pass" or live_proof.get("suite_digest") != proof.get("suite_digest"):
-                raise EvalRunError(f"adapter {adapter_id} failed live A/A conformance at plan admission")
-        output[adapter_id] = {**item, "command": command, "timeout_seconds": float(timeout)}
+                raise EvalRunError(f"adapter {adapter_id} failed live A/A equivalence at plan admission")
+        cell = item.get("harness_cell")
+        if cell is not None:
+            cell = require_object(cell, f"adapter {adapter_id}.harness_cell")
+            if set(cell) != set(HARNESS_CELL_FIELDS):
+                raise EvalRunError(f"adapter {adapter_id}.harness_cell must contain exactly {', '.join(HARNESS_CELL_FIELDS)}")
+            for field in HARNESS_CELL_FIELDS:
+                if field == "reasoning_effort" and cell[field] is None:
+                    continue
+                require_string(cell[field], f"adapter {adapter_id}.harness_cell.{field}")
+        output[adapter_id] = {**item, "command": command, "harness_cell": cell, "timeout_seconds": float(timeout)}
     return output
 
 
@@ -243,6 +275,12 @@ def validate_plan(raw: Any, core_registry: Any, adapter_registry: Any) -> dict[s
         raise EvalRunError("plan requires exactly one baseline and one total-package condition")
     used = {item["adapter"] for item in normalized_conditions}
     adapters = validate_adapters(adapter_registry, used)
+    cells = [adapters[item["adapter"]].get("harness_cell") for item in normalized_conditions]
+    if any(cell is not None for cell in cells):
+        if any(cell is None for cell in cells) or any(cell != cells[0] for cell in cells[1:]):
+            raise EvalRunError(
+                "every condition in one paired plan must use the same harness version, model, effort, permission, and resource cell"
+            )
     return {
         "adapters": adapters, "cache_states": list(CACHE_STATES), "conditions": normalized_conditions,
         "repetitions": repetitions, "schema_version": SCHEMA_VERSION, "study_id": study_id, "tasks": normalized_tasks,
@@ -250,22 +288,40 @@ def validate_plan(raw: Any, core_registry: Any, adapter_registry: Any) -> dict[s
 
 
 def adapter_environment() -> dict[str, str]:
-    allowed = {"PATH", "SYSTEMROOT", "TMPDIR", "TEMP", "TMP"}
+    allowed = {
+        "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "OPENAI_API_KEY",
+        "PATH", "SYSTEMROOT", "TMPDIR", "TEMP", "TMP",
+    }
     return {key: value for key, value in os.environ.items() if key in allowed}
 
 
 def run_process(command: list[str], request: dict[str, Any], timeout: float) -> dict[str, Any]:
     try:
-        completed = subprocess.run(
-            command, input=canonical_json(request) + "\n", text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            env=adapter_environment(), timeout=timeout, check=False,
+        process = subprocess.Popen(
+            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            env=adapter_environment(), start_new_session=True,
         )
+        try:
+            stdout, stderr = process.communicate(input=canonical_json(request) + "\n", timeout=timeout)
+        except subprocess.TimeoutExpired:
+            try:
+                if hasattr(os, "killpg"):
+                    os.killpg(process.pid, signal.SIGKILL)
+                else:
+                    process.kill()
+            except ProcessLookupError:
+                pass
+            process.communicate()
+            raise
+        completed = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
     except subprocess.TimeoutExpired as exc:
         raise AdapterFailure("timeout", "adapter timed out") from exc
     except OSError as exc:
         raise AdapterFailure("adapter-error", f"adapter could not start: {exc}") from exc
     if completed.returncode != 0:
         raise AdapterFailure("adapter-error", f"adapter exited {completed.returncode}: {completed.stderr.strip()[:300]}")
+    if len(completed.stdout.encode()) + len(completed.stderr.encode()) > MAX_ADAPTER_BYTES:
+        raise AdapterFailure("malformed-response", "adapter response exceeds the bounded controller limit")
     try:
         result = json.loads(completed.stdout)
     except json.JSONDecodeError as exc:
@@ -283,36 +339,47 @@ def invoke_execution(adapter: dict[str, Any], request: dict[str, Any]) -> dict[s
     if result.get("outcome") not in ("pass", "implementation_failure"):
         raise AdapterFailure("malformed-response", "adapter outcome must be pass or implementation_failure")
     metrics = result.get("metrics", {})
-    if not isinstance(metrics, dict) or any(not isinstance(value, (int, float)) or isinstance(value, bool) for value in metrics.values()):
+    if not isinstance(metrics, dict) or any(
+        not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value)
+        for value in metrics.values()
+    ):
         raise AdapterFailure("malformed-response", "adapter metrics must be numeric")
     artifacts = result.get("artifacts", [])
-    if not isinstance(artifacts, list) or any(not isinstance(value, str) for value in artifacts):
-        raise AdapterFailure("malformed-response", "adapter artifacts must be strings")
+    if not isinstance(artifacts, list) or any(
+        not isinstance(value, str) or not value or len(value) > 512 or Path(value).is_absolute() or ".." in Path(value).parts
+        for value in artifacts
+    ):
+        raise AdapterFailure("malformed-response", "adapter artifacts must be safe bounded relative references")
     telemetry = result.get("telemetry", {})
     if not isinstance(telemetry, dict):
         raise AdapterFailure("malformed-response", "adapter telemetry must be an object")
     return {"artifacts": artifacts, "metrics": metrics, "outcome": result["outcome"], "telemetry": telemetry}
 
 
-def conformance_request(dimension: str) -> dict[str, Any]:
+def equivalence_request(dimension: str) -> dict[str, Any]:
     fixtures = {
-        "selector": {"candidates": ["a", "b"], "selected": "b"},
+        "single-agent": {"expected_sessions": 1, "prompt": "return the fixture marker"},
+        "custom-profile": {"profile": "fixture-profile", "selector": "explicit"},
         "nested-agent": {"children": ["child-a", "child-b"], "depth": 2},
+        "concurrent-lanes": {"lanes": ["lane-a", "lane-b"], "minimum_overlap": True},
+        "resume-interrupt": {"checkpoint": "fixture-checkpoint", "interrupt_after": 1},
         "permission": {"network": False, "sandbox": "read-only"},
+        "pty": {"stdin": "fixture-input", "terminal": True},
         "timeout": {"timeout_ms": 250},
         "artifact": {"required": ["result.json"]},
         "telemetry": {"fields": ["duration_ms", "tokens"]},
+        "failure": {"expected_exit": "nonzero", "reason": "fixture-failure"},
     }
     return {"dimension": dimension, "fixture": fixtures[dimension], "op": "conformance", "schema_version": SCHEMA_VERSION}
 
 
-def conformance(native: list[str], wrapped: list[str], timeout: float = 30) -> dict[str, Any]:
+def adapter_equivalence(native: list[str], wrapped: list[str], timeout: float = 30) -> dict[str, Any]:
     native = validate_command(native, "native command")
     wrapped = validate_command(wrapped, "wrapped command")
     comparisons = []
     mismatches = []
     for dimension in DIMENSIONS:
-        request = conformance_request(dimension)
+        request = equivalence_request(dimension)
         try:
             left = run_process(native, request, timeout)
             right = run_process(wrapped, request, timeout)
@@ -332,14 +399,20 @@ def conformance(native: list[str], wrapped: list[str], timeout: float = 30) -> d
     return record
 
 
+conformance_request = equivalence_request
+conformance = adapter_equivalence
+
+
 def identity(condition: dict[str, Any]) -> str:
     return condition["role"] if condition["role"] != "ablation" else f"ablation:{condition['component']}"
 
 
-def execution_request(task: dict[str, Any], condition: dict[str, Any], repetition: int, cache_state: str) -> dict[str, Any]:
+def execution_request(
+    task: dict[str, Any], condition: dict[str, Any], repetition: int, cache_state: str, execution_id: str
+) -> dict[str, Any]:
     return {
         "cache_state": cache_state, "condition_token": condition["package_digest"], "op": "execute",
-        "package": condition["package"], "repetition": repetition, "schema_version": SCHEMA_VERSION,
+        "execution_id": execution_id, "package": condition["package"], "repetition": repetition, "schema_version": SCHEMA_VERSION,
         "state_digest": task["state_digest"], "task_id": task["task_id"], "task_version": task["task_version"],
     }
 
@@ -372,7 +445,8 @@ def execute(plan_raw: Any, core_raw: Any, adapters_raw: Any, output: Path | None
                         atomic_json(output, state)
                     try:
                         observed = invoke_execution(
-                            plan["adapters"][condition["adapter"]], execution_request(task, condition, repetition, cache_state)
+                            plan["adapters"][condition["adapter"]],
+                            execution_request(task, condition, repetition, cache_state, execution_id),
                         )
                         record.update(observed)
                     except AdapterFailure as exc:
@@ -412,7 +486,9 @@ def replay(plan_raw: Any, core_raw: Any, adapters_raw: Any, run_raw: Any, output
         if not task or not condition or task["state_digest"] != original.get("state_digest") or condition["package_digest"] != original.get("condition_package_digest"):
             record.update({"outcome": "not_run", "reason": "state_or_package_mismatch"})
         else:
-            request = execution_request(task, condition, original["repetition"], original["cache_state"])
+            request = execution_request(
+                task, condition, original["repetition"], original["cache_state"], f"{original['execution_id']}-replay-2"
+            )
             try:
                 observed = invoke_execution(plan["adapters"][condition["adapter"]], request)
                 record.update(observed)
@@ -522,17 +598,20 @@ def parser() -> argparse.ArgumentParser:
     report_cmd = commands.add_parser("report")
     report_cmd.add_argument("--plan", required=True, type=Path); report_cmd.add_argument("--run", required=True, type=Path)
     report_cmd.add_argument("--output", type=Path)
-    conform = commands.add_parser("conformance")
-    conform.add_argument("--native-command", required=True, type=Path); conform.add_argument("--wrapped-command", required=True, type=Path)
-    conform.add_argument("--output", type=Path)
+    for name in ("adapter-equivalence", "conformance"):
+        conform = commands.add_parser(name)
+        conform.add_argument("--native-command", required=True, type=Path); conform.add_argument("--wrapped-command", required=True, type=Path)
+        conform.add_argument("--output", type=Path)
     return root
 
 
 def main() -> int:
     args = parser().parse_args()
     try:
-        if args.command == "conformance":
-            result = conformance(read_json(args.native_command, "native command"), read_json(args.wrapped_command, "wrapped command"))
+        if args.command in ("adapter-equivalence", "conformance"):
+            result = adapter_equivalence(
+                read_json(args.native_command, "native command"), read_json(args.wrapped_command, "wrapped command")
+            )
         elif args.command == "report":
             result = report(read_json(args.plan, "plan"), read_json(args.run, "run"))
         else:
