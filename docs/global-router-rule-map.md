@@ -11,6 +11,7 @@ This map prevents the compact global router from becoming a silent rule deletion
 | Workflow Etiquette | Keep + move | Ask only material questions; otherwise execute autonomously and quietly. | `docs/workflow-etiquette.md` |
 | Minimum useful questions | Keep + move | Every skill uses existing context, asks at most three short single-decision questions only when the answer is consequential, and otherwise provides a provisional result. | `docs/workflow-etiquette.md` |
 | Local product documents | Add + move | An active `doc_org.md` keeps ignored canonical working documents in the primary worktree while preserving tracked repository documentation and the existing Gauntlet lifecycle. | `docs/local-documentation.md` and relevant role skills |
+| PRD execution contract | Add + move | A multi-Epic PRD remains the human source; only its build-ready target compiles into a durable Ticket Graph and end-to-end Execution Run. | `docs/prd-execution.md`, `docs/local-documentation.md`, planner and implementation skills |
 | Priority/title mechanics | Move | Classification is internal unless it changes scope, cost, authority, proof, or a user decision. | `docs/workflow-etiquette.md` |
 | Edge-case and scope-delta foresight | Keep + move | Resolve material edge cases and additions before implementation. | `intake`, `planner`, `docs/workflow-etiquette.md` |
 | Git Discipline | Keep + move | Preserve dirty work, branch/worktree broad changes, use PRs as proof bundles. | Repository `AGENTS.md`, `docs/github-discipline.md` |
@@ -29,7 +30,10 @@ This map prevents the compact global router from becoming a silent rule deletion
 | Frontend Quality Gate | Keep + move | Substantial frontend work uses bounded code/browser/experience proof. | UI references and reviewer skills |
 | Intake Gate | Keep + move | Establish scope, acceptance, proof, constraints, and material questions before substantial work. | `intake` |
 | Role Skills | Keep + move | Route to the narrowest role skill that adds concrete value. | `skills/*/SKILL.md` |
-| Child ticket | Keep + simplify | A ticket is an ephemeral child assignment; the main task dispatches one bounded ticket per child and coordinates through native state. | `planner`, `implementer`, `docs/workflow-etiquette.md` |
+| Child Ticket | Keep + simplify | A Ticket is a generated execution assignment within the current plan or Execution Run; the main task dispatches one bounded Ticket per child and coordinates through native state. | `planner`, `implementer`, `docs/workflow-etiquette.md` |
+| Durable delegated state | Add + move | Execution artifacts own run state after dispatch, survive compaction, bound child context, and support selective ticket invalidation. | `docs/prd-execution.md` and execution helpers |
+| Ticket scheduling | Add + move | Use a critical-path ready queue, affinity, interface-first work, incremental integration, selective Cohort Verification, parent-owned oracles, and named outputs. | `docs/prd-execution.md` and planner |
+| Implement-the-PRD authority | Add + move | The accepted build-ready target proceeds through branch, tickets, integration, proof, PR, merge, specified deployment/production work, verification, rollback, updates, and cleanup unless a named authority or safety stop applies. | `docs/prd-execution.md`, `docs/workflow-etiquette.md` |
 | Role Report Contract | Replace | Child agents return `status`, `changedFiles`, evidence pointers, and `blocker`; no routine prose. The parent independently verifies evidence. | `implementer`, `docs/meaningful-proof.md` |
 | Subagent output/progress | Replace | Silent safe recovery; surface decisions, unrecoverable failure, host-required terse heartbeat, or final proof only. | Router quiet-execution contract |
 | System-Level Explanation Visuals | Move | Use diagrams/illustrations only when they materially improve understanding. | Diagram and illustration skills |
@@ -44,6 +48,7 @@ This map prevents the compact global router from becoming a silent rule deletion
 - Delete downstream-relative Gauntlet `docs/...` and `scripts/...` references from installed guidance.
 - Delete claims that phrase-presence fixture scoring proves behavioral compliance.
 - Delete routine human-facing subagent progress and prose reports.
+- Delete prompt duplication that sends every child the whole PRD, manifest, event history, or unrelated receipts.
 - Do not add universal agent counts, retry counts, polling intervals, reviewer ratios, or token thresholds.
 
 ## Preservation boundary

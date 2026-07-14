@@ -13,6 +13,7 @@ Gauntlet v2.0.2 is a product-thinking and proof harness for coding agents. This 
 - `docs/skill-quality-bar.md`: requirements for meaningful skill and workflow changes.
 - `docs/production-quality-bar.md`: bounded launch/hardening checks when production risk triggers them.
 - `docs/local-documentation.md`: opt-in local product-document organization, tracked/private boundaries, and scaffolding behavior.
+- `docs/prd-execution.md`: PRD terminology, Ticket Graph compilation, durable execution state, scheduling, and end-to-end implementation authority.
 - `scripts/check-gauntlet-workflow.py`: end-to-end workflow regression suite.
 
 Use repository-relative `docs/...` and `scripts/...` paths only for work inside this repository. Portable guidance must use the installed-path contract rendered by the installer.
@@ -57,6 +58,8 @@ For genuine scope additions, check the added scope and its boundary with accepte
 
 When `doc_org.md` activates the local-document profile, read it and `local-docs/INDEX.md` before creating or changing covered documents. Canonical local documents stay in the primary worktree; tracked documentation stays in the repository's established documentation location.
 
+An accepted multi-Epic PRD is the human product source. At implementation time, compile only its explicit build-ready target into a Ticket Graph; do not turn proposed, deferred, or materially unresolved work into tickets. Follow `docs/prd-execution.md` for terminology, durable artifacts, resumption, scheduling, and release authority.
+
 ## Quiet autonomous execution
 
 - Routine execution stays in tools and machine artifacts, not user-facing narration.
@@ -66,18 +69,22 @@ When `doc_org.md` activates the local-document profile, read it and `local-docs/
 - Stop when recovery would repeat the same failure fingerprint, require new authority, risk destructive external state, or exceed the accepted appetite.
 - Do not ask AJS to inspect tickets, reports, ledgers, traces, or progress prose.
 
+After an Execution Run starts, its source lock, manifest, and resume artifact own execution state. Recover from those local artifacts after compaction or restart instead of reconstructing progress from chat.
+
 ## Subagents and bounded dispatch
 
 Standing authorization: automatically use subagents when two or more useful lanes have independent file or evidence ownership, mutable state, and proof, and the speed or independent-evidence gain clearly beats the context cost. Do not wait for the user to request delegation, and do not require Release classification. Keep execution in the main task when the split would serialize on shared state, duplicate substantial context, or weaken proof.
 
 - The main chat owns the accepted plan, user decisions, final branch, integration, PR, merge decision, and final synthesis.
 - Write-heavy lanes use isolated worktrees unless a tiny disjoint patch clearly does not need one.
-- A Gauntlet ticket is an ephemeral child assignment from the canonical plan, not an issue-tracker record.
+- A Gauntlet Ticket is a generated execution assignment within the current plan or Execution Run, not an issue-tracker record.
+- The Ticket Graph uses a dynamic ready queue: prioritize critical-path and interface-first work, preserve useful agent affinity, integrate completed tickets continuously, and wait at selective Cohort Verification barriers only where tickets share an invariant or interface.
 - Dispatch each child directly from one bounded ticket. Include only the material objective, ownership, dependencies, constraints, proof expectations, return contract, and ask-parent policy; proof fields are optional and proportional.
 - Native Codex state and main-chat messages own live coordination.
 - Keep files, mutable state, and proof targets disjoint. Avoid splitting one tightly coupled decision tree across lanes.
 - Children report `Needs decision` to the orchestrator instead of asking AJS directly.
 - The main chat owns the oracle, independently reruns or resolves child evidence, integrates commits into one branch as results arrive, runs targeted integration checks, and runs combined proof after all required tickets finish. It opens one final PR.
+- Materialize one bounded child context with named dependency contracts and outputs. Children do not load the whole PRD, manifest, event stream, or unrelated receipts by default.
 - Keep delegation, child progress, completion, and receipts out of user-facing narration. All applicable etiquette and gates still run internally; surface only the user-facing action or material exception they require.
 
 ## Implementation
@@ -144,6 +151,8 @@ Keep deterministic coverage, scorer plumbing, and behavioral outcome evidence di
 - Child lanes commit to their branches and return receipts; the main chat integrates and owns the PR.
 
 “Merge this,” “land this,” or “merge this to main” authorizes the complete safe closeout for the accepted scope: prepare the contextual handoff, update `CHANGELOG.md`, commit and push the task branch, create or update one PR, wait for required checks and blocking review state, merge, delete the remote task branch, verify the default branch, and clean local task state only when no unique work remains. Ask only for a new material decision or preservation risk.
+
+“Implement the PRD” authorizes the accepted build-ready target through branch/worktree creation, Ticket Graph execution, incremental integration, proof, PR, merge, exact-default-branch deployment when specified, documented production changes, production verification, required rollback, durable updates, and safe cleanup. It excludes proposed, deferred, and materially unresolved work. Stop for missing authority or credentials, an unsafe or destructive effect absent from the PRD, production reality that invalidates rollout or rollback, or required production proof that cannot be obtained.
 
 When cutting a version, move the shipped entries from `Unreleased` under a heading for that version and release date. Keep the `Unreleased` heading for future work, and never delete released changelog history.
 

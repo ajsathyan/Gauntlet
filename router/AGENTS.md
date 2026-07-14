@@ -86,6 +86,8 @@ Stop planning when the first coherent build step and its proof path are clear. D
 
 When a repository has an active `doc_org.md`, read it and its local document index before creating or changing product, research, decision, planning, or run-log documents. Keep ignored canonical documents in the primary worktree and tracked repository documentation in the repository's established public or maintainer-facing location.
 
+Treat a PRD as the human product source: Epics are stable outcomes and Scope Areas are stable responsibilities. At implementation time, compile only the explicit build-ready target into a Ticket Graph of independently assignable Tickets. One Execution Run owns durable local state; Receipts point to evidence, and Cohort Verification proves shared interfaces or invariants. Follow `{{GAUNTLET_ROOT}}/docs/prd-execution.md`.
+
 ## Implementation And Proof
 
 - Read before editing, match repository patterns, keep interfaces narrow, and avoid unrelated cleanup.
@@ -114,6 +116,8 @@ Archive behavior is authority-sensitive: use the installed archive planner and e
 
 “Merge this” or “land this” authorizes the accepted branch-to-PR, required-check, merge, verification, and safe-cleanup sequence. “Push to git” authorizes only the current branch, and a request to open a PR does not authorize merging it. Use `{{GAUNTLET_ROOT}}/scripts/gauntlet.py merge prepare|plan|execute`; run `execute` only with merge authority.
 
+“Implement the PRD” authorizes the accepted build-ready target through branch/worktree creation, Ticket Graph execution, incremental integration, proof, PR, merge, exact-default-branch deployment when specified, documented production changes, verification, required rollback, durable updates, and cleanup. Exclude proposed, deferred, and materially unresolved work. Stop for missing authority or credentials, an unsafe or destructive effect absent from the PRD, production reality that invalidates rollout or rollback, or required production proof that cannot be obtained.
+
 When the user asks to apply Gauntlet locally, merge it through a new PR, and then archive the task, use `{{GAUNTLET_ROOT}}/scripts/gauntlet.py closeout execute` with explicit `--stage` paths. Execute its returned Codex app actions in order; the CLI plans those app actions but cannot archive the task by itself.
 
 ## Delegation And Quiet Execution
@@ -122,7 +126,11 @@ Parallelism must beat its context cost. Delegate only independent files, state, 
 
 Standing authorization: when two or more useful lanes meet that independence test, spawn subagents automatically without waiting for the user to request delegation. The work itself is the trigger; Release classification is not required. Stay end-to-end in the main task when splitting would duplicate context, serialize on shared state, or weaken proof.
 
-A Gauntlet ticket is an ephemeral child assignment from the canonical plan, not an issue-tracker record. Dispatch each child directly from one bounded ticket with only the material objective, ownership, dependencies, constraints, proportional proof expectations, return contract, and ask-parent policy. Proof fields are optional. Native Codex state and main-task messages own live coordination. Write-heavy lanes use isolated worktrees unless a tiny disjoint change makes that unnecessary.
+A Gauntlet Ticket is a generated execution assignment within the current plan or Execution Run, not an issue-tracker record. Dispatch each child directly from one bounded ticket with only the material objective, ownership, dependencies, constraints, proportional proof expectations, return contract, and ask-parent policy. Proof fields are optional. Native Codex state and main-task messages own live coordination. Write-heavy lanes use isolated worktrees unless a tiny disjoint change makes that unnecessary.
+
+Schedule a dynamic ready queue: prioritize critical-path and interface-first work, preserve useful agent affinity, integrate finished tickets continuously, and wait only at selective cohort barriers. The parent owns the oracle and named integration outputs. Materialize compact child context from the ticket, relevant versioned shared context, named dependency contracts, and owned source; do not send the whole PRD, run manifest, event stream, or unrelated receipts.
+
+After an Execution Run starts, its source lock, manifest, and resume artifact are authoritative for execution state. Resume from disk after compaction or restart. Keep stable instructions first and ticket-specific data last, with canonical ordering and stable formatting; this improves prefix reuse but does not guarantee cache hits.
 
 Children work quietly. Implementation children return compact receipts that point to evidence; research and review children return the requested artifact or findings compactly. The main task owns the oracle, independently verifies child evidence, integrates commits into one branch as results arrive, runs targeted integration checks, waits for all required tickets before combined proof, and opens one final pull request.
 

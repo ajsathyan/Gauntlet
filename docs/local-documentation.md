@@ -10,6 +10,7 @@ local-docs/
   INDEX.md
   epics/
   research/
+  executions/
 ```
 
 Both `doc_org.md` and `local-docs/` are ignored through the repository's local Git exclude file. Gauntlet does not add them to a tracked `.gitignore`, overwrite an existing document, or repurpose a tracked `docs/` directory.
@@ -34,11 +35,36 @@ The profile organizes artifacts; it does not create another intake, planning, im
 
 The always-loaded Gauntlet question discipline applies to every document role. For documentation work, a question is consequential when its answer could change the document's purpose, audience, scope, authority, organization, or acceptance.
 
+## PRD Organization
+
+One PRD may cover multiple Epics and may be developed in one conversation. Keep it human-readable and searchable with stable identifiers:
+
+```text
+# <Product or initiative>
+## Epic <EPIC-ID>: <Outcome>
+### Objectives
+### Principles
+### Non-goals
+### Scope Area <SCOPE-ID>: <Responsibility>
+```
+
+An Epic is a stable product outcome. A Scope Area is a stable responsibility or surface inside that outcome; it is not an agent assignment. Separate objectives, principles, and non-goals rather than combining them under one heading. Likewise, keep user/job/first-value, states/recovery, trust/privacy/security/authority, acceptance/test expectations, dependencies/assumptions/open questions, and rollout/rollback distinct when each contains material information.
+
+Acceptance criteria state what must be true. Test expectations identify the behavior claim, observable oracle, plausible wrong case, and required non-effects. Verification strategy describes plan-level proof layers. Tickets and Cohort Verification are generated only after a build-ready implementation target is accepted; they do not belong in the PRD as a second hand-written plan.
+
 ## Release Contract
 
 The generated `doc_org.md` contains one implementation and release contract. PRDs record product-level release constraints. Build-ready plans resolve the worktree, branch, authority gates, integration order, proof, rollout, rollback, and release source for that implementation and reference the current contract.
 
 Do not copy the full release procedure into every PRD and plan. A material contract change invalidates an active plan until its resolved release section is reviewed.
+
+The phrase **implement the PRD** applies only to the explicit build-ready target. It carries the end-to-end authority described in `docs/prd-execution.md`; proposed, deferred, or materially unresolved Epics and Scope Areas stay out of the Execution Run.
+
+## Execution Runs
+
+Generated Ticket Graphs and live execution state belong below `local-docs/executions/<run-id>/`, not beside the PRD as another human-authored source. After a run starts, its source lock, manifest, and resume file are authoritative for execution progress. Conversation continues to own user decisions, while compaction recovery reads the durable artifacts.
+
+Children receive one materialized ticket context plus relevant shared context, named dependency outputs, and owned source paths. They do not need the full PRD or execution history. The parent owns state transitions, integration, oracle verification, cohort results, and release records. See `docs/prd-execution.md` for the artifact and scheduling contract.
 
 ## Configuration Boundary
 

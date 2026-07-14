@@ -56,6 +56,7 @@ The workflow is built around Research, Patch, Feature, and Release paths; Standa
 | Scoped role skills | Adds product architecture, planning, triage, implementation, black-box testing, experience review, and deep code review only at smoke, delta, or full scope when useful. |
 | Run logs | Writes a tiny exceptions-first Markdown receipt for material Feature/Release work: assumptions, decisions, skipped checks, failures, `Cannot verify`, and follow-ups. |
 | Local product documents | Optionally scaffolds ignored `local-docs/` in the primary worktree while preserving tracked repository documentation and Git/PR/release traceability. |
+| PRD execution | Compiles one accepted multi-Epic PRD's build-ready target into a durable Ticket Graph with bounded child context, resumable state, incremental integration, cohort proof, and end-to-end release authority. |
 | Skill quality bar | Gives future skill and workflow edits a practical behavior-delta, trigger, completion, proof, and token-cost bar without making every Patch heavier. |
 | Coverage gaps | Captures pending candidates when missing reusable guidance forced a material assumption or repeated review finding. |
 | Workflow speedup helpers | Classifies changed surfaces, recommends bounded tests, and generates redacted review packets without making every Patch run a heavy quality gate. |
@@ -143,7 +144,9 @@ python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs init \
 
 The profile creates ignored `doc_org.md` and `local-docs/` paths in the primary worktree through Git's local exclude file. It never repurposes or ignores the repository's tracked `docs/` directory. Linked implementation worktrees read the primary copies and return durable updates to the main task.
 
-`doc_org.md` owns one release contract; PRDs record product constraints, and build-ready plans resolve authority, proof, rollout, rollback, and release-source details without copying the general procedure. See [docs/local-documentation.md](docs/local-documentation.md).
+`doc_org.md` owns one release contract. A human-readable PRD may contain multiple Epics organized by stable Scope Areas; only its explicit build-ready target compiles into the generated Ticket Graph. The resulting Execution Run keeps authoritative state on disk, survives conversation compaction, gives each child only bounded context, and verifies tickets individually and in meaningful cohorts before full PRD proof. See [docs/local-documentation.md](docs/local-documentation.md) and [docs/prd-execution.md](docs/prd-execution.md).
+
+“Implement the PRD” carries that accepted target through branch/worktree setup, implementation, proof, PR, merge, specified deployment and production changes, verification, rollback when required, durable updates, and cleanup. It stops rather than guessing when authority, credentials, safety, rollout/rollback validity, or required production proof is missing.
 
 ## 🧰 Skill Quality Bar
 
@@ -341,6 +344,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [docs/upstream-superpowers.md](docs/upstream-superpowers.md) | Attributes adapted techniques and explains selective upstream update review and runtime retirement. |
 | [docs/upstream-eval-skills.md](docs/upstream-eval-skills.md) | Records the vendored eval-skill source, namespace mapping, update procedure, and license location. |
 | [docs/local-documentation.md](docs/local-documentation.md) | Defines the opt-in ignored local-document profile, tracked/private boundary, canonical primary-worktree rule, and release/configuration contracts. |
+| [docs/prd-execution.md](docs/prd-execution.md) | Defines PRD/Epic/Scope Area/Ticket Graph terminology, durable execution artifacts, ready-queue scheduling, bounded child context, verification layers, and end-to-end implementation authority. |
 | [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
 | [docs/github-discipline.md](docs/github-discipline.md) | Beginner-friendly branch, worktree, commit, PR, merge, child-chat, and solo-builder defaults. |
 | [docs/ui-constitution.md](docs/ui-constitution.md) | Bounded frontend quality gate for prototypes and product UI. |

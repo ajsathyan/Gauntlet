@@ -26,6 +26,8 @@ Gauntlet uses one accepted spec and one canonical plan:
 - Planner turns the accepted spec into bounded implementation tasks and child tickets where delegation is useful.
 - Implementation Memory, separate design documents, and duplicate child tickets are not active defaults.
 
+For a PRD-backed build, the accepted multi-Epic PRD remains the human source and its explicit build-ready target is the accepted spec. Planner compiles that target into a Ticket Graph for the Execution Run; the graph does not replace or rewrite product intent. See `docs/prd-execution.md`.
+
 For Deep work, compare alternatives inside one pass. Use a second independent plan only when concrete Release-class harm or an explicit user request earns it.
 
 ## Classification And Titles
@@ -91,7 +93,11 @@ Use delegation only when parallelism beats context cost. Normal Requests stay in
 
 This is standing authorization to spawn subagents automatically when two or more useful lanes have independent ownership, state, and proof. Do not wait for the user to request delegation, and do not use Release classification as a prerequisite. Keep the work in the main task when the split would create dependency waits or repeated context without a real speed or evidence benefit.
 
-A Gauntlet ticket is an ephemeral child assignment from the canonical plan, not an issue-tracker record. Dispatch each child directly from one bounded ticket. Include only its material objective, skill, ownership, dependencies, consumes/produces contracts, constraints, proportional proof expectations, return contract, and ask-parent policy. Proof fields are optional. Native Codex state and main-task messages own live coordination.
+A Gauntlet Ticket is a generated execution assignment within the current plan or Execution Run, not an issue-tracker record. Dispatch each child directly from one bounded ticket. Include only its material objective, skill, ownership, dependencies, consumes/produces contracts, constraints, proportional proof expectations, return contract, and ask-parent policy. Proof fields are optional. Native Codex state and main-task messages own live coordination.
+
+Use one active implementation ticket per child by default. The same child may take sequential related tickets when agent affinity preserves useful context; do not co-own one implementation ticket across multiple implementers. Independent verifier tickets may inspect the integrated result.
+
+Schedule from the ready queue rather than in document order. Prioritize critical-path and interface-first work, keep named outputs explicit, integrate finished tickets as they arrive, and run immediate ticket proof. Wait only at Cohort Verification barriers for tickets that share a material interface or invariant, then run full PRD verification when all required cohorts pass.
 
 Child behavior:
 
@@ -111,6 +117,10 @@ Main-task behavior:
 - archives a child task after its report is integrated when the product supports it.
 
 Native Codex state owns child progress; do not require title or status churn. Use the stable lane id in the ticket and report as the coordination handle.
+
+The Execution Run owns durable progress. After dispatch begins, its source lock, manifest, and resume file are authoritative; conversation is advisory except for new user decisions. A restart or compaction resumes from those files. Child context is materialized from the assigned ticket, relevant versioned shared context, named dependency contracts, and owned source paths—not the entire PRD, manifest, events, or unrelated receipts.
+
+Keep stable instruction text first and ticket-specific context last. Canonical field order, sorted IDs, stable formatting, omitted empty fields, and delayed volatile metadata improve prefix reuse and token efficiency. Do not promise cache hits: the host, model, routing, and exact prompt bytes still control caching.
 
 Do not narrate the delegation lifecycle to the user unless a higher-priority host instruction explicitly requires disclosure. All applicable workflow etiquette remains active during quiet execution: perform classification, foresight, proof, state, and archive checks internally, then surface only a required user-facing action or material exception such as a title change, suggestion, decision, blocker, or safety stop.
 
@@ -178,6 +188,8 @@ Use `--confirm-git-risk` only when the user explicitly accepts dirty, unpushed, 
 Use a branch for persisted work. Use a worktree for p0–p2, broad, dirty-worktree, or write-heavy delegated work. Preserve unrelated files. The main task owns integration and merge.
 
 "Merge this," "land this," or "merge this to main" authorizes the contextual changelog → commit → push → PR → checks → merge-commit → remote cleanup → default-branch verification flow for the current scope. Use `scripts/gauntlet.py merge prepare`, `merge plan`, and `merge execute`; ask only for a new material choice or preservation risk.
+
+"Implement the PRD" authorizes its accepted build-ready target through branch/worktree setup, Ticket Graph execution, incremental integration, proof, PR, merge, exact-default-branch deployment when specified, documented production changes, verification, required rollback, durable updates, and safe cleanup. It does not include proposed, deferred, or materially unresolved work. Stop for missing credentials or authority, an unsafe or destructive effect absent from the PRD, production conditions that invalidate rollout or rollback, or required production proof that cannot be obtained.
 
 See `docs/github-discipline.md` for the detailed beginner-friendly branch → coherent commits → PR → verification → merge-commit → cleanup path.
 
