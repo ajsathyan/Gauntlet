@@ -311,15 +311,27 @@ def validate_measurement(value: Dict[str, Any], label: str) -> Dict[str, Any]:
     if not isinstance(root, str) or not root:
         raise LocError("invalid-measurement", f"{label}.root must identify the measured tree")
     receipt_exclusions = value.get("receiptExclusions")
-    if not isinstance(receipt_exclusions, list) or receipt_exclusions != sorted(set(receipt_exclusions)):
-        raise LocError("invalid-measurement", f"{label}.receiptExclusions must be a sorted unique array")
+    if (
+        not isinstance(receipt_exclusions, list)
+        or receipt_exclusions != sorted(set(receipt_exclusions))
+        or len(receipt_exclusions) > 1
+    ):
+        raise LocError("invalid-measurement", f"{label}.receiptExclusions must contain at most the one receipt output path")
     for path in receipt_exclusions:
         if not isinstance(path, str) or not path or Path(path).is_absolute() or ".." in Path(path).parts:
             raise LocError("invalid-measurement", f"{label} contains an unsafe receipt exclusion")
     return rules
 
 
-def verify_live(value: Dict[str, Any], label: str, rules: Dict[str, Any]) -> None:
+def verify_live(value: Dict[str, Any], label: str, rules: Dict[str, Any], receipt_path: Path) -> None:
+    exclusions = value["receiptExclusions"]
+    if exclusions:
+        bound_output = (Path(value["root"]) / exclusions[0]).resolve()
+        if bound_output != receipt_path.resolve():
+            raise LocError(
+                "unbound-receipt-exclusion",
+                f"{label}.receiptExclusions must identify the supplied repository-local receipt itself",
+            )
     live = measure(Path(value["root"]), rules, value["receiptExclusions"])
     if live["treeDigest"] != value["treeDigest"] or live["excludedInventory"]["digest"] != value["excludedInventory"]["digest"]:
         raise LocError("stale-measurement", f"{label} no longer matches the live tree at its recorded root")
@@ -353,8 +365,8 @@ def command_compare(args: argparse.Namespace) -> int:
     baseline_rules = validate_measurement(baseline, "baseline")
     current_rules = validate_measurement(current, "current")
     if args.verify_live:
-        verify_live(baseline, "baseline", baseline_rules)
-        verify_live(current, "current", current_rules)
+        verify_live(baseline, "baseline", baseline_rules, Path(args.baseline))
+        verify_live(current, "current", current_rules, Path(args.current))
     comparable = baseline.get("rulesHash") == current.get("rulesHash") and baseline.get("metric") == current.get("metric")
     report: Dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,

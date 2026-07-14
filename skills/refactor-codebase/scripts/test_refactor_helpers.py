@@ -304,6 +304,20 @@ class MeasureLocTests(unittest.TestCase):
             payload = json.loads(receipt.read_text(encoding="utf-8"))
             self.assertEqual(payload["receiptExclusions"], ["docs/refactor/loc.json"])
 
+    def test_live_verification_rejects_forged_receipt_exclusion(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "root"
+            (root / "docs" / "refactor").mkdir(parents=True)
+            receipt = root / "docs" / "refactor" / "loc.json"
+            self.assertEqual(run_script(MEASURE_LOC, "measure", str(root), "--output", str(receipt)).returncode, 0)
+            (root / "app.py").write_text("production = True\n", encoding="utf-8")
+            payload = json.loads(receipt.read_text(encoding="utf-8"))
+            payload["receiptExclusions"] = ["app.py"]
+            receipt.write_text(json.dumps(payload), encoding="utf-8")
+            result = run_script(MEASURE_LOC, "compare", str(receipt), str(receipt), "--verify-live")
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertEqual(json.loads(result.stdout)["error"]["code"], "unbound-receipt-exclusion")
+
     def test_comparison_blocks_vendor_and_unmeasured_extension_transfer(self) -> None:
         for destination in (Path("vendor/core.py"), Path("assets/core.txt")):
             with self.subTest(destination=str(destination)), tempfile.TemporaryDirectory() as temporary:
