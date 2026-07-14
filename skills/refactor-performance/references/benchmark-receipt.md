@@ -6,6 +6,8 @@ Prefer structured JSON for reproducibility and a short Markdown decision note on
 
 Store baseline and candidate sample files in the schema accepted by [compare_benchmarks.py](../scripts/compare_benchmarks.py), then preserve its deterministic comparison output alongside this richer receipt.
 
+Each comparator input must contain the same complete `metric`, `workload`, `environment`, and `protocol` objects, plus the same oracle identity and a passing oracle result. Evidence paths may differ between baseline and candidate. The comparator treats other differences as incomparable. `protocol` includes command, machine, dependency state, cache policy, concurrency, warm-up count, and the expensive-run declaration. Do not put comparison-critical identity only in surrounding Markdown.
+
 ## Required receipt fields
 
 Record at minimum:
@@ -38,14 +40,30 @@ A calling workflow should be able to reconstruct the conclusion from the receipt
 {
   "schema_version": 1,
   "mode": "optimize",
+  "metric": {"name": "wall_time", "unit": "seconds", "direction": "lower-is-better"},
+  "workload": {"id": "deterministic-tests", "inputDigest": "sha256:...", "scale": 842},
+  "environment": {"os": "linux", "architecture": "x86_64", "runtime": "python-3.12", "flags": []},
+  "oracle": {"id": "test-exit-and-count", "result": "pass", "evidence": ["842 passed"]},
+  "protocol": {
+    "command": "...", "machine": "ci-runner-1", "dependencyState": "lockfile-sha256:...",
+    "cachePolicy": "warm", "concurrency": 1, "warmups": 1, "expensiveRunException": false
+  },
+  "samples": [12.4, 12.2, 12.5, 12.3, 12.4]
+}
+```
+
+Baseline and candidate use separate files of this shape. The richer enclosing receipt may then record:
+
+```json
+{
+  "schema_version": 1,
+  "mode": "optimize",
   "source": {"revision": "...", "dirty": false},
   "surface": "deterministic-test-feedback",
-  "metric": {"name": "wall_time", "unit": "seconds", "direction": "lower"},
   "target": null,
-  "protocol": {"command": "...", "cache": "warm", "samples": 5},
-  "baseline": {"raw": [12.4, 12.2, 12.5, 12.3, 12.4], "median": 12.4},
-  "candidate": {"raw": [8.1, 8.0, 8.2, 8.1, 8.0], "median": 8.1},
-  "oracle": {"result": "pass", "evidence": ["..."]},
+  "baseline_artifact": "baseline-samples.json",
+  "candidate_artifact": "candidate-samples.json",
+  "comparison_artifact": "comparison.json",
   "gate": "improvement-proved",
   "limitations": []
 }

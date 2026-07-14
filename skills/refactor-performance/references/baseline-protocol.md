@@ -29,9 +29,9 @@ Record the source revision and working-tree state. Avoid including secrets in co
 
 ## Measure variability
 
-Run at least one unmeasured warm-up when warm performance is relevant. Then collect repeated measured runs; use at least five unless each run is prohibitively expensive. Preserve raw samples, failures, and outliers. Do not discard an outlier without a predeclared rule and recorded cause.
+Run at least one unmeasured warm-up when warm performance is relevant; declare a cold cache policy and use zero warm-ups for a cold-path comparison. Then collect repeated measured runs. Use at least five normally. A prohibitively expensive workload may use three only when the benchmark protocol records `expensiveRunException: true` and a concrete `expensiveRunReason`. Preserve raw samples, failures, and outliers. Do not discard an outlier without a predeclared rule and recorded cause.
 
-Report a suitable summary such as median with range or percentile distribution. For noisy systems, increase samples or use paired/interleaved baseline and candidate runs. A difference smaller than ordinary run-to-run variation is not a proved improvement.
+Report a suitable summary such as median with range or percentile distribution. The bundled comparator uses directional non-overlapping observed ranges as a conservative proof gate. When ranges overlap, increase samples or use a separately documented paired/interleaved method; the bundled comparison must remain unproved. A difference smaller than ordinary run-to-run variation is not a proved improvement.
 
 Measure cold and warm paths separately when users experience both. Avoid changing benchmark concurrency merely to improve throughput at the cost of latency or resources.
 

@@ -172,6 +172,7 @@ def snapshot(root: Path) -> Dict[str, Any]:
             "rawPathsIncluded": False,
             "rawSymlinkTargetsIncluded": False,
             "trackingSensitivity": "Review before tracking; hashes and repository metadata may still be sensitive.",
+            "ignoredContentPolicy": "Git-ignored content is excluded; approved ignored paths require a separate reviewed content-hash receipt.",
         },
         "readOnlyGitPolicy": {
             "gitOptionalLocks": False,

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Compare repeated benchmark samples using the median.
+"""Compare repeated benchmark samples using median and range separation.
 
 The median is robust to isolated noisy runs. Inputs need at least five measured
-samples after at least one warm-up. Protocol and metric must match exactly.
-Exit codes: 0 comparison succeeds and target is met (if supplied), 1 protocols
-are incomparable or target is missed, 2 invalid input.
+samples under a complete workload, environment, protocol, and oracle identity.
+Exit codes: 0 improvement is proved and target is met (if supplied), 1 runs
+are incomparable or improvement is unproved, 2 invalid input.
 """
 
 import argparse
@@ -17,7 +17,10 @@ from typing import Any, Dict, List, Optional
 
 
 SCHEMA_VERSION = 1
-PROTOCOL_FIELDS = ("command", "machine", "dependencyState", "cachePolicy", "concurrency", "warmups")
+PROTOCOL_FIELDS = (
+    "command", "machine", "dependencyState", "cachePolicy", "concurrency", "warmups",
+    "expensiveRunException",
+)
 DIRECTIONS = {"lower-is-better", "higher-is-better"}
 
 
@@ -56,13 +59,38 @@ def load(path: Path, label: str) -> Dict[str, Any]:
         missing = [field for field in PROTOCOL_FIELDS if field not in protocol]
         if missing:
             errors.append(f"{label}.protocol is missing: {', '.join(missing)}")
-        if not isinstance(protocol.get("warmups"), int) or isinstance(protocol.get("warmups"), bool) or protocol.get("warmups", 0) < 1:
-            errors.append(f"{label}.protocol.warmups must be at least 1")
+        if not isinstance(protocol.get("warmups"), int) or isinstance(protocol.get("warmups"), bool) or protocol.get("warmups", -1) < 0:
+            errors.append(f"{label}.protocol.warmups must be a non-negative integer")
         if not isinstance(protocol.get("concurrency"), int) or isinstance(protocol.get("concurrency"), bool) or protocol.get("concurrency", 0) < 1:
             errors.append(f"{label}.protocol.concurrency must be a positive integer")
+        warmups = protocol.get("warmups")
+        cache_policy = protocol.get("cachePolicy")
+        if isinstance(warmups, int) and not isinstance(warmups, bool):
+            if cache_policy == "cold" and warmups != 0:
+                errors.append(f"{label}.protocol.warmups must be 0 for a cold cache policy")
+            elif cache_policy != "cold" and warmups < 1:
+                errors.append(f"{label}.protocol.warmups must be at least 1 unless cachePolicy is cold")
+        if not isinstance(protocol.get("expensiveRunException"), bool):
+            errors.append(f"{label}.protocol.expensiveRunException must be boolean")
+        elif protocol.get("expensiveRunException") and not isinstance(protocol.get("expensiveRunReason"), str):
+            errors.append(f"{label}.protocol.expensiveRunReason must explain the exception")
+    for field in ("workload", "environment", "oracle"):
+        value = payload.get(field)
+        if not isinstance(value, dict) or not value:
+            errors.append(f"{label}.{field} must be a non-empty object")
+    oracle = payload.get("oracle")
+    if isinstance(oracle, dict):
+        if not isinstance(oracle.get("id"), str) or not oracle.get("id", "").strip():
+            errors.append(f"{label}.oracle.id must be a non-empty string")
+        if oracle.get("result") != "pass":
+            errors.append(f"{label}.oracle.result must equal pass")
+        evidence = oracle.get("evidence")
+        if not isinstance(evidence, list) or not evidence or not all(isinstance(item, str) and item for item in evidence):
+            errors.append(f"{label}.oracle.evidence must be a non-empty string array")
     samples = payload.get("samples")
-    if not isinstance(samples, list) or len(samples) < 5:
-        errors.append(f"{label}.samples must contain at least 5 measured samples")
+    minimum_samples = 3 if isinstance(protocol, dict) and protocol.get("expensiveRunException") is True else 5
+    if not isinstance(samples, list) or len(samples) < minimum_samples:
+        errors.append(f"{label}.samples must contain at least {minimum_samples} measured samples")
     elif any(isinstance(item, bool) or not isinstance(item, (int, float)) or not math.isfinite(item) or item <= 0 for item in samples):
         errors.append(f"{label}.samples must contain only finite positive numbers")
     if errors:
@@ -87,6 +115,11 @@ def compare(baseline: Dict[str, Any], candidate: Dict[str, Any], minimum: Option
     differences = protocol_differences(baseline["protocol"], candidate["protocol"])
     if not metric_matches:
         differences.insert(0, {"field": "metric", "baseline": baseline["metric"], "candidate": candidate["metric"]})
+    for field in ("workload", "environment"):
+        if baseline[field] != candidate[field]:
+            differences.append({"field": field, "baseline": baseline[field], "candidate": candidate[field]})
+    if baseline["oracle"]["id"] != candidate["oracle"]["id"]:
+        differences.append({"field": "oracle.id", "baseline": baseline["oracle"]["id"], "candidate": candidate["oracle"]["id"]})
     if differences:
         return {
             "schemaVersion": SCHEMA_VERSION,
@@ -103,19 +136,33 @@ def compare(baseline: Dict[str, Any], candidate: Dict[str, Any], minimum: Option
     else:
         improvement = (candidate_median - baseline_median) / baseline_median * 100
         factor = candidate_median / baseline_median
-    target_met = minimum is None or improvement >= minimum
+    baseline_min, baseline_max = min(baseline["samples"]), max(baseline["samples"])
+    candidate_min, candidate_max = min(candidate["samples"]), max(candidate["samples"])
+    improved = improvement > 0
+    improvement_proved = (
+        candidate_max < baseline_min if direction == "lower-is-better"
+        else candidate_min > baseline_max
+    )
+    target_met = improved and improvement_proved and (minimum is None or improvement >= minimum)
     return {
         "schemaVersion": SCHEMA_VERSION,
         "comparable": True,
         "statistic": "median",
-        "statisticRationale": "Median limits the effect of isolated noisy runs.",
-        "samplePolicy": "At least five measured samples after at least one warm-up; warm-ups are excluded from samples.",
+        "statisticRationale": "Median summarizes the samples; non-overlapping ranges prove direction beyond observed variation.",
+        "samplePolicy": "At least five samples, or three with a declared expensive-run exception; cold protocols use zero warm-ups.",
         "metric": baseline["metric"],
         "sampleCounts": {"baseline": len(baseline["samples"]), "candidate": len(candidate["samples"])},
         "baselineMedian": rounded(baseline_median),
         "candidateMedian": rounded(candidate_median),
         "improvementPercent": rounded(improvement),
         "improvementFactor": rounded(factor),
+        "improved": improved,
+        "improvementProved": improvement_proved,
+        "variability": {
+            "method": "directional non-overlapping observed ranges",
+            "baseline": {"min": rounded(baseline_min), "max": rounded(baseline_max), "range": rounded(baseline_max - baseline_min)},
+            "candidate": {"min": rounded(candidate_min), "max": rounded(candidate_max), "range": rounded(candidate_max - candidate_min)},
+        },
         "minimumImprovementPercent": minimum,
         "targetMet": target_met,
     }
@@ -131,8 +178,8 @@ def parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = parser().parse_args()
-    if args.minimum_improvement is not None and not math.isfinite(args.minimum_improvement):
-        emit({"error": {"code": "invalid-target", "message": "Minimum improvement must be finite."}})
+    if args.minimum_improvement is not None and (not math.isfinite(args.minimum_improvement) or args.minimum_improvement < 0):
+        emit({"error": {"code": "invalid-target", "message": "Minimum improvement must be finite and non-negative."}})
         return 2
     try:
         baseline = load(Path(args.baseline), "baseline")

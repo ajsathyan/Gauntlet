@@ -52,9 +52,10 @@ DEFAULT_RULES: Dict[str, Any] = {
             "*.spec.*", "**/*.spec.*",
         ],
         "config": [
-            "package.json", "tsconfig*.json", "*.config.*", "**/*.config.*", ".eslintrc*", "**/.eslintrc*",
-            "pyproject.toml", "Cargo.toml", "go.mod", "Gemfile", "Dockerfile", "docker-compose*.yml",
-            "docker-compose*.yaml",
+            "package.json", "**/package.json", "tsconfig*.json", "**/tsconfig*.json", "*.config.*", "**/*.config.*",
+            ".eslintrc*", "**/.eslintrc*", "pyproject.toml", "**/pyproject.toml", "Cargo.toml", "**/Cargo.toml",
+            "go.mod", "**/go.mod", "Gemfile", "**/Gemfile", "Dockerfile", "**/Dockerfile",
+            "docker-compose*.yml", "**/docker-compose*.yml", "docker-compose*.yaml", "**/docker-compose*.yaml",
         ],
         "production": ["**"],
     },
@@ -132,6 +133,13 @@ def line_counts(path: Path) -> Tuple[int, int]:
     return len(lines), sum(1 for line in lines if line.strip())
 
 
+def content_sha256(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise LocError("file-read-failed", f"Could not read {path}: {exc}") from exc
+
+
 def measure(root: Path, rules: Dict[str, Any]) -> Dict[str, Any]:
     root = root.resolve()
     if not root.is_dir():
@@ -143,7 +151,12 @@ def measure(root: Path, rules: Dict[str, Any]) -> Dict[str, Any]:
         if category is None or path.is_symlink():
             continue
         total, nonblank = line_counts(path)
-        category_files[category].append({"path": relative, "totalLines": total, "nonblankLines": nonblank})
+        category_files[category].append({
+            "path": relative,
+            "totalLines": total,
+            "nonblankLines": nonblank,
+            "sha256": content_sha256(path),
+        })
 
     summaries: Dict[str, Any] = {}
     for category in CATEGORIES:
@@ -155,16 +168,88 @@ def measure(root: Path, rules: Dict[str, Any]) -> Dict[str, Any]:
             "entries": files,
         }
     production_test = summaries["production"]["nonblankLines"] + summaries["test"]["nonblankLines"]
+    tree_digest = hashlib.sha256(canonical(category_files).encode("utf-8")).hexdigest()
     return {
         "schemaVersion": SCHEMA_VERSION,
         "root": str(root),
         "metric": "physical nonblank lines",
         "rulesHash": hashlib.sha256(canonical(rules).encode("utf-8")).hexdigest(),
         "rules": rules,
+        "treeDigest": tree_digest,
         "categories": summaries,
         "productionTestNonblankLines": production_test,
         "allMeasuredNonblankLines": sum(summaries[item]["nonblankLines"] for item in CATEGORIES),
     }
+
+
+def nonnegative_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def validate_measurement(value: Dict[str, Any], label: str) -> Dict[str, Any]:
+    if value.get("schemaVersion") != SCHEMA_VERSION or value.get("metric") != "physical nonblank lines":
+        raise LocError("invalid-measurement", f"{label} is not a schemaVersion {SCHEMA_VERSION} LOC measurement")
+    rules_value = value.get("rules")
+    if not isinstance(rules_value, dict):
+        raise LocError("invalid-measurement", f"{label}.rules must be an object")
+    try:
+        rules = validate_rules(rules_value)
+    except LocError as exc:
+        raise LocError("invalid-measurement", f"{label}.rules are invalid: {exc}") from exc
+    expected_rules_hash = hashlib.sha256(canonical(rules).encode("utf-8")).hexdigest()
+    if value.get("rulesHash") != expected_rules_hash:
+        raise LocError("invalid-measurement", f"{label}.rulesHash does not match its embedded rules")
+    categories = value.get("categories")
+    if not isinstance(categories, dict) or set(categories) != set(CATEGORIES):
+        raise LocError("invalid-measurement", f"{label}.categories must contain every required category exactly once")
+    canonical_files: Dict[str, List[Dict[str, Any]]] = {}
+    for category in CATEGORIES:
+        summary = categories[category]
+        if not isinstance(summary, dict) or set(summary) != {"files", "totalLines", "nonblankLines", "entries"}:
+            raise LocError("invalid-measurement", f"{label}.categories.{category} has an invalid shape")
+        entries = summary["entries"]
+        if not isinstance(entries, list):
+            raise LocError("invalid-measurement", f"{label}.categories.{category}.entries must be an array")
+        seen = set()
+        for entry in entries:
+            if not isinstance(entry, dict) or set(entry) != {"path", "totalLines", "nonblankLines", "sha256"}:
+                raise LocError("invalid-measurement", f"{label} contains an invalid {category} entry")
+            path = entry["path"]
+            if not isinstance(path, str) or not path or Path(path).is_absolute() or ".." in Path(path).parts or path in seen:
+                raise LocError("invalid-measurement", f"{label} contains an unsafe or duplicate {category} path")
+            seen.add(path)
+            if not nonnegative_int(entry["totalLines"]) or not nonnegative_int(entry["nonblankLines"]):
+                raise LocError("invalid-measurement", f"{label} contains invalid line totals")
+            if entry["nonblankLines"] > entry["totalLines"]:
+                raise LocError("invalid-measurement", f"{label} contains nonblank lines greater than total lines")
+            if not isinstance(entry["sha256"], str) or len(entry["sha256"]) != 64:
+                raise LocError("invalid-measurement", f"{label} contains an invalid content hash")
+        if entries != sorted(entries, key=lambda item: item["path"]):
+            raise LocError("invalid-measurement", f"{label}.{category} entries must be path-sorted")
+        expected = {
+            "files": len(entries),
+            "totalLines": sum(item["totalLines"] for item in entries),
+            "nonblankLines": sum(item["nonblankLines"] for item in entries),
+        }
+        if any(not nonnegative_int(summary[field]) or summary[field] != expected[field] for field in expected):
+            raise LocError("invalid-measurement", f"{label}.{category} summary does not match its entries")
+        canonical_files[category] = entries
+    production_test = categories["production"]["nonblankLines"] + categories["test"]["nonblankLines"]
+    all_measured = sum(categories[item]["nonblankLines"] for item in CATEGORIES)
+    if not nonnegative_int(value.get("productionTestNonblankLines")) or value["productionTestNonblankLines"] != production_test:
+        raise LocError("invalid-measurement", f"{label}.productionTestNonblankLines is invalid")
+    if not nonnegative_int(value.get("allMeasuredNonblankLines")) or value["allMeasuredNonblankLines"] != all_measured:
+        raise LocError("invalid-measurement", f"{label}.allMeasuredNonblankLines is invalid")
+    expected_tree_digest = hashlib.sha256(canonical(canonical_files).encode("utf-8")).hexdigest()
+    if value.get("treeDigest") != expected_tree_digest:
+        raise LocError("invalid-measurement", f"{label}.treeDigest does not match its entries")
+    root = value.get("root")
+    if not isinstance(root, str) or not root:
+        raise LocError("invalid-measurement", f"{label}.root must identify the measured tree")
+    live = measure(Path(root), rules)
+    if live["treeDigest"] != expected_tree_digest:
+        raise LocError("stale-measurement", f"{label} no longer matches the live tree at its recorded root")
+    return rules
 
 
 def write_output(path: Optional[Path], payload: Dict[str, Any]) -> None:
@@ -185,9 +270,8 @@ def command_measure(args: argparse.Namespace) -> int:
 def command_compare(args: argparse.Namespace) -> int:
     baseline = load_json(Path(args.baseline), "invalid-measurement")
     current = load_json(Path(args.current), "invalid-measurement")
-    for label, value in (("baseline", baseline), ("current", current)):
-        if value.get("schemaVersion") != SCHEMA_VERSION or not isinstance(value.get("productionTestNonblankLines"), int):
-            raise LocError("invalid-measurement", f"{label} is not a schemaVersion {SCHEMA_VERSION} LOC measurement")
+    validate_measurement(baseline, "baseline")
+    validate_measurement(current, "current")
     comparable = baseline.get("rulesHash") == current.get("rulesHash") and baseline.get("metric") == current.get("metric")
     report: Dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
@@ -208,8 +292,22 @@ def command_compare(args: argparse.Namespace) -> int:
         "currentProductionTestNonblankLines": after,
         "productionTestReductionPercent": reduction,
     })
+    category_deltas = {
+        category: current["categories"][category]["nonblankLines"] - baseline["categories"][category]["nonblankLines"]
+        for category in CATEGORIES
+    }
+    reduction_lines = max(0, before - after)
+    displaced_lines = sum(max(0, category_deltas[item]) for item in ("generated", "config", "fixture", "migration"))
+    displaced = reduction_lines > 0 and displaced_lines > 0
+    report.update({
+        "categoryNonblankLineDeltas": category_deltas,
+        "displacedComplexity": displaced,
+        "displacedIntoNonProductionLines": displaced_lines,
+    })
+    if displaced:
+        report["reason"] = "Production/test LOC fell while excluded or non-production categories grew; inspect and account for displaced complexity before certifying the reduction."
     emit(report)
-    return 0
+    return 1 if displaced else 0
 
 
 def parser() -> argparse.ArgumentParser:
