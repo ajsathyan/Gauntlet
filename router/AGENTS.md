@@ -86,7 +86,7 @@ Create every Gauntlet-owned skill under the source repository's `skills/` direct
 
 Stop planning when the first coherent build step and its proof path are clear. Do not create redundant specs, plans, packets, or reports.
 
-When a repository has an active `doc_org.md`, read it and its local document index before creating or changing product, research, decision, planning, or run-log documents. Keep ignored canonical documents in the primary worktree and tracked repository documentation in the repository's established public or maintainer-facing location.
+Unless the primary worktree contains `.gauntlet/doc-org.disabled`, the local-document profile is active by default. Before creating or changing product, research, decision, planning, or run-log documents, lazily materialize it with `python3 {{GAUNTLET_ROOT}}/scripts/gauntlet.py docs ensure --project-root "$PROJECT_ROOT"`, then read `doc_org.md` and `local-docs/INDEX.md`. Keep ignored canonical documents in the primary worktree and tracked repository documentation in the repository's established public or maintainer-facing location. `docs check` reports the mode without changing the project; `docs disable` opts out one project and `docs enable` reactivates it.
 
 Treat a PRD as the human product source: Epics are stable outcomes and Scope Areas are stable responsibilities. At implementation time, compile only the explicit build-ready target into a Ticket Graph of independently assignable Tickets. One Execution Run owns durable local state; Receipts point to evidence, and Cohort Verification proves shared interfaces or invariants. Follow `{{GAUNTLET_ROOT}}/docs/prd-execution.md`.
 

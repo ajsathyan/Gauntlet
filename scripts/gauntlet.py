@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 CHECKER = SCRIPTS / "check-workflow-etiquette.py"
 LOCAL_DOC_TEMPLATES = ROOT / "templates" / "local-docs"
+LOCAL_DOC_OPT_OUT = Path(".gauntlet") / "doc-org.disabled"
 STATUS_ORDER = {"pass": 0, "warn": 1, "review": 2, "fail": 3}
 EXIT_CODES = {"pass": 0, "warn": 0, "review": 2, "fail": 1}
 DEFERRED_AGENT_ACTIONS = {
@@ -253,6 +254,7 @@ def local_docs_context(project_root):
         "policyPath": primary / "doc_org.md",
         "docsRoot": primary / "local-docs",
         "indexPath": primary / "local-docs" / "INDEX.md",
+        "optOutPath": primary / LOCAL_DOC_OPT_OUT,
         "excludePath": exclude,
     }
 
@@ -279,6 +281,60 @@ def local_docs_path_findings(context):
         findings.append({"code": "invalid_local_docs_path", "severity": "fail", "message": f"Local document root is not a directory: {context['docsRoot']}"})
     if context["indexPath"].exists() and not context["indexPath"].is_file():
         findings.append({"code": "invalid_local_docs_index", "severity": "fail", "message": f"Local document index is not a file: {context['indexPath']}"})
+    if context["optOutPath"].is_symlink():
+        findings.append({
+            "code": "local_document_opt_out_symlink",
+            "severity": "fail",
+            "message": f"Local-document opt-out marker must not be a symlink: {context['optOutPath']}",
+        })
+    if context["optOutPath"].exists() and not context["optOutPath"].is_file():
+        findings.append({
+            "code": "invalid_local_document_opt_out",
+            "severity": "fail",
+            "message": f"Local-document opt-out marker is not a file: {context['optOutPath']}",
+        })
+    return findings
+
+
+def local_docs_opted_out(context):
+    return context["optOutPath"].is_file()
+
+
+def inferred_epic_prefix(context):
+    """Return a stable prefix for lazy initialization without asking the user."""
+    raw = re.sub(r"[^A-Z0-9]", "", context["primaryRoot"].name.upper())
+    if not raw or not raw[0].isalpha():
+        raw = "PROJECT"
+    if len(raw) == 1:
+        raw += "P"
+    return raw[:12]
+
+
+def local_docs_validation_findings(context, require_profile=False):
+    findings = local_docs_path_findings(context)
+    tracked = tracked_local_doc_paths(context["primaryRoot"])
+    if tracked:
+        findings.append({
+            "code": "tracked_local_document_collision",
+            "severity": "fail",
+            "message": "Local-document paths must not be tracked.",
+            "paths": tracked,
+        })
+    if local_docs_opted_out(context):
+        return findings
+    materialized = any(path.exists() for path in [context["policyPath"], context["docsRoot"], context["indexPath"]])
+    if require_profile or materialized:
+        for key, code in [("policyPath", "missing_doc_org"), ("indexPath", "missing_local_docs_index")]:
+            if not context[key].is_file():
+                findings.append({"code": code, "severity": "fail", "message": f"Missing {context[key]}"})
+        for relative in ["doc_org.md", "local-docs/INDEX.md"]:
+            ignored = git(["check-ignore", "-q", "--", relative], context["primaryRoot"])
+            if ignored.returncode != 0:
+                findings.append({
+                    "code": "local_document_not_ignored",
+                    "severity": "fail",
+                    "message": f"Canonical local path is not ignored: {relative}",
+                })
     return findings
 
 
@@ -347,10 +403,10 @@ def local_docs_payload(args, context, findings, **extra):
     return EXIT_CODES[payload["status"]]
 
 
-def command_docs_init(args):
-    context = local_docs_context(args.project_root)
-    tracked = tracked_local_doc_paths(context["primaryRoot"])
+def initialize_local_docs(args, context, prefix):
+    dry_run = getattr(args, "dry_run", False)
     findings = local_docs_path_findings(context)
+    tracked = tracked_local_doc_paths(context["primaryRoot"])
     if tracked:
         findings.append({
             "code": "tracked_local_document_collision",
@@ -358,17 +414,23 @@ def command_docs_init(args):
             "message": "Refusing to initialize because local-document paths are already tracked.",
             "paths": tracked,
         })
+    if local_docs_opted_out(context):
+        findings.append({
+            "code": "local_document_profile_opted_out",
+            "severity": "fail",
+            "message": f"Project opted out of default local documents through {context['optOutPath']}; run docs enable before initialization.",
+        })
     if findings:
-        return local_docs_payload(args, context, findings, created=[], preserved=[])
+        return findings, [], []
 
-    prefix = args.epic_prefix.upper()
+    prefix = prefix.upper()
     if not re.fullmatch(r"[A-Z][A-Z0-9]{1,11}", prefix):
         findings.append({
             "code": "invalid_epic_prefix",
             "severity": "fail",
             "message": "Epic prefix must be 2-12 uppercase letters or digits and begin with a letter.",
         })
-        return local_docs_payload(args, context, findings, created=[], preserved=[])
+        return findings, [], []
 
     created = []
     preserved = []
@@ -388,36 +450,42 @@ def command_docs_init(args):
                 "severity": "fail",
                 "message": f"Existing local document index uses epic prefix {existing_prefix}, not {prefix}.",
             })
-            return local_docs_payload(args, context, findings, created=[], preserved=[])
+            return findings, [], []
 
-    missing_excludes = ensure_local_excludes(context["excludePath"], dry_run=args.dry_run)
+    missing_excludes = ensure_local_excludes(context["excludePath"], dry_run=dry_run)
     for path, template in candidates:
         if path.exists():
             preserved.append(str(path))
             continue
         created.append(str(path))
-        if not args.dry_run:
+        if not dry_run:
             write_new_file(path, rendered[path])
     for directory in [context["docsRoot"] / "epics", context["docsRoot"] / "research"]:
         if directory.exists():
             preserved.append(str(directory))
         else:
             created.append(str(directory))
-            if not args.dry_run:
+            if not dry_run:
                 directory.mkdir(parents=True, exist_ok=False)
 
     if missing_excludes:
         findings.append({
-            "code": "local_excludes_added" if not args.dry_run else "local_excludes_planned",
+            "code": "local_excludes_added" if not dry_run else "local_excludes_planned",
             "severity": "pass",
             "message": "Local Git exclusions protect the canonical local-document paths.",
             "patterns": missing_excludes,
         })
+    return findings, created, preserved
+
+
+def command_docs_init(args):
+    context = local_docs_context(args.project_root)
+    findings, created, preserved = initialize_local_docs(args, context, args.epic_prefix)
     return local_docs_payload(
         args,
         context,
         findings,
-        epicPrefix=prefix,
+        epicPrefix=args.epic_prefix.upper(),
         dryRun=args.dry_run,
         created=created,
         preserved=preserved,
@@ -425,34 +493,127 @@ def command_docs_init(args):
     )
 
 
-def command_docs_check(args):
+def command_docs_ensure(args):
+    context = local_docs_context(args.project_root)
+    path_findings = local_docs_path_findings(context)
+    if any(finding.get("severity") == "fail" for finding in path_findings):
+        return local_docs_payload(args, context, path_findings, mode="default-on", materialized=False, created=[], preserved=[])
+    if local_docs_opted_out(context):
+        return local_docs_payload(
+            args,
+            context,
+            [{
+                "code": "local_document_profile_opted_out",
+                "severity": "pass",
+                "message": f"Project opted out of default local documents through {context['optOutPath']}; no files were created.",
+            }],
+            mode="opted-out",
+            materialized=False,
+            created=[],
+            preserved=[],
+        )
+
+    all_paths_exist = all(path.exists() for path in [context["policyPath"], context["docsRoot"], context["indexPath"]])
+    if all_paths_exist:
+        findings = local_docs_validation_findings(context, require_profile=True)
+        return local_docs_payload(
+            args,
+            context,
+            findings,
+            mode="default-on",
+            materialized=True,
+            created=[],
+            preserved=[],
+        )
+
+    prefix = args.epic_prefix or (local_epic_prefix(context["indexPath"]) if context["indexPath"].is_file() else inferred_epic_prefix(context))
+    findings, created, preserved = initialize_local_docs(args, context, prefix)
+    if not args.dry_run and not any(finding.get("severity") == "fail" for finding in findings):
+        findings.extend(local_docs_validation_findings(context, require_profile=True))
+    return local_docs_payload(
+        args,
+        context,
+        findings,
+        mode="default-on",
+        materialized=not args.dry_run,
+        epicPrefix=prefix.upper(),
+        dryRun=args.dry_run,
+        created=created,
+        preserved=preserved,
+        excludePath=str(context["excludePath"]),
+    )
+
+
+def command_docs_disable(args):
     context = local_docs_context(args.project_root)
     findings = local_docs_path_findings(context)
+    changed = False
     tracked = tracked_local_doc_paths(context["primaryRoot"])
     if tracked:
         findings.append({
             "code": "tracked_local_document_collision",
             "severity": "fail",
-            "message": "Local-document paths must not be tracked.",
+            "message": "Refusing to change the local-document mode because local-document paths are already tracked.",
             "paths": tracked,
         })
-    for key, code in [("policyPath", "missing_doc_org"), ("indexPath", "missing_local_docs_index")]:
-        if not context[key].is_file():
-            findings.append({"code": code, "severity": "fail", "message": f"Missing {context[key]}"})
-    for relative in ["doc_org.md", "local-docs/INDEX.md"]:
-        ignored = git(["check-ignore", "-q", "--", relative], context["primaryRoot"])
-        if ignored.returncode != 0:
-            findings.append({
-                "code": "local_document_not_ignored",
-                "severity": "fail",
-                "message": f"Canonical local path is not ignored: {relative}",
-            })
+    if not findings and not context["optOutPath"].exists():
+        write_new_file(context["optOutPath"], "# Gauntlet local-document profile disabled.\n")
+        changed = True
+    if context["optOutPath"].exists() and not context["optOutPath"].is_symlink() and context["optOutPath"].is_file():
+        findings.append({
+            "code": "local_document_profile_disabled",
+            "severity": "pass",
+            "message": f"Default local documents are disabled for this project through {context['optOutPath']}.",
+        })
+    return local_docs_payload(args, context, findings, mode="opted-out", changed=changed)
+
+
+def command_docs_enable(args):
+    context = local_docs_context(args.project_root)
+    findings = local_docs_path_findings(context)
+    changed = False
+    if not any(finding.get("severity") == "fail" for finding in findings) and context["optOutPath"].is_file():
+        context["optOutPath"].unlink()
+        changed = True
+    if not any(finding.get("severity") == "fail" for finding in findings):
+        findings.append({
+            "code": "local_document_profile_enabled",
+            "severity": "pass",
+            "message": "Default local documents are enabled for this project; files will be materialized on first covered document task.",
+        })
+    return local_docs_payload(args, context, findings, mode="default-on", changed=changed)
+
+
+def command_docs_check(args):
+    context = local_docs_context(args.project_root)
+    opted_out = local_docs_opted_out(context)
+    findings = local_docs_validation_findings(context)
+    materialized = any(path.exists() for path in [context["policyPath"], context["docsRoot"], context["indexPath"]])
+    if opted_out:
+        findings.append({
+            "code": "local_document_profile_opted_out",
+            "severity": "pass",
+            "message": f"Project opted out of default local documents through {context['optOutPath']}.",
+        })
+    elif materialized:
+        findings.append({
+            "code": "local_document_profile_materialized",
+            "severity": "pass",
+            "message": "Default local documents are materialized in the primary worktree.",
+        })
+    else:
+        findings.append({
+            "code": "local_document_profile_default_active",
+            "severity": "pass",
+            "message": "Default local documents are active and will be materialized lazily on the first covered document task.",
+        })
     duplicates = []
-    for worktree in context["worktrees"][1:]:
-        for relative in ["doc_org.md", "local-docs"]:
-            candidate = worktree / relative
-            if candidate.exists():
-                duplicates.append(str(candidate))
+    if not opted_out and materialized:
+        for worktree in context["worktrees"][1:]:
+            for relative in ["doc_org.md", "local-docs"]:
+                candidate = worktree / relative
+                if candidate.exists():
+                    duplicates.append(str(candidate))
     if duplicates:
         findings.append({
             "code": "linked_worktree_canonical_copy",
@@ -460,7 +621,7 @@ def command_docs_check(args):
             "message": "Linked worktrees contain alternate canonical local-document paths.",
             "paths": duplicates,
         })
-    return local_docs_payload(args, context, findings, checked=True)
+    return local_docs_payload(args, context, findings, checked=True, mode="opted-out" if opted_out else "default-on", materialized=materialized)
 
 
 def local_epic_prefix(index_path):
@@ -518,23 +679,18 @@ def existing_prd_path(context, supplied):
 
 def command_docs_epic_create(args):
     context = local_docs_context(args.project_root)
-    findings = local_docs_path_findings(context)
-    tracked = tracked_local_doc_paths(context["primaryRoot"])
-    if tracked:
-        findings.append({
-            "code": "tracked_local_document_collision",
+    if local_docs_opted_out(context):
+        findings = local_docs_path_findings(context) + [{
+            "code": "local_document_profile_opted_out",
             "severity": "fail",
-            "message": "Refusing to create an epic while local-document paths are tracked.",
-            "paths": tracked,
-        })
-    if findings:
-        return local_docs_payload(args, context, findings)
-    for key, code in [("policyPath", "missing_doc_org"), ("indexPath", "missing_local_docs_index")]:
-        if not context[key].is_file():
-            findings.append({"code": code, "severity": "fail", "message": f"Missing {context[key]}"})
-    for relative in ["doc_org.md", "local-docs/INDEX.md"]:
-        if git(["check-ignore", "-q", "--", relative], context["primaryRoot"]).returncode != 0:
-            findings.append({"code": "local_document_not_ignored", "severity": "fail", "message": f"Canonical local path is not ignored: {relative}"})
+            "message": f"Project opted out of default local documents through {context['optOutPath']}; run docs enable before creating an Epic.",
+        }]
+    elif all(path.exists() for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]):
+        findings = local_docs_validation_findings(context, require_profile=True)
+    else:
+        findings, _, _ = initialize_local_docs(args, context, inferred_epic_prefix(context))
+        if not any(finding.get("severity") == "fail" for finding in findings):
+            findings.extend(local_docs_validation_findings(context, require_profile=True))
     if findings:
         return local_docs_payload(args, context, findings)
     if not valid_epic_title(args.title):
@@ -2921,7 +3077,7 @@ def build_parser():
     install_verify.add_argument("--json", action="store_true")
     install_verify.set_defaults(func=command_install_verify)
 
-    docs = subcommands.add_parser("docs", help="Initialize and inspect canonical local product documents.")
+    docs = subcommands.add_parser("docs", help="Manage the default-on canonical local product-document profile.")
     docs_subcommands = docs.add_subparsers(dest="docs_command", required=True)
     docs_init = docs_subcommands.add_parser("init")
     docs_init.add_argument("--project-root", type=Path, default=Path.cwd())
@@ -2929,6 +3085,20 @@ def build_parser():
     docs_init.add_argument("--dry-run", action="store_true")
     docs_init.add_argument("--json", action="store_true")
     docs_init.set_defaults(func=command_docs_init)
+    docs_ensure = docs_subcommands.add_parser("ensure", help="Materialize the default profile when a covered document task needs it.")
+    docs_ensure.add_argument("--project-root", type=Path, default=Path.cwd())
+    docs_ensure.add_argument("--epic-prefix", default=None)
+    docs_ensure.add_argument("--dry-run", action="store_true")
+    docs_ensure.add_argument("--json", action="store_true")
+    docs_ensure.set_defaults(func=command_docs_ensure)
+    docs_disable = docs_subcommands.add_parser("disable", help="Opt this project out of the default local-document profile.")
+    docs_disable.add_argument("--project-root", type=Path, default=Path.cwd())
+    docs_disable.add_argument("--json", action="store_true")
+    docs_disable.set_defaults(func=command_docs_disable)
+    docs_enable = docs_subcommands.add_parser("enable", help="Remove this project's local-document opt-out marker.")
+    docs_enable.add_argument("--project-root", type=Path, default=Path.cwd())
+    docs_enable.add_argument("--json", action="store_true")
+    docs_enable.set_defaults(func=command_docs_enable)
     docs_check = docs_subcommands.add_parser("check")
     docs_check.add_argument("--project-root", type=Path, default=Path.cwd())
     docs_check.add_argument("--json", action="store_true")

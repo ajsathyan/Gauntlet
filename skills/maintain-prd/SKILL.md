@@ -9,7 +9,7 @@ Turn discussion into one navigable product source of truth. Do not implement, co
 
 ## Procedure
 
-1. If the repository has `doc_org.md`, read it and `local-docs/INDEX.md` before changing covered documents. Edit canonical local documents only in the primary worktree.
+1. When the default local-document profile applies, read `doc_org.md` and `local-docs/INDEX.md` before changing covered documents. Edit canonical local documents only in the primary worktree. If opted out, use the repository's established tracked documentation location.
 2. Find the canonical PRD. Keep related Epics in the same document when that preserves the user's conversation and product context.
 3. Reconcile new discussion against existing decisions. Preserve stable Epic and Scope Area IDs; record contradictions and supersession rather than silently rewriting history.
 4. Structure each Epic using [the PRD contract](references/prd-contract.md). Keep separate concepts under separate headings.

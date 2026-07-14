@@ -55,7 +55,7 @@ The workflow is built around Research, Patch, Feature, and Release paths; Standa
 | Product-thinking loop | Shapes rough asks into coherent product features before implementation and checks consistency after. |
 | Scoped role skills | Adds product architecture, planning, triage, implementation, black-box testing, experience review, and deep code review only at smoke, delta, or full scope when useful. |
 | Run logs | Writes a tiny exceptions-first Markdown receipt for material Feature/Release work: assumptions, decisions, skipped checks, failures, `Cannot verify`, and follow-ups. |
-| Local product documents | Optionally scaffolds ignored `local-docs/` in the primary worktree while preserving tracked repository documentation and Git/PR/release traceability. |
+| Local product documents | Uses a default-on, lazily materialized ignored `local-docs/` profile in the primary worktree, with an explicit per-project opt-out, while preserving tracked repository documentation and Git/PR/release traceability. |
 | PRD execution | Compiles one accepted multi-Epic PRD's build-ready target into a durable Ticket Graph with bounded child context, resumable state, incremental integration, cohort proof, and end-to-end release authority. |
 | Skill quality bar | Gives future skill and workflow edits a practical behavior-delta, trigger, completion, proof, and token-cost bar without making every Patch heavier. |
 | Coverage gaps | Captures pending candidates when missing reusable guidance forced a material assumption or repeated review finding. |
@@ -134,15 +134,15 @@ Routine successful checks stay in the final chat summary. The run log should fee
 
 ## Local Product Documents
 
-Projects that need private local PRDs, research, decisions, plans, or run history can initialize an opt-in profile:
+Private local PRDs, research, decisions, plans, and run history use the default-on profile. It materializes only when a covered document task needs it:
 
 ```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs init \
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs ensure \
   --project-root "$PROJECT_ROOT" \
   --epic-prefix PROJECT
 ```
 
-The profile creates ignored `doc_org.md` and `local-docs/` paths in the primary worktree through Git's local exclude file. It never repurposes or ignores the repository's tracked `docs/` directory. Linked implementation worktrees read the primary copies and return durable updates to the main task.
+The profile creates ignored `doc_org.md` and `local-docs/` paths in the primary worktree through Git's local exclude file. It never repurposes or ignores the repository's tracked `docs/` directory. Linked implementation worktrees read the primary copies and return durable updates to the main task. To opt out for one project, run `python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs disable --project-root "$PROJECT_ROOT"`; `docs enable` removes that project's marker.
 
 `doc_org.md` owns one release contract. A human-readable PRD may contain multiple Epics organized by stable Scope Areas; only its explicit build-ready target compiles into the generated Ticket Graph. The resulting Execution Run keeps authoritative state on disk, survives conversation compaction, gives each child only bounded context, and verifies tickets individually and in meaningful cohorts before full PRD proof. See [docs/local-documentation.md](docs/local-documentation.md) and [docs/prd-execution.md](docs/prd-execution.md).
 
@@ -357,7 +357,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [skills/eval-validate-evaluator/SKILL.md](skills/eval-validate-evaluator/SKILL.md) | Calibrates an LLM judge against human labels. |
 | [docs/upstream-superpowers.md](docs/upstream-superpowers.md) | Attributes adapted techniques and explains selective upstream update review and runtime retirement. |
 | [docs/upstream-eval-skills.md](docs/upstream-eval-skills.md) | Records the vendored eval-skill source, namespace mapping, update procedure, and license location. |
-| [docs/local-documentation.md](docs/local-documentation.md) | Defines the opt-in ignored local-document profile, tracked/private boundary, canonical primary-worktree rule, and release/configuration contracts. |
+| [docs/local-documentation.md](docs/local-documentation.md) | Defines the default-on lazy local-document profile, explicit project opt-out, tracked/private boundary, canonical primary-worktree rule, and release/configuration contracts. |
 | [docs/prd-execution.md](docs/prd-execution.md) | Defines PRD/Epic/Scope Area/Ticket Graph terminology, durable execution artifacts, ready-queue scheduling, bounded child context, verification layers, and end-to-end implementation authority. |
 | [docs/custom-agent-routing.md](docs/custom-agent-routing.md) | Defines deterministic Ticket-to-profile selection, escalation, bounded context, and audit requirements. |
 | [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
@@ -413,7 +413,7 @@ Selected techniques are adapted from Jesse Vincent's [Superpowers](https://githu
 | [AGENTS.md](AGENTS.md) | Contributor guidance for this repository. |
 | [skills/](skills) | Role-specific reusable instructions. |
 | [docs/](docs) | Coverage gaps, UI constitution, Production Quality Bar, workflow speedups, promotion scanner, design lint candidates, and historical plans. |
-| [templates/](templates) | Reusable downstream scaffolds, including the opt-in local product-document profile. |
+| [templates/](templates) | Reusable downstream scaffolds, including the default-on local product-document profile. |
 | [scripts/](scripts) | Installer, durability classifier, workflow speedup helpers, workflow checks, skill evals, and skill linter. |
 | [evals/](evals) | Skill coverage, scorer-smoke, orchestration-trace fixtures, and baselines. |
 | [LICENSE](LICENSE) | MIT license. |

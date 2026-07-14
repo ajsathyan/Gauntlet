@@ -4143,6 +4143,12 @@ def test_local_document_profile_preserves_tracked_docs_and_primary_canonical_cop
 
         exclude = repo / ".git" / "info" / "exclude"
         exclude_before = exclude.read_text() if exclude.exists() else ""
+        default_check = run([
+            str(cli), "docs", "check", "--project-root", str(linked), "--json",
+        ])
+        default_check_data = json.loads(default_check.stdout)
+        if default_check_data.get("status") != "pass" or default_check_data.get("mode") != "default-on" or default_check_data.get("materialized"):
+            raise AssertionError(f"uninitialized projects must report the default-on lazy mode: {default_check.stdout}")
         dry_run = run([
             str(cli), "docs", "init", "--project-root", str(linked),
             "--epic-prefix", "DEMO", "--dry-run", "--json",
@@ -4252,6 +4258,41 @@ def test_local_document_profile_preserves_tracked_docs_and_primary_canonical_cop
         ], check=False)
         if symlink_refused.returncode == 0 or any(outside.iterdir()):
             raise AssertionError("local-document symlinks must fail without writing outside the primary worktree")
+
+        optout = root / "optout"
+        init_repo(optout)
+        before_optout = run([
+            str(cli), "docs", "check", "--project-root", str(optout), "--json",
+        ])
+        if json.loads(before_optout.stdout).get("mode") != "default-on":
+            raise AssertionError("new projects must start in default-on mode")
+        disabled = run([
+            str(cli), "docs", "disable", "--project-root", str(optout), "--json",
+        ])
+        if json.loads(disabled.stdout).get("status") != "pass" or not (optout / ".gauntlet" / "doc-org.disabled").is_file():
+            raise AssertionError(f"project opt-out must create its ignored marker: {disabled.stdout}")
+        opted_out_check = run([
+            str(cli), "docs", "check", "--project-root", str(optout), "--json",
+        ])
+        opted_out_data = json.loads(opted_out_check.stdout)
+        if opted_out_data.get("mode") != "opted-out" or opted_out_data.get("status") != "pass":
+            raise AssertionError(f"opted-out projects must pass without a local-document profile: {opted_out_check.stdout}")
+        opted_out_ensure = run([
+            str(cli), "docs", "ensure", "--project-root", str(optout), "--json",
+        ])
+        if json.loads(opted_out_ensure.stdout).get("mode") != "opted-out" or (optout / "doc_org.md").exists():
+            raise AssertionError("docs ensure must respect the project opt-out without creating files")
+        enabled = run([
+            str(cli), "docs", "enable", "--project-root", str(optout), "--json",
+        ])
+        if json.loads(enabled.stdout).get("status") != "pass" or (optout / ".gauntlet" / "doc-org.disabled").exists():
+            raise AssertionError(f"project opt-in must remove the marker: {enabled.stdout}")
+        reenabled = run([
+            str(cli), "docs", "ensure", "--project-root", str(optout), "--json",
+        ])
+        reenabled_data = json.loads(reenabled.stdout)
+        if reenabled_data.get("status") != "pass" or not (optout / "doc_org.md").is_file():
+            raise AssertionError(f"re-enabled projects must lazily materialize the profile: {reenabled.stdout}")
 
 
 def test_prd_execution_run_controller_behavior():

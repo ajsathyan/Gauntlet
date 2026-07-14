@@ -17,7 +17,7 @@ Stop for credentials or permissions that are unavailable; a materially unresolve
 
 ## Procedure
 
-1. Read `doc_org.md`, `local-docs/INDEX.md`, the canonical PRD, repository instructions, and the relevant release topology. Verify that each targeted Epic is accepted and build-ready.
+1. When the default local-document profile applies, read `doc_org.md`, `local-docs/INDEX.md`, the canonical PRD, repository instructions, and the relevant release topology. For an opted-out project, use its established tracked PRD and documentation locations. Verify that each targeted Epic is accepted and build-ready.
 2. Validate and freeze the PRD target. Record its content hash, stable Epic and Scope Area IDs, applicable instruction versions, and release contract in `source-lock.json`.
 3. Compile a deterministic Ticket Graph. Use H2 Epic, H3 Ticket, and canonical H4 fields; keep one implementation owner per Ticket. Add separate verifier Tickets instead of co-owning implementation.
 4. Initialize the disk execution run and compact resume state. Once initialized, use disk state as authority and conversation history as advisory.
