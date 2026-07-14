@@ -1,0 +1,4 @@
+interface:
+  display_name: "Refactor Performance"
+  short_description: "Measure and improve codebase performance safely"
+  default_prompt: "Use $refactor-performance to establish a controlled baseline, profile bottlenecks, and improve performance without correctness regressions."

@@ -73,6 +73,10 @@ fi
   --pack "$ROOT/evals/orchestration-trace-fixtures.json" \
   --results "$ROOT/evals/results/orchestration-scorer-check.json"
 
+"$ROOT/scripts/run-orchestration-evals.py" \
+  --pack "$ROOT/evals/refactor-skill-trace-fixtures.json" \
+  --results "$ROOT/evals/results/refactor-skill-orchestration-check.json"
+
 "$ROOT/scripts/lint-skills.py" \
   --skills-root "$SKILLS_ROOT" \
   --only "$skill_names" \

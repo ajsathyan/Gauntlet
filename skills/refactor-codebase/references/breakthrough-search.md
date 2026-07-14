@@ -1,0 +1,27 @@
+# Breakthrough Search
+
+## Inputs
+
+- Frozen product job, capability map, parity ledger, compatibility matrix, and baselines
+- User targets and priority order
+
+## Actions
+
+1. Dispatch three independent agents with identical raw evidence and this output contract. Do not disclose a favored design or the other agents' work.
+2. Require each agent to identify dominant accidental complexity; propose up to three structurally different compression hypotheses; select its highest-leverage end state; name the mechanism for step-change gains; estimate effects on production/test LOC, concept and dependency count, extension cost, test feedback, and runtime/resources; state compatibility/migration risks; define the smallest diverse-slice prototype; and give falsification evidence.
+3. Require at least one strongest plausible redesign, not only cleanup. Search for duplicated lifecycle, controls, pipelines, persistence, rendering, exports, testing, indirection, and change amplification.
+4. Synthesize by underlying mechanism. Record convergence, disagreement, unique proposals, assumptions, and estimate confidence. Do not average incompatible architectures into a compromise.
+5. Retain the strongest one or two credible hypotheses for prototypes. Reject ambition only with evidence such as irreducible domain variation, failed compatibility, unsafe migration, displaced complexity, worse performance, or configuration that becomes harder than code.
+6. Set a parity floor, an evidence-supported committed target, and a breakthrough target large enough to require structural change. Keep explicit user targets binding. When no useful numeric baseline exists, use measurable end-to-end outcomes without inventing percentages.
+
+## Gate
+
+Pass when all three independent receipts satisfy the common contract, materially different mechanisms were considered, and each selected hypothesis has a falsifiable diverse-slice prototype and comparable success measures.
+
+## Receipt
+
+Write `breakthrough-search.md` containing the three unblended proposals, synthesis, targets, selections, rejections, and falsification criteria. Update `refactor-state.json` with its hash and selected hypothesis IDs.
+
+## Invalidation
+
+Repeat the independent search when the source, product job, inventory, compatibility floor, baseline, or binding target changes materially. Re-synthesize when an agent received leaked conclusions or a favored architecture.

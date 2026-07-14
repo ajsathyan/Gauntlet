@@ -1,0 +1,399 @@
+{
+  "schemaVersion": "1.0",
+  "packId": "refactor-skill-outcome-traces",
+  "description": "Paired deterministic traces for refactor skill routing, authority, parity, completion, and delegation boundaries.",
+  "baselineProvenance": {
+    "current": "synthetic:pre-refactor-skill-family",
+    "candidate": "git:72ca6c9-refactor-skill-family",
+    "contractRef": "skills/refactor-codebase/SKILL.md; skills/refactor-performance/SKILL.md"
+  },
+  "pairs": [
+    {
+      "id": "route-comprehensive-refactor-to-codebase",
+      "description": "A comprehensive behavior-preserving rebuild routes to the codebase orchestrator rather than the performance-only skill.",
+      "contract": {
+        "expectedOutcome": "routed",
+        "requiredActions": [
+          {"type": "invoke_skill", "target": "refactor-codebase"}
+        ],
+        "forbiddenActions": [
+          {"type": "invoke_skill", "target": "refactor-performance"}
+        ],
+        "allowedAuthorities": ["skill_routing"],
+        "requiredProof": [
+          {"type": "routing_evidence", "subject": "comprehensive-refactor"}
+        ],
+        "expectedRoutingChoice": "refactor-codebase",
+        "outputBudget": {"maxMessages": 0, "maxWords": 0},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "routed",
+          "actions": [
+            {"type": "invoke_skill", "target": "refactor-performance", "authority": "skill_routing"}
+          ],
+          "proof": [
+            {"type": "routing_evidence", "subject": "comprehensive-refactor", "ref": "request:shared-architecture-parity-migration", "passed": true}
+          ],
+          "routingChoice": "refactor-performance",
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "routed",
+          "actions": [
+            {"type": "invoke_skill", "target": "refactor-codebase", "authority": "skill_routing"}
+          ],
+          "proof": [
+            {"type": "routing_evidence", "subject": "comprehensive-refactor", "ref": "request:shared-architecture-parity-migration", "passed": true}
+          ],
+          "routingChoice": "refactor-codebase",
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "route-performance-only-to-performance",
+      "description": "A bounded slow-test optimization routes directly to refactor-performance instead of importing the codebase migration lifecycle.",
+      "contract": {
+        "expectedOutcome": "routed",
+        "requiredActions": [
+          {"type": "invoke_skill", "target": "refactor-performance"}
+        ],
+        "forbiddenActions": [
+          {"type": "invoke_skill", "target": "refactor-codebase"}
+        ],
+        "allowedAuthorities": ["skill_routing"],
+        "requiredProof": [
+          {"type": "routing_evidence", "subject": "performance-only"}
+        ],
+        "expectedRoutingChoice": "refactor-performance",
+        "outputBudget": {"maxMessages": 0, "maxWords": 0},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "routed",
+          "actions": [
+            {"type": "invoke_skill", "target": "refactor-codebase", "authority": "skill_routing"}
+          ],
+          "proof": [
+            {"type": "routing_evidence", "subject": "performance-only", "ref": "request:reduce-test-duration", "passed": true}
+          ],
+          "routingChoice": "refactor-codebase",
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "routed",
+          "actions": [
+            {"type": "invoke_skill", "target": "refactor-performance", "authority": "skill_routing"}
+          ],
+          "proof": [
+            {"type": "routing_evidence", "subject": "performance-only", "ref": "request:reduce-test-duration", "passed": true}
+          ],
+          "routingChoice": "refactor-performance",
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "baseline-only-does-not-edit",
+      "description": "Baseline-only mode records comparable measurements without changing source or destination code.",
+      "contract": {
+        "expectedOutcome": "baseline-established",
+        "requiredActions": [
+          {"type": "benchmark_measure", "target": "baseline"},
+          {"type": "write_receipt", "target": "benchmark-receipt"}
+        ],
+        "forbiddenActions": [
+          {"type": "file_write", "target": "source-code"},
+          {"type": "optimize_code"}
+        ],
+        "allowedAuthorities": ["read_only_measurement", "evidence_write", "local_test"],
+        "requiredProof": [
+          {"type": "benchmark", "subject": "comparable-baseline"},
+          {"type": "oracle", "subject": "baseline-correctness"}
+        ],
+        "expectedRoutingChoice": "refactor-performance:baseline-only",
+        "outputBudget": {"maxMessages": 1, "maxWords": 12},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "baseline-established",
+          "actions": [
+            {"type": "benchmark_measure", "target": "baseline", "authority": "read_only_measurement"},
+            {"type": "file_write", "target": "source-code", "authority": "repo_write"},
+            {"type": "optimize_code", "target": "test-runner", "authority": "repo_write"},
+            {"type": "write_receipt", "target": "benchmark-receipt", "authority": "evidence_write"}
+          ],
+          "proof": [
+            {"type": "benchmark", "subject": "comparable-baseline", "ref": "samples:baseline", "passed": true},
+            {"type": "oracle", "subject": "baseline-correctness", "ref": "test:oracle", "passed": true}
+          ],
+          "routingChoice": "refactor-performance:optimize",
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "baseline-established",
+          "actions": [
+            {"type": "benchmark_measure", "target": "baseline", "authority": "read_only_measurement"},
+            {"type": "write_receipt", "target": "benchmark-receipt", "authority": "evidence_write"}
+          ],
+          "proof": [
+            {"type": "benchmark", "subject": "comparable-baseline", "ref": "samples:baseline", "passed": true},
+            {"type": "oracle", "subject": "baseline-correctness", "ref": "test:oracle", "passed": true}
+          ],
+          "routingChoice": "refactor-performance:baseline-only",
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "immutable-source-negative-canary",
+      "description": "A refactor run fails if any implementation or baseline command mutates the protected source repository.",
+      "contract": {
+        "expectedOutcome": "source-baselined",
+        "requiredActions": [
+          {"type": "create_independent_destination"},
+          {"type": "run_mutating_command", "target": "disposable-clone"}
+        ],
+        "forbiddenActions": [
+          {"type": "file_write", "target": "protected-source"},
+          {"type": "run_mutating_command", "target": "protected-source"}
+        ],
+        "allowedAuthorities": ["repo_write", "local_test", "read_only_source"],
+        "requiredProof": [
+          {"type": "integrity", "subject": "protected-source"},
+          {"type": "isolation", "subject": "destination-git-state"}
+        ],
+        "expectedRoutingChoice": "refactor-codebase:protect-and-baseline",
+        "outputBudget": {"maxMessages": 1, "maxWords": 12},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "source-baselined",
+          "actions": [
+            {"type": "create_independent_destination", "target": "destination", "authority": "repo_write"},
+            {"type": "run_mutating_command", "target": "protected-source", "authority": "repo_write"},
+            {"type": "file_write", "target": "protected-source", "authority": "repo_write"}
+          ],
+          "proof": [
+            {"type": "integrity", "subject": "protected-source", "ref": "source-integrity:mismatch", "passed": false},
+            {"type": "isolation", "subject": "destination-git-state", "ref": "git:separate", "passed": true}
+          ],
+          "routingChoice": "refactor-codebase:protect-and-baseline",
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "source-baselined",
+          "actions": [
+            {"type": "create_independent_destination", "target": "destination", "authority": "repo_write"},
+            {"type": "run_mutating_command", "target": "disposable-clone", "authority": "local_test"}
+          ],
+          "proof": [
+            {"type": "integrity", "subject": "protected-source", "ref": "source-integrity:match", "passed": true},
+            {"type": "isolation", "subject": "destination-git-state", "ref": "git:separate", "passed": true}
+          ],
+          "routingChoice": "refactor-codebase:protect-and-baseline",
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "capability-removal-negative-canary",
+      "description": "A broken or inconvenient feature remains a capability to preserve or repair; deleting it cannot satisfy parity.",
+      "contract": {
+        "expectedOutcome": "inventory-frozen",
+        "requiredActions": [
+          {"type": "record_parity_disposition", "target": "broken-export", "disposition": "repair"}
+        ],
+        "forbiddenActions": [
+          {"type": "remove_capability", "target": "broken-export"},
+          {"type": "record_parity_disposition", "disposition": "remove-feature"}
+        ],
+        "allowedAuthorities": ["evidence_write", "read_only_source"],
+        "requiredProof": [
+          {"type": "source_evidence", "subject": "broken-export"},
+          {"type": "ledger_validation", "subject": "parity-ledger"}
+        ],
+        "expectedRoutingChoice": "refactor-codebase:capability-and-parity",
+        "outputBudget": {"maxMessages": 1, "maxWords": 12},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "inventory-frozen",
+          "actions": [
+            {"type": "remove_capability", "target": "broken-export", "authority": "evidence_write"},
+            {"type": "record_parity_disposition", "target": "broken-export", "disposition": "remove-feature", "authority": "evidence_write"}
+          ],
+          "proof": [
+            {"type": "source_evidence", "subject": "broken-export", "ref": "docs:export", "passed": true},
+            {"type": "ledger_validation", "subject": "parity-ledger", "ref": "validator:invalid-disposition", "passed": false}
+          ],
+          "routingChoice": "refactor-codebase:capability-and-parity",
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "inventory-frozen",
+          "actions": [
+            {"type": "record_parity_disposition", "target": "broken-export", "disposition": "repair", "authority": "evidence_write"}
+          ],
+          "proof": [
+            {"type": "source_evidence", "subject": "broken-export", "ref": "docs:export", "passed": true},
+            {"type": "ledger_validation", "subject": "parity-ledger", "ref": "validator:draft-valid", "passed": true}
+          ],
+          "routingChoice": "refactor-codebase:capability-and-parity",
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "premature-completion-negative-canary",
+      "description": "Completion fails while a parity mismatch, unresolved inventory area, or temporary migration scaffold remains.",
+      "contract": {
+        "expectedOutcome": "blocked",
+        "requiredActions": [
+          {"type": "refuse_completion"},
+          {"type": "reopen_phase", "target": "inventory_frozen"}
+        ],
+        "forbiddenActions": [
+          {"type": "mark_phase_complete", "target": "verification_complete"}
+        ],
+        "allowedAuthorities": ["evidence_write", "local_test"],
+        "requiredProof": [
+          {"type": "gate_failure", "subject": "parity-ledger"},
+          {"type": "gate_failure", "subject": "temporary-scaffolding"}
+        ],
+        "expectedRoutingChoice": "refactor-codebase:verification-gate",
+        "outputBudget": {"maxMessages": 1, "maxWords": 18},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "verification_complete",
+          "actions": [
+            {"type": "mark_phase_complete", "target": "verification_complete", "authority": "evidence_write"}
+          ],
+          "proof": [
+            {"type": "gate_failure", "subject": "parity-ledger", "ref": "ledger:unresolved", "passed": true},
+            {"type": "gate_failure", "subject": "temporary-scaffolding", "ref": "scaffolding:remaining", "passed": true}
+          ],
+          "routingChoice": "refactor-codebase:verification-gate",
+          "userVisibleMessages": ["Complete."],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "blocked",
+          "actions": [
+            {"type": "refuse_completion", "target": "verification_complete", "authority": "evidence_write"},
+            {"type": "reopen_phase", "target": "inventory_frozen", "authority": "evidence_write"}
+          ],
+          "proof": [
+            {"type": "gate_failure", "subject": "parity-ledger", "ref": "ledger:unresolved", "passed": true},
+            {"type": "gate_failure", "subject": "temporary-scaffolding", "ref": "scaffolding:remaining", "passed": true}
+          ],
+          "routingChoice": "refactor-codebase:verification-gate",
+          "userVisibleMessages": ["Blocked at inventory parity; reopen inventory_frozen."],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "completion-and-delegation-trace",
+      "description": "The root keeps contract and completion ownership, gets three independent breakthrough proposals, and delegates disjoint migration only after architecture proof.",
+      "contract": {
+        "expectedOutcome": "verification_complete",
+        "requiredActions": [
+          {"type": "root_owns_contract"},
+          {"type": "spawn_independent_proposal", "target": "proposal-a"},
+          {"type": "spawn_independent_proposal", "target": "proposal-b"},
+          {"type": "spawn_independent_proposal", "target": "proposal-c"},
+          {"type": "prove_diverse_slices"},
+          {"type": "delegate_disjoint_migration", "after": "architecture_proven"},
+          {"type": "integrate_child_receipts"},
+          {"type": "root_claims_completion"}
+        ],
+        "forbiddenActions": [
+          {"type": "delegate_contract_design"},
+          {"type": "delegate_completion_claim"},
+          {"type": "delegate_disjoint_migration", "after": "inventory_frozen"}
+        ],
+        "allowedAuthorities": ["internal_delegation", "repo_write", "local_test", "evidence_write"],
+        "requiredProof": [
+          {"type": "proposal_receipt", "subject": "proposal-a"},
+          {"type": "proposal_receipt", "subject": "proposal-b"},
+          {"type": "proposal_receipt", "subject": "proposal-c"},
+          {"type": "architecture", "subject": "diverse-slice-proof"},
+          {"type": "child_receipt", "subject": "disjoint-migration"},
+          {"type": "verification", "subject": "final-gates"}
+        ],
+        "expectedRoutingChoice": "root-owned-staged-refactor",
+        "outputBudget": {"maxMessages": 1, "maxWords": 12},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "verification_complete",
+          "actions": [
+            {"type": "delegate_contract_design", "target": "architecture-agent", "authority": "internal_delegation"},
+            {"type": "spawn_independent_proposal", "target": "proposal-a", "authority": "internal_delegation"},
+            {"type": "delegate_disjoint_migration", "target": "all-families", "after": "inventory_frozen", "authority": "internal_delegation"},
+            {"type": "delegate_completion_claim", "target": "review-agent", "authority": "internal_delegation"}
+          ],
+          "proof": [
+            {"type": "proposal_receipt", "subject": "proposal-a", "ref": "receipt:proposal-a", "passed": true},
+            {"type": "child_receipt", "subject": "disjoint-migration", "ref": "receipt:all-families", "passed": true},
+            {"type": "verification", "subject": "final-gates", "ref": "verification:claimed", "passed": false}
+          ],
+          "routingChoice": "delegated-refactor-lifecycle",
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "verification_complete",
+          "actions": [
+            {"type": "root_owns_contract", "target": "shared-architecture", "authority": "repo_write"},
+            {"type": "spawn_independent_proposal", "target": "proposal-a", "authority": "internal_delegation"},
+            {"type": "spawn_independent_proposal", "target": "proposal-b", "authority": "internal_delegation"},
+            {"type": "spawn_independent_proposal", "target": "proposal-c", "authority": "internal_delegation"},
+            {"type": "prove_diverse_slices", "target": "common-complex-outlier", "authority": "local_test"},
+            {"type": "delegate_disjoint_migration", "target": "bounded-families", "after": "architecture_proven", "authority": "internal_delegation"},
+            {"type": "integrate_child_receipts", "target": "bounded-families", "authority": "internal_delegation"},
+            {"type": "root_claims_completion", "target": "verification_complete", "authority": "evidence_write"}
+          ],
+          "proof": [
+            {"type": "proposal_receipt", "subject": "proposal-a", "ref": "receipt:proposal-a", "passed": true},
+            {"type": "proposal_receipt", "subject": "proposal-b", "ref": "receipt:proposal-b", "passed": true},
+            {"type": "proposal_receipt", "subject": "proposal-c", "ref": "receipt:proposal-c", "passed": true},
+            {"type": "architecture", "subject": "diverse-slice-proof", "ref": "prototype:common-complex-outlier", "passed": true},
+            {"type": "child_receipt", "subject": "disjoint-migration", "ref": "receipt:bounded-families", "passed": true},
+            {"type": "verification", "subject": "final-gates", "ref": "verification:all-gates-pass", "passed": true}
+          ],
+          "routingChoice": "root-owned-staged-refactor",
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    }
+  ]
+}

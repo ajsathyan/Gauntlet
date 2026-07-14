@@ -3545,8 +3545,10 @@ def test_structural_scorers_are_labeled_and_reject_negative_canaries():
     orchestration_runner = SCRIPTS / "run-orchestration-evals.py"
     orchestration_fixture = ROOT / "evals" / "orchestration-trace-fixtures.json"
     orchestration_results = ROOT / "evals" / "results" / "workflow-orchestration-check.json"
+    refactor_fixture = ROOT / "evals" / "refactor-skill-trace-fixtures.json"
+    refactor_results = ROOT / "evals" / "results" / "workflow-refactor-orchestration-check.json"
 
-    for path in [runner, fixture, orchestration_runner, orchestration_fixture]:
+    for path in [runner, fixture, orchestration_runner, orchestration_fixture, refactor_fixture]:
         if not path.exists():
             raise AssertionError(f"missing scorer/eval artifact: {path}")
 
@@ -3658,6 +3660,29 @@ def test_structural_scorers_are_labeled_and_reject_negative_canaries():
         raise AssertionError("coupled-lane canary must reject needless delegation and accept end-to-end execution")
     if pairs["subjective-needs-judgment"]["arms"]["candidate"]["verdict"] != "cannot_verify":
         raise AssertionError("uncalibrated subjective judgment must remain Cannot verify")
+
+    run([
+        str(orchestration_runner),
+        "--pack",
+        str(refactor_fixture),
+        "--results",
+        str(refactor_results),
+    ])
+    refactor_outcomes = json.loads(refactor_results.read_text())
+    if not refactor_outcomes.get("summary", {}).get("expectationsMatched"):
+        raise AssertionError(f"refactor orchestration expectations failed: {refactor_outcomes}")
+    refactor_pairs = {pair["id"]: pair for pair in refactor_outcomes.get("pairs", [])}
+    for required in [
+        "route-comprehensive-refactor-to-codebase",
+        "route-performance-only-to-performance",
+        "baseline-only-does-not-edit",
+        "immutable-source-negative-canary",
+        "capability-removal-negative-canary",
+        "premature-completion-negative-canary",
+        "completion-and-delegation-trace",
+    ]:
+        if required not in refactor_pairs:
+            raise AssertionError(f"missing refactor orchestration outcome case: {required}")
 
 
 def test_skill_linter_examples_and_noop_pruning():
