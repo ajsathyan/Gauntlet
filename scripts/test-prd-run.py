@@ -686,11 +686,38 @@ class PrdRunTests(unittest.TestCase):
                 "record-authority", "--run", str(review_run), "--capability", capability,
                 "--source", "Review flow authorized.",
             )
+        open_ru2 = (
+            "review-unit", "--run", str(review_run), "--unit", "RU2", "--action", "opened",
+            "--branch", "review/RU2", "--pr", "PR-2",
+        )
+        for dependency_state in ("pending", "opened", "checked", "merge-locked"):
+            current = json.loads((review_run / "manifest.json").read_text())
+            current["review_units"]["RU1"]["state"] = dependency_state
+            (review_run / "manifest.json").write_text(json.dumps(current, indent=2, sort_keys=True) + "\n")
+            self.run_command(*open_ru2, ok=False)
+            self.assertEqual(json.loads((review_run / "manifest.json").read_text())["review_units"]["RU2"]["state"], "pending")
+
+        current = json.loads((review_run / "manifest.json").read_text())
+        current["review_units"]["RU1"]["state"] = "pending"
+        current["review_units"]["RU2"].update({"state": "opened", "branch": "review/RU2", "pr": "PR-2"})
+        (review_run / "manifest.json").write_text(json.dumps(current, indent=2, sort_keys=True) + "\n")
+        before = (review_run / "manifest.json").read_bytes()
+        self.run_command(*open_ru2)
+        self.assertEqual((review_run / "manifest.json").read_bytes(), before)
         self.run_command(
             "review-unit", "--run", str(review_run), "--unit", "RU2", "--action", "opened",
-            "--branch", "review/RU2", "--pr", "PR-2", ok=False,
+            "--branch", "review/RU2-changed", "--pr", "PR-2", ok=False,
         )
-        self.assertEqual(json.loads((review_run / "manifest.json").read_text())["review_units"]["RU2"]["state"], "pending")
+
+        for dependency_state in ("merged", "verified", "cleanup-eligible", "cleaned"):
+            current = json.loads((review_run / "manifest.json").read_text())
+            current["review_units"]["RU1"]["state"] = dependency_state
+            current["review_units"]["RU2"] = {
+                "dependencies": ["RU1"], "state": "pending", "ticket_ids": ["T2"],
+            }
+            (review_run / "manifest.json").write_text(json.dumps(current, indent=2, sort_keys=True) + "\n")
+            self.run_command(*open_ru2)
+            self.assertEqual(json.loads((review_run / "manifest.json").read_text())["review_units"]["RU2"]["state"], "opened")
 
         for mutation in ("missing", "duplicate", "dependency", "extra_dependency", "cycle"):
             run_id = f"BAD{mutation.upper()}"
