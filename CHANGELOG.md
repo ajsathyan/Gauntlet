@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now ships one Codex and Claude Code plugin bundle from its shared skills tree, adds the `craft-customer-email` workflow, namespaces the vendored eval suite under `eval-`, and limits intake to three high-value questions.
+
 - Gauntlet now installs one shared precision-preserving response style for Codex and Claude, applies conflict-aware Codex verbosity and personality defaults, and stops before layering over unreviewed user instructions.
 
 - Gauntlet now silently applies a conforming root-task title as soon as the goal is clear and no later than the third substantive user-authored message.

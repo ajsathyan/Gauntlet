@@ -1,0 +1,20 @@
+{
+  "name": "gauntlet",
+  "interface": {
+    "displayName": "Gauntlet"
+  },
+  "plugins": [
+    {
+      "name": "gauntlet",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

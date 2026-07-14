@@ -49,7 +49,7 @@ Before substantial implementation, establish one accepted source and one canonic
 - ordered tasks, exact file/state ownership, and the first ready task;
 - explicit deferrals and `Cannot verify` where proof is unavailable.
 
-Ask only questions that change product behavior, data/money/privacy/security risk, acceptance criteria, authority, or meaningful cost. Apply safe defaults for minor gaps.
+Ask no more than three short questions in one turn. Apply the 80/20 rule: ask only for missing facts most likely to change product behavior, data/money/privacy/security risk, acceptance criteria, authority, meaningful cost, or the recommendation. Infer the rest from current context and established domain conventions. Give the most concrete, well-supported recommendation the evidence allows, and state material uncertainty instead of extending intake with low-value questions.
 
 For genuine scope additions, check the added scope and its boundary with accepted work. Record `Scope delta checked: no material change.` in the plan when clean; update the plan before implementation when material.
 
@@ -109,6 +109,8 @@ Use the narrowest Gauntlet role skill that adds value:
 - `run-log-builder`, `promotion-scanner`, and `ian-xiaohei-illustrations` when their triggers apply.
 
 Domain/tool skills may add concrete capability without imposing a second planning or execution lifecycle.
+
+Create every Gauntlet-owned skill under this repository's `skills/` directory with the installed `skill-creator`. The Codex and Claude Code plugin manifests bundle that directory automatically; do not maintain a separate installed copy as source. Use family prefixes such as `craft-` and `eval-` only when they make a coherent capability family easier to discover.
 
 Selected techniques adapted from Jesse Vincent's Superpowers are tracked in `docs/upstream-superpowers.md`; Gauntlet owns the runtime behavior and Superpowers remains disabled as a lifecycle.
 

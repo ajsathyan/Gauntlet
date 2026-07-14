@@ -49,10 +49,25 @@ skill_names="$(
 
 echo "targeted skill evals: $skill_names"
 
-"$ROOT/scripts/run-skill-evals.py" \
-  --only-skill "$skill_names" \
-  --scorer-smoke-responses "$ROOT/evals/scorer-smoke-fixtures.json" \
-  --results "$ROOT/evals/results/skill-change-check.json"
+configured_skill_names="$(python3 - "$ROOT/evals/skill-evals.json" "$skill_names" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+requested = set(filter(None, sys.argv[2].split(",")))
+configured = {case["skill"] for case in data["cases"]}
+print(",".join(sorted(requested & configured)))
+PY
+)"
+
+if [ -n "$configured_skill_names" ]; then
+  "$ROOT/scripts/run-skill-evals.py" \
+    --only-skill "$configured_skill_names" \
+    --scorer-smoke-responses "$ROOT/evals/scorer-smoke-fixtures.json" \
+    --results "$ROOT/evals/results/skill-change-check.json"
+else
+  echo "No deterministic skill cases apply; using structural lint and forward testing."
+fi
 
 "$ROOT/scripts/run-orchestration-evals.py" \
   --pack "$ROOT/evals/orchestration-trace-fixtures.json" \
