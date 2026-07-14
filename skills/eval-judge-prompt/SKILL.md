@@ -16,7 +16,7 @@ Design a binary Pass/Fail LLM-as-Judge evaluator for one specific failure mode. 
 
 - Error analysis is complete. The failure mode is identified.
 - You have human-labeled traces for this failure mode (at least 20 Pass and 20 Fail examples).
-- A code-based evaluator cannot check this failure mode. Exhaust code-based options before reaching for a judge — many failure modes that seem subjective reduce to keyword checks, regex, or API calls when you understand the domain. Example: detecting whether an AI interviewing coach suggests "general" questions (asking about typical behavior instead of a specific past event) seems to require semantic understanding, but in practice a keyword check for words like "usually," "typical," and "normally" could work quite well.
+- A code-based evaluator cannot check this failure mode. Use keyword, regex, schema, or parser checks only when the requirement is literally syntactic or structural. Do not use surface proxies to claim semantic behavior: wording can be added to game the check or paraphrased away while preserving the failure. Prefer execution, source-grounded comparison, or a validated judge for meaning-dependent criteria.
 
 ## The Four Components
 
@@ -141,4 +141,5 @@ Start with the most capable model available. The same model used for the main ta
 - **Dev/test examples used as few-shot.** This is data leakage. Use only the training split.
 - **Likert scales (1-5, letter grades, etc.).** Binary pass/fail only. Likert scales produce scores that sound precise but can't be calibrated: annotators disagree on the difference between a 3 and a 4, and the judge inherits that noise. Binary forces you to define a clear decision boundary upfront, which makes inter-annotator agreement measurable and the judge's errors actionable. If you need to capture severity, use multiple binary judges (e.g., "factually wrong" and "dangerously wrong") rather than one ordinal scale.
 - **Skipping validation.** Measure alignment with human labels using `eval-validate-evaluator` before trusting the judge.
+- **Semantic proxy checks.** Keyword presence, exact phrases, or populated fields do not prove tone, faithfulness, relevance, completeness, or another meaning-dependent claim. Include paraphrases and plausible wrong outputs that satisfy the surface pattern in held-out validation.
 - **Judges for specification failures without fixing the prompt first.** If the prompt never asked for the behavior, add the instruction before building an evaluator. For critical requirements, a judge can still serve as a regression guard.

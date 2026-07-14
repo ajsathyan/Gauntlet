@@ -56,6 +56,7 @@ The workflow is built around Research, Patch, Feature, and Release paths; Standa
 | Scoped role skills | Adds product architecture, planning, triage, implementation, black-box testing, experience review, and deep code review only at smoke, delta, or full scope when useful. |
 | Run logs | Writes a tiny exceptions-first Markdown receipt for material Feature/Release work: assumptions, decisions, skipped checks, failures, `Cannot verify`, and follow-ups. |
 | Local product documents | Optionally scaffolds ignored `local-docs/` in the primary worktree while preserving tracked repository documentation and Git/PR/release traceability. |
+| PRD execution | Compiles one accepted multi-Epic PRD's build-ready target into a durable Ticket Graph with bounded child context, resumable state, incremental integration, cohort proof, and end-to-end release authority. |
 | Skill quality bar | Gives future skill and workflow edits a practical behavior-delta, trigger, completion, proof, and token-cost bar without making every Patch heavier. |
 | Coverage gaps | Captures pending candidates when missing reusable guidance forced a material assumption or repeated review finding. |
 | Workflow speedup helpers | Classifies changed surfaces, recommends bounded tests, and generates redacted review packets without making every Patch run a heavy quality gate. |
@@ -143,7 +144,9 @@ python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs init \
 
 The profile creates ignored `doc_org.md` and `local-docs/` paths in the primary worktree through Git's local exclude file. It never repurposes or ignores the repository's tracked `docs/` directory. Linked implementation worktrees read the primary copies and return durable updates to the main task.
 
-`doc_org.md` owns one release contract; PRDs record product constraints, and build-ready plans resolve authority, proof, rollout, rollback, and release-source details without copying the general procedure. See [docs/local-documentation.md](docs/local-documentation.md).
+`doc_org.md` owns one release contract. A human-readable PRD may contain multiple Epics organized by stable Scope Areas; only its explicit build-ready target compiles into the generated Ticket Graph. The resulting Execution Run keeps authoritative state on disk, survives conversation compaction, gives each child only bounded context, and verifies tickets individually and in meaningful cohorts before full PRD proof. See [docs/local-documentation.md](docs/local-documentation.md) and [docs/prd-execution.md](docs/prd-execution.md).
+
+“Implement the PRD” carries that accepted target through branch/worktree setup, implementation, proof, PR, merge, specified deployment and production changes, verification, rollback when required, durable updates, and cleanup. It stops rather than guessing when authority, credentials, safety, rollout/rollback validity, or required production proof is missing.
 
 ## 🧰 Skill Quality Bar
 
@@ -305,7 +308,7 @@ claude plugin marketplace add ajsathyan/Gauntlet
 claude plugin install gauntlet@gauntlet
 ```
 
-The installer also adds a Gauntlet pre-commit hook in this repo. When staged files include `skills/*/SKILL.md` or `skills/*/examples/*`, the hook runs the skill evals and skill linter before the commit can proceed. Set `GAUNTLET_SKIP_GIT_HOOKS=1` for headless installs that should not touch git hooks.
+The installer also adds a Gauntlet pre-commit hook in this repo. When staged files include `skills/*/SKILL.md` or `skills/*/examples/*`, the hook runs skill text coverage, declared trace-field scorer contracts, and structural lint before the commit can proceed. These checks do not establish live agent behavior. Set `GAUNTLET_SKIP_GIT_HOOKS=1` for headless installs that should not touch git hooks.
 
 ## 📦 What Gets Installed
 
@@ -319,9 +322,11 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [skills/researcher/SKILL.md](skills/researcher/SKILL.md) | Produces bounded evidence-backed research without importing implementation ceremony. |
 | [skills/debugger/SKILL.md](skills/debugger/SKILL.md) | Reproduces and isolates root cause before a fix is implemented. |
 | [skills/product-architect/SKILL.md](skills/product-architect/SKILL.md) | Shapes Feature work around workflow, IA, activation, retention, growth, trust, and handoff. |
+| [skills/maintain-prd/SKILL.md](skills/maintain-prd/SKILL.md) | Maintains one canonical human-readable multi-Epic PRD without starting implementation. |
 | [skills/planner/SKILL.md](skills/planner/SKILL.md) | Converts accepted specs into bounded implementation steps. |
 | [skills/issue-triager/SKILL.md](skills/issue-triager/SKILL.md) | Routes plans, findings, test failures, bugs, and open questions into ready tasks. |
 | [skills/implementer/SKILL.md](skills/implementer/SKILL.md) | Executes scoped code changes while preserving repo patterns and collecting proof. |
+| [skills/implement-prd/SKILL.md](skills/implement-prd/SKILL.md) | Compiles a build-ready PRD into a durable Ticket Graph and coordinates its authorized end-to-end release path. |
 | [skills/adversarial-reviewer/SKILL.md](skills/adversarial-reviewer/SKILL.md) | Stress-tests assumptions, edge cases, trust boundaries, and regressions. |
 | [skills/black-box-tester/SKILL.md](skills/black-box-tester/SKILL.md) | Validates behavior externally through user-visible outcomes. |
 | [skills/experience-reviewer/SKILL.md](skills/experience-reviewer/SKILL.md) | Reviews workflow clarity, IA, states, metrics, accessibility, trust, activation, retention, and growth. |
@@ -343,6 +348,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [docs/upstream-superpowers.md](docs/upstream-superpowers.md) | Attributes adapted techniques and explains selective upstream update review and runtime retirement. |
 | [docs/upstream-eval-skills.md](docs/upstream-eval-skills.md) | Records the vendored eval-skill source, namespace mapping, update procedure, and license location. |
 | [docs/local-documentation.md](docs/local-documentation.md) | Defines the opt-in ignored local-document profile, tracked/private boundary, canonical primary-worktree rule, and release/configuration contracts. |
+| [docs/prd-execution.md](docs/prd-execution.md) | Defines PRD/Epic/Scope Area/Ticket Graph terminology, durable execution artifacts, ready-queue scheduling, bounded child context, verification layers, and end-to-end implementation authority. |
 | [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
 | [docs/github-discipline.md](docs/github-discipline.md) | Beginner-friendly branch, worktree, commit, PR, merge, child-chat, and solo-builder defaults. |
 | [docs/ui-constitution.md](docs/ui-constitution.md) | Bounded frontend quality gate for prototypes and product UI. |
@@ -359,14 +365,15 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [scripts/review-pack.py](scripts/review-pack.py) | Generates a bounded, redacted review packet from diff intel, accepted spec/plan context, and test-plan summaries. |
 | [scripts/check-superpowers-sync.py](scripts/check-superpowers-sync.py) | Reports upstream Superpowers technique changes and affected Gauntlet destinations. |
 | [scripts/retire-superpowers.py](scripts/retire-superpowers.py) | Reversibly retires allowlisted active Superpowers skills and disables the plugin. |
-| [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill-text coverage and explicitly labeled scorer-smoke checks. |
-| [scripts/run-orchestration-evals.py](scripts/run-orchestration-evals.py) | Scores paired orchestration traces from observable outcome, action, authority, proof, routing, output-budget, cost, and latency evidence. |
+| [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill-text coverage and one positive/negative phrase-matcher contract. |
+| [scripts/run-orchestration-evals.py](scripts/run-orchestration-evals.py) | Unit-tests hand-authored outcome, action, authority, proof, routing, output-budget, cost, and latency fields. It does not observe agent behavior or resolve proof references. |
 | [scripts/lint-skills.py](scripts/lint-skills.py) | Lints skill frontmatter, word budget, contract slots, optional examples, and bounded subagent guidance. |
-| [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill evals and linting when staged Gauntlet skill files change. |
+| [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill text coverage, declared trace-field scorer contracts, and linting when staged Gauntlet skill files change. |
 | [scripts/install-git-hooks.sh](scripts/install-git-hooks.sh) | Installs the pre-commit hook that enforces skill-change checks. |
+| [scripts/prd-run.py](scripts/prd-run.py) | Creates, validates, resumes, and advances deterministic disk-backed PRD Execution Runs. |
 | [evals/skill-evals.json](evals/skill-evals.json) | Pressure scenarios for skill contract coverage. |
-| [evals/scorer-smoke-fixtures.json](evals/scorer-smoke-fixtures.json) | Five-rep fixtures that prove the phrase scorer and metrics path—not agent behavior. |
-| [evals/orchestration-trace-fixtures.json](evals/orchestration-trace-fixtures.json) | Paired observable trace cases including missing-proof, authority, verbosity, phrase-echo, and subjective-judgment canaries. |
+| [evals/scorer-smoke-fixtures.json](evals/scorer-smoke-fixtures.json) | One positive and one negative matcher canary that prove phrase-scorer wiring—not agent behavior. |
+| [evals/orchestration-trace-fixtures.json](evals/orchestration-trace-fixtures.json) | Paired declared trace-field scorer cases, including wrong-outcome, self-attested-proof, different-prose, authority, verbosity, and subjective-judgment canaries. |
 | [evals/baselines/current/skills](evals/baselines/current/skills) | Frozen current-skill baseline used by the three-arm evals. |
 
 ## 🧠 Inspiration

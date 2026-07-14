@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now maintains human-readable multi-Epic PRDs and compiles build-ready targets into durable Ticket Graph runs with bounded cache-oriented child context, parent-owned verification, cohort gates, and authorized end-to-end release handling.
+
 - Gauntlet refactor workflows now isolate bounded proposal and review agents with stable artifact-backed prompts, prefer the built-in Browser for web verification, preserve explicit Computer Use requests, and record execution-efficiency metrics only when observable.
 
 - Gauntlet now includes staged `refactor-codebase` and measure-first `refactor-performance` skills with durable phase receipts, independent breakthrough search, migration strategy gates, parity proof, and deterministic refactor helpers.
@@ -9,6 +11,8 @@
 - Gauntlet now offers an opt-in `local-docs/` profile with stable epic scaffolding, primary-worktree canonical documents, tracked-document boundaries, one release contract, configuration and secret classification, and a global three-question discipline shared by every skill.
 
 - Gauntlet now includes `craft-product-terminology` for naming public product concepts and internal system pieces from their actual responsibilities and boundaries.
+
+- Gauntlet now uses prose delegation tickets with proportional behavioral proof, treats child receipts and declared trace fields as evidence pointers instead of proof, and labels phrase-based skill checks as structural coverage only.
 
 - Gauntlet now ships one Codex and Claude Code plugin bundle from its shared skills tree, adds the `craft-customer-email` workflow, namespaces the vendored eval suite under `eval-`, and limits intake to three high-value questions.
 

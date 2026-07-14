@@ -38,3 +38,4 @@ Independent findings may be triaged by parallel subagents when sources do not ov
 - Preserve the Release launch cut line, panel delta, decisions, and `| Concern | Decision | Why Not Defer | Proof | Plan Delta |`.
 - A `Ship blocker` must name concrete harm, why fallback/deferral/recovery is not acceptable, executable proof, and plan delta.
 - Cleanup becomes Ready only with evidence, scope, done criteria, and verification; otherwise Defer, Reject, or No action.
+- Make `Done when` an observable outcome or invariant with meaningful limits. For consequential behavior, include a plausible wrong case and required non-effects; a phrase, populated field, self-report, or green command alone is insufficient.

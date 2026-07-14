@@ -1,6 +1,6 @@
 # Gauntlet v2 Skill Audit
 
-Updated for v2.0.2: exceptions-first run logs, coverage-gap candidates, direct child dispatch, three-arm skill coverage, explicit scorer smoke, observable orchestration traces, `Cannot verify` slots, conditional subagent guidance, skill linting, and token-efficiency review.
+Updated for v2.0.2: exceptions-first run logs, coverage-gap candidates, direct child dispatch, three-arm skill text coverage, explicit matcher contracts, declared orchestration trace-field scorer contracts, `Cannot verify` slots, conditional subagent guidance, skill linting, and token-efficiency review.
 
 ## Eval Method
 
@@ -14,16 +14,16 @@ Every case compares three arms:
 
 Each case scores whether the instruction source contains the contract elements needed for that pressure scenario. This is a coverage eval, not an agent-behavior benchmark; it gives a stable red/green gate for missing skill text.
 
-Scorer smoke adds a four-arm phrase-matcher path:
+Matcher-contract smoke adds a four-arm phrase-matcher path:
 
 - `no_guidance`
 - `one_shot`
 - `current_skill`
 - `new_skill`
 
-The runner can write scorer-smoke prompts and score response fixtures. The bundled `evals/scorer-smoke-fixtures.json` intentionally lets a phrase echo pass. It proves that the phrase matcher and aggregation path work; it makes no claim about whether an agent took the right action. The runner exits nonzero when `new_skill` misses text coverage or a configured scorer-smoke response pack lacks the minimum passing reps. The old `--behavior-responses` and `--behavior-prompts-dir` flags remain hidden compatibility aliases, but result files use only `scorerSmoke` names.
+The runner can write scorer-smoke prompts and score response fixtures. The bundled `evals/scorer-smoke-fixtures.json` includes one positive phrase echo and one negative omission canary. It proves that the matcher and aggregation path recognize both cases; repeated identical echoes are not treated as independent evidence. It makes no claim about whether an agent took the right action. The runner exits nonzero when `new_skill` misses text coverage or a configured matcher pack disagrees with an expected positive/negative result. The old `--behavior-responses` and `--behavior-prompts-dir` flags remain hidden compatibility aliases, but result files use only `scorerSmoke` names.
 
-Observable orchestration outcomes use `scripts/run-orchestration-evals.py`, the schema in `evals/orchestration-trace-schema.json`, and paired traces in `evals/orchestration-trace-fixtures.json`. The deterministic scorer checks:
+Declared orchestration trace-field contracts use `scripts/run-orchestration-evals.py`, the schema in `evals/orchestration-trace-schema.json`, and hand-authored pairs in `evals/orchestration-trace-fixtures.json`. The deterministic scorer checks declared fields for:
 
 - task outcome;
 - required and forbidden actions;
@@ -33,7 +33,7 @@ Observable orchestration outcomes use `scripts/run-orchestration-evals.py`, the 
 - user-visible message count and word budget; and
 - cost and latency limits when those metrics are recorded.
 
-The scorer pack contains passing traces plus missing-proof, authority-violation, verbose-output, and phrase-echo/wrong-action failures. The canary contains expected report language but fails because its observable action, outcome, routing, and proof are wrong. Subjective criteria always return `cannot_verify` until a separately calibrated judgment process exists; deterministic success cannot auto-green them.
+The scorer pack contains passing field sets plus missing-proof, authority-violation, verbose-output, wrong-outcome, self-attested-proof, different-prose, and phrase-echo/wrong-action canaries. Expected report language cannot compensate for wrong declared contract fields, while different concise prose can pass the same field contract. The self-attested canary proves only that the scorer distinguishes declared provenance/resolution fields; it does not resolve a proof reference. Subjective criteria always return `cannot_verify` until a separately calibrated judgment process exists.
 
 Run the local layers with:
 
@@ -42,20 +42,20 @@ scripts/run-skill-evals.py --scorer-smoke-responses evals/scorer-smoke-fixtures.
 scripts/run-orchestration-evals.py --pack evals/orchestration-trace-fixtures.json
 ```
 
-Neither command calls a model or the network. Representative live-model behavior and judgment calibration remain `Cannot verify`.
+Neither command calls a model or the network. The trace pack also does not consume trusted native tool events, inspect resulting state, or resolve proof references. Representative live-model behavior, real action/authority provenance, independent proof, and judgment calibration remain `Cannot verify`.
 
 `scripts/lint-skills.py` fails skills that miss the core contract shape: frontmatter description starts with `Use when`, word budget, packet/output contract, `Cannot verify`, `Not relevant because`, optional examples, and bounded parallel-subagent guidance.
 
-`scripts/install-git-hooks.sh` installs a pre-commit hook that calls `scripts/run-skill-change-checks.sh`. When staged files include `skills/*/SKILL.md` or `skills/*/examples/*`, the hook runs the skill evals and skill linter before the commit proceeds.
+`scripts/install-git-hooks.sh` installs a pre-commit hook that calls `scripts/run-skill-change-checks.sh`. When staged files include `skills/*/SKILL.md` or `skills/*/examples/*`, the hook runs skill text coverage, declared trace-field scorer contracts, and the skill linter before the commit proceeds.
 
 ## Results
 
-Latest deterministic target: all `new_skill` coverage arms pass; `one_shot` and `current_skill` remain comparison arms, not release blockers. Scorer smoke should score `new_skill` at 5/5 reps for every case. Orchestration trace fixtures pass only when every arm produces its expected `pass`, `fail`, or `cannot_verify` verdict.
+Latest deterministic target: all `new_skill` text-coverage arms pass; `one_shot` and `current_skill` remain comparison arms, not release blockers. Matcher-contract smoke should match both the positive and negative `new_skill` canaries. Declared trace-field fixtures pass only when every arm produces its expected scorer verdict; that result is not behavioral proof.
 
 | Skill | Current Decision |
 | --- | --- |
 | `intake` | Keep packet shape. |
-| `planner` | Keep bounded main-plan tasks and dispatch child packets directly from the canonical plan. |
+| `planner` | Keep bounded main-plan tickets and dispatch child tickets directly from the canonical plan. |
 | `product-architect` | Route non-obvious rationale to run logs, not product UI. |
 | `implementer` | Return compact machine receipts for delegated lanes and run-log-friendly exceptions only when material. |
 | `adversarial-reviewer` | Report concrete risk and optional coverage gap candidates. |

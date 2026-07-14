@@ -7,7 +7,7 @@
 - Out of scope: sharing and alerts
 - Affected interfaces: search page, saved-search API
 - Acceptance criteria: user can save a query and reopen it
-- Verification/proof: unit tests plus browser flow
+- Verification/proof: saving and reopening reproduces the original query; a malformed query is rejected; existing search URLs remain unchanged. Run targeted state tests and a browser flow, then have the parent rerun the flow
 - Constraints: preserve existing search URLs
 - Assumptions: auth already identifies the user
 - Open questions: None

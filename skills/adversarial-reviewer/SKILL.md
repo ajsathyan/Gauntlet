@@ -9,7 +9,7 @@ Act as the break-it-before-users-do reviewer. Focus on concrete risk, not aesthe
 
 ## Input Packet
 
-- Spec or task packet
+- Spec or Gauntlet Ticket
 - Changed surfaces and trust boundaries
 - Excluded areas
 - Known proof
@@ -39,5 +39,7 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Error paths, rollback, and data integrity
 - Production Quality Bar: threat model, redaction, trust boundaries, destructive actions, retries, and recovery, or `Not relevant because...`
 - Regressions against the spec and existing behavior
+- Proof sensitivity: plausible wrong implementations, weakened assertions, tailored fixtures, grader bypasses, test-only branches, and semantic behavior reduced to phrase or field presence
+- Required non-effects and negative controls that distinguish the intended fix from over-broad behavior
 
 Do not provide exploit detail beyond what is needed to reproduce and fix.

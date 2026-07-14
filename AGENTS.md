@@ -9,9 +9,11 @@ Gauntlet v2.0.2 is a product-thinking and proof harness for coding agents. This 
 - `skills/*/SKILL.md`: triggered role behavior and output contracts.
 - `docs/workflow-etiquette.md`: detailed execution, delegation, continuity, and archive guidance.
 - `docs/github-discipline.md`: branches, worktrees, commits, PRs, merge commits, and cleanup.
+- `docs/meaningful-proof.md`: behavioral claims, observable oracles, evidence boundaries, and delegated proof.
 - `docs/skill-quality-bar.md`: requirements for meaningful skill and workflow changes.
 - `docs/production-quality-bar.md`: bounded launch/hardening checks when production risk triggers them.
 - `docs/local-documentation.md`: opt-in local product-document organization, tracked/private boundaries, and scaffolding behavior.
+- `docs/prd-execution.md`: PRD terminology, Ticket Graph compilation, durable execution state, scheduling, and end-to-end implementation authority.
 - `scripts/check-gauntlet-workflow.py`: end-to-end workflow regression suite.
 
 Use repository-relative `docs/...` and `scripts/...` paths only for work inside this repository. Portable guidance must use the installed-path contract rendered by the installer.
@@ -45,25 +47,29 @@ Classify internally. Surface the classification only when it changes scope, cost
 Before substantial implementation, establish one accepted source and one canonical plan with:
 
 - goal, scope, non-goals, affected interfaces, and acceptance criteria;
-- proof, constraints, assumptions, and material open questions;
+- meaningful proof, constraints, assumptions, and material open questions;
 - critical invariants and integration boundaries;
 - ordered tasks, exact file/state ownership, and the first ready task;
 - explicit deferrals and `Cannot verify` where proof is unavailable.
 
 Use an 80/20 question rule across every Gauntlet skill. Start from existing context and make safe assumptions explicit. Ask only when the answer could materially change the result, scope, acceptance, authority, data/money/privacy/security risk, cost, or external effect. When clarification is necessary, ask at most three short questions in one message, preferably one or two, with each question focused on one decision. Do not send a generic questionnaire. Otherwise provide a provisional result.
 
-For genuine scope additions, check the added scope and its boundary with accepted work. Record `Scope delta checked: no material change.` in the plan when clean; update the plan before implementation when material.
+For genuine scope additions, check the added scope and its boundary with accepted work. Update the plan and proof when the addition is material; do not emit a no-op scope phrase when it is clean.
 
 When `doc_org.md` activates the local-document profile, read it and `local-docs/INDEX.md` before creating or changing covered documents. Canonical local documents stay in the primary worktree; tracked documentation stays in the repository's established documentation location.
+
+An accepted multi-Epic PRD is the human product source. At implementation time, compile only its explicit build-ready target into a Ticket Graph; do not turn proposed, deferred, or materially unresolved work into tickets. Follow `docs/prd-execution.md` for terminology, durable artifacts, resumption, scheduling, and release authority.
 
 ## Quiet autonomous execution
 
 - Routine execution stays in tools and machine artifacts, not user-facing narration.
 - User-facing chat is reserved for a required decision, an unrecoverable failure, a host-required terse heartbeat, or a concise final outcome and proof.
-- Child agents return a compact machine receipt: `status`, `changedFiles`, `proof`, and `blocker`.
+- Implementation children return a compact machine receipt: `status`, `changedFiles`, evidence pointers, and `blocker`. Research and review children return the requested artifact or findings compactly. Neither form is proof by itself.
 - Retry silently only when the next attempt is safe and materially different.
 - Stop when recovery would repeat the same failure fingerprint, require new authority, risk destructive external state, or exceed the accepted appetite.
-- Do not ask AJS to inspect subagent packets, reports, ledgers, traces, or progress prose.
+- Do not ask AJS to inspect tickets, reports, ledgers, traces, or progress prose.
+
+After an Execution Run starts, its source lock, manifest, and resume artifact own execution state. Recover from those local artifacts after compaction or restart instead of reconstructing progress from chat.
 
 ## Subagents and bounded dispatch
 
@@ -71,10 +77,14 @@ Standing authorization: automatically use subagents when two or more useful lane
 
 - The main chat owns the accepted plan, user decisions, final branch, integration, PR, merge decision, and final synthesis.
 - Write-heavy lanes use isolated worktrees unless a tiny disjoint patch clearly does not need one.
-- Dispatch children directly from bounded task packets in the canonical plan. Each prompt names objective, scope and ownership, dependencies, constraints, proof, return contract, and ask-user policy.
+- A Gauntlet Ticket is a generated execution assignment within the current plan or Execution Run, not an issue-tracker record.
+- The Ticket Graph uses a dynamic ready queue: prioritize critical-path and interface-first work, preserve useful agent affinity, integrate completed tickets continuously, and wait at selective Cohort Verification barriers only where tickets share an invariant or interface.
+- Dispatch each child directly from one bounded ticket. Include only the material objective, ownership, dependencies, constraints, proof expectations, return contract, and ask-parent policy; proof fields are optional and proportional.
 - Native Codex state and main-chat messages own live coordination.
 - Keep files, mutable state, and proof targets disjoint. Avoid splitting one tightly coupled decision tree across lanes.
 - Children report `Needs decision` to the orchestrator instead of asking AJS directly.
+- The main chat owns the oracle, independently reruns or resolves child evidence, integrates commits into one branch as results arrive, runs targeted integration checks, and runs combined proof after all required tickets finish. It opens one final PR.
+- Materialize one bounded child context with named dependency contracts and outputs. Children do not load the whole PRD, manifest, event stream, or unrelated receipts by default.
 - Keep delegation, child progress, completion, and receipts out of user-facing narration. All applicable etiquette and gates still run internally; surface only the user-facing action or material exception they require.
 
 ## Implementation
@@ -91,6 +101,8 @@ Standing authorization: automatically use subagents when two or more useful lane
 
 Prove changed behavior proportionally. For Normal Requests, the direct outcome or smoke check is sufficient. Expand proof only when risk, blast radius, weak tests, or release intent earns it.
 
+Use `docs/meaningful-proof.md` for every material behavior claim. Define the claim or invariant and observable oracle before choosing checks. When proportionate, include a plausible wrong case or negative control, required non-effects, independent parent verification, and `Cannot verify` limits. Phrase presence, populated fields, schema validity, status labels, receipts, and self-reported results are structural evidence or evidence pointers, not behavioral proof. A child may write regression tests, but must not weaken or tailor the oracle; the parent independently reviews and reruns or resolves the evidence after integration.
+
 - Run targeted tests first, then the smallest relevant broader suite.
 - Use `scripts/diff-intel.py`, `scripts/test-plan.py`, and `scripts/review-pack.py` for changed-surface and review setup.
 - Run `python3 scripts/check-gauntlet-workflow.py` for broad workflow, installer, router, orchestration, or release changes.
@@ -106,7 +118,7 @@ Use the Production Quality Bar only for near-launch, private-beta, production-bo
 
 Use the narrowest Gauntlet role skill that adds value:
 
-- `intake`, `product-architect`, `planner`, `issue-triager`, `implementer`;
+- `intake`, `product-architect`, `maintain-prd`, `planner`, `issue-triager`, `implementer`, `implement-prd`;
 - `researcher`, `debugger`;
 - `adversarial-reviewer`, `black-box-tester`, `experience-reviewer`, `deep-code-reviewer`;
 - `run-log-builder`, `promotion-scanner`, and `ian-xiaohei-illustrations` when their triggers apply.
@@ -134,11 +146,13 @@ Keep deterministic coverage, scorer plumbing, and behavioral outcome evidence di
 
 - Branch from `main`; use isolated worktrees when the workspace is dirty, the work is p0-p2, the change is broad, or child lanes write files.
 - Commit coherent checkpoints. Preserve useful commits; do not squash or rebase unless AJS or the repository asks.
-- Treat the PR as the proof and decision bundle: changed files, checks, review context, run log, changelog, and residual risk.
+- Treat the PR as the proof and decision bundle: changed files, execution-backed checks, review context, run log, changelog, and residual risk.
 - Automated merges use merge commits. Direct push to `main` is an explicit tiny-change shortcut, not the default.
 - Child lanes commit to their branches and return receipts; the main chat integrates and owns the PR.
 
 “Merge this,” “land this,” or “merge this to main” authorizes the complete safe closeout for the accepted scope: prepare the contextual handoff, update `CHANGELOG.md`, commit and push the task branch, create or update one PR, wait for required checks and blocking review state, merge, delete the remote task branch, verify the default branch, and clean local task state only when no unique work remains. Ask only for a new material decision or preservation risk.
+
+“Implement the PRD” authorizes the accepted build-ready target through branch/worktree creation, Ticket Graph execution, incremental integration, proof, PR, merge, exact-default-branch deployment when specified, documented production changes, production verification, required rollback, durable updates, and safe cleanup. It excludes proposed, deferred, and materially unresolved work. Stop for missing authority or credentials, an unsafe or destructive effect absent from the PRD, production reality that invalidates rollout or rollback, or required production proof that cannot be obtained.
 
 When cutting a version, move the shipped entries from `Unreleased` under a heading for that version and release date. Keep the `Unreleased` heading for future work, and never delete released changelog history.
 

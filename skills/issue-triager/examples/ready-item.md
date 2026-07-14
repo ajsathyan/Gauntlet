@@ -9,7 +9,7 @@
 - Evidence: reviewer reproduced with invite URL after expiry
 - Repro state: exact repro
 - Cannot verify: whether legacy invites should be grandfathered
-- Done when: expired invites return an error and regression test passes
+- Done when: an invite just past expiry is rejected, one just before expiry is accepted, existing error behavior is unchanged, and the targeted test fails when the expiry guard is bypassed
 - Next action: add expiry check in invite accept path
 - Owner/role: implementer
 - WIP guidance: touch invite accept flow only

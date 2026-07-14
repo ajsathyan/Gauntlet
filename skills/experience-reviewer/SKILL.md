@@ -43,5 +43,6 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Visual hierarchy and design-system consistency
 - For substantial frontend UI, use the Gauntlet reference document `docs/ui-constitution.md` in the Gauntlet source repo, or `$AGENT_HOME/gauntlet/docs/ui-constitution.md` in a global install, to check semantics, labels, states, feedback, disabled explanations, icon-only actions, and agent/process copy.
 - Use delta review for accepted small changes and full review for new or ambiguous workflows.
+- Test whether visible actions and states work, not merely whether a screenshot contains expected copy or controls. Pair semantic or functional claims with interaction evidence, negative states, and required non-effects where practical.
 
 Do not create metrics or UI requirements just to have findings.

@@ -9,7 +9,7 @@ Protect behavior while inspecting the changed design.
 
 ## Input Packet
 
-- Spec, plan, or task packet
+- Spec, plan, or Gauntlet Ticket
 - Diff or changed files
 - Proof already run
 - Known non-goals
@@ -39,6 +39,9 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Name the design smell and prove why it is risky or costly now.
 - Taste-only preferences are notes, never blockers.
 - Every blocker needs concrete harm, evidence, and a fix path.
+- Review whether tests would fail for a plausible wrong implementation, cover required non-effects, and use an oracle independent enough to detect implementation mistakes.
+- Flag proof that rewards phrases, populated fields, self-reported completion, or a green command without establishing the behavioral claim. Check for weakened assertions, tailored fixtures, bypassed graders, and test-only branches.
+- Child-authored tests are evidence; require a parent rerun or inspection and independent behavioral proof when consequence warrants it.
 - When the Production Quality Bar is active, review ownership boundaries, invariants, durable state, state machines, and release proof; otherwise mark `Not relevant because...`.
 - For guarded Release reviews, keep the launch cut line, panel delta, and `| Concern | Decision | Why Not Defer | Proof | Plan Delta |` decision table intact.
 - Allowed Release decisions: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, `Reject`.

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0",
-  "description": "Deterministic pressure evals for Gauntlet skills. Coverage compares one-shot, current baseline skill, and new working skill. Scorer smoke exercises the phrase matcher but does not claim agent behavior.",
+  "description": "Deterministic text-coverage cases for Gauntlet skills. Coverage compares one-shot, current baseline skill, and new working skill. Matcher smoke unit-tests phrase handling but does not claim agent behavior.",
   "cases": [
     {
       "id": "intake-packet-contract",
@@ -23,20 +23,22 @@
       ]
     },
     {
-      "id": "planner-task-packet",
+      "id": "planner-ticket",
       "skill": "planner",
-      "title": "Planner creates task packets with interfaces and proof",
+      "title": "Planner creates tickets with interfaces and proof",
       "oneShotInstruction": "Turn the accepted spec into ordered implementation steps, risks, non-goals, and verification.",
       "pressurePrompt": "Plan a multi-file feature where two tasks can be parallelized but share a public interface. Avoid component piles and prevent subagents from guessing contracts.",
       "requiredPatterns": [
-        "Gauntlet Task Packet",
+        "Gauntlet Ticket",
         "canonical plan",
-        "Consumes",
-        "Produces",
-        "Proof",
+        "Objective",
+        "Ownership",
+        "Material dependencies",
+        "Proof contract",
+        "Observable oracle",
+        "Negative control",
+        "Parent independent verification",
         "Cannot verify",
-        "Child Implementation Lanes",
-        "Done when",
         "Stop planning once"
       ],
       "forbiddenPatterns": [
@@ -70,12 +72,13 @@
       "oneShotInstruction": "Implement the ready task narrowly, follow local patterns, test it, and summarize files changed, verification, and remaining risks.",
       "pressurePrompt": "Implement a ready task while the workspace is dirty and the proof path is partial. Report facts to the orchestrator without claiming done too early.",
       "requiredPatterns": [
-        "Implementation Packet",
+        "Implementation Report",
         "Status",
         "Proof",
         "Cannot verify",
         "Changed files",
-        "Review concerns",
+        "proof and its limit",
+        "Parent reruns",
         "Done requires",
         "RED-GREEN-REFACTOR"
       ],
@@ -211,11 +214,11 @@
       "requiredPatterns": [
         "Production Quality Bar",
         "near-launch",
-        "omit the field when the trigger is absent",
+        "otherwise omit it",
         "release proof",
-        "dry-run",
+        "dry-run/no-mutation",
         "automated GitHub release tags",
-        "deferrals"
+        "explicit deferrals"
       ],
       "forbiddenPatterns": [
         "always run"
@@ -352,9 +355,9 @@
       "oneShotInstruction": "Plan bounded child lanes only when implementation will actually use them.",
       "pressurePrompt": "Plan a normal single-lane patch. Keep internal mode, gate, and clean-check machinery out of the user-facing plan, omit unused child-lane fields, and preserve a clean scope-delta marker only inside the plan when needed.",
       "requiredPatterns": [
-        "Parallelizable lanes: independent tasks that can go to subagents, or omit when none",
-        "Include routing only when material; omit no-op fields.",
-        "Scope delta checked: no material change."
+        "Independent child lanes",
+        "only when work will be dispatched",
+        "Include routing only when material; omit no-op fields."
       ],
       "forbiddenPatterns": [
         "Subagent packetization: not relevant because"
@@ -367,8 +370,8 @@
       "oneShotInstruction": "Implement a bounded task and return changed behavior, proof, real concerns, and the next action.",
       "pressurePrompt": "Implement a task whose packet, scope delta, and review checks are all clean. Do not inflate the report with successful workflow gates; include a warning only if it changed execution or remains a real risk.",
       "requiredPatterns": [
-        "reports contain changed behavior, proof, real concerns, and the next action",
-        "Keep clean validation, mode/gate selection, scope-delta checks, review transitions, and hygiene transitions out of the report"
+        "Do not narrate routine work",
+        "Keep delegation, child progress, clean checks, and receipts out of user-facing messages unless required"
       ],
       "forbiddenPatterns": [
         "clean packet validation passed"

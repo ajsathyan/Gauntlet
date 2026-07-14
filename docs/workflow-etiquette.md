@@ -12,7 +12,7 @@ Use this path before Gauntlet lifecycle routing when all of these are true:
 - the work uses existing or supplied content, data, or interfaces, or needs only a direct lookup; and
 - it does not change a durable schema, contract, methodology, architecture, production system, or safety boundary.
 
-Typical cases are presentation or formatting edits, copying existing results into an existing UI, simple lookups, routine administration, and comparable low-risk work. Deliver the artifact, run the direct outcome or smoke check, and stop. Do not create intake artifacts, plans, subagent packets, audits, review panels, run logs, coverage gaps, or follow-on improvements for these requests.
+Typical cases are presentation or formatting edits, copying existing results into an existing UI, simple lookups, routine administration, and comparable low-risk work. Deliver the artifact, run the direct outcome or smoke check, and stop. Do not create intake artifacts, plans, tickets, subagents, audits, review panels, run logs, coverage gaps, or follow-on improvements for these requests.
 
 A user correction narrows or replaces the corrected premise; it does not authorize a schema, methodology, or workflow redesign. Existing data that is merely displayed or copied needs an outcome check, not exhaustive re-verification, unless the request or a concrete integrity risk requires it. Explicit narrow user scope outranks Gauntlet's preference for more process. Safety, permissions, destructive effects, and other consequential boundaries still apply; when one appears, route only that affected portion through the lightest responsible path or ask for the required authority.
 
@@ -23,8 +23,10 @@ Carry forward user constraints, corrections, and dislikes. Report a plan delta o
 Gauntlet uses one accepted spec and one canonical plan:
 
 - Intake and product exploration refine the accepted spec in conversation.
-- Planner turns the accepted spec into bounded task packets.
-- Implementation Memory, separate design documents, and duplicate child packets are not active defaults.
+- Planner turns the accepted spec into bounded implementation tasks and child tickets where delegation is useful.
+- Implementation Memory, separate design documents, and duplicate child tickets are not active defaults.
+
+For a PRD-backed build, the accepted multi-Epic PRD remains the human source and its explicit build-ready target is the accepted spec. Planner compiles that target into a Ticket Graph for the Execution Run; the graph does not replace or rewrite product intent. See `docs/prd-execution.md`.
 
 For Deep work, compare alternatives inside one pass. Use a second independent plan only when concrete Release-class harm or an explicit user request earns it.
 
@@ -70,7 +72,7 @@ Before consequential implementation, perform a bounded foresight check:
 - identify 2–4 edge cases that change code or proof;
 - surface only material findings or a user decision;
 - do not print a no-op edge-case section;
-- record a clean scope addition as `Scope delta checked: no material change.` in the canonical plan.
+- update scope and proof when an addition is material; omit no-op scope phrases when it is clean.
 
 High-value surfaces include auth, billing, migrations, privacy, concurrency, data integrity, uploads, public APIs, control planes, automation, live operations, and product flows with ambiguous state.
 
@@ -91,11 +93,15 @@ Use delegation only when parallelism beats context cost. Normal Requests stay in
 
 This is standing authorization to spawn subagents automatically when two or more useful lanes have independent ownership, state, and proof. Do not wait for the user to request delegation, and do not use Release classification as a prerequisite. Keep the work in the main task when the split would create dependency waits or repeated context without a real speed or evidence benefit.
 
-Dispatch each child directly from one bounded task packet in the canonical plan. Name its objective, skill, ownership, dependencies, consumes/produces contracts, constraints, proof, return contract, and ask-user policy. Native Codex state and main-task messages own live coordination.
+A Gauntlet Ticket is a generated execution assignment within the current plan or Execution Run, not an issue-tracker record. Dispatch each child directly from one bounded ticket. Include only its material objective, skill, ownership, dependencies, consumes/produces contracts, constraints, proportional proof expectations, return contract, and ask-parent policy. Proof fields are optional. Native Codex state and main-task messages own live coordination.
+
+Use one active implementation ticket per child by default. The same child may take sequential related tickets when agent affinity preserves useful context; do not co-own one implementation ticket across multiple implementers. Independent verifier tickets may inspect the integrated result.
+
+Schedule from the ready queue rather than in document order. Prioritize critical-path and interface-first work, keep named outputs explicit, integrate finished tickets as they arrive, and run immediate ticket proof. Wait only at Cohort Verification barriers for tickets that share a material interface or invariant, then run full PRD verification when all required cohorts pass.
 
 Child behavior:
 
-- receives its bounded task packet directly from the main task;
+- receives its bounded ticket directly from the main task;
 - works inside named files/state/worktree;
 - returns a compact Role Report;
 - reports `Needs decision` to the main task instead of asking the user;
@@ -104,12 +110,17 @@ Child behavior:
 Main-task behavior:
 
 - owns user decisions, synthesis, integration, PR, and merge;
-- checks returned evidence and integration boundaries;
+- treats receipts as evidence pointers, independently checks the oracle, reruns or resolves returned evidence, and checks integration boundaries;
 - does not duplicate full child assignments;
+- integrates child commits into one branch and runs targeted checks as results arrive, then runs combined proof after all required tickets finish and opens one final PR;
 - waits 30–60 seconds or for meaningful state change instead of repeatedly polling unchanged state;
 - archives a child task after its report is integrated when the product supports it.
 
-Native Codex state owns child progress; do not require title or status churn. Use the stable lane id in the packet and report as the coordination handle.
+Native Codex state owns child progress; do not require title or status churn. Use the stable lane id in the ticket and report as the coordination handle.
+
+The Execution Run owns durable progress. After dispatch begins, its source lock, manifest, and resume file are authoritative; conversation is advisory except for new user decisions. A restart or compaction resumes from those files. Child context is materialized from the assigned ticket, relevant versioned shared context, named dependency contracts, and owned source paths—not the entire PRD, manifest, events, or unrelated receipts.
+
+Keep stable instruction text first and ticket-specific context last. Canonical field order, sorted IDs, stable formatting, omitted empty fields, and delayed volatile metadata improve prefix reuse and token efficiency. Do not promise cache hits: the host, model, routing, and exact prompt bytes still control caching.
 
 Do not narrate the delegation lifecycle to the user unless a higher-priority host instruction explicitly requires disclosure. All applicable workflow etiquette remains active during quiet execution: perform classification, foresight, proof, state, and archive checks internally, then surface only a required user-facing action or material exception such as a title change, suggestion, decision, blocker, or safety stop.
 
@@ -125,7 +136,9 @@ Surface:
 - concise status during long work;
 - final behavior, proof, and residual risk.
 
-Keep routine reads, searches, formatting, command setup, generated packets, and unchanged polls in tools or artifacts.
+Keep routine reads, searches, formatting, command setup, generated tickets, and unchanged polls in tools or artifacts.
+
+For material proof, follow `docs/meaningful-proof.md`. A test or receipt is useful only when its observable oracle distinguishes the intended result from a plausible wrong one. Structural checks and self-reports must not be presented as behavior.
 
 In autonomous mode, continue through reversible local choices and expected verification fixes. Stop for the explicit Gauntlet stop conditions, not for metadata approval.
 
@@ -176,6 +189,8 @@ Use a branch for persisted work. Use a worktree for p0–p2, broad, dirty-worktr
 
 "Merge this," "land this," or "merge this to main" authorizes the contextual changelog → commit → push → PR → checks → merge-commit → remote cleanup → default-branch verification flow for the current scope. Use `scripts/gauntlet.py merge prepare`, `merge plan`, and `merge execute`; ask only for a new material choice or preservation risk.
 
+"Implement the PRD" authorizes its accepted build-ready target through branch/worktree setup, Ticket Graph execution, incremental integration, proof, PR, merge, exact-default-branch deployment when specified, documented production changes, verification, required rollback, durable updates, and safe cleanup. It does not include proposed, deferred, or materially unresolved work. Stop for missing credentials or authority, an unsafe or destructive effect absent from the PRD, production conditions that invalidate rollout or rollback, or required production proof that cannot be obtained.
+
 See `docs/github-discipline.md` for the detailed beginner-friendly branch → coherent commits → PR → verification → merge-commit → cleanup path.
 
 ## Token Bounds
@@ -183,7 +198,7 @@ See `docs/github-discipline.md` for the detailed beginner-friendly branch → co
 - Plan delta: at most three bullets.
 - Material foresight: at most four edge cases.
 - Status update: one decision or changed fact.
-- Child prompt: one bounded task packet; no shared background duplication.
+- Child prompt: one bounded ticket; no shared background duplication.
 - Assumptions: at most three material items.
 - Debrief: at most three bullets and only when triggered.
 - Archive: quiet happy path; explain only blockers or warnings.

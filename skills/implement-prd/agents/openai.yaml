@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement PRD"
+  short_description: "Compile and execute an accepted PRD end to end"
+  default_prompt: "Use $implement-prd to compile the accepted PRD into tickets and execute it through authorized release verification."

@@ -128,7 +128,7 @@ If a clear fix resolves the failure, do that first. Only consider an evaluator f
 
 Reserve evaluators for failures the user will iterate on repeatedly. Start with the highest-frequency, highest-impact category.
 
-**For failures that warrant an evaluator:** prefer code-based checks (regex, parsing, schema validation) for anything objective. Use `eval-judge-prompt` only for failures that require judgment. Critical requirements (safety, compliance) may warrant an evaluator even after fixing the prompt, as a guardrail.
+**For failures that warrant an evaluator:** prefer code-based checks for literal syntax, structure, deterministic calculations, or executable outcomes. Do not treat keyword or regex proxies as semantic proof. Use `eval-judge-prompt` for failures that require interpretation. Critical requirements (safety, compliance) may warrant an evaluator even after fixing the prompt, as a guardrail.
 
 ### Step 7: Iterate
 

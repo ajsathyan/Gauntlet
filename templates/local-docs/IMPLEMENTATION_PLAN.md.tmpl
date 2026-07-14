@@ -1,42 +1,102 @@
-# {{EPIC_ID}} implementation plan: {{TITLE}}
+# {{EPIC_ID}} implementation: {{TITLE}}
 
-Status: Build-ready
+Status: Compiled
 Created: {{DATE}}
 Accepted source: {{PRD_PATH}}
+Implementation target: {{EPIC_ID}}
+Source lock: Not recorded
+Execution run: Not started
 
-## Accepted Scope And Non-Goals
+This is the human-readable view of the compiled Ticket Graph. The accepted PRD remains the product source of truth; the execution run on disk owns operational state after it starts.
 
-## Affected Interfaces
+## Epic {{EPIC_ID}}: {{TITLE}}
 
-## Dependencies And Integration Order
+Scope Areas: list stable IDs from the accepted PRD
+Verification cohorts: list shared interfaces or invariants, if any
 
-## Worktree, Branch, And Ownership
+### Ticket {{EPIC_ID}}-T01: first independently assignable unit
 
-## Ordered Workstreams
+#### Objective
 
-## Proof
+#### Scope Areas
+
+#### Ownership
+
+Name the files, mutable state, contracts, or evidence this Ticket owns and must avoid.
+
+#### Dependencies
+
+Use stable Ticket IDs. Mark the first ready Ticket explicitly.
+
+#### Scheduling
+
+- Kind: implementation or verification
+- Priority: 0-999, lower first
+- Interface first: true or false
+- Affinity: stable context keys, or none
+
+#### Inputs
+
+Name only the source slices, shared-context version, and dependency contracts needed by this Ticket.
+
+#### Outputs
+
+Name the changed paths, contract, evidence, and compact receipt this Ticket must produce.
+
+#### Constraints And Authority
+
+#### Proof Contract
+
+- Claim or invariant:
+- Observable oracle:
+- Required checks:
+- Negative control or plausible wrong case:
+- Required non-effects:
+- Oracle or fixture ownership:
+- Parent independent verification:
+- Cannot verify:
+
+#### Verification Layer
+
+Name immediate Ticket verification and any cohort whose combined invariant must pass. Full-PRD and release verification remain parent-owned.
+
+#### Return Contract
+
+Return a compact machine receipt with status, changed paths, evidence pointers, and blocker or risk. Raw logs belong in the execution evidence directory.
+
+#### Ask Parent Policy
+
+Ask only for new authority, a material product decision, an unrecoverable blocker, a preservation risk, or a safety stop.
 
 ## Configuration, Secrets, And Constants
 
-Scan the planned implementation for values likely to be hardcoded, then inventory the ones that may need to be externalized. Use `None identified` when appropriate. Never include actual secret values.
+Inventory values likely to be externalized. Use `None identified` when appropriate. Never include actual secret values.
 
 | Value or setting | Classification | Destination and owner | Default or required behavior | Validation and redaction |
 | --- | --- | --- | --- | --- |
 
 Classifications: secret, environment configuration, user or operator setting, feature flag, derived value, or stable code constant.
 
+## Integration And Verification
+
+- Ticket verification:
+- Cohort verification:
+- Full-PRD verification:
+- Pull-request and release verification:
+- Production verification:
+
 ## Resolved Release Section
 
 - Release contract: `doc_org.md` current contract
-- Merge authority gate:
-- Production authority gate:
 - Pull-request sequence:
+- Merge source and required checks:
 - Release source revision or artifact:
 - Rollout topology:
+- Production changes named by the PRD:
 - Verification:
 - Rollback:
 - Canonical-document updates:
 
-A material change to the release contract invalidates this section until reviewed.
+A material change to the accepted PRD, implementation target, or release contract invalidates affected Tickets until the source lock and graph are selectively recompiled.
 
 ## Cannot Verify
