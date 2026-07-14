@@ -13,7 +13,9 @@ This contract lets one human-readable PRD describe multiple product outcomes whi
 | Scope Area | Stable responsibility or product surface within an Epic. It locates requirements without prescribing agent ownership. |
 | Ticket Graph | Generated execution dependency graph for the current build-ready target. It is not a second product specification. |
 | Ticket | One independently assignable unit with explicit ownership, inputs, outputs, dependencies, constraints, and proportional proof. |
+| Review Unit | Frozen group of tightly coupled Tickets that may receive an intermediate PR into the run integration branch. It is a parent review boundary, not a release boundary or child assignment. |
 | Execution Run | Durable local instance of PRD implementation, including source lock, graph, state, receipts, and evidence. |
+| Project PR | Complete, run-backed PR from the integration branch to the default branch. It covers every locked Epic and Scope Area regardless of intermediate review units. |
 | Receipt | Compact machine result and evidence pointer returned for one ticket. It is not proof by itself. |
 | Cohort Verification | Combined proof for tickets that share an interface, invariant, or release boundary. It is a selective barrier, not a global wait after every ticket. |
 
@@ -22,6 +24,8 @@ Use stable, searchable Markdown headings and identifiers in PRDs: `## Epic <ID>`
 ## Build-Ready Target
 
 Before compilation, identify the exact Epics and Scope Areas included in this run. They must be accepted, internally consistent, and free of unresolved questions that materially alter behavior, authority, safety, acceptance, rollout, rollback, or required proof. Proposed, deferred, and unresolved work remains in the PRD but is excluded from the build-ready target.
+
+Choose and freeze the PR strategy when the run is initialized. Use `single-final-pr` for a small, reviewable multi-Epic target. Use `review-prs-plus-final` when a large target is tightly coupled enough to remain one release boundary but needs parent-owned intermediate review units. If outcomes can ship, roll back, and be accepted independently, create separate Execution Runs instead. Do not select the strategy from agent count, token count, or a late desire to make the diff look smaller.
 
 The instruction **implement the PRD** authorizes the accepted build-ready target end to end:
 
@@ -35,7 +39,7 @@ This default does not manufacture authority. Stop for missing credentials or per
 
 ## Compilation And Scheduling
 
-Compile the PRD deterministically from stable IDs and source hashes. One implementation plan may span multiple Epics. Prefer one active ticket per implementation agent. When several ready Tickets declare the same affinity and share a cohort and dependency contract, the parent may claim them as one context lane for the same agent. A lane has no fixed Ticket ceiling, but each Ticket keeps its own lease, receipt, status, integration proof, and dependency release. Do not co-own one implementation ticket across agents. Independent verifier tickets may inspect the same integrated output.
+Compile the PRD deterministically from stable IDs and source hashes. One implementation plan may span multiple Epics. For `review-prs-plus-final`, the graph's `review_units` map must assign every Ticket to exactly one review unit and record review-unit dependencies. Freeze that membership and dependency topology at compile; reconciliation may update affected Ticket revisions but must not silently regroup the review surface. Prefer one active ticket per implementation agent. When several ready Tickets declare the same affinity and share a cohort and dependency contract, the parent may claim them as one context lane for the same agent. A lane has no fixed Ticket ceiling, but each Ticket keeps its own lease, receipt, status, integration proof, and dependency release. Do not co-own one implementation ticket across agents. Independent verifier tickets may inspect the same integrated output.
 
 The controller stores one normalized `ticket-graph.json` for validation and state transitions, then renders immutable prose Tickets for dispatch. The JSON is a machine artifact, not a giant child prompt; children receive only their individual Markdown bundle.
 
@@ -54,17 +58,37 @@ Run full PRD verification after all required cohorts pass, followed by merge, de
 
 ## Integration Topology
 
-Each Execution Run uses one parent-owned integration branch. Keep the default branch clean while child work proceeds in isolated branches or worktrees:
+Each Execution Run uses one parent-owned integration branch. Keep the default branch clean while child work proceeds in isolated branches or worktrees. The frozen strategy determines the parent review topology:
 
 ```text
-main (clean)
-└── <run integration branch>
-    ├── child Ticket worktree
-    ├── child Ticket worktree
-    └── child Ticket worktree
+single-final-pr
+main (clean) <- complete Project PR <- run integration branch <- child checkpoints
+
+review-prs-plus-final
+main (clean) <- complete Project PR <- run integration branch <- Review Unit PRs <- child checkpoints
 ```
 
-The parent integrates child commits into that branch as they arrive, runs targeted checks after each integration, and opens one final PR per run. Child Tickets do not open separate PRs by default. If work has independent release boundaries, compile separate runs instead of creating one oversized integration branch. The run manifest records this compact policy under `integration`; it is parent execution state, not child prompt context. The parent executes the final merge only after explicit user merge authority; these fields do not grant authority.
+The parent integrates child commits as they arrive and runs targeted checks after each integration. Under `single-final-pr`, the checkpoints land directly on the integration branch. Under `review-prs-plus-final`, the parent groups completed checkpoints only by the compiled Review Units, opens each Review Unit PR against the integration branch, and merges it after its unit proof and dependencies pass. Review Unit PRs never target `main`, never replace full-PRD verification, and never count as independently shippable releases.
+
+After every required Ticket, cohort, and Review Unit is integrated, the parent runs full-PRD verification and opens one complete Project PR from the integration branch to `main`. The Project PR projection must cover every locked Epic and Scope Area deterministically, including outcomes, proof references, material decisions, risks, and pending post-merge gates. If work has independent release boundaries, compile separate runs rather than using Review Units to imitate separate releases.
+
+The run manifest records the integration branch, frozen PR strategy, Review Unit state, and merge authority. Initialization also records the repository identity and writes a branch-to-run binding under the repository's Git common directory, so a custom Execution Run root cannot be downgraded to a caller-authored handoff. The Ticket Graph records frozen Review Unit membership. This topology remains parent-owned and is absent from child bundles; a child receives no branch, PR strategy, Review Unit, or merge-owner metadata unless its Ticket must act on a named worktree. These fields do not grant authority.
+
+## Run-Backed PR Projection And Merge
+
+Initialize the run with the explicit strategy and compile its corresponding graph:
+
+```text
+prd-run.py init ... --pr-strategy single-final-pr|review-prs-plus-final
+prd-run.py compile --run <run> --graph <ticket-graph.json>
+prd-run.py project-pr --run <run>
+```
+
+The `project-pr` command emits the controller-owned schema v2 projection for the complete Project PR. Run-backed closeout must consume that projection through `gauntlet.py merge prepare|plan|execute --run <run>`; do not downgrade the run to a caller-authored schema v1 handoff. Non-run patches continue to use `--handoff <schema-v1.json>`.
+
+When `review-prs-plus-final` is selected, use `scripts/gauntlet.py review-unit prepare|plan|execute --run <run> --unit <id>` to bind each unit PR to its frozen membership and target the run integration branch. The parent alone executes this surface. It accepts only an open PR whose base, head branch, and GitHub head object ID match the remote refs; serializes integration merges; binds passing checks to the current base, head, and synthetic merge tree; rechecks after base drift; verifies that the actual merge remains reachable from the remote integration branch; and deletes the review branch only with a lease on the reviewed head.
+
+Full-PRD verification records the exact repository and integration-branch head. `project-pr` refuses a different repository or any clean post-verification commit. The merge adapter invokes the installed controller rather than a controller supplied by the candidate repository, requires separate `merge-to-default` authority at execution time, and uses GitHub's expected-head guard so a concurrently advanced Project PR cannot merge.
 
 ## Durable Execution State
 
@@ -86,6 +110,7 @@ executions/<run-id>/
   evidence/
   cohorts/
   release/
+  outcomes/
 ```
 
 `source-lock.json` pins the PRD revision, selected Epic and Scope Area sections, instruction version, release contract, and applicable release stages. `manifest.json` owns validated run and ticket state. `resume.md` is the minimal reentry view. Events are append-only diagnostics, not the normal context source. Tickets are immutable after dispatch; a changed requirement creates a new revision or selectively invalidates affected tickets through source-section hashes.

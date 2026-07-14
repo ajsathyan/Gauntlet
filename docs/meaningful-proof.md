@@ -29,7 +29,7 @@ Use these fields proportionally. A direct, reversible outcome may need only a cl
 
 A **Gauntlet ticket** is an ephemeral child assignment from the canonical plan, not an issue-tracker record. It contains only the context the child needs. Depending on risk, it may include the proof fields above plus objective, ownership, dependencies, constraints, return contract, and ask-parent policy.
 
-Children work quietly and retry safe materially different recoveries. Implementation children return compact receipts; research and review children return the requested artifact or findings compactly. The parent owns the oracle, independently verifies evidence, integrates child commits into one integration branch, and opens one final pull request. Integrate and run targeted checks as results arrive so conflicts surface early; run combined proof after all required tickets reach the all-done barrier.
+Children work quietly and retry safe materially different recoveries. Implementation children return compact receipts; research and review children return the requested artifact or findings compactly. The parent owns the oracle, independently verifies evidence, integrates child commits through the frozen parent topology, and opens the complete Project PR. Review Unit PRs, when selected for a large tightly coupled run, target only the integration branch and do not satisfy full-PRD proof. Integrate and run targeted checks as results arrive so conflicts surface early; run combined proof after all required tickets reach the all-done barrier.
 
 ## Proof Layers
 
