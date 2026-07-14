@@ -1,61 +1,59 @@
 ---
 name: planner
-description: Use when an accepted spec needs bounded task packets with dependencies, interfaces, proof, risks, deferrals, and a first ready task.
+description: Use when an accepted spec needs bounded implementation steps, delegation tickets, dependencies, interfaces, proof, risks, deferrals, and a first ready task.
 ---
 
 # Planner
 
-Turn accepted work into bounded steps.
+Turn accepted work into steps. Define appetite before scope; split only independent ownership and proof.
 
-## Output
+## Output Contract
 
-Optional example: `examples/task-packet.md`.
+Optional example: `examples/ticket.md`.
 
-- Problem, outcome, appetite
+- Problem, target outcome, and appetite
 - Must-haves and non-goals
-- Scope pressure, deferrals, and risks/unknowns
-- Configuration, secrets, and constants: external values, destination, defaults, validation, redaction, or `None identified`
-- Verification plan
-- Parallelizable lanes: independent tasks that can go to subagents, or omit when none
-- Scope-addition delta: material change or `Scope delta checked: no material change.`
-- Ordered **Gauntlet Task Packet** list
+- Deferrals, risks, verification, and ordered implementation steps
+- Independent child lanes and **Gauntlet Tickets**, only when work will be dispatched
+- Material scope additions and their effect on ownership, dependencies, and proof
 - First ready task
 
 Include routing only when material; omit no-op fields.
 
-## Gauntlet Task Packet
+## Gauntlet Ticket
 
-Each main-plan task gets an end-to-end packet:
+Each dispatched child gets one concise prose ticket. Include only fields that apply:
 
-- Task and goal
-- Files/areas to inspect and avoid
-- Consumes: named dependencies and state
-- Produces: named outputs and state
-- Steps
-- Proof and `Cannot verify` limits
-- Configuration and secret handling required by this task
-- Done when
+- Objective
+- Ownership: files, state, contracts, or evidence the child owns and must avoid
+- Material dependencies and inputs/outputs
+- Constraints and authority
+- Proof contract, proportional to risk:
+  - Claim or invariant
+  - Observable oracle
+  - Required checks
+  - Negative control or plausible wrong case
+  - Required non-effects
+  - Oracle/fixture ownership and anti-tamper boundary
+  - Parent independent verification
+  - `Cannot verify` limits
+- Return contract and ask-parent policy
 
-## Child Implementation Lanes
-
-- Give each child one bounded task packet with objective, ownership, dependencies, contracts, constraints, proof, return contract, and ask-user policy.
-- Coordinate through native state and preserve bounded ownership and proof.
-- Keep the plan end-to-end when lanes are coupled or the gain does not beat context and coordination cost.
+Unless specified otherwise, the child works autonomously without narrating routine progress, tool choice, recoverable issues, or retries. It returns only the requested artifact or findings, compact proof, and risk. It contacts the parent early only for new authority, an unrecoverable blocker, a safety stop, or a required heartbeat.
 
 ## Rules
 
 - Use end-to-end steps unless files, state, and proof are independent enough to split.
-- Convert uncertainty into probes, assumptions, or `Cannot verify` items.
-- Keep shared context in the canonical plan and send each child only what it needs. Name dependencies and one first-ready lane.
-- Before added scope, run delta foresight. Keep `Scope delta checked: no material change.` inside the affected plan/task; material findings update scope and proof.
+- Convert uncertainty into probes, assumptions, or `Cannot verify` items. Name one first-ready lane.
+- Dispatch through native Codex state. Keep shared context in the canonical plan and send each child only its bounded ticket.
+- When scope changes materially, update affected ownership, dependencies, and proof. Keep no-op checks silent.
+- Define proof around observable behavior or invariants, not phrases, fields, self-reports, or a green command alone.
+- Child tests are evidence, not sole acceptance. Protect oracles, shared fixtures, hidden checks, and graders unless explicitly owned; require parent rerun or inspection.
+- Compare or adversarially check consequential performance, security, reliability, and hot-path work.
 - Do not split tightly coupled state or one decision tree across child lanes.
-- For Release panels, preserve launch cut line, panel delta, and `| Concern | Decision | Why Not Defer | Proof | Plan Delta |`. A `Ship blocker` requires concrete harm, no acceptable fallback, executable proof, and a plan delta; otherwise downgrade it.
-- Decisions: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, or `Reject`.
-- Do not union every idea from duplicate Release plans.
+- Preserve guarded Release decisions and the `| Concern | Decision | Why Not Defer | Proof | Plan Delta |` table. A `Ship blocker` needs concrete harm, no acceptable fallback, executable proof, and plan delta.
 - For TypeScript work, include the TS Durability gate only when the classifier says `durabilityRequired: true` or the user explicitly asks.
-- Trigger the Production Quality Bar only for near-launch, private-beta, production-bound, hardened, or audited work. Include release proof such as dry-run/no-mutation evidence, automated GitHub release tags, and explicit deferrals; omit the field when the trigger is absent.
-- Under an active `doc_org.md`, write build-ready plans in the canonical primary-worktree location, inventory configuration/secrets/constants, and resolve the plan's authority, rollout, rollback, proof, and release-source fields without copying the reusable release contract.
-- Never hardcode secrets, credentials, private resource identifiers, environment-specific endpoints, deployment identifiers, or values that legitimately vary by environment or operator. Stable typed and tested product or protocol constants may remain in code.
+- Trigger the Production Quality Bar only for near-launch, private-beta, production-bound, hardened, or audited work; otherwise omit it.
 - Stop planning once the first build step and first meaningful proof path are obvious.
 
 ## Attribution

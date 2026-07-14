@@ -69,9 +69,15 @@ Flag any that evaluate holistically ("Is this response helpful?", "Rate the qual
 
 **Check:** Are code-based checks used where possible?
 
-Flag LLM judges used for objectively checkable criteria: format validation, constraint satisfaction, keyword presence, schema conformance.
+Flag LLM judges used for literally objective criteria such as format validation, schema conformance, deterministic calculations, or executable outcomes. Treat keyword presence and regex as sufficient only when wording itself is the contract.
 
-**Finding if over-relying on judges:** Replace objective checks with code (regex, parsing, schema validation, execution tests). Reserve LLM judges for criteria requiring interpretation.
+**Finding if over-relying on judges:** Replace objective checks with code such as parsing, schema validation, deterministic comparison, or execution tests. Reserve validated LLM judges for criteria requiring interpretation.
+
+**Check:** Can a surface proxy pass while the semantic behavior is wrong?
+
+Use paraphrases, plausible wrong outputs containing the expected phrase or field, and negative controls. Flag evaluators that reward exact wording, populated fields, or self-reported compliance when the requirement concerns meaning or behavior.
+
+**Finding if proxy-gameable:** Replace the proxy with an executable oracle, source-grounded comparison, or a validated judge. Keep syntax checks only as a separate wiring check and do not report them as semantic proof.
 
 **Check:** Are similarity metrics used as primary evaluation?
 

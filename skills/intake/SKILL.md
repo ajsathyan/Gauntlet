@@ -38,6 +38,8 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 
 ## Rules
 
+- Ask up to three questions; for minor gaps, make an assumption and record it.
+- Frame verification as a behavioral claim, observable outcome, and meaningful limits. For consequential behavior, name a plausible wrong case and required non-effects instead of relying on phrases, populated fields, or a green command.
 - Keep intake in the conversation or canonical plan. Do not create a second permanent intake artifact unless the user explicitly asks for a spec document.
 - When an active `doc_org.md` makes a local artifact canonical, use that location without creating a second intake or plan.
 - Research intake bounds the question, evidence, freshness, and consequence; it does not force a Patch, Feature, or Release mode before implementation exists.
