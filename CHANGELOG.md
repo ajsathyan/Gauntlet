@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now records a parent-owned integration branch and one-final-PR strategy per Ticket Graph run while keeping that run metadata out of bounded child context.
+
 - Gauntlet now installs seven deterministic Codex custom-agent profiles, routes bounded Tickets by explicit work and risk fields, and maintains a privacy-bounded local usage audit backed by Codex native state.
 
 - Gauntlet now maintains human-readable multi-Epic PRDs and compiles build-ready targets into durable Ticket Graph runs with bounded cache-oriented child context, parent-owned verification, cohort gates, and authorized end-to-end release handling.

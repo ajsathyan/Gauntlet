@@ -71,7 +71,7 @@ After compaction or restart, read `resume.md`, `manifest.json`, and `source-lock
 Use the installed controller at `$GAUNTLET_ROOT/scripts/prd-run.py` (or the repository copy while changing Gauntlet):
 
 ```text
-init --executions <canonical-root>/executions --run-id <ID> --source <prd.md> --target <EPIC-ID> [--target <EPIC-ID>] --release-contract <version-or-hash> --release-stages merge[,deployment,production-verification]
+init --executions <canonical-root>/executions --run-id <ID> --source <prd.md> --target <EPIC-ID> [--target <EPIC-ID>] --release-contract <version-or-hash> --release-stages merge[,deployment,production-verification] [--integration-branch <branch>]
 transition --run <run> --to <next-state>
 compile --run <run> --graph <ticket-graph.json>
 ready --run <run> [--affinity <context-key>]
@@ -90,7 +90,7 @@ reconcile --run <run> --source <prd.md> --graph <ticket-graph.json>
 
 `init` rejects target Epics that differ from `Implementation target`, are not `Accepted`, or lack searchable Scope Area sections. Move `discussing` to `accepted` with `transition` before compilation; `compile` performs the `accepted` to `compiled` transition and rejects graph Epic/Scope coverage that differs from the source lock. Claim before materializing so the bundle contains exact evidence and receipt handoff paths. The parent must supply verification evidence with distinct content from the child's evidence before `integrate` accepts a Ticket.
 
-Materialize one bounded child bundle from a stable prefix, applicable instruction version, relevant cohort context version, named dependency contracts, and relevant source paths. The canonical handoff names the exact receipt schema and writable evidence/receipt destinations. Keep run IDs, timestamps, absolute paths, live status, hashes, and agent nicknames out of the stable prefix and place unavoidable volatile values last.
+Materialize one bounded child bundle from a stable prefix, applicable instruction version, relevant cohort context version, named dependency contracts, and relevant source paths. The canonical handoff names the exact receipt schema and writable evidence/receipt destinations. Keep run IDs, timestamps, absolute paths, live status, hashes, agent nicknames, and parent PR strategy out of the stable prefix and place unavoidable volatile values last. The run manifest, not the child bundle, records the parent integration branch and one-final-PR strategy; it records the parent as the merge executor only after user authority, not as a grant of authority.
 
 ## Meaningful Verification
 

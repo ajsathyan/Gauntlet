@@ -925,6 +925,29 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         assert_contains("\n".join([agents, read(ROUTER_MD), readme, planner]), marker, "workflow speedup routing")
 
 
+def test_execution_run_uses_parent_integration_boundary_without_child_prompt_duplication():
+    prd = read(ROOT / "docs" / "prd-execution.md")
+    github = read(ROOT / "docs" / "github-discipline.md")
+    local_docs = read(ROOT / "docs" / "local-documentation.md")
+    template = read(ROOT / "templates" / "local-docs" / "doc_org.md.tmpl")
+    router = read(ROUTER_MD)
+    for marker in [
+        "Each Execution Run uses one parent-owned integration branch",
+        "one final PR per run",
+        "independent release boundaries",
+        "parent-owned run state",
+    ]:
+        assert_contains(prd, marker, "Ticket Graph integration topology")
+    for marker in [
+        "parent integration branch",
+        "child branches do not target `main`",
+    ]:
+        assert_contains(github, marker, "GitHub integration topology")
+    assert_contains(local_docs, "manifest carries run-specific integration metadata", "local document run state")
+    assert_contains(template, "dedicated parent integration branch", "local document release contract")
+    assert_contains(router, "For multi-Ticket runs, keep `main` clean", "global integration topology")
+
+
 def test_contextual_merge_contract_is_documented():
     agents = read(AGENTS_MD)
     etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
@@ -4237,6 +4260,7 @@ def main():
         test_instruction_surfaces_are_not_classified_as_docs_only,
         test_workflow_helpers_filter_artifacts_and_find_python_tests,
         test_workflow_speedup_helpers_are_documented_as_advisory,
+        test_execution_run_uses_parent_integration_boundary_without_child_prompt_duplication,
         test_contextual_merge_contract_is_documented,
         test_response_style_guidance_is_single_global_policy,
         test_version_changelog_preserves_release_history,

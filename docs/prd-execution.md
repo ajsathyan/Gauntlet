@@ -51,6 +51,20 @@ Schedule from a dynamic ready queue:
 
 Run full PRD verification after all required cohorts pass, followed by merge, deployment, and production verification when applicable.
 
+## Integration Topology
+
+Each Execution Run uses one parent-owned integration branch. Keep the default branch clean while child work proceeds in isolated branches or worktrees:
+
+```text
+main (clean)
+└── <run integration branch>
+    ├── child Ticket worktree
+    ├── child Ticket worktree
+    └── child Ticket worktree
+```
+
+The parent integrates child commits into that branch as they arrive, runs targeted checks after each integration, and opens one final PR per run. Child Tickets do not open separate PRs by default. If work has independent release boundaries, compile separate runs instead of creating one oversized integration branch. The run manifest records this compact policy under `integration`; it is parent execution state, not child prompt context. The parent executes the final merge only after explicit user merge authority; these fields do not grant authority.
+
 ## Durable Execution State
 
 An Execution Run lives below the canonical local-document root declared by `doc_org.md`, conventionally:
@@ -108,6 +122,7 @@ Optimize for stable prefixes without claiming guaranteed cache hits. Cache behav
 - Version shared context by cohort and send only the version a ticket consumes.
 - Dispatch similar tickets near each other when safe and retain agent affinity for sequential related tickets.
 - Keep delegation depth at one unless a concrete dependency structure justifies more.
+- Keep the integration branch, PR strategy, and merge owner in parent-owned run state; include them in a child bundle only when a Ticket must act on a named worktree.
 - Read `resume.md` only for restart or compaction recovery; read `events.jsonl` only for debugging.
 
 Subagent model selection is defined separately in `docs/custom-agent-routing.md`. Execution Runs may record the resulting requested profile, but the routing contract and Codex native usage audit—not a self-reported Ticket field—establish which profile actually started.

@@ -132,6 +132,31 @@ class PrdRunTests(unittest.TestCase):
         self.run_command("transition", "--run", str(self.run), "--to", "compiled", ok=False)
         self.assertEqual(self.manifest()["state"], "discussing")
 
+    def test_init_records_parent_integration_policy_and_resume_state(self) -> None:
+        integration = self.manifest()["integration"]
+        self.assertEqual(integration, {
+            "branch": "run/RUN1",
+            "merge_executor": "parent-after-user-authority",
+            "mode": "parent-branch",
+            "pr_strategy": "one-final-pr-per-run",
+        })
+        resume = (self.run / "resume.md").read_text()
+        self.assertIn("Integration branch: run/RUN1", resume)
+        self.assertIn("PR strategy: one-final-pr-per-run", resume)
+
+    def test_init_accepts_named_branch_and_rejects_default_branch(self) -> None:
+        self.run_command(
+            "init", "--executions", str(self.root / "executions"), "--run-id", "NAMEDRUN", "--source", str(self.source),
+            "--target", "E1", "--release-contract", "doc_org.md:v1", "--integration-branch", "codex/EDGE-001",
+        )
+        named = json.loads((self.root / "executions" / "NAMEDRUN" / "manifest.json").read_text())
+        self.assertEqual(named["integration"]["branch"], "codex/EDGE-001")
+        self.run_command(
+            "init", "--executions", str(self.root / "executions"), "--run-id", "MAINRUN", "--source", str(self.source),
+            "--target", "E1", "--release-contract", "doc_org.md:v1", "--integration-branch", "main", ok=False,
+        )
+        self.assertFalse((self.root / "executions" / "MAINRUN").exists())
+
     def test_init_interruption_leaves_no_partial_run_and_can_retry(self) -> None:
         self.run_command(
             "init", "--executions", str(self.root / "executions"), "--run-id", "INITRETRY", "--source", str(self.source),
@@ -155,6 +180,8 @@ class PrdRunTests(unittest.TestCase):
         self.assertNotIn("Initial requirements", first)
         self.assertNotIn('"event_sequence"', first)
         self.assertNotIn("T2: Render balance", first)
+        self.assertNotIn("one-final-pr-per-run", first)
+        self.assertNotIn("run/RUN1", first)
         self.assertLess(first.index("# Global context"), first.index("# Cohort C1 context"))
         self.assertLess(first.index("# Cohort C1 context"), first.index("# Assigned ticket"))
         self.assertIn("handoffs/T1.r1.a1.receipt.json", first)
@@ -443,6 +470,9 @@ class PrdRunTests(unittest.TestCase):
         self.transition("prd_verified")
         revision = "a" * 40
         self.run_command("record-merge", "--run", str(self.run), "--pr", "PR-123", "--merged-sha", revision, "--main-sha", revision, "--evidence", "git-main-check")
+        merge_record = self.manifest()["release"]["merge"]
+        self.assertEqual(merge_record["integration_branch"], "run/RUN1")
+        self.assertEqual(merge_record["pr_strategy"], "one-final-pr-per-run")
         self.transition("merged")
         self.run_command("record-release", "--run", str(self.run), "--stage", "deployment", "--result", "fail", "--summary", "Deployment verification failed.", "--evidence", "deployment-failure-1")
         self.run_command("record-release", "--run", str(self.run), "--stage", "deployment", "--result", "pass", "--summary", "Retried without rollback.", "--evidence", "deployment-id-1", "--revision", revision, ok=False)

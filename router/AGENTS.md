@@ -94,7 +94,7 @@ Treat a PRD as the human product source: Epics are stable outcomes and Scope Are
 
 - Read before editing, match repository patterns, keep interfaces narrow, and avoid unrelated cleanup.
 - Preserve unrelated dirty work. Never overwrite, discard, archive over, or include it without authority.
-- Use a branch for persisted changes. Use a separate worktree for p0-p2, broad, dirty-worktree, or write-heavy delegated work.
+- Use a branch for persisted changes. For multi-Ticket runs, keep `main` clean and use one parent integration branch; use a separate worktree for p0-p2, broad, dirty-worktree, or write-heavy delegated work.
 - Add or update tests when behavior changes. When a practical harness exists, observe the relevant failure, implement the smallest source fix, and refactor while green.
 - Diagnose before fixing unexpected behavior: reproduce, trace the earliest divergence, state a falsifiable cause, and run the smallest discriminating check.
 - Evidence precedes completion claims. State what proof establishes and what remains unverifiable.

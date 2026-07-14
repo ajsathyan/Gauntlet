@@ -36,7 +36,10 @@ STATES = (
 RELEASE_STAGES = ("deployment", "production-verification")
 RELEASE_APPLICABILITY = ("merge", "deployment", "production-verification")
 ID_RE = re.compile(r"^[A-Z][A-Z0-9_-]{0,63}$")
+BRANCH_RE = re.compile(r"^(?!/)(?!-)(?!.*(?:\.\.|//|@\{|[ ~^:?*\[\\]))[A-Za-z0-9._/@-]{1,255}(?<![/.])$")
 PROTOCOL_VERSION = 1
+INTEGRATION_MODE = "parent-branch"
+PR_STRATEGY = "one-final-pr-per-run"
 
 
 class RunError(Exception):
@@ -232,6 +235,12 @@ def begin_transaction_backup(run: Path, name: str, restore: list[str], remove: l
 def require_id(value: Any, label: str) -> str:
     if not isinstance(value, str) or not ID_RE.fullmatch(value):
         raise RunError(f"{label} must match {ID_RE.pattern}")
+    return value
+
+
+def require_branch(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not BRANCH_RE.fullmatch(value) or value in {"main", "master"}:
+        raise RunError(f"{label} must be a valid non-default Git branch")
     return value
 
 
@@ -440,12 +449,15 @@ def event(run: Path, manifest: dict[str, Any], action: str, payload: dict[str, A
 def write_resume(run: Path, manifest: dict[str, Any]) -> None:
     active = [ticket_id for ticket_id, item in sorted(manifest.get("tickets", {}).items()) if item["status"] not in ("integrated", "invalidated")]
     blocked = [ticket_id for ticket_id in active if manifest["tickets"][ticket_id]["status"] in ("blocked", "waiting")]
+    integration = manifest.get("integration", {})
     lines = [
         "# Execution resume",
         "",
         f"State: {manifest['state']}",
         f"Source SHA-256: {manifest['source']['sha256']}",
         f"Graph SHA-256: {manifest.get('graph_sha256', 'not compiled')}",
+        f"Integration branch: {integration.get('branch', 'not recorded')}",
+        f"PR strategy: {integration.get('pr_strategy', 'not recorded')}",
         "",
         "## Active tickets",
         "",
@@ -568,6 +580,7 @@ def cmd_init(args: argparse.Namespace) -> None:
     if final_run.exists():
         raise RunError(f"run already exists: {final_run}")
     source_info = source_contract(source, args.target)
+    integration_branch = require_branch(args.integration_branch or f"run/{args.run_id}", "integration branch")
     stages = sorted(set(item.strip() for item in args.release_stages.split(",") if item.strip()))
     unknown_stages = set(stages) - set(RELEASE_APPLICABILITY)
     if unknown_stages or "merge" not in stages or ("production-verification" in stages and "deployment" not in stages):
@@ -591,6 +604,12 @@ def cmd_init(args: argparse.Namespace) -> None:
             "parent": ["source-lock.json", "manifest.json", "resume.md", "events.jsonl", "cohorts/", "release/"],
         },
         "protocol_version": PROTOCOL_VERSION,
+        "integration": {
+            "branch": integration_branch,
+            "merge_executor": "parent-after-user-authority",
+            "mode": INTEGRATION_MODE,
+            "pr_strategy": PR_STRATEGY,
+        },
         "release": {"applicability": {key: key in stages for key in RELEASE_APPLICABILITY}},
         "run_id": args.run_id, "shared_context": {},
         "source": {"path": str(source), "sha256": source_hash}, "state": "discussing", "tickets": {},
@@ -1036,10 +1055,19 @@ def cmd_record_merge(args: argparse.Namespace) -> None:
     main = require_string(args.main_sha, "main SHA").lower()
     if not re.fullmatch(r"[0-9a-f]{7,64}", merged) or merged != main:
         raise RunError("merged SHA and verified main SHA must be the same Git object ID")
-    record = {"evidence": require_string(args.evidence, "merge evidence"), "main_sha": main, "merged_sha": merged, "pr": require_string(args.pr, "PR reference"), "result": "pass"}
+    integration = manifest.get("integration", {})
+    record = {
+        "evidence": require_string(args.evidence, "merge evidence"),
+        "integration_branch": integration.get("branch"),
+        "main_sha": main,
+        "merged_sha": merged,
+        "pr": require_string(args.pr, "PR reference"),
+        "pr_strategy": integration.get("pr_strategy"),
+        "result": "pass",
+    }
     manifest["release"]["merge"] = record
     report = run / "release" / "merge.md"
-    atomic_text(report, f"# Merge\n\nResult: pass\n\nPR: {record['pr']}\n\nMerged SHA: {merged}\n\nVerified main SHA: {main}\n\nEvidence: {record['evidence']}\n")
+    atomic_text(report, f"# Merge\n\nResult: pass\n\nPR: {record['pr']}\n\nIntegration branch: {record['integration_branch'] or 'not recorded'}\n\nPR strategy: {record['pr_strategy'] or 'not recorded'}\n\nMerged SHA: {merged}\n\nVerified main SHA: {main}\n\nEvidence: {record['evidence']}\n")
     pin_artifact(run, manifest, report)
     event(run, manifest, "merge_recorded", {"main_sha": main, "pr": record["pr"]})
     save_manifest(run, manifest)
@@ -1174,6 +1202,7 @@ def parser() -> argparse.ArgumentParser:
     init.add_argument("--executions", required=True); init.add_argument("--run-id", required=True); init.add_argument("--source", required=True)
     init.add_argument("--target", required=True, action="append"); init.add_argument("--instruction-version", default="prd-run/v1")
     init.add_argument("--release-contract", required=True); init.add_argument("--release-stages", default="merge")
+    init.add_argument("--integration-branch")
     init.set_defaults(func=cmd_init)
     transition = commands.add_parser("transition")
     transition.add_argument("--run", required=True); transition.add_argument("--to", required=True); transition.set_defaults(func=cmd_transition)
