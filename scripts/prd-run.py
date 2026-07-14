@@ -772,6 +772,12 @@ def cmd_review_unit(args: argparse.Namespace) -> None:
     update: dict[str, Any] = {}
     if action == "opened":
         require_authority(manifest, "push-review-branch", "open-review-pr")
+        pending_dependencies = [
+            dependency for dependency in unit["dependencies"]
+            if REVIEW_UNIT_STATES.index(manifest["review_units"][dependency]["state"]) < REVIEW_UNIT_STATES.index("merged")
+        ]
+        if pending_dependencies:
+            raise RunError(f"review unit dependencies are not merged: {pending_dependencies}")
         update = {"branch": require_branch(args.branch, "review branch"), "pr": require_string(args.pr, "review PR")}
         if update["branch"] == manifest["integration"]["branch"]:
             raise RunError("review branch must differ from the integration branch")
