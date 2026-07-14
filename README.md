@@ -305,7 +305,7 @@ claude plugin marketplace add ajsathyan/Gauntlet
 claude plugin install gauntlet@gauntlet
 ```
 
-The installer also adds a Gauntlet pre-commit hook in this repo. When staged files include `skills/*/SKILL.md` or `skills/*/examples/*`, the hook runs the skill evals and skill linter before the commit can proceed. Set `GAUNTLET_SKIP_GIT_HOOKS=1` for headless installs that should not touch git hooks.
+The installer also adds a Gauntlet pre-commit hook in this repo. When staged files include `skills/*/SKILL.md` or `skills/*/examples/*`, the hook runs skill text coverage, declared trace-field scorer contracts, and structural lint before the commit can proceed. These checks do not establish live agent behavior. Set `GAUNTLET_SKIP_GIT_HOOKS=1` for headless installs that should not touch git hooks.
 
 ## 📦 What Gets Installed
 
@@ -357,14 +357,14 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [scripts/review-pack.py](scripts/review-pack.py) | Generates a bounded, redacted review packet from diff intel, accepted spec/plan context, and test-plan summaries. |
 | [scripts/check-superpowers-sync.py](scripts/check-superpowers-sync.py) | Reports upstream Superpowers technique changes and affected Gauntlet destinations. |
 | [scripts/retire-superpowers.py](scripts/retire-superpowers.py) | Reversibly retires allowlisted active Superpowers skills and disables the plugin. |
-| [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill-text coverage and explicitly labeled scorer-smoke checks. |
-| [scripts/run-orchestration-evals.py](scripts/run-orchestration-evals.py) | Scores paired orchestration traces from observable outcome, action, authority, proof, routing, output-budget, cost, and latency evidence. |
+| [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill-text coverage and one positive/negative phrase-matcher contract. |
+| [scripts/run-orchestration-evals.py](scripts/run-orchestration-evals.py) | Unit-tests hand-authored outcome, action, authority, proof, routing, output-budget, cost, and latency fields. It does not observe agent behavior or resolve proof references. |
 | [scripts/lint-skills.py](scripts/lint-skills.py) | Lints skill frontmatter, word budget, contract slots, optional examples, and bounded subagent guidance. |
-| [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill evals and linting when staged Gauntlet skill files change. |
+| [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill text coverage, declared trace-field scorer contracts, and linting when staged Gauntlet skill files change. |
 | [scripts/install-git-hooks.sh](scripts/install-git-hooks.sh) | Installs the pre-commit hook that enforces skill-change checks. |
 | [evals/skill-evals.json](evals/skill-evals.json) | Pressure scenarios for skill contract coverage. |
-| [evals/scorer-smoke-fixtures.json](evals/scorer-smoke-fixtures.json) | Five-rep fixtures that prove the phrase scorer and metrics path—not agent behavior. |
-| [evals/orchestration-trace-fixtures.json](evals/orchestration-trace-fixtures.json) | Paired observable trace cases including missing-proof, authority, verbosity, phrase-echo, and subjective-judgment canaries. |
+| [evals/scorer-smoke-fixtures.json](evals/scorer-smoke-fixtures.json) | One positive and one negative matcher canary that prove phrase-scorer wiring—not agent behavior. |
+| [evals/orchestration-trace-fixtures.json](evals/orchestration-trace-fixtures.json) | Paired declared trace-field scorer cases, including wrong-outcome, self-attested-proof, different-prose, authority, verbosity, and subjective-judgment canaries. |
 | [evals/baselines/current/skills](evals/baselines/current/skills) | Frozen current-skill baseline used by the three-arm evals. |
 
 ## 🧠 Inspiration

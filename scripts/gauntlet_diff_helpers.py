@@ -16,6 +16,7 @@ RISK_ORDER = [
     "security-privacy",
     "durable-workflow",
     "shared-domain",
+    "instruction-surface",
     "ui",
     "generated",
     "docs-only",
@@ -144,6 +145,48 @@ def path_is_docs(path):
     return lower.startswith("docs/") or lower.endswith((".md", ".mdx", ".rst", ".txt"))
 
 
+def path_is_instruction_surface(path, text=""):
+    """Return whether a changed file can directly steer an agent or harness."""
+    lower = path.lower()
+    if lower.startswith("./"):
+        lower = lower[2:]
+    name = Path(lower).name
+    parts = Path(lower).parts
+    if name in {"agents.md", "claude.md", "gemini.md"}:
+        return True
+    if len(parts) >= 3 and parts[0] == "skills" and parts[-1] == "skill.md":
+        return True
+    if parts and parts[0] in {"prompts", "prompt", "templates", "template", "instructions"}:
+        return True
+    if parts and parts[0] in {".codex-plugin", ".claude-plugin"}:
+        return True
+    instruction_tokens = {
+        "agent",
+        "agents",
+        "instruction",
+        "instructions",
+        "prompt",
+        "prompts",
+        "system-prompt",
+    }
+    stem_tokens = set(re.split(r"[^a-z0-9]+", Path(name).stem))
+    suffix = Path(name).suffix
+    if bool(stem_tokens & instruction_tokens) and suffix in {
+        ".md",
+        ".mdx",
+        ".txt",
+        ".json",
+        ".jsonl",
+        ".yaml",
+        ".yml",
+        ".toml",
+    }:
+        return True
+    return suffix in {".json", ".jsonl", ".yaml", ".yml", ".toml"} and bool(
+        re.search(r"(?i)\b(system_?prompt|developer_?prompt|agent_?prompt|instructions?)\b", text)
+    )
+
+
 def path_is_generated(path):
     lower = path.lower()
     name = Path(lower).name
@@ -183,6 +226,8 @@ def diff_for_file(root, path, base_ref="HEAD"):
 def risk_triggers_for(path, diff_text):
     blob = f"{path}\n{diff_text}".lower()
     triggers = set()
+    if path_is_instruction_surface(path, diff_text):
+        triggers.add("instruction-surface")
     if path_is_generated(path):
         triggers.add("generated")
     if path_is_ui(path):
@@ -276,6 +321,7 @@ def build_diff_intel(project_root, changed_files=None, base_ref="HEAD"):
                 flag
                 for flag, present in {
                     "docs": path_is_docs(path),
+                    "instruction": path_is_instruction_surface(path, diff_text),
                     "generated": path_is_generated(path),
                     "test": path_is_test(path),
                     "ui": path_is_ui(path),
@@ -289,7 +335,7 @@ def build_diff_intel(project_root, changed_files=None, base_ref="HEAD"):
             "lineChanges": line_change_count(diff_text),
         })
 
-    if changed and all(path_is_docs(item["path"]) for item in changed):
+    if changed and all(path_is_docs(item["path"]) for item in changed) and "instruction-surface" not in all_triggers:
         all_triggers = {"docs-only"}
 
     if not changed:

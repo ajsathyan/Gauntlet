@@ -418,7 +418,7 @@ def test_subagent_parallelism_is_context_efficient():
         "Delegate only independent files, state, contracts, or evidence lanes",
         "spawn subagents automatically without waiting for the user to request delegation",
         "Standing authorization",
-        "bounded task packets",
+        "bounded tickets",
         "Native Codex state",
         "main-task messages",
     ]:
@@ -447,7 +447,7 @@ def test_direct_dispatch_and_quiet_execution_are_documented():
     for marker in [
         "Quiet Execution",
         "compact receipt",
-        "bounded task packet",
+        "bounded ticket",
         "objective",
         "ownership",
         "dependencies",
@@ -455,12 +455,11 @@ def test_direct_dispatch_and_quiet_execution_are_documented():
         "proof",
         "return contract",
         "ask-user policy",
-        "Scope delta checked: no material change.",
     ]:
         assert_contains(combined, marker, "direct dispatch guidance")
 
     for marker in [
-        "one bounded task packet",
+        "one bounded ticket",
         "Native Codex state",
         "Resolve added-scope deltas",
     ]:
@@ -762,6 +761,52 @@ def test_docs_only_diff_gets_no_runtime_test_commands():
         assert_contains("\n".join(plan["cannotVerify"]), "No runtime behavior changed", "docs-only cannot verify note")
 
 
+def test_instruction_surfaces_are_not_classified_as_docs_only():
+    diff_intel = SCRIPTS / "diff-intel.py"
+    test_plan = SCRIPTS / "test-plan.py"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        init_repo(project)
+        for directory in ["router", "skills/demo", "prompts", "templates", "config", ".codex-plugin", "scripts"]:
+            (project / directory).mkdir(parents=True, exist_ok=True)
+        instruction_paths = [
+            "AGENTS.md",
+            "router/AGENTS.md",
+            "skills/demo/SKILL.md",
+            "prompts/system.md",
+            "templates/agent.md",
+            "config/settings.toml",
+            ".codex-plugin/plugin.json",
+        ]
+        for path in instruction_paths:
+            (project / path).write_text("plain setting\n")
+        (project / "scripts" / "run-skill-change-checks.sh").write_text("#!/bin/sh\n")
+        (project / "scripts" / "check-gauntlet-workflow.py").write_text("pass\n")
+        commit_all(project, "baseline")
+        (project / "config" / "settings.toml").write_text('system_prompt = "Steer the agent"\n')
+
+        run([str(diff_intel), str(project), "--changed-files", *instruction_paths])
+        intel_path = project / ".gauntlet" / "diff-intel.json"
+        intel = json.loads(intel_path.read_text())
+        if "instruction-surface" not in intel["riskTriggers"] or "docs-only" in intel["riskTriggers"]:
+            raise AssertionError(f"instruction surfaces must not be docs-only: {intel['riskTriggers']}")
+        for item in intel["changedFiles"]:
+            if "instruction" not in item["flags"]:
+                raise AssertionError(f"instruction flag missing for {item['path']}: {item['flags']}")
+
+        run([str(test_plan), str(project), "--diff-intel", str(intel_path)])
+        plan = json.loads((project / ".gauntlet" / "test-plan.json").read_text())
+        commands = [item["command"] for item in plan["commands"]]
+        expected = [
+            "scripts/run-skill-change-checks.sh --changed-files skills/demo/SKILL.md",
+            "python3 scripts/check-gauntlet-workflow.py",
+        ]
+        for command in expected:
+            if command not in commands:
+                raise AssertionError(f"instruction-surface plan missing {command}: {commands}")
+
+
 def test_workflow_helpers_filter_artifacts_and_find_python_tests():
     diff_intel = SCRIPTS / "diff-intel.py"
     test_plan = SCRIPTS / "test-plan.py"
@@ -868,10 +913,9 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
 
     for marker in [
         "router/AGENTS.md",
-        "one bounded task packet",
+        "one bounded ticket",
         "Native Codex state",
         "main-task messages",
-        "Scope delta checked: no material change.",
     ]:
         assert_contains("\n".join([agents, read(ROUTER_MD), readme, planner]), marker, "workflow speedup routing")
 
@@ -3028,7 +3072,7 @@ def assert_installed_gauntlet_layout(agent_home):
         installed_skills,
         f"{installed_root}/docs/production-quality-bar.md",
         f"{installed_root}/docs/ui-constitution.md",
-        "bounded task packets",
+        "bounded tickets",
         "Native Codex state",
         "a request to open a PR does not authorize merging it",
         f"{installed_root}/scripts/gauntlet.py merge prepare|plan|execute",
@@ -3457,7 +3501,7 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
             raise AssertionError("Codex config insertion should preserve CRLF newline style")
 
 
-def test_skill_evals_compare_all_arms():
+def test_skill_text_coverage_compares_all_arms():
     runner = SCRIPTS / "run-skill-evals.py"
     evals = ROOT / "evals" / "skill-evals.json"
     current = ROOT / "evals" / "baselines" / "current" / "skills"
@@ -3470,9 +3514,9 @@ def test_skill_evals_compare_all_arms():
     run([str(runner), "--results", str(results)])
     data = json.loads(results.read_text())
     if data.get("comparisonArms") != ["one_shot", "current_skill", "new_skill"]:
-        raise AssertionError("skill evals must compare one_shot, current_skill, and new_skill")
+        raise AssertionError("skill text coverage must compare one_shot, current_skill, and new_skill")
     if not data.get("cases"):
-        raise AssertionError("skill evals must include cases")
+        raise AssertionError("skill text coverage must include cases")
     for case in data["cases"]:
         arms = case.get("arms", {})
         for arm in data["comparisonArms"]:
@@ -3486,10 +3530,10 @@ def test_skill_evals_compare_all_arms():
     targeted_data = json.loads(targeted.read_text())
     targeted_cases = targeted_data.get("cases", [])
     if not targeted_cases or any(case["skill"] != "planner" for case in targeted_cases):
-        raise AssertionError("skill evals must support targeted --only-skill filtering")
+        raise AssertionError("skill text coverage must support targeted --only-skill filtering")
 
 
-def test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes():
+def test_structural_scorers_are_labeled_and_reject_negative_canaries():
     runner = SCRIPTS / "run-skill-evals.py"
     fixture = ROOT / "evals" / "scorer-smoke-fixtures.json"
     results = ROOT / "evals" / "results" / "workflow-scorer-smoke-check.json"
@@ -3523,15 +3567,17 @@ def test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes():
             scorer_smoke = case.get("scorerSmoke")
             if not scorer_smoke:
                 raise AssertionError(f"{case['id']} missing scorer-smoke results")
-            if scorer_smoke.get("minReps", 0) < 5:
-                raise AssertionError(f"{case['id']} must require at least five scorer-smoke reps")
+            if scorer_smoke.get("minReps", 0) < 1:
+                raise AssertionError(f"{case['id']} must require matcher canaries")
             if not (prompts / case["id"] / "new_skill.md").exists():
                 raise AssertionError(f"{case['id']} missing generated scorer-smoke prompt")
             new_scorer = scorer_smoke["arms"]["new_skill"]
             if new_scorer["repsFound"] < scorer_smoke["minReps"]:
                 raise AssertionError(f"{case['id']} new_skill missing scorer-smoke reps")
             if new_scorer["passRate"] < 1:
-                raise AssertionError(f"{case['id']} new_skill scorer-smoke reps should pass")
+                raise AssertionError(f"{case['id']} new_skill matcher canaries should match expectations")
+            if not any(rep.get("expectedPassed") is False for rep in new_scorer["reps"]):
+                raise AssertionError(f"{case['id']} missing negative matcher canary")
             for arm_name, arm in case["arms"].items():
                 if arm.get("promptWordCount", 0) <= 0:
                     raise AssertionError(f"{case['id']} {arm_name} missing prompt word metric")
@@ -3546,6 +3592,10 @@ def test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes():
         str(orchestration_results),
     ])
     outcomes = json.loads(orchestration_results.read_text())
+    if outcomes.get("evidenceScope") != "declared_trace_fields_only":
+        raise AssertionError("trace scorer must disclose that it scores declared fields only")
+    if not outcomes.get("cannotVerify"):
+        raise AssertionError("trace scorer must disclose unresolved behavioral proof")
     if not outcomes.get("summary", {}).get("expectationsMatched"):
         raise AssertionError(f"orchestration outcome expectations failed: {outcomes}")
     pairs = {pair["id"]: pair for pair in outcomes.get("pairs", [])}
@@ -3557,12 +3607,23 @@ def test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes():
         "automatic-quiet-delegation",
         "coupled-lanes-stay-main",
         "phrase-echo-wrong-action",
+        "field-correct-wrong-outcome",
+        "self-attested-proof-is-not-resolved",
+        "different-prose-same-contract",
         "subjective-needs-judgment",
     ]:
         if required not in pairs:
             raise AssertionError(f"missing orchestration outcome case: {required}")
     if pairs["phrase-echo-wrong-action"]["arms"]["current"]["verdict"] != "fail":
-        raise AssertionError("phrase echo with the wrong observable action must fail")
+        raise AssertionError("phrase echo with the wrong declared action must fail")
+    if pairs["field-correct-wrong-outcome"]["arms"]["current"]["verdict"] != "fail":
+        raise AssertionError("correct report fields with the wrong declared outcome must fail")
+    proof_canary = pairs["self-attested-proof-is-not-resolved"]["arms"]
+    if proof_canary["current"]["verdict"] != "fail" or proof_canary["candidate"]["verdict"] != "pass":
+        raise AssertionError("declared self-attested proof must not satisfy a harness-event matcher")
+    prose_canary = pairs["different-prose-same-contract"]["arms"]
+    if any(arm["verdict"] != "pass" for arm in prose_canary.values()):
+        raise AssertionError("valid declared fields must pass independently of exact report prose")
     delegation = pairs["automatic-quiet-delegation"]["arms"]
     if delegation["current"]["verdict"] != "fail" or delegation["candidate"]["verdict"] != "pass":
         raise AssertionError("automatic quiet delegation canary must reject serial execution and accept bounded child dispatch")
@@ -3622,10 +3683,10 @@ def test_skill_changes_are_guarded_by_pre_commit():
     for args in [[str(skill_check)], [str(skill_check), "--changed-files", "README.md"]]:
         result = run(args, cwd=ROOT)
         if "No Gauntlet skill changes detected" not in result.stdout:
-            raise AssertionError("non-skill changes should skip skill evals")
+            raise AssertionError("non-skill changes should skip skill text coverage")
 
     result = run([str(skill_check), "--changed-files", "skills/planner/SKILL.md"], cwd=ROOT)
-    for marker in ["Gauntlet skill changes detected", "targeted skill evals: planner", "skill evals:", "orchestration trace evals:", "skill linter"]:
+    for marker in ["Gauntlet skill changes detected", "targeted skill text coverage: planner", "skill text coverage:", "declared trace-field scorer contracts:", "skill linter"]:
         assert_contains(result.stdout, marker, "skill change checks")
 
 
@@ -3841,6 +3902,7 @@ def main():
         test_ts_durability_classifier_behavior,
         test_diff_intel_test_plan_and_review_pack_are_bounded,
         test_docs_only_diff_gets_no_runtime_test_commands,
+        test_instruction_surfaces_are_not_classified_as_docs_only,
         test_workflow_helpers_filter_artifacts_and_find_python_tests,
         test_workflow_speedup_helpers_are_documented_as_advisory,
         test_contextual_merge_contract_is_documented,
@@ -3865,8 +3927,8 @@ def main():
         test_thread_changelog_captures_pr_history_and_followups,
         test_workflow_etiquette_is_in_global_workflow,
         test_promotion_scanner_is_release_wrapup_not_patch_gate,
-        test_skill_evals_compare_all_arms,
-        test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes,
+        test_skill_text_coverage_compares_all_arms,
+        test_structural_scorers_are_labeled_and_reject_negative_canaries,
         test_skill_linter_examples_and_noop_pruning,
         test_skill_changes_are_guarded_by_pre_commit,
         test_codex_install_layout_supports_workflow_check,

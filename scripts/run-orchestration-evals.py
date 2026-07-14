@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Score paired orchestration traces from observable, deterministic evidence."""
+"""Unit-test declared orchestration trace fields against deterministic contracts.
+
+Trace fields and proof references are fixture inputs. This runner does not
+observe tool calls, resolve proof references, or establish agent behavior.
+"""
 
 import argparse
 import json
@@ -304,7 +308,7 @@ def score_trace(contract, trace):
         "requiredActions": {"passed": not missing_actions, "missing": missing_actions},
         "forbiddenActions": {"passed": not forbidden_actions, "observed": forbidden_actions},
         "authority": {"passed": not authority_violations, "violations": authority_violations},
-        "proofEvidence": {"passed": not missing_proof, "missing": missing_proof},
+        "declaredProofFields": {"passed": not missing_proof, "missing": missing_proof},
         "routingChoice": {
             "passed": route_passed,
             "expected": expected_route,
@@ -375,6 +379,11 @@ def run_pack(pack, source_path):
         )
     return {
         "schemaVersion": "1.0",
+        "evidenceScope": "declared_trace_fields_only",
+        "cannotVerify": [
+            "Actions, outcomes, authorities, proof references, cost, and latency are fixture declarations; this scorer does not independently observe or resolve them.",
+            "Agent behavior requires trusted harness events or an independently rerun behavioral oracle.",
+        ],
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "sourcePack": str(source_path),
         "packId": pack["packId"],
@@ -390,7 +399,7 @@ def run_pack(pack, source_path):
 
 
 def print_summary(results):
-    print(f"orchestration trace evals: {results['packId']}")
+    print(f"declared trace-field scorer contracts: {results['packId']}")
     for pair in results["pairs"]:
         arms = []
         for arm in ARMS:
@@ -406,7 +415,7 @@ def print_summary(results):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Score paired Gauntlet orchestration traces from observable outcomes."
+        description="Unit-test declared Gauntlet orchestration trace fields against scorer contracts."
     )
     parser.add_argument("--pack", type=Path, default=DEFAULT_PACK)
     parser.add_argument("--results", type=Path, default=DEFAULT_RESULTS)

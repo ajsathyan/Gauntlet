@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0",
-  "description": "Deterministic pressure evals for Gauntlet skills. Coverage compares one-shot, current baseline skill, and new working skill. Scorer smoke exercises the phrase matcher but does not claim agent behavior.",
+  "description": "Deterministic text-coverage cases for Gauntlet skills. Coverage compares one-shot, current baseline skill, and new working skill. Matcher smoke unit-tests phrase handling but does not claim agent behavior.",
   "cases": [
     {
       "id": "intake-packet-contract",
@@ -23,13 +23,13 @@
       ]
     },
     {
-      "id": "planner-task-packet",
+      "id": "planner-ticket",
       "skill": "planner",
-      "title": "Planner creates task packets with interfaces and proof",
+      "title": "Planner creates tickets with interfaces and proof",
       "oneShotInstruction": "Turn the accepted spec into ordered implementation steps, risks, non-goals, and verification.",
       "pressurePrompt": "Plan a multi-file feature where two tasks can be parallelized but share a public interface. Avoid component piles and prevent subagents from guessing contracts.",
       "requiredPatterns": [
-        "Gauntlet Task Packet",
+        "Ticket",
         "canonical plan",
         "Consumes",
         "Produces",
@@ -353,8 +353,7 @@
       "pressurePrompt": "Plan a normal single-lane patch. Keep internal mode, gate, and clean-check machinery out of the user-facing plan, omit unused child-lane fields, and preserve a clean scope-delta marker only inside the plan when needed.",
       "requiredPatterns": [
         "Parallelizable lanes: independent tasks that can go to subagents, or omit when none",
-        "Include routing only when material; omit no-op fields.",
-        "Scope delta checked: no material change."
+        "Include routing only when material; omit no-op fields."
       ],
       "forbiddenPatterns": [
         "Subagent packetization: not relevant because"

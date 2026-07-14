@@ -78,8 +78,8 @@ def lint_skill(path, max_words):
             failures.append(f"word count {words} exceeds budget {max_words}")
         if "Cannot verify" not in body:
             failures.append("missing Cannot verify slot")
-        if not any(marker in body for marker in ["Output Contract", "Intake Packet", "Product Packet", "Gauntlet Task Packet", "Ready Item", "Implementation Packet"]):
-            failures.append("missing explicit packet or output contract")
+        if not any(marker in body for marker in ["Output Contract", "Intake Packet", "Product Packet", "Ticket", "Ready Item", "Implementation Packet"]):
+            failures.append("missing explicit ticket, packet, or output contract")
         if "Optional example:" not in body:
             failures.append("missing Optional example reference")
         if not examples:

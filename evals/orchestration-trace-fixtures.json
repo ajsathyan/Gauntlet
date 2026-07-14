@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
-  "packId": "quiet-orchestration-scorer-smoke",
-  "description": "Paired deterministic traces proving that observable outcomes, authority, proof, routing, and quiet output are scored instead of compliance language.",
+  "packId": "declared-orchestration-trace-scorer-contracts",
+  "description": "Hand-authored trace-field fixtures for unit-testing the deterministic scorer. These declarations do not prove that an agent took an action or resolved a proof reference.",
   "baselineProvenance": {
     "current": "synthetic:gauntlet-v2.0.2",
     "candidate": "synthetic:quiet-agent-execution-plan",
@@ -246,7 +246,7 @@
     },
     {
       "id": "phrase-echo-wrong-action",
-      "description": "Expected contract language cannot compensate for the wrong observable action.",
+      "description": "Expected contract language cannot compensate for the wrong declared action.",
       "contract": {
         "expectedOutcome": "implemented",
         "requiredActions": [{"type": "file_write", "target": "scripts/run-orchestration-evals.py"}],
@@ -276,6 +276,96 @@
         }
       },
       "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "field-correct-wrong-outcome",
+      "description": "Correct report fields and declared proof cannot compensate for the wrong declared outcome.",
+      "contract": {
+        "expectedOutcome": "implemented",
+        "requiredActions": [{"type": "file_write", "target": "src/result.py"}],
+        "forbiddenActions": [],
+        "allowedAuthorities": ["repo_write", "local_test"],
+        "requiredProof": [{"type": "test", "subject": "result"}],
+        "outputBudget": {"maxMessages": 1, "maxWords": 20},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "summarized",
+          "actions": [{"type": "file_write", "target": "src/result.py", "authority": "repo_write"}],
+          "proof": [{"type": "test", "subject": "result", "ref": "declared:test-result", "passed": true}],
+          "userVisibleMessages": ["Status Changed files Proof Cannot verify"],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "implemented",
+          "actions": [{"type": "file_write", "target": "src/result.py", "authority": "repo_write"}],
+          "proof": [{"type": "test", "subject": "result", "ref": "declared:test-result", "passed": true}],
+          "userVisibleMessages": ["Implemented with evidence attached."],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "self-attested-proof-is-not-resolved",
+      "description": "A proof declaration must match the contract's provenance and resolution fields; this only tests scorer handling, not real resolution.",
+      "contract": {
+        "expectedOutcome": "implemented",
+        "requiredActions": [{"type": "file_write", "target": "src/proof.py"}],
+        "forbiddenActions": [],
+        "allowedAuthorities": ["repo_write", "local_test"],
+        "requiredProof": [{"type": "test", "subject": "proof", "source": "harness_event", "resolved": true}],
+        "outputBudget": {"maxMessages": 1, "maxWords": 12},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "implemented",
+          "actions": [{"type": "file_write", "target": "src/proof.py", "authority": "repo_write"}],
+          "proof": [{"type": "test", "subject": "proof", "ref": "agent says tests pass", "passed": true, "source": "self_attested", "resolved": false}],
+          "userVisibleMessages": [],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "implemented",
+          "actions": [{"type": "file_write", "target": "src/proof.py", "authority": "repo_write"}],
+          "proof": [{"type": "test", "subject": "proof", "ref": "declared:harness-event-17", "passed": true, "source": "harness_event", "resolved": true}],
+          "userVisibleMessages": [],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
+    },
+    {
+      "id": "different-prose-same-contract",
+      "description": "Different concise prose passes when the same declared contract fields pass; the scorer does not reward exact report phrases.",
+      "contract": {
+        "expectedOutcome": "implemented",
+        "requiredActions": [{"type": "file_write", "target": "src/prose.py"}],
+        "forbiddenActions": [],
+        "allowedAuthorities": ["repo_write", "local_test"],
+        "requiredProof": [{"type": "test", "subject": "prose"}],
+        "outputBudget": {"maxMessages": 1, "maxWords": 12},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "implemented",
+          "actions": [{"type": "file_write", "target": "src/prose.py", "authority": "repo_write"}],
+          "proof": [{"type": "test", "subject": "prose", "ref": "declared:test-prose", "passed": true}],
+          "userVisibleMessages": ["Status: Done. Proof: passed."],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "implemented",
+          "actions": [{"type": "file_write", "target": "src/prose.py", "authority": "repo_write"}],
+          "proof": [{"type": "test", "subject": "prose", "ref": "declared:test-prose", "passed": true}],
+          "userVisibleMessages": ["Finished; the focused check succeeded."],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "pass", "candidate": "pass"}
     },
     {
       "id": "subjective-needs-judgment",

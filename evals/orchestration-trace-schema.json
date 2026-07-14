@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://gauntlet.local/schemas/orchestration-trace-pack-1.0.json",
-  "title": "Gauntlet orchestration trace pack",
+  "title": "Gauntlet declared orchestration trace-field scorer pack",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "packId", "baselineProvenance", "pairs"],

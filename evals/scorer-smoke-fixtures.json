@@ -1,31 +1,42 @@
 {
   "schemaVersion": "1.0",
-  "description": "Deterministic fixtures for the skill phrase scorer only. Phrase presence is not evidence of correct agent behavior.",
-  "defaultRepeat": 5,
+  "description": "One positive and one negative deterministic matcher canary. Phrase matching proves scorer wiring only, not agent behavior.",
+  "defaultRepeat": 1,
   "responses": [
     {
       "case": "*",
       "arm": "no_guidance",
       "elapsedMs": 650,
+      "expectedPassed": false,
       "text": "I would handle the request directly with a short plan and a brief summary."
     },
     {
       "case": "*",
       "arm": "one_shot",
       "elapsedMs": 850,
+      "expectedPassed": false,
       "text": "Here is a useful response with some scope, proof, and next steps, but without the full role contract."
     },
     {
       "case": "*",
       "arm": "current_skill",
       "elapsedMs": 1050,
+      "expectedPassed": false,
       "text": "Evidence reviewed: the scenario. I can provide findings and a next step, but this fixture intentionally leaves the contract incomplete."
     },
     {
       "case": "*",
       "arm": "new_skill",
       "elapsedMs": 1250,
+      "expectedPassed": true,
       "text": "{requiredPatterns}\nNot relevant because this synthetic phrase echo exercises only the scorer contract."
+    },
+    {
+      "case": "*",
+      "arm": "new_skill",
+      "elapsedMs": 700,
+      "expectedPassed": false,
+      "text": "This deliberately omits the required contract strings. It must fail the matcher even if it sounds plausible."
     }
   ]
 }

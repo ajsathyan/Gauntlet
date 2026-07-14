@@ -52,6 +52,7 @@ def build_test_plan(project_root, intel):
     commands = []
     cannot_verify = list(intel.get("cannotVerify", []))
     triggers = set(intel.get("riskTriggers", []))
+    changed_paths = [item.get("path", "") for item in intel.get("changedFiles", [])]
 
     if triggers == {"docs-only"}:
         cannot_verify.append("No runtime behavior changed; review rendered docs or generated docs output if applicable.")
@@ -60,6 +61,33 @@ def build_test_plan(project_root, intel):
     if not intel.get("changedFiles"):
         cannot_verify.append("No changed files detected; cannot recommend focused tests.")
         return commands, cannot_verify
+
+    if "instruction-surface" in triggers:
+        skill_paths = [
+            path for path in changed_paths if path.startswith("skills/") and path.endswith("/SKILL.md")
+        ]
+        skill_change_check = root / "scripts" / "run-skill-change-checks.sh"
+        workflow_check = root / "scripts" / "check-gauntlet-workflow.py"
+        if skill_paths and skill_change_check.exists():
+            add_command(
+                commands,
+                "focused",
+                "scripts/run-skill-change-checks.sh --changed-files " + " ".join(skill_paths),
+                "Changed skill instructions need structural coverage, scorer-contract, and lint checks.",
+                "high",
+            )
+        if workflow_check.exists():
+            add_command(
+                commands,
+                "broader",
+                "python3 scripts/check-gauntlet-workflow.py",
+                "Behavior-bearing instruction surfaces need the repository workflow regression suite.",
+                "high",
+            )
+        if not skill_change_check.exists() and not workflow_check.exists():
+            cannot_verify.append(
+                "Behavior-bearing instructions changed, but no repository instruction or workflow harness was found. Review the rendered prompt and run a representative forward test."
+            )
 
     package_roots = intel.get("packageRoots") or ["."]
     for changed in intel.get("changedFiles", []):

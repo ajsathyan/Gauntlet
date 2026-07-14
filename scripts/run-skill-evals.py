@@ -174,6 +174,7 @@ def load_scorer_smoke_responses(path, cases):
             response = {
                 "text": render_fixture_text(case, item["text"]),
                 "elapsedMs": item.get("elapsedMs"),
+                "expectedPassed": bool(item.get("expectedPassed", True)),
             }
             for _ in range(repeat):
                 by_case[case_id][item["arm"]].append(response)
@@ -181,7 +182,7 @@ def load_scorer_smoke_responses(path, cases):
 
 
 def run_scorer_smoke_case(case, arms, responses_by_case, scorer_smoke_prompts_dir):
-    min_reps = int(case.get("scorerSmokeMinReps", case.get("behaviorMinReps", 5)))
+    min_reps = int(case.get("scorerSmokeMinReps", case.get("behaviorMinReps", 1)))
     if scorer_smoke_prompts_dir:
         case_dir = scorer_smoke_prompts_dir / case["id"]
         case_dir.mkdir(parents=True, exist_ok=True)
@@ -200,16 +201,20 @@ def run_scorer_smoke_case(case, arms, responses_by_case, scorer_smoke_prompts_di
             scored = score_scorer_smoke_response(case, response["text"])
             scored["rep"] = index
             scored["responseElapsedMs"] = response.get("elapsedMs")
+            scored["expectedPassed"] = response["expectedPassed"]
+            scored["expectationMatched"] = scored["passed"] == response["expectedPassed"]
             reps.append(scored)
         reps_found = len(reps)
         passed = sum(1 for rep in reps if rep["passed"])
+        matched = sum(1 for rep in reps if rep["expectationMatched"])
         avg_words = round(sum(rep["outputWordCount"] for rep in reps) / reps_found, 1) if reps_found else 0
         elapsed_values = [rep["responseElapsedMs"] for rep in reps if rep.get("responseElapsedMs") is not None]
         avg_response_ms = round(sum(elapsed_values) / len(elapsed_values), 1) if elapsed_values else None
         arm_results[arm_name] = {
             "repsFound": reps_found,
             "passedReps": passed,
-            "passRate": round(passed / reps_found, 3) if reps_found else 0,
+            "matchedReps": matched,
+            "passRate": round(matched / reps_found, 3) if reps_found else 0,
             "averageOutputWords": avg_words,
             "averageResponseElapsedMs": avg_response_ms,
             "reps": reps,
@@ -271,7 +276,7 @@ def run_case(
 
 
 def print_summary(results):
-    print("skill evals: one_shot vs current_skill vs new_skill")
+    print("skill text coverage: one_shot vs current_skill vs new_skill")
     print()
     for case in results["cases"]:
         row = [case["id"]]
@@ -286,11 +291,11 @@ def print_summary(results):
         if new_scorer_smoke and new_scorer_smoke["repsFound"]:
             row.append(
                 "scorer_smoke_new="
-                f"{new_scorer_smoke['passedReps']}/{new_scorer_smoke['repsFound']}"
+                f"{new_scorer_smoke['matchedReps']}/{new_scorer_smoke['repsFound']} expectations"
             )
         print(" | ".join(row))
     gate = "PASS" if results["summary"]["gatePassed"] else "FAIL"
-    print(f"coverage_and_scorer_smoke={gate}")
+    print(f"structural_coverage_and_matcher_contract={gate}")
 
 
 def build_summary(cases):
@@ -302,7 +307,7 @@ def build_summary(cases):
     ]
     scorer_smoke_passed = all(
         smoke["arms"]["new_skill"]["repsFound"] >= smoke["minReps"]
-        and smoke["arms"]["new_skill"]["passedReps"]
+        and smoke["arms"]["new_skill"]["matchedReps"]
         == smoke["arms"]["new_skill"]["repsFound"]
         for smoke in configured_smoke
     )
@@ -316,7 +321,7 @@ def build_summary(cases):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run deterministic Gauntlet skill evals across one-shot, current skill, and new skill arms."
+        description="Run deterministic Gauntlet skill text coverage across one-shot, current skill, and new skill arms."
     )
     parser.add_argument("--evals", type=Path, default=DEFAULT_EVALS)
     parser.add_argument("--current-root", type=Path, default=DEFAULT_CURRENT)
