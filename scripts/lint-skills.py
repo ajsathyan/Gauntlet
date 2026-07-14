@@ -7,6 +7,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SKILLS = ROOT / "skills" if (ROOT / "skills").exists() else ROOT.parent / "skills"
+ROLE_SKILLS = {
+    "adversarial-reviewer",
+    "archive",
+    "black-box-tester",
+    "debugger",
+    "deep-code-reviewer",
+    "experience-reviewer",
+    "implementer",
+    "intake",
+    "issue-triager",
+    "planner",
+    "product-architect",
+    "promotion-scanner",
+    "researcher",
+    "run-log-builder",
+}
 
 
 def read_text(path):
@@ -44,23 +60,30 @@ def lint_skill(path, max_words):
 
     if not re.fullmatch(r"[a-z0-9-]+", name):
         failures.append("frontmatter name must use lowercase letters, numbers, and hyphens")
-    if not description.startswith("Use when"):
-        failures.append("description must start with 'Use when'")
+    if name != path.parent.name:
+        failures.append("frontmatter name must match the skill directory")
+    if not description:
+        failures.append("description must be non-empty")
     if len("\n".join(f"{k}: {v}" for k, v in frontmatter.items())) > 1024:
         failures.append("frontmatter exceeds 1024 characters")
 
     words = word_count(text)
-    if words > max_words:
-        failures.append(f"word count {words} exceeds budget {max_words}")
+    if "[TODO:" in text:
+        failures.append("skill contains an unfinished TODO placeholder")
 
-    if "Cannot verify" not in body:
-        failures.append("missing Cannot verify slot")
-    if not any(marker in body for marker in ["Output Contract", "Intake Packet", "Product Packet", "Gauntlet Task Packet", "Ready Item", "Implementation Packet"]):
-        failures.append("missing explicit packet or output contract")
-    if "Optional example:" not in body:
-        failures.append("missing Optional example reference")
-    if not examples:
-        failures.append("missing optional example file")
+    if name in ROLE_SKILLS:
+        if not description.startswith("Use when"):
+            failures.append("role-skill description must start with 'Use when'")
+        if words > max_words:
+            failures.append(f"word count {words} exceeds budget {max_words}")
+        if "Cannot verify" not in body:
+            failures.append("missing Cannot verify slot")
+        if not any(marker in body for marker in ["Output Contract", "Intake Packet", "Product Packet", "Gauntlet Task Packet", "Ready Item", "Implementation Packet"]):
+            failures.append("missing explicit packet or output contract")
+        if "Optional example:" not in body:
+            failures.append("missing Optional example reference")
+        if not examples:
+            failures.append("missing optional example file")
 
     lower = body.lower()
     parallel_subagent_guidance = any(

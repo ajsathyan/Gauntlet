@@ -49,6 +49,30 @@ def assert_not_contains(text, needle, label):
         raise AssertionError(f"{label} should not contain: {needle}")
 
 
+def test_plugin_manifests_bundle_shared_skills():
+    if not (ROOT / ".codex-plugin" / "plugin.json").is_file():
+        return
+    codex_manifest = json.loads(read(ROOT / ".codex-plugin" / "plugin.json"))
+    claude_manifest = json.loads(read(ROOT / ".claude-plugin" / "plugin.json"))
+    if codex_manifest["name"] != "gauntlet" or claude_manifest["name"] != "gauntlet":
+        raise AssertionError("Codex and Claude plugin manifests must share the Gauntlet identity")
+    if codex_manifest["version"] != claude_manifest["version"]:
+        raise AssertionError("Codex and Claude plugin versions must stay aligned")
+    if codex_manifest.get("skills") != "./skills/" or claude_manifest.get("skills") != "./skills/":
+        raise AssertionError("both plugin manifests must bundle the shared skills directory")
+
+    for path in sorted(SKILLS.glob("*/SKILL.md")):
+        text = read(path)
+        assert_contains(text, f"name: {path.parent.name}", f"skill name for {path.parent.name}")
+
+    codex_marketplace = json.loads(read(ROOT / ".agents" / "plugins" / "marketplace.json"))
+    claude_marketplace = json.loads(read(ROOT / ".claude-plugin" / "marketplace.json"))
+    if codex_marketplace["plugins"][0]["name"] != "gauntlet":
+        raise AssertionError("Codex marketplace must expose the Gauntlet plugin")
+    if claude_marketplace["plugins"][0]["name"] != "gauntlet":
+        raise AssertionError("Claude marketplace must expose the Gauntlet plugin")
+
+
 def make_ts_project(root):
     (root / "package.json").write_text('{"devDependencies":{"typescript":"latest"}}\n')
     (root / "tsconfig.json").write_text('{"compilerOptions":{"strict":true}}\n')
@@ -2993,6 +3017,18 @@ def assert_installed_gauntlet_layout(agent_home):
         assert_not_contains(installed_agents, unresolved, "installed router path rendering")
     if len(installed_agents.encode("utf-8")) >= 32768:
         raise AssertionError("installed router exceeds the default 32 KiB instruction budget")
+    for skill in [
+        "craft-customer-email",
+        "eval-audit",
+        "eval-error-analysis",
+        "eval-judge-prompt",
+        "eval-rag",
+        "eval-review-interface",
+        "eval-synthetic-data",
+        "eval-validate-evaluator",
+    ]:
+        if not (agent_home / "skills" / skill / "SKILL.md").is_file():
+            raise AssertionError(f"installed Gauntlet skill is missing: {skill}")
     run([str(installed_check)])
 
 
@@ -3034,12 +3070,33 @@ Keep this user-owned instruction across Gauntlet reinstalls.
 
         stale_script = agent_home / "gauntlet" / "scripts" / "removed-workflow-helper.py"
         stale_script.write_text("stale installed payload\n")
+        for legacy_skill in [
+            "build-review-interface",
+            "error-analysis",
+            "evaluate-rag",
+            "generate-synthetic-data",
+            "validate-evaluator",
+            "write-judge-prompt",
+        ]:
+            legacy_dir = agent_home / "skills" / legacy_skill
+            legacy_dir.mkdir(parents=True)
+            (legacy_dir / "SKILL.md").write_text("stale legacy skill\n")
         run_install(agent_home, target="codex")
         reinstalled_agents = read(agent_home / "AGENTS.md")
         if reinstalled_agents != installed_agents:
             raise AssertionError("Codex reinstall should be byte-idempotent")
         if stale_script.exists():
             raise AssertionError("Codex reinstall should remove scripts deleted from the source payload")
+        for legacy_skill in [
+            "build-review-interface",
+            "error-analysis",
+            "evaluate-rag",
+            "generate-synthetic-data",
+            "validate-evaluator",
+            "write-judge-prompt",
+        ]:
+            if (agent_home / "skills" / legacy_skill).exists():
+                raise AssertionError(f"Codex reinstall should retire legacy eval skill: {legacy_skill}")
 
         verify = run([
             str(agent_home / "gauntlet" / "scripts" / "gauntlet.py"),
@@ -3643,6 +3700,7 @@ def test_superpowers_sources_are_attributed_and_retirement_is_allowlisted():
 
 def main():
     tests = [
+        test_plugin_manifests_bundle_shared_skills,
         test_simplified_modes_and_depth_are_documented,
         test_normal_requests_use_minimum_scope_before_lifecycle_routing,
         test_v201_run_log_contract_replaces_default_review_brief,

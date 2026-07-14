@@ -1,0 +1,4 @@
+interface:
+  display_name: "Craft Customer Email"
+  short_description: "Write clear customer-facing email"
+  default_prompt: "Use $craft-customer-email to draft or revise a clear customer-facing email."

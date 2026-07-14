@@ -1,0 +1,37 @@
+{
+  "name": "gauntlet",
+  "version": "2.0.2",
+  "description": "Gauntlet workflow, product, research, implementation, review, and evaluation skills.",
+  "author": {
+    "name": "AJS Sathyan",
+    "url": "https://github.com/ajsathyan"
+  },
+  "homepage": "https://github.com/ajsathyan/Gauntlet",
+  "repository": "https://github.com/ajsathyan/Gauntlet",
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "product",
+    "review",
+    "evaluation"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Gauntlet",
+    "shortDescription": "Product and engineering workflow skills",
+    "longDescription": "Shape, implement, research, evaluate, and review product and engineering work with proportional proof.",
+    "developerName": "AJS Sathyan",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/ajsathyan/Gauntlet",
+    "defaultPrompt": [
+      "Shape this feature and identify the first useful build step.",
+      "Implement this accepted change and prove the result.",
+      "Audit this workflow and prioritize the material findings."
+    ],
+    "brandColor": "#111827"
+  }
+}

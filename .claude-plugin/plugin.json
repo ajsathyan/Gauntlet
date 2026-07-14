@@ -1,0 +1,11 @@
+{
+  "name": "gauntlet",
+  "version": "2.0.2",
+  "description": "Gauntlet workflow, product, research, implementation, review, and evaluation skills.",
+  "author": {
+    "name": "AJS Sathyan"
+  },
+  "repository": "https://github.com/ajsathyan/Gauntlet",
+  "license": "MIT",
+  "skills": "./skills/"
+}

@@ -276,6 +276,20 @@ Both targets reject malformed managed markers and replace their own block idempo
 
 Both targets install only the Gauntlet files that live in this repository: the global workflow, Gauntlet role skills, docs, scripts, and eval fixtures. They do not import personal skills or instructions from elsewhere on your machine.
 
+The same `skills/` tree is also distributed as one Gauntlet plugin for Codex and Claude Code. Codex reads `.codex-plugin/plugin.json` and `.agents/plugins/marketplace.json`; Claude Code reads `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. New Gauntlet-owned skills created under `skills/<name>/` enter both bundles automatically. Use the direct installer or the plugin for skills in one environment, not both, to avoid duplicate skill discovery; the direct installer remains the path that installs Gauntlet's always-loaded global router.
+
+Install the shared bundle from GitHub:
+
+```sh
+# Codex
+codex plugin marketplace add ajsathyan/Gauntlet
+codex plugin add gauntlet@gauntlet
+
+# Claude Code
+claude plugin marketplace add ajsathyan/Gauntlet
+claude plugin install gauntlet@gauntlet
+```
+
 The installer also adds a Gauntlet pre-commit hook in this repo. When staged files include `skills/*/SKILL.md` or `skills/*/examples/*`, the hook runs the skill evals and skill linter before the commit can proceed. Set `GAUNTLET_SKIP_GIT_HOOKS=1` for headless installs that should not touch git hooks.
 
 ## 📦 What Gets Installed
@@ -300,7 +314,16 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [skills/run-log-builder/SKILL.md](skills/run-log-builder/SKILL.md) | Creates exceptions-first run logs and pending coverage-gap candidates. |
 | [skills/promotion-scanner/SKILL.md](skills/promotion-scanner/SKILL.md) | Produces bounded Promotion Briefs for repeated manual or agent loops without recommending live operational actions. |
 | [skills/archive/SKILL.md](skills/archive/SKILL.md) | Runs the guarded local-install, PR-merge, cleanup, and Codex task-archive sequence when `/Archive` is invoked. |
+| [skills/craft-customer-email/SKILL.md](skills/craft-customer-email/SKILL.md) | Writes, revises, and audits customer-facing product, operational, transactional, incident, and lifecycle email. |
+| [skills/eval-audit/SKILL.md](skills/eval-audit/SKILL.md) | Audits whether an LLM evaluation pipeline is trustworthy. |
+| [skills/eval-error-analysis/SKILL.md](skills/eval-error-analysis/SKILL.md) | Identifies and categorizes failure modes from LLM traces. |
+| [skills/eval-judge-prompt/SKILL.md](skills/eval-judge-prompt/SKILL.md) | Designs binary LLM-as-Judge evaluators for subjective failure modes. |
+| [skills/eval-rag/SKILL.md](skills/eval-rag/SKILL.md) | Evaluates retrieval and generation quality in RAG pipelines. |
+| [skills/eval-review-interface/SKILL.md](skills/eval-review-interface/SKILL.md) | Builds browser interfaces for reviewing traces and collecting human labels. |
+| [skills/eval-synthetic-data/SKILL.md](skills/eval-synthetic-data/SKILL.md) | Generates varied synthetic inputs for LLM evaluation. |
+| [skills/eval-validate-evaluator/SKILL.md](skills/eval-validate-evaluator/SKILL.md) | Calibrates an LLM judge against human labels. |
 | [docs/upstream-superpowers.md](docs/upstream-superpowers.md) | Attributes adapted techniques and explains selective upstream update review and runtime retirement. |
+| [docs/upstream-eval-skills.md](docs/upstream-eval-skills.md) | Records the vendored eval-skill source, namespace mapping, update procedure, and license location. |
 | [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
 | [docs/github-discipline.md](docs/github-discipline.md) | Beginner-friendly branch, worktree, commit, PR, merge, child-chat, and solo-builder defaults. |
 | [docs/ui-constitution.md](docs/ui-constitution.md) | Bounded frontend quality gate for prototypes and product UI. |
@@ -342,6 +365,10 @@ Selected techniques are adapted from Jesse Vincent's [Superpowers](https://githu
 | --- | --- |
 | [router/AGENTS.md](router/AGENTS.md) | Portable global workflow router. |
 | [router/response-style.md](router/response-style.md) | Portable response-style policy rendered by the installer. |
+| [.codex-plugin/plugin.json](.codex-plugin/plugin.json) | Codex plugin manifest for the shared Gauntlet skill bundle. |
+| [.claude-plugin/plugin.json](.claude-plugin/plugin.json) | Claude Code plugin manifest for the shared Gauntlet skill bundle. |
+| [.agents/plugins/marketplace.json](.agents/plugins/marketplace.json) | Codex marketplace entry for installing the bundle. |
+| [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) | Claude Code marketplace entry for installing the bundle. |
 | [AGENTS.md](AGENTS.md) | Contributor guidance for this repository. |
 | [skills/](skills) | Role-specific reusable instructions. |
 | [docs/](docs) | Coverage gaps, UI constitution, Production Quality Bar, workflow speedups, promotion scanner, design lint candidates, and historical plans. |

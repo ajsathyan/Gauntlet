@@ -657,7 +657,14 @@ if [ "$source_is_installed_payload" != "1" ]; then
   cp "$ROOT/README.md" "$AGENT_HOME/gauntlet/README.md"
   mkdir -p "$AGENT_HOME/gauntlet/router"
   cp -R "$ROOT/router/." "$AGENT_HOME/gauntlet/router/"
-  rm -rf "$AGENT_HOME/skills/review-brief-builder"
+  rm -rf \
+    "$AGENT_HOME/skills/review-brief-builder" \
+    "$AGENT_HOME/skills/build-review-interface" \
+    "$AGENT_HOME/skills/error-analysis" \
+    "$AGENT_HOME/skills/evaluate-rag" \
+    "$AGENT_HOME/skills/generate-synthetic-data" \
+    "$AGENT_HOME/skills/validate-evaluator" \
+    "$AGENT_HOME/skills/write-judge-prompt"
   cp -R "$SKILLS_SRC/." "$AGENT_HOME/skills/"
   rm -rf "$AGENT_HOME/gauntlet/docs"
   cp -R "$ROOT/docs" "$AGENT_HOME/gauntlet/"

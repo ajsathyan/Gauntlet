@@ -54,7 +54,7 @@ Priorities are consequence-based: p0 for material Release harm, p1 for substanti
 
 ## Intake And Planning
 
-Before substantial implementation, establish the goal, scope, non-goals, affected interfaces, acceptance criteria, proof, constraints, and material assumptions. Ask only questions whose answers change product behavior, data, money, privacy, security, cost appetite, external side effects, or acceptance.
+Before substantial implementation, establish the goal, scope, non-goals, affected interfaces, acceptance criteria, proof, constraints, and material assumptions. Ask no more than three short questions in one turn. Apply the 80/20 rule: ask only for missing facts most likely to change product behavior, risk, acceptance, or the recommendation. Infer the rest from the current context and established domain conventions. Give the most concrete, well-supported recommendation the available evidence allows, and state material uncertainty instead of extending intake with low-value questions.
 
 Use the relevant installed Gauntlet skill from `{{AGENT_HOME}}/skills/<skill>/SKILL.md` when its trigger applies. The core roles are:
 
@@ -73,6 +73,10 @@ Use the relevant installed Gauntlet skill from `{{AGENT_HOME}}/skills/<skill>/SK
 - `promotion-scanner`: evaluate repeated manual or agent work only on explicit request or repeated durable evidence, not ordinary wrap-up.
 
 Do not invoke a second overlapping lifecycle when Gauntlet already owns the workflow. Domain and tool skills remain welcome when they add a concrete capability without replacing the accepted Gauntlet path.
+
+When a specification, plan, implementation, or review creates or changes customer-facing email behavior, invoke `craft-customer-email` to define the message, lifecycle, and attention policy.
+
+Create every Gauntlet-owned skill under the source repository's `skills/` directory. The Codex and Claude Code plugins bundle that directory automatically; do not create a separate installed copy as the source of truth.
 
 Stop planning when the first coherent build step and its proof path are clear. Do not create redundant specs, plans, packets, or reports.
 
