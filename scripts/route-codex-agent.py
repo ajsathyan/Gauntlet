@@ -21,23 +21,23 @@ def select(fields):
             raise ValueError("{} must be one of: {}".format(key, ", ".join(sorted(allowed))))
     work = fields["work_class"]
     if work == "verification" and fields["proof"] == "security":
-        return "gauntlet-security-reviewer"
+        return "gauntlet_security_reviewer"
     if work == "release" or fields["proof"] == "release":
-        return "gauntlet-release-integrator"
+        return "gauntlet_release_integrator"
     if work == "verification" or fields["proof"] == "behavioral":
-        return "gauntlet-independent-verifier"
+        return "gauntlet_independent_verifier"
     if work == "research":
         if fields["complexity"] == "deep" or fields["risk"] == "consequential":
-            return "gauntlet-deep-expert-researcher"
+            return "gauntlet_deep_expert_researcher"
         return None
     if work == "scan" and fields["authority"] == "read-only" and (
         fields["proof"] == "source" or fields["context_shape"] == "high-volume"
     ):
-        return "gauntlet-fast-reader"
+        return "gauntlet_fast_reader"
     if work == "implementation" and fields["complexity"] == "deep":
-        return "gauntlet-deep-worker"
+        return "gauntlet_deep_worker"
     if work == "implementation" and fields["authority"] == "local-write" and fields["complexity"] in {"routine", "standard"}:
-        return "gauntlet-standard-worker"
+        return "gauntlet_standard_worker"
     return None
 
 

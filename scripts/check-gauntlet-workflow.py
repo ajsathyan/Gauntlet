@@ -3140,15 +3140,15 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         if (agent_home / "CLAUDE.md").exists():
             raise AssertionError("Codex install should not create CLAUDE.md")
         expected_profiles = {
-            "gauntlet-fast-reader": ("gpt-5.6-luna", "medium"),
-            "gauntlet-standard-worker": ("gpt-5.6-sol", "medium"),
-            "gauntlet-deep-worker": ("gpt-5.6-sol", "high"),
-            "gauntlet-independent-verifier": ("gpt-5.6-sol", "medium"),
-            "gauntlet-release-integrator": ("gpt-5.6-terra", "high"),
-            "gauntlet-deep-expert-researcher": ("gpt-5.6-sol", "xhigh"),
-            "gauntlet-security-reviewer": ("gpt-5.6-sol", "high"),
+            "gauntlet_fast_reader": ("gpt-5.6-luna", "medium"),
+            "gauntlet_standard_worker": ("gpt-5.6-sol", "medium"),
+            "gauntlet_deep_worker": ("gpt-5.6-sol", "high"),
+            "gauntlet_independent_verifier": ("gpt-5.6-sol", "medium"),
+            "gauntlet_release_integrator": ("gpt-5.6-terra", "high"),
+            "gauntlet_deep_expert_researcher": ("gpt-5.6-sol", "xhigh"),
+            "gauntlet_security_reviewer": ("gpt-5.6-sol", "high"),
         }
-        installed_profiles = sorted((agent_home / "agents").glob("gauntlet-*.toml"))
+        installed_profiles = sorted((agent_home / "agents").glob("gauntlet_*.toml"))
         if {path.stem for path in installed_profiles} != set(expected_profiles):
             raise AssertionError("Codex install must activate exactly the seven canonical profiles")
         for profile in installed_profiles:
@@ -3257,7 +3257,7 @@ def test_codex_custom_agent_collision_and_audit_behavior():
         root = Path(tmp)
         collision_home = root / "collision-home"
         (collision_home / "agents").mkdir(parents=True)
-        collision = collision_home / "agents" / "gauntlet-fast-reader.toml"
+        collision = collision_home / "agents" / "gauntlet_fast_reader.toml"
         collision.write_bytes((ROOT / "agents" / "codex" / collision.name).read_bytes())
         refused = run_install(
             collision_home, target="codex",
@@ -3283,7 +3283,7 @@ def test_codex_custom_agent_collision_and_audit_behavior():
         """)
         connection.execute(
             "INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ("child-1", "gpt-5.6-luna", "medium", "gauntlet-fast-reader", '{"type":"read-only"}', "never", "reader", "subagent", 321, "/repo", 10, 20),
+            ("child-1", "gpt-5.6-luna", "medium", "gauntlet_fast_reader", '{"type":"read-only"}', "never", "reader", "subagent", 321, "/repo", 10, 20),
         )
         connection.execute(
             "INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -3300,7 +3300,7 @@ def test_codex_custom_agent_collision_and_audit_behavior():
         if log.read_text() != first:
             raise AssertionError("subagent audit sync must be byte-idempotent")
         rows = [json.loads(line) for line in first.splitlines()]
-        if len(rows) != 1 or rows[0]["profile"] != "gauntlet-fast-reader" or rows[0]["parentAgentId"] != "parent-1":
+        if len(rows) != 1 or rows[0]["profile"] != "gauntlet_fast_reader" or rows[0]["parentAgentId"] != "parent-1":
             raise AssertionError("subagent audit must export only linked Gauntlet usage")
         if set(rows[0]) != {
             "agentId", "parentAgentId", "profile", "model", "reasoningEffort", "nickname",
@@ -3309,13 +3309,13 @@ def test_codex_custom_agent_collision_and_audit_behavior():
             raise AssertionError("subagent audit exported fields outside its privacy-bounded contract")
         verified = run([
             "python3", str(audit), "verify", "--agent-home", str(agent_home),
-            "--agent-id", "child-1", "--requested-profile", "gauntlet-fast-reader", "--require-read-only", "--json",
+            "--agent-id", "child-1", "--requested-profile", "gauntlet_fast_reader", "--require-read-only", "--json",
         ])
         if json.loads(verified.stdout)["status"] != "pass":
             raise AssertionError("subagent audit must reconcile actual profile and effective sandbox")
         mismatch = run([
             "python3", str(audit), "verify", "--agent-home", str(agent_home),
-            "--agent-id", "child-1", "--requested-profile", "gauntlet-deep-worker",
+            "--agent-id", "child-1", "--requested-profile", "gauntlet_deep_worker",
         ], check=False)
         if mismatch.returncode == 0:
             raise AssertionError("subagent audit must reject a requested-versus-started profile mismatch")
@@ -3325,7 +3325,7 @@ def test_codex_custom_agent_collision_and_audit_behavior():
             connection.commit()
             wrong_sandbox = run([
                 "python3", str(audit), "verify", "--agent-home", str(agent_home),
-                "--agent-id", "child-1", "--requested-profile", "gauntlet-fast-reader", "--require-read-only",
+                "--agent-id", "child-1", "--requested-profile", "gauntlet_fast_reader", "--require-read-only",
             ], check=False)
             if wrong_sandbox.returncode == 0:
                 raise AssertionError(f"subagent audit must reject non-canonical read-only policy: {wrong_policy}")
@@ -3334,7 +3334,7 @@ def test_codex_custom_agent_collision_and_audit_behavior():
         connection.close()
         wrong_model = run([
             "python3", str(audit), "verify", "--agent-home", str(agent_home),
-            "--agent-id", "child-1", "--requested-profile", "gauntlet-fast-reader", "--require-read-only",
+            "--agent-id", "child-1", "--requested-profile", "gauntlet_fast_reader", "--require-read-only",
         ], check=False)
         if wrong_model.returncode == 0:
             raise AssertionError("subagent audit must reject an actual model override")
@@ -3362,12 +3362,12 @@ def test_codex_agent_router_is_deterministic():
         "authority": "local-write", "proof": "integration", "context-shape": "bounded",
     }
     cases = [
-        ({}, "gauntlet-standard-worker"),
-        ({"complexity": "deep"}, "gauntlet-deep-worker"),
-        ({"work-class": "verification", "authority": "read-only", "proof": "security"}, "gauntlet-security-reviewer"),
-        ({"work-class": "release", "authority": "merge", "risk": "consequential", "proof": "release"}, "gauntlet-release-integrator"),
-        ({"work-class": "scan", "authority": "read-only", "proof": "source", "context-shape": "high-volume"}, "gauntlet-fast-reader"),
-        ({"work-class": "research", "authority": "read-only", "complexity": "deep", "proof": "source"}, "gauntlet-deep-expert-researcher"),
+        ({}, "gauntlet_standard_worker"),
+        ({"complexity": "deep"}, "gauntlet_deep_worker"),
+        ({"work-class": "verification", "authority": "read-only", "proof": "security"}, "gauntlet_security_reviewer"),
+        ({"work-class": "release", "authority": "merge", "risk": "consequential", "proof": "release"}, "gauntlet_release_integrator"),
+        ({"work-class": "scan", "authority": "read-only", "proof": "source", "context-shape": "high-volume"}, "gauntlet_fast_reader"),
+        ({"work-class": "research", "authority": "read-only", "complexity": "deep", "proof": "source"}, "gauntlet_deep_expert_researcher"),
     ]
     for overrides, expected in cases:
         fields = {**base, **overrides}
@@ -3384,7 +3384,7 @@ def test_codex_agent_router_is_deterministic():
         args.extend(["--" + key, value])
     args.append("--json")
     result = json.loads(run(args).stdout)
-    if result["profile"] != "gauntlet-standard-worker":
+    if result["profile"] != "gauntlet_standard_worker":
         raise AssertionError("security-sensitive implementation must retain a writer and use a separate review ticket")
 
 
@@ -3398,7 +3398,7 @@ def test_codex_agent_installer_recovers_interrupted_update():
         run(["python3", str(installer), "apply", "--source", str(source), "--agent-home", str(home)])
         manifest_path = home / "gauntlet" / "install-agents-codex.json"
         old = json.loads(manifest_path.read_text())["files"]
-        changed_source = source / "gauntlet-standard-worker.toml"
+        changed_source = source / "gauntlet_standard_worker.toml"
         changed_source.write_text(changed_source.read_text().replace("Keep coordination quiet.", "Keep routine coordination quiet."))
         intended = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in source.glob("*.toml")}
         pending = home / "gauntlet" / "install-agents-codex.pending.json"

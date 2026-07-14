@@ -14,13 +14,13 @@ MANIFEST_VERSION = 1
 REQUIRED = {"name", "description", "model", "model_reasoning_effort", "developer_instructions"}
 ALLOWED = REQUIRED | {"sandbox_mode"}
 EXPECTED = {
-    "gauntlet-fast-reader": ("gpt-5.6-luna", "medium"),
-    "gauntlet-standard-worker": ("gpt-5.6-sol", "medium"),
-    "gauntlet-deep-worker": ("gpt-5.6-sol", "high"),
-    "gauntlet-independent-verifier": ("gpt-5.6-sol", "medium"),
-    "gauntlet-release-integrator": ("gpt-5.6-terra", "high"),
-    "gauntlet-deep-expert-researcher": ("gpt-5.6-sol", "xhigh"),
-    "gauntlet-security-reviewer": ("gpt-5.6-sol", "high"),
+    "gauntlet_fast_reader": ("gpt-5.6-luna", "medium"),
+    "gauntlet_standard_worker": ("gpt-5.6-sol", "medium"),
+    "gauntlet_deep_worker": ("gpt-5.6-sol", "high"),
+    "gauntlet_independent_verifier": ("gpt-5.6-sol", "medium"),
+    "gauntlet_release_integrator": ("gpt-5.6-terra", "high"),
+    "gauntlet_deep_expert_researcher": ("gpt-5.6-sol", "xhigh"),
+    "gauntlet_security_reviewer": ("gpt-5.6-sol", "high"),
 }
 
 
@@ -79,8 +79,8 @@ def load_sources(source):
             fail("Profile {} must declare the same name as its filename".format(name))
         if (fields["model"], fields["model_reasoning_effort"]) != EXPECTED[name]:
             fail("Profile {} does not match its required model and reasoning effort".format(name))
-        if name == "gauntlet-security-reviewer" and fields.get("sandbox_mode") != "read-only":
-            fail("gauntlet-security-reviewer must be read-only")
+        if name == "gauntlet_security_reviewer" and fields.get("sandbox_mode") != "read-only":
+            fail("gauntlet_security_reviewer must be read-only")
         profiles[path.name] = {"data": path.read_bytes(), "fields": fields}
     if set(path[:-5] for path in profiles) != set(EXPECTED):
         fail("Custom-agent source must contain exactly the seven canonical profiles")

@@ -1,4 +1,4 @@
-name = "gauntlet-independent-verifier"
+name = "gauntlet_independent_verifier"
 description = "Independent behavioral verification for completed Gauntlet work."
 model = "gpt-5.6-sol"
 model_reasoning_effort = "medium"

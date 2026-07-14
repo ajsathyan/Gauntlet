@@ -1,4 +1,4 @@
-name = "gauntlet-deep-worker"
+name = "gauntlet_deep_worker"
 description = "Deep implementation worker for complex or cross-cutting Gauntlet tickets."
 model = "gpt-5.6-sol"
 model_reasoning_effort = "high"

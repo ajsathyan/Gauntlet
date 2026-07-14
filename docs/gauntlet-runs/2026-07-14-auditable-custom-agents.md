@@ -9,6 +9,6 @@
 
 ## Proof And Limits
 
-- A pre-implementation local smoke proved that an explicitly requested `gauntlet-fast-reader` started with its configured Luna model and medium reasoning effort in native state.
+- A pre-implementation local smoke proved that an explicitly requested `gauntlet_fast_reader` started with its configured Luna model and medium reasoning effort in native state.
 - Repository checks cover profile validation, preservation-safe installation, deterministic guidance, and audit export behavior. The exact merged revision must be installed and rechecked after merge.
 - Native state capture is immediate. The JSONL view is current after the router's terminal-state sync or a later manual/backfill sync; it is not an independent event stream.

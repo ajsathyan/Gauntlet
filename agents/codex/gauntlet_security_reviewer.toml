@@ -1,4 +1,4 @@
-name = "gauntlet-security-reviewer"
+name = "gauntlet_security_reviewer"
 description = "Security review profile with a read-only default and required runtime verification."
 model = "gpt-5.6-sol"
 model_reasoning_effort = "high"
