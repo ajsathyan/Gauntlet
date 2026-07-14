@@ -135,6 +135,16 @@ def validate_assignment(kind: str, value: Dict[str, Any]) -> Dict[str, Any]:
     for field in ("allowed_repository_root", "receipt_destination"):
         if not nonempty_string(value[field]):
             raise PromptError("invalid-assignment", f"assignment.{field} must be a non-empty string")
+    if not Path(value["allowed_repository_root"]).is_absolute():
+        raise PromptError("invalid-assignment", "assignment.allowed_repository_root must be absolute")
+    if kind == "breakthrough" and value["receipt_destination"] != "return-to-root":
+        raise PromptError("invalid-assignment", "breakthrough receipt_destination must be return-to-root")
+    if (
+        kind == "observable-review"
+        and value["receipt_destination"] != "return-to-root"
+        and not Path(value["receipt_destination"]).is_absolute()
+    ):
+        raise PromptError("invalid-assignment", "observable-review receipt_destination must be return-to-root or absolute")
     if kind == "observable-review":
         if value["review_mandate"] not in REVIEW_MANDATES:
             raise PromptError("invalid-assignment", "assignment.review_mandate is invalid")
@@ -145,7 +155,7 @@ def validate_assignment(kind: str, value: Dict[str, Any]) -> Dict[str, Any]:
     return value
 
 
-def validate_packet(kind: str, value: Dict[str, Any], root: Path) -> None:
+def validate_packet(kind: str, value: Dict[str, Any], root: Path) -> list[Path]:
     expected = PACKET_COMMON | PACKET_EXTRA[kind]
     if set(value) != expected:
         missing = sorted(expected - set(value))
@@ -178,6 +188,7 @@ def validate_packet(kind: str, value: Dict[str, Any], root: Path) -> None:
     if not isinstance(artifacts, list) or not artifacts:
         raise PromptError("invalid-packet", "packet.artifacts must be a non-empty array")
     seen = set()
+    resolved_artifacts = []
     for index, artifact in enumerate(artifacts):
         if not isinstance(artifact, dict) or set(artifact) != {"path", "sha256"}:
             raise PromptError("invalid-packet", f"packet.artifacts[{index}] must contain exactly path and sha256")
@@ -190,8 +201,10 @@ def validate_packet(kind: str, value: Dict[str, Any], root: Path) -> None:
         if resolved in seen or not resolved.is_file():
             raise PromptError("invalid-packet", f"packet.artifacts[{index}] must identify a unique existing file")
         seen.add(resolved)
+        resolved_artifacts.append(resolved)
         if sha256_bytes(read_bytes(resolved, "invalid-packet")) != digest:
             raise PromptError("artifact-hash-mismatch", f"packet.artifacts[{index}] no longer matches its SHA-256")
+    return resolved_artifacts
 
 
 def validate_distinct_paths(inputs: Iterable[Path], outputs: Iterable[Path]) -> None:
@@ -223,7 +236,12 @@ def atomic_write(path: Path, value: str) -> None:
         raise PromptError("write-failed", f"Could not write {path}: {exc}") from exc
 
 
-def render(kind: str, packet: Path, assignment_path: Path, expected_packet_sha256: str) -> tuple[str, Dict[str, Any], Path]:
+def render(
+    kind: str,
+    packet: Path,
+    assignment_path: Path,
+    expected_packet_sha256: str,
+) -> tuple[str, Dict[str, Any], Path, list[Path]]:
     template_path = TEMPLATES[kind]
     template_bytes = read_bytes(template_path, "invalid-template")
     packet_bytes = read_bytes(packet, "invalid-packet")
@@ -241,10 +259,10 @@ def render(kind: str, packet: Path, assignment_path: Path, expected_packet_sha25
         raise PromptError("invalid-repository-root", "allowed_repository_root must equal the containing Git work-tree root")
     ensure_within(root, packet, "packet")
     ensure_within(root, assignment_path, "assignment")
-    validate_packet(kind, load_json(packet, "invalid-packet"), root)
+    protected_paths = validate_packet(kind, load_json(packet, "invalid-packet"), root)
     destination = assignment["receipt_destination"]
     if destination != "return-to-root":
-        ensure_within(root, Path(destination), "receipt_destination")
+        protected_paths.append(ensure_within(root, Path(destination), "receipt_destination"))
     populated = {
         **assignment,
         "packet_path": str(packet.resolve()),
@@ -272,7 +290,7 @@ def render(kind: str, packet: Path, assignment_path: Path, expected_packet_sha25
         "assignmentPosition": "last",
         "assignmentKeys": sorted(populated),
     }
-    return prompt, metadata, root
+    return prompt, metadata, root, protected_paths
 
 
 def parser() -> argparse.ArgumentParser:
@@ -293,12 +311,17 @@ def main() -> int:
         assignment = Path(args.assignment)
         output = Path(args.output)
         metadata_output = Path(args.metadata_output) if args.metadata_output else None
-        prompt, metadata, root = render(args.template_kind, packet, assignment, args.expected_packet_sha256)
+        prompt, metadata, root, protected_paths = render(
+            args.template_kind, packet, assignment, args.expected_packet_sha256
+        )
         ensure_within(root, output, "output")
         if metadata_output:
             ensure_within(root, metadata_output, "metadata_output")
         outputs = [output] + ([metadata_output] if metadata_output else [])
-        validate_distinct_paths([packet, assignment, TEMPLATES[args.template_kind]], outputs)
+        validate_distinct_paths(
+            [packet, assignment, TEMPLATES[args.template_kind], *protected_paths],
+            outputs,
+        )
         serialized = json.dumps(metadata, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
         atomic_write(output, prompt)
         if metadata_output:

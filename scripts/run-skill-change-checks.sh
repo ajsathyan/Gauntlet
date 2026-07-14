@@ -8,6 +8,11 @@ if [ ! -d "$SKILLS_ROOT" ] && [ -d "$ROOT/../skills" ]; then
 fi
 
 changed_files=()
+detect_only=0
+if [ "${1:-}" = "--detect-only" ]; then
+  detect_only=1
+  shift
+fi
 if [ "${1:-}" = "--changed-files" ]; then
   shift
   changed_files=("$@")
@@ -15,7 +20,7 @@ else
   if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     while IFS= read -r file; do
       changed_files+=("$file")
-    done < <(git -C "$ROOT" diff --cached --name-only --diff-filter=ACMR)
+    done < <(git -C "$ROOT" diff --cached --name-only --diff-filter=ACMRD)
   fi
 fi
 
@@ -36,6 +41,11 @@ fi
 
 if [ "$skill_change" -eq 0 ]; then
   echo "No Gauntlet skill changes detected; skipping skill evals."
+  exit 0
+fi
+
+if [ "$detect_only" -eq 1 ]; then
+  printf 'Gauntlet skill changes detected: %s\n' "$(printf '%s\n' "${changed_skill_names[@]}" | sort -u | paste -sd, -)"
   exit 0
 fi
 

@@ -3664,6 +3664,23 @@ def test_skill_changes_are_guarded_by_pre_commit():
     for path in [hook_installer, skill_check]:
         if not path.exists() or not os.access(path, os.X_OK):
             raise AssertionError(f"missing executable skill-change guard: {path}")
+    assert_contains(skill_check.read_text(), "--diff-filter=ACMRD", "skill deletion guard")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        deletion_repo = Path(tmp) / "deletion-repo"
+        (deletion_repo / "scripts").mkdir(parents=True)
+        (deletion_repo / "skills" / "refactor-codebase" / "assets").mkdir(parents=True)
+        copied_check = deletion_repo / "scripts" / "run-skill-change-checks.sh"
+        shutil.copy2(skill_check, copied_check)
+        deleted_asset = deletion_repo / "skills" / "refactor-codebase" / "assets" / "packet.md"
+        deleted_asset.write_text("frozen packet\n")
+        run(["git", "init", "-q"], cwd=deletion_repo)
+        run(["git", "add", "."], cwd=deletion_repo)
+        run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "fixture"], cwd=deletion_repo)
+        deleted_asset.unlink()
+        run(["git", "add", "-u"], cwd=deletion_repo)
+        deletion = run([str(copied_check), "--detect-only"], cwd=deletion_repo)
+        assert_contains(deletion.stdout, "Gauntlet skill changes detected: refactor-codebase", "staged skill deletion guard")
 
     with tempfile.TemporaryDirectory() as tmp:
         repo = Path(tmp) / "repo"

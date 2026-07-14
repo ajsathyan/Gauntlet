@@ -128,6 +128,20 @@ class RenderAgentPromptTests(unittest.TestCase):
             self.assertEqual(escaped.returncode, 2)
             self.assertEqual(json.loads(escaped.stdout)["error"]["code"], "path-outside-root")
 
+            value = json.loads(assignment.read_text(encoding="utf-8"))
+            value["allowed_repository_root"] = "."
+            assignment.write_text(json.dumps(value), encoding="utf-8")
+            relative_root = run(*render_args("breakthrough", packet, assignment, root / "prompt.md"))
+            self.assertEqual(relative_root.returncode, 2)
+            self.assertEqual(json.loads(relative_root.stdout)["error"]["code"], "invalid-assignment")
+
+            value["allowed_repository_root"] = str(root)
+            value["receipt_destination"] = str(root / "proposal.json")
+            assignment.write_text(json.dumps(value), encoding="utf-8")
+            shared_receipt = run(*render_args("breakthrough", packet, assignment, root / "prompt.md"))
+            self.assertEqual(shared_receipt.returncode, 2)
+            self.assertEqual(json.loads(shared_receipt.stdout)["error"]["code"], "invalid-assignment")
+
     def test_rejects_stale_packet_and_artifact_hash(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -173,6 +187,23 @@ class RenderAgentPromptTests(unittest.TestCase):
             self.assertEqual(alias_collision.returncode, 2)
             self.assertEqual(json.loads(alias_collision.stdout)["error"]["code"], "path-collision")
             self.assertEqual(packet.read_bytes(), original_packet)
+
+            artifact = root / "contract.json"
+            original_artifact = artifact.read_bytes()
+            artifact_collision = run(*render_args("breakthrough", packet, assignment, artifact))
+            self.assertEqual(artifact_collision.returncode, 2)
+            self.assertEqual(json.loads(artifact_collision.stdout)["error"]["code"], "path-collision")
+            self.assertEqual(artifact.read_bytes(), original_artifact)
+
+            review_packet, review_assignment = initialize(root, "observable-review")
+            review_value = json.loads(review_assignment.read_text(encoding="utf-8"))
+            receipt = root / "review-receipt.json"
+            review_value["receipt_destination"] = str(receipt)
+            review_assignment.write_text(json.dumps(review_value), encoding="utf-8")
+            receipt_collision = run(*render_args("observable-review", review_packet, review_assignment, receipt))
+            self.assertEqual(receipt_collision.returncode, 2)
+            self.assertEqual(json.loads(receipt_collision.stdout)["error"]["code"], "path-collision")
+            self.assertFalse(receipt.exists())
 
     def test_writes_distinct_metadata_atomically(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
