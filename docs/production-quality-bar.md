@@ -21,8 +21,8 @@ Skip the pass for ordinary Patch work, early prototype work, local demo code, co
 | --- | --- | --- |
 | Control plane boundaries | The control plane or core workflow has clear ownership boundaries such as state store, external clients, observers, planners, executors, alerting, read models, UI surfaces, and policy config. | Human judgment |
 | Explicit invariants | The code, tests, or docs name invariants: when resources are consumed, legal state transitions, destructive action rules, forbidden logs/user outputs, and module guarantees. | Guardrail |
-| Launch-critical proof | CI or local release proof covers syntax/type checks, unit tests, lint where useful, and at least one no-mutation or dry-run proof for the main workflow. | Automatable |
-| Automated release evidence | Production releases should have automated GitHub release tags or an audited release script, plus proof that required checks, generated artifacts, and release notes match the shipped version. | Automatable |
+| Launch-critical proof | CI or local release proof names the launch invariant and observable oracle, covers syntax/type checks, meaningful tests and lint where useful, and includes a state-inspecting no-mutation or dry-run check for the main workflow. | Automatable |
+| Automated release evidence | Production releases should have automated GitHub release tags or an audited release script, plus execution-backed proof that required checks, generated artifact hashes/content, release notes, and the shipped version agree. | Automatable |
 | Durable state | Review whether in-process locks or ad hoc JSON writes should become file locks, SQLite, idempotency keys, leases, atomic transitions, append-only logs, or recovery sweeps. | Human judgment |
 | State machines | Provisioning, payment, upload, migration, job execution, auth, live-ops notification, and recovery flows expose state machines, terminal states, impossible transitions, and destructive action boundaries in code, tests, or docs. | Guardrail |
 | Operator/user feedback loop | Track action outcomes, false positives, retries, costs, alert usefulness, alerting/email expectations, completion, support recovery, and learning signals so operators or users know what to believe next. | Human judgment |
@@ -33,6 +33,8 @@ Skip the pass for ordinary Patch work, early prototype work, local demo code, co
 ## Proof Routing
 
 Automatable checks belong in CI, local scripts, tests, linters, browser checks, dry-run commands, no-mutation proofs, release-tag automation, and artifact verification.
+
+Apply `docs/meaningful-proof.md` to every launch claim. A dry run must assert relevant before/after state, and restart, rollback, repeated-run, or duplicate-action claims need a representative failure or negative-control scenario when feasible. Field presence, release-note text, a receipt, or a self-reported pass is not launch proof.
 
 Human judgment belongs in product architecture, planning, deep review, adversarial review, experience review, issue triage, and launch cut-line decisions. If the standard is missing or cannot be verified, capture `Cannot verify` or a pending `GAP-###`; do not silently invent a rule.
 

@@ -7,7 +7,7 @@ This map prevents the compact global router from becoming a silent rule deletion
 | Normal Request path | Add | Bounded, low-consequence, reversible, directly checkable work delivers the artifact first, uses proportional proof, and bypasses lifecycle ceremony. Explicit narrow scope controls unless a real safety or authority boundary appears. | `docs/workflow-etiquette.md` |
 | Modes | Keep + move | Choose Patch, Feature, or Release from change shape and risk. | `docs/workflow-etiquette.md` and role skills |
 | Depth | Keep + move | Use Deep only when search value or consequence earns it. | `docs/skill-quality-bar.md`, reviewer skills |
-| Proof Scope | Keep + move | Prove the changed behavior; widen proof only when triggered. | Role skills and `docs/production-quality-bar.md` |
+| Proof Scope | Keep + move | Prove changed behavior with an observable oracle; distinguish structural coverage and self-report from execution-backed outcomes. | `docs/meaningful-proof.md`, role skills, and `docs/production-quality-bar.md` |
 | Workflow Etiquette | Keep + move | Ask only material questions; otherwise execute autonomously and quietly. | `docs/workflow-etiquette.md` |
 | Minimum useful questions | Keep + move | Every skill uses existing context, asks at most three short single-decision questions only when the answer is consequential, and otherwise provides a provisional result. | `docs/workflow-etiquette.md` |
 | Local product documents | Add + move | An active `doc_org.md` keeps ignored canonical working documents in the primary worktree while preserving tracked repository documentation and the existing Gauntlet lifecycle. | `docs/local-documentation.md` and relevant role skills |
@@ -29,8 +29,8 @@ This map prevents the compact global router from becoming a silent rule deletion
 | Frontend Quality Gate | Keep + move | Substantial frontend work uses bounded code/browser/experience proof. | UI references and reviewer skills |
 | Intake Gate | Keep + move | Establish scope, acceptance, proof, constraints, and material questions before substantial work. | `intake` |
 | Role Skills | Keep + move | Route to the narrowest role skill that adds concrete value. | `skills/*/SKILL.md` |
-| Subagent Handoff Packet | Keep + simplify | The main task dispatches one bounded packet per child and coordinates through native state. | `planner`, `implementer`, `docs/workflow-etiquette.md` |
-| Role Report Contract | Replace | Child agents return `status`, `changedFiles`, `proof`, and `blocker`; no routine prose. | `implementer` |
+| Child ticket | Keep + simplify | A ticket is an ephemeral child assignment; the main task dispatches one bounded ticket per child and coordinates through native state. | `planner`, `implementer`, `docs/workflow-etiquette.md` |
+| Role Report Contract | Replace | Child agents return `status`, `changedFiles`, evidence pointers, and `blocker`; no routine prose. The parent independently verifies evidence. | `implementer`, `docs/meaningful-proof.md` |
 | Subagent output/progress | Replace | Silent safe recovery; surface decisions, unrecoverable failure, host-required terse heartbeat, or final proof only. | Router quiet-execution contract |
 | System-Level Explanation Visuals | Move | Use diagrams/illustrations only when they materially improve understanding. | Diagram and illustration skills |
 | Product Features | Move | Product workflow, first value, progress, states, and next action belong to product/experience roles. | `product-architect`, `experience-reviewer` |
@@ -39,7 +39,7 @@ This map prevents the compact global router from becoming a silent rule deletion
 
 ## Explicit deletions
 
-- Delete duplicate subagent packets and routine lane ledgers that merely mirror native state.
+- Delete duplicate child tickets and routine lane ledgers that merely mirror native state.
 - Delete detailed procedures duplicated between the global and repository `AGENTS.md` files.
 - Delete downstream-relative Gauntlet `docs/...` and `scripts/...` references from installed guidance.
 - Delete claims that phrase-presence fixture scoring proves behavioral compliance.

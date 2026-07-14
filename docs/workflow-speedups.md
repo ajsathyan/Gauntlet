@@ -8,7 +8,7 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 | --- | --- |
 | Changed-surface discovery | `scripts/diff-intel.py "$PROJECT_ROOT"` |
 | Test selection | `scripts/test-plan.py "$PROJECT_ROOT"` |
-| Reviewer/subagent packet | `scripts/review-pack.py "$PROJECT_ROOT"` |
+| Reviewer/child context pack | `scripts/review-pack.py "$PROJECT_ROOT"` |
 | Review packet with accepted context | `scripts/review-pack.py "$PROJECT_ROOT" --accepted-spec "$SPEC_PATH" --plan "$PLAN_PATH"` |
 | Local analytics event | `scripts/gauntlet.py analytics emit --project-root "$PROJECT_ROOT" --run-id "$RUN_ID" --event-type "$EVENT_TYPE"` |
 | Local closeout facts | `scripts/gauntlet.py analytics closeout --project-root "$PROJECT_ROOT" --run-id "$RUN_ID" --file-changed "$PATH" --proof "$COMMAND" --risk "$RISK"` |
@@ -27,7 +27,7 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 
 ## Boundaries
 
-- Honor confidence and `Cannot verify`; helper output is not proof.
+- Honor confidence and `Cannot verify`; helper output and child receipts are evidence pointers, not proof. Resolve commands or artifacts against the relevant oracle.
 - Preserve unrelated dirty worktree changes.
 - The accepted spec and canonical plan remain the sources for intent, scope, edge cases, verification expectations, and follow-ups.
 - When `doc_org.md` is active, local canonical documents live in the primary worktree; linked worktrees must not create alternate copies.
@@ -42,5 +42,5 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 - Follow-up thread helpers emit `create_thread` app-action packets; create the actual Codex thread with app tools after checking the packet.
 - Child implementation lanes should use separate git worktrees by default when they write code, edit multiple files, or have uncertain ownership. Read-only review, exploration, summarization, and log-analysis lanes do not need worktrees by default.
 - Native Codex state owns child progress; use stable lane ids rather than title/status churn.
-- The main chat owns user questions, merge decisions, and final synthesis. Child chats return compact reports and archive after integration.
+- The main chat owns user questions, the oracle, independent evidence verification, merge decisions, and final synthesis. It integrates child commits into one branch with targeted checks as they arrive, runs combined proof after all required tickets finish, and opens one final PR. Child chats return compact reports and archive after integration.
 - Keep `quality-check --surface ...`, `.gitignore` suggestions, broad worktree dependency classification, Mermaid rendering, and multi-repo attribution deferred until repeated runs prove a low-risk mechanical loop.

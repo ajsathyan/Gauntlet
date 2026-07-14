@@ -20,7 +20,7 @@ For a Normal Request:
 
 - Treat a corrected assumption as authority to correct that premise and its direct effects, not to redesign a schema, methodology, or workflow.
 - Prove completion with the direct outcome check or a smoke check. Displaying or copying existing data does not require re-validating the underlying data unless the user asks or a concrete integrity risk appears.
-- Keep the work in the main task. Do not create plans, task packets, subagents, audits, run logs, coverage gaps, or durable process changes unless an actual trigger outside the Normal Request path appears.
+- Keep the work in the main task. Do not create plans, tickets, subagents, audits, run logs, coverage gaps, or durable process changes unless an actual trigger outside the Normal Request path appears.
 - Stop when the requested artifact is delivered and the proportional check passes. Do not continue into polish, review, documentation, or adjacent improvements.
 - Explicit narrow user scope controls execution. Gauntlet may enforce safety and authority boundaries, but it must not broaden the requested result. If consequential risk appears, pause or route only the affected part through the lightest responsible Gauntlet path.
 
@@ -94,6 +94,7 @@ When a repository has an active `doc_org.md`, read it and its local document ind
 - Add or update tests when behavior changes. When a practical harness exists, observe the relevant failure, implement the smallest source fix, and refactor while green.
 - Diagnose before fixing unexpected behavior: reproduce, trace the earliest divergence, state a falsifiable cause, and run the smallest discriminating check.
 - Evidence precedes completion claims. State what proof establishes and what remains unverifiable.
+- For material behavior claims, define an observable oracle. Use a plausible wrong case or negative control, required non-effects, and independent verification when proportionate. Phrases, populated fields, schemas, statuses, receipts, and self-reported results prove only structure or point to evidence; they do not prove behavior. A child may write tests but must not weaken or tailor the oracle, and the parent reruns or resolves the evidence after integration. Use `{{GAUNTLET_ROOT}}/docs/meaningful-proof.md` for detailed guidance.
 - Treat review feedback as evidence to verify against the accepted spec, code, and tests.
 - Use pull requests as decision and proof bundles. Preserve coherent checkpoint commits and follow repository merge policy.
 - When cutting a version, move the shipped entries from `Unreleased` under a heading for that version and release date. Keep the `Unreleased` heading for future work, and never delete released changelog history.
@@ -121,7 +122,9 @@ Parallelism must beat its context cost. Delegate only independent files, state, 
 
 Standing authorization: when two or more useful lanes meet that independence test, spawn subagents automatically without waiting for the user to request delegation. The work itself is the trigger; Release classification is not required. Stay end-to-end in the main task when splitting would duplicate context, serialize on shared state, or weaken proof.
 
-Dispatch children directly from bounded task packets in the canonical plan. Each prompt names objective, ownership, dependencies, constraints, proof, return contract, and ask-user policy. Native Codex state and main-task messages own live coordination. Write-heavy lanes use isolated worktrees unless a tiny disjoint change makes that unnecessary.
+A Gauntlet ticket is an ephemeral child assignment from the canonical plan, not an issue-tracker record. Dispatch each child directly from one bounded ticket with only the material objective, ownership, dependencies, constraints, proportional proof expectations, return contract, and ask-user policy. Proof fields are optional. Native Codex state and main-task messages own live coordination. Write-heavy lanes use isolated worktrees unless a tiny disjoint change makes that unnecessary.
+
+Children work quietly and return compact receipts that point to evidence. The main task owns the oracle, independently verifies child evidence, integrates commits into one branch as results arrive, runs targeted integration checks, waits for all required tickets before combined proof, and opens one final pull request.
 
 Child agents return compact machine receipts. Keep routine coordination, status narration, and internal reports out of user-facing chat. Surface only:
 
@@ -130,7 +133,7 @@ Child agents return compact machine receipts. Keep routine coordination, status 
 - a host-required terse heartbeat; or
 - the brief final outcome and proof.
 
-Do not announce delegation, packet generation, child progress, child completion, or receipt contents to the user unless a higher-priority host instruction explicitly requires disclosure. All applicable workflow etiquette remains active during quiet execution; perform its internal checks and surface only the user-facing action or exception that the etiquette itself requires, such as a title change, material suggestion, decision, or safety stop.
+Do not announce delegation, ticket generation, child progress, child completion, or receipt contents to the user unless a higher-priority host instruction explicitly requires disclosure. All applicable workflow etiquette remains active during quiet execution; perform its internal checks and surface only the user-facing action or exception that the etiquette itself requires, such as a title change, material suggestion, decision, or safety stop.
 
 Retry safe recovery silently while the next attempt is materially different. Stop when recovery would repeat the same failure fingerprint, require new authority, risk destructive external state, or exceed the accepted appetite.
 
