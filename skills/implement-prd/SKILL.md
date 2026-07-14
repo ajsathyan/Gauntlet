@@ -21,7 +21,7 @@ Stop for credentials or permissions that are unavailable; a materially unresolve
 2. Validate and freeze the PRD target. Record its content hash, stable Epic and Scope Area IDs, applicable instruction versions, and release contract in `source-lock.json`.
 3. Compile a deterministic Ticket Graph. Use H2 Epic, H3 Ticket, and canonical H4 fields; keep one implementation owner per Ticket. Add separate verifier Tickets instead of co-owning implementation.
 4. Initialize the disk execution run and compact resume state. Once initialized, use disk state as authority and conversation history as advisory.
-5. Materialize only ready Tickets. Dispatch one active Ticket per child by default; reuse a child sequentially for related Tickets when context affinity saves work. Keep recursion shallow and the parent in control of scheduling and integration.
+5. Materialize only ready Tickets through the shared generated-context renderer. Dispatch one active Ticket per child by default. When several ready Tickets declare the same affinity and share a cohort and dependency contract, claim and materialize them as one context lane; keep each Ticket's receipt, status, proof, integration, and downstream release independent. Keep recursion shallow and the parent in control of scheduling and integration.
 6. Integrate completed Tickets as they become ready. Independently inspect or rerun their evidence, then record the receipt and immediate Ticket verification.
 7. Run selective cohort barriers for Tickets sharing an interface or invariant. After all required cohorts pass, run full-PRD verification against the accepted source and parent-owned oracle.
 8. Complete the final PR for the Execution Run, required-check merge, exact-main deployment, documented production changes, production verification, canonical-document updates, and safe cleanup. Record rollback evidence when verification fails.
@@ -30,6 +30,7 @@ Stop for credentials or permissions that are unavailable; a materially unresolve
 ## Scheduling And Context
 
 - Prioritize dependency-ready critical-path Tickets. Prefer interface-first work where it unlocks independent lanes.
+- Use `claim-lane` and `materialize-lane` only for explicitly compatible ready Tickets. A blocked lane sibling never delays another Ticket's receipt, integration, or dependent release.
 - Keep mutable ownership and proof paths disjoint. Integrate incrementally rather than waiting for one final bulk merge.
 - Build child prompts with a stable instruction prefix and canonical field order. Put volatile run data last, omit empty fields, sort stable IDs, and preserve whitespace.
 - Give each child only its materialized Ticket, relevant versioned cohort context, named dependency contracts, and required source slices. Never send the whole PRD, manifest, event stream, unrelated receipts, or raw test logs.

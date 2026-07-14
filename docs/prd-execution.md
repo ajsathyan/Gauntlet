@@ -35,7 +35,7 @@ This default does not manufacture authority. Stop for missing credentials or per
 
 ## Compilation And Scheduling
 
-Compile the PRD deterministically from stable IDs and source hashes. One implementation plan may span multiple Epics. Prefer one active ticket per implementation agent; an agent may receive sequential related tickets when affinity reduces context cost. Do not co-own one implementation ticket across agents. Independent verifier tickets may inspect the same integrated output.
+Compile the PRD deterministically from stable IDs and source hashes. One implementation plan may span multiple Epics. Prefer one active ticket per implementation agent. When several ready Tickets declare the same affinity and share a cohort and dependency contract, the parent may claim them as one context lane for the same agent. A lane has no fixed Ticket ceiling, but each Ticket keeps its own lease, receipt, status, integration proof, and dependency release. Do not co-own one implementation ticket across agents. Independent verifier tickets may inspect the same integrated output.
 
 The controller stores one normalized `ticket-graph.json` for validation and state transitions, then renders immutable prose Tickets for dispatch. The JSON is a machine artifact, not a giant child prompt; children receive only their individual Markdown bundle.
 
@@ -43,6 +43,7 @@ Schedule from a dynamic ready queue:
 
 - prioritize the critical path and tickets that unlock the most downstream work;
 - use agent affinity for related files, contracts, tools, or domain context;
+- bundle only explicitly compatible ready Tickets into a lane, then integrate each Ticket as soon as its own proof passes;
 - land interface-first tickets early so dependent tickets consume an explicit contract;
 - integrate completed tickets continuously and run their targeted proof immediately;
 - apply Cohort Verification only where tickets share a material interface or invariant;
@@ -89,7 +90,7 @@ executions/<run-id>/
 
 `source-lock.json` pins the PRD revision, selected Epic and Scope Area sections, instruction version, release contract, and applicable release stages. `manifest.json` owns validated run and ticket state. `resume.md` is the minimal reentry view. Events are append-only diagnostics, not the normal context source. Tickets are immutable after dispatch; a changed requirement creates a new revision or selectively invalidates affected tickets through source-section hashes.
 
-After the run starts, these artifacts are authoritative for execution state. Conversation remains the place for user decisions, but a compaction or restart must rehydrate from the source lock, manifest, and resume file rather than reconstructing progress from chat. The parent alone updates the manifest, resume, cohort results, and release records. A child owns its worktree plus its assigned receipt and evidence paths. Use atomic writes, an exclusive parent-process lock, an agent-and-attempt lease, hash-pinned proof artifacts, and validated state transitions so stale or concurrent agents cannot overwrite current state. Reconciliation keeps a recovery journal and restores the prior consistent source/graph generation after an interrupted update.
+After the run starts, these artifacts are authoritative for execution state. Conversation remains the place for user decisions, but a compaction or restart must rehydrate from the source lock, manifest, and resume file rather than reconstructing progress from chat. The parent alone updates the manifest, resume, cohort results, lanes, and release records. A child owns its worktree plus its assigned receipt and evidence paths. Use atomic writes, an exclusive parent-process lock, an agent-and-attempt lease, hash-pinned proof artifacts, and validated state transitions so stale or concurrent agents cannot overwrite current state. The event journal is reconciled to the manifest's committed sequence on every restart, discarding an uncommitted or partial tail without replaying an event twice. Reconciliation keeps a recovery journal, restores the prior consistent source/graph generation after an interrupted update, and treats identical repeated input as a no-op.
 
 The lifecycle is:
 
@@ -103,7 +104,7 @@ Skip inapplicable external stages explicitly; do not claim them from a status la
 
 ## Bounded Child Context
 
-Materialize one compact child bundle from deterministic state. A child reads only:
+Materialize each compact child bundle from deterministic state through the shared generated-context renderer. A lane may materialize several compatible Ticket bundles in one controller call; their common stable-prefix digest confirms context reuse, while the Ticket and receipt handoff remain volatile and last. The renderer also writes privacy-safe byte-digest metadata without source paths or authenticated-provenance claims. A child reads only:
 
 - its ticket and stable instruction contract;
 - the relevant versioned shared context for its cohort;

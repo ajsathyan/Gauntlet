@@ -19,6 +19,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from generated_context import ContextError, render_manifest
+
 
 STATES = (
     "discussing",
@@ -37,6 +39,7 @@ RELEASE_STAGES = ("deployment", "production-verification")
 RELEASE_APPLICABILITY = ("merge", "deployment", "production-verification")
 ID_RE = re.compile(r"^[A-Z][A-Z0-9_-]{0,63}$")
 BRANCH_RE = re.compile(r"^(?!/)(?!-)(?!.*(?:\.\.|//|@\{|[ ~^:?*\[\\]))[A-Za-z0-9._/@-]{1,255}(?<![/.])$")
+LANE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 PROTOCOL_VERSION = 1
 INTEGRATION_MODE = "parent-branch"
 PR_STRATEGY = "one-final-pr-per-run"
@@ -175,6 +178,37 @@ def verify_pinned_artifacts(run: Path, manifest: dict[str, Any]) -> None:
             raise RunError(f"pinned execution artifact changed or disappeared: {relative}")
 
 
+def recover_event_journal(run: Path) -> None:
+    """Keep the journal at the exact prefix committed by manifest.event_sequence."""
+
+    manifest_path = run / "manifest.json"
+    journal_path = run / "events.jsonl"
+    if not manifest_path.is_file() or not journal_path.is_file():
+        return
+    manifest = read_json(manifest_path)
+    expected = manifest.get("event_sequence", 0)
+    if not isinstance(expected, int) or isinstance(expected, bool) or expected < 0:
+        raise RunError("manifest event_sequence must be a non-negative integer")
+    data = journal_path.read_bytes()
+    committed: list[bytes] = []
+    for line in data.splitlines(keepends=True):
+        if not line.endswith(b"\n") or len(committed) == expected:
+            break
+        try:
+            record = json.loads(line)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise RunError("event journal is corrupt before the committed boundary") from exc
+        sequence = len(committed) + 1
+        if not isinstance(record, dict) or record.get("sequence") != sequence:
+            raise RunError(f"event journal sequence {sequence} is missing or out of order")
+        committed.append(line)
+    if len(committed) != expected:
+        raise RunError(f"event journal has {len(committed)} valid committed events; manifest requires {expected}")
+    canonical_prefix = b"".join(committed)
+    if data != canonical_prefix:
+        atomic_text(journal_path, canonical_prefix.decode("utf-8"))
+
+
 def recover_transactions(run: Path) -> None:
     for name in ("compile", "reconcile"):
         temporary = run / f".{name}-backup.tmp"
@@ -241,6 +275,12 @@ def require_id(value: Any, label: str) -> str:
 def require_branch(value: Any, label: str) -> str:
     if not isinstance(value, str) or not BRANCH_RE.fullmatch(value) or value in {"main", "master"}:
         raise RunError(f"{label} must be a valid non-default Git branch")
+    return value
+
+
+def require_lane(value: Any, label: str = "lane") -> str:
+    if not isinstance(value, str) or not LANE_RE.fullmatch(value):
+        raise RunError(f"{label} must match {LANE_RE.pattern}")
     return value
 
 
@@ -443,6 +483,8 @@ def event(run: Path, manifest: dict[str, Any], action: str, payload: dict[str, A
         os.fsync(fd)
     finally:
         os.close(fd)
+    if os.environ.get("PRD_RUN_FAIL_EVENT_AFTER") == action:
+        raise RunError(f"injected event interruption after {action}")
     manifest["event_sequence"] = sequence
 
 
@@ -611,7 +653,7 @@ def cmd_init(args: argparse.Namespace) -> None:
             "pr_strategy": PR_STRATEGY,
         },
         "release": {"applicability": {key: key in stages for key in RELEASE_APPLICABILITY}},
-        "run_id": args.run_id, "shared_context": {},
+        "run_id": args.run_id, "shared_context": {}, "lanes": {},
         "source": {"path": str(source), "sha256": source_hash}, "state": "discussing", "tickets": {},
     }
     atomic_json(run / "source-lock.json", lock)
@@ -765,6 +807,64 @@ def cmd_claim(args: argparse.Namespace) -> None:
     save_manifest(run, manifest)
 
 
+def cmd_claim_lane(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    require_state(manifest, ("executing", "integrating"))
+    refresh_readiness(manifest)
+    lane_id = require_lane(args.lane)
+    lanes = manifest.setdefault("lanes", {})
+    if lane_id in lanes:
+        raise RunError(f"lane {lane_id} already exists")
+    ticket_ids = sorted(set(args.ticket))
+    if len(ticket_ids) != len(args.ticket):
+        raise RunError("lane tickets must be unique")
+    if args.attempt < 1:
+        raise RunError("attempt must be positive")
+    agent = require_string(args.agent, "agent")
+    active = [
+        ticket_id for ticket_id, item in manifest["tickets"].items()
+        if item["status"] == "dispatched" and (item.get("lease") or {}).get("agent") == agent
+    ]
+    if active:
+        raise RunError(f"agent {agent} already owns active ticket {active[0]}")
+    graph = read_json(run / "ticket-graph.json")
+    graph_by_id = {item["id"]: item for item in graph["tickets"]}
+    items = []
+    for ticket_id in ticket_ids:
+        state = get_ticket(manifest, ticket_id)
+        if state["status"] != "ready":
+            raise RunError(f"ticket {ticket_id} is {state['status']}, not ready")
+        ticket = graph_by_id[ticket_id]
+        if args.affinity not in ticket["affinity"]:
+            raise RunError(f"ticket {ticket_id} does not declare lane affinity {args.affinity}")
+        items.append((ticket_id, state, ticket))
+    cohorts = {ticket["cohort_id"] for _, _, ticket in items}
+    dependencies = {tuple(ticket["dependencies"]) for _, _, ticket in items}
+    if len(cohorts) != 1 or len(dependencies) != 1:
+        raise RunError("lane tickets must share one cohort and identical dependency contracts")
+    lanes[lane_id] = {
+        "affinity": args.affinity,
+        "agent": agent,
+        "attempt": args.attempt,
+        "cohort_id": next(iter(cohorts)),
+        "dependencies": list(next(iter(dependencies))),
+        "ticket_ids": ticket_ids,
+    }
+    for ticket_id, state, _ in items:
+        state["lease"] = {"agent": agent, "attempt": args.attempt, "lane": lane_id}
+        state["status"] = "dispatched"
+        event(run, manifest, "ticket_claimed", {
+            "agent": agent, "attempt": args.attempt, "lane": lane_id,
+            "revision": state["revision"], "ticket": ticket_id,
+        })
+    event(run, manifest, "lane_claimed", {
+        "affinity": args.affinity, "agent": agent, "attempt": args.attempt,
+        "lane": lane_id, "tickets": ticket_ids,
+    })
+    save_manifest(run, manifest)
+
+
 def cmd_ready(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
@@ -812,49 +912,112 @@ def dependency_receipts(run: Path, manifest: dict[str, Any], item: dict[str, Any
         if dep["status"] != "integrated" or not dep.get("receipt_file") or not path.is_file():
             raise RunError(f"dependency {dependency} is not integrated")
         receipt = read_json(path)
-        output.append({"evidence": receipt["evidence"], "outputs": receipt["outputs"], "summary": receipt["summary"], "ticket": dependency})
+        evidence = []
+        for reference in receipt["evidence"]:
+            candidate = Path(reference)
+            if candidate.is_absolute():
+                candidate = candidate.resolve().relative_to(run)
+            evidence.append(candidate.as_posix())
+        output.append({"evidence": evidence, "outputs": receipt["outputs"], "summary": receipt["summary"], "ticket": dependency})
     return output
 
 
-def cmd_materialize(args: argparse.Namespace) -> None:
-    run = run_path(args.run)
-    manifest = load_manifest(run)
-    item = get_ticket(manifest, args.ticket)
+def materialize_bundle(run: Path, manifest: dict[str, Any], ticket_id: str) -> dict[str, Any]:
+    item = get_ticket(manifest, ticket_id)
     if item["status"] != "dispatched" or not item.get("lease"):
-        raise RunError(f"ticket {args.ticket} cannot be materialized while {item['status']}")
-    ticket_text = (run / item["ticket_file"]).read_text().rstrip()
+        raise RunError(f"ticket {ticket_id} cannot be materialized while {item['status']}")
     cohort_id = item["cohort_id"]
-    cohort_path = run / manifest["shared_context"]["cohorts"][cohort_id]
     dependencies = dependency_receipts(run, manifest, item)
-    dependency_text = pretty_json(dependencies).rstrip() if dependencies else "[]"
     lease = item["lease"]
-    evidence_destination = f"evidence/{args.ticket}.r{item['revision']}.a{lease['attempt']}.md"
-    receipt_destination = f"handoffs/{args.ticket}.r{item['revision']}.a{lease['attempt']}.receipt.json"
+    stem = f"{ticket_id}.r{item['revision']}.a{lease['attempt']}"
+    canonical_bundle = run / "handoffs" / f"{stem}.bundle.md"
+    metadata_path = run / "handoffs" / f"{stem}.context.json"
+    canonical_relative = str(canonical_bundle.relative_to(run))
+    if (
+        canonical_bundle.is_file()
+        and canonical_relative in manifest.get("artifact_hashes", {})
+        and not metadata_path.exists()
+    ):
+        return {
+            "bundle": canonical_relative,
+            "content": canonical_bundle.read_text(),
+            "metadata": None,
+            "stable_prefix_sha256": None,
+            "ticket": ticket_id,
+        }
+    evidence_destination = f"evidence/{stem}.md"
+    receipt_destination = f"handoffs/{stem}.receipt.json"
     evidence_absolute = str(run / evidence_destination)
     receipt_absolute = str(run / receipt_destination)
     receipt_schema = pretty_json({
         "agent": lease["agent"], "attempt": lease["attempt"], "changed_paths": [],
         "evidence": [evidence_absolute], "outputs": [], "revision": item["revision"],
-        "risks": [], "status": "complete", "summary": "<concise behavioral result>", "ticket": args.ticket,
+        "risks": [], "status": "complete", "summary": "<concise behavioral result>", "ticket": ticket_id,
     }).rstrip()
-    bundle = (
-        "# Gauntlet child execution bundle\n\n"
+    handoff = (
         "Protocol: prd-run/v1\n"
         "Use only this bundle, the named relevant source files, and direct tool observations.\n"
         "Do not read the PRD, manifest, event log, or unrelated tickets and receipts.\n"
         "Work only within ticket ownership. Return the requested compact receipt inputs to the parent.\n\n"
-        f"{(run / manifest['shared_context']['global']).read_text().rstrip()}\n\n"
-        f"{cohort_path.read_text().rstrip()}\n\n"
-        "# Dependency contracts\n\n"
-        f"{dependency_text}\n\n"
-        "# Assigned ticket (variable context follows)\n\n"
-        f"{ticket_text}\n\n"
-        "# Receipt handoff (attempt-specific context follows)\n\n"
         f"Execution run root: `{run}`\n"
         f"Write meaningful raw evidence to `{evidence_absolute}`.\n"
         f"Write the compact receipt JSON to `{receipt_absolute}` using this exact schema:\n\n"
         f"```json\n{receipt_schema}\n```\n"
     )
+    handoff_relative = f"handoffs/{stem}.handoff.md"
+    atomic_text(run / handoff_relative, handoff)
+    dependency_sources = []
+    for dependency in dependencies:
+        relative = f"handoffs/{stem}.dependency-{dependency['ticket']}.json"
+        atomic_json(run / relative, dependency)
+        dependency_sources.append({"id": dependency["ticket"], "path": relative, "role": "dependency"})
+    graph = read_json(run / "ticket-graph.json")
+    ticket = next(value for value in graph["tickets"] if value["id"] == ticket_id)
+    context_manifest = {
+        "family": "review" if ticket["kind"] == "verification" else "implementation",
+        "schema_version": 1,
+        "stable_sources": [
+            {"id": "global", "path": manifest["shared_context"]["global"], "role": "global"},
+            {"id": cohort_id, "path": manifest["shared_context"]["cohorts"][cohort_id], "role": "cohort"},
+            *dependency_sources,
+        ],
+        "template_version": 1,
+        "volatile_sources": [
+            {"id": ticket_id, "path": item["ticket_file"], "role": "ticket"},
+            {"id": f"{ticket_id}.r{item['revision']}.a{lease['attempt']}", "path": handoff_relative, "role": "handoff"},
+        ],
+    }
+    try:
+        rendered = render_manifest(
+            context_manifest,
+            source_root=run,
+            template_root=Path(__file__).resolve().parents[1] / "templates" / "generated-context",
+        )
+    except ContextError as exc:
+        raise RunError(f"generated context failed ({exc.code}): {exc}") from exc
+    bundle = rendered.prompt.decode("utf-8")
+    if canonical_bundle.exists() and canonical_bundle.read_text() != bundle:
+        raise RunError("materialized bundle for this lease is immutable")
+    if metadata_path.exists() and metadata_path.read_bytes() != rendered.metadata_bytes:
+        raise RunError("generated-context metadata for this lease is immutable")
+    atomic_text(canonical_bundle, bundle)
+    atomic_text(metadata_path, rendered.metadata_bytes.decode("utf-8"))
+    for relative in [handoff_relative, *(source["path"] for source in dependency_sources)]:
+        pin_artifact(run, manifest, run / relative)
+    pin_artifact(run, manifest, canonical_bundle)
+    pin_artifact(run, manifest, metadata_path)
+    return {
+        "bundle": str(canonical_bundle.relative_to(run)),
+        "content": bundle,
+        "metadata": str(metadata_path.relative_to(run)),
+        "stable_prefix_sha256": rendered.metadata["stable_prefix_sha256"],
+        "ticket": ticket_id,
+    }
+
+
+def cmd_materialize(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
     if args.output:
         output = Path(args.output).resolve()
         try:
@@ -863,16 +1026,35 @@ def cmd_materialize(args: argparse.Namespace) -> None:
             pass
         else:
             raise RunError("--output cannot overwrite execution-run files; use the canonical handoff bundle")
-    canonical_bundle = run / "handoffs" / f"{args.ticket}.r{item['revision']}.a{lease['attempt']}.bundle.md"
-    if canonical_bundle.exists() and canonical_bundle.read_text() != bundle:
-        raise RunError("materialized bundle for this lease is immutable")
-    atomic_text(canonical_bundle, bundle)
-    pin_artifact(run, manifest, canonical_bundle)
+    result = materialize_bundle(run, manifest, args.ticket)
     save_manifest(run, manifest)
     if args.output:
-        atomic_text(Path(args.output), bundle)
+        atomic_text(Path(args.output), result["content"])
     else:
-        sys.stdout.write(bundle)
+        sys.stdout.write(result["content"])
+
+
+def cmd_materialize_lane(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    lane_id = require_lane(args.lane)
+    lane = manifest.get("lanes", {}).get(lane_id)
+    if not lane:
+        raise RunError(f"unknown lane {lane_id}")
+    eligible = [
+        ticket_id for ticket_id in lane["ticket_ids"]
+        if manifest["tickets"][ticket_id]["status"] == "dispatched"
+        and (manifest["tickets"][ticket_id].get("lease") or {}).get("lane") == lane_id
+    ]
+    if not eligible:
+        raise RunError(f"lane {lane_id} has no dispatched tickets to materialize")
+    results = [materialize_bundle(run, manifest, ticket_id) for ticket_id in eligible]
+    save_manifest(run, manifest)
+    public = {
+        "lane": lane_id,
+        "tickets": [{key: value for key, value in item.items() if key != "content"} for item in results],
+    }
+    print(pretty_json(public), end="")
 
 
 def validate_receipt(raw: Any, item: dict[str, Any], ticket_id: str, agent: str, attempt: int) -> dict[str, Any]:
@@ -1107,6 +1289,13 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
         raise RunError("reconciled graph Epics do not match the locked target")
     if set(graph["scope_areas"]) != set(source_info["scope_hashes"]):
         raise RunError("reconciled graph Scope Areas do not match the PRD target")
+    if (
+        str(source) == lock["source_path"]
+        and sha_file(source) == lock["source_sha256"]
+        and object_hash(graph) == manifest["graph_sha256"]
+    ):
+        print(pretty_json({"changed_scopes": [], "invalidated_tickets": []}), end="")
+        return
     new_scope_hashes = source_info["scope_hashes"]
     changed_scopes = {key for key in set(lock["scope_hashes"]) | set(new_scope_hashes) if lock["scope_hashes"].get(key) != new_scope_hashes.get(key)}
     impacted = {ticket_id for ticket_id, item in new_by_id.items() if changed_scopes.intersection(item["scope_area_ids"]) or object_hash(item) != object_hash(old_by_id[ticket_id])}
@@ -1210,12 +1399,17 @@ def parser() -> argparse.ArgumentParser:
     compile_cmd.add_argument("--run", required=True); compile_cmd.add_argument("--graph", required=True); compile_cmd.set_defaults(func=cmd_compile)
     claim = commands.add_parser("claim")
     claim.add_argument("--run", required=True); claim.add_argument("--ticket", required=True); claim.add_argument("--agent", required=True); claim.add_argument("--attempt", required=True, type=int); claim.set_defaults(func=cmd_claim)
+    claim_lane = commands.add_parser("claim-lane")
+    claim_lane.add_argument("--run", required=True); claim_lane.add_argument("--lane", required=True); claim_lane.add_argument("--agent", required=True)
+    claim_lane.add_argument("--attempt", required=True, type=int); claim_lane.add_argument("--affinity", required=True); claim_lane.add_argument("--ticket", required=True, action="append"); claim_lane.set_defaults(func=cmd_claim_lane)
     ready = commands.add_parser("ready")
     ready.add_argument("--run", required=True); ready.add_argument("--affinity"); ready.set_defaults(func=cmd_ready)
     resume = commands.add_parser("resume")
     resume.add_argument("--run", required=True); resume.set_defaults(func=cmd_resume)
     materialize = commands.add_parser("materialize-ticket")
     materialize.add_argument("--run", required=True); materialize.add_argument("--ticket", required=True); materialize.add_argument("--output"); materialize.set_defaults(func=cmd_materialize)
+    materialize_lane = commands.add_parser("materialize-lane")
+    materialize_lane.add_argument("--run", required=True); materialize_lane.add_argument("--lane", required=True); materialize_lane.set_defaults(func=cmd_materialize_lane)
     receipt = commands.add_parser("record-receipt")
     receipt.add_argument("--run", required=True); receipt.add_argument("--ticket", required=True); receipt.add_argument("--receipt", required=True); receipt.set_defaults(func=cmd_receipt)
     integrate = commands.add_parser("integrate")
@@ -1246,6 +1440,7 @@ def main() -> int:
             with (run / ".prd-run.lock").open("a+") as lock:
                 fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
                 recover_transactions(run)
+                recover_event_journal(run)
                 args.func(args)
         else:
             args.func(args)
