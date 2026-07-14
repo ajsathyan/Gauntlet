@@ -401,9 +401,9 @@
       "contract": {
         "expectedOutcome": "proposals-dispatched",
         "requiredActions": [
-          {"type": "spawn_independent_proposal", "target": "proposal-a", "forkTurns": "none", "packetHash": "sha256:frozen-evidence-v1", "assignmentPosition": "last"},
-          {"type": "spawn_independent_proposal", "target": "proposal-b", "forkTurns": "none", "packetHash": "sha256:frozen-evidence-v1", "assignmentPosition": "last"},
-          {"type": "spawn_independent_proposal", "target": "proposal-c", "forkTurns": "none", "packetHash": "sha256:frozen-evidence-v1", "assignmentPosition": "last"}
+          {"type": "spawn_independent_proposal", "target": "proposal-a", "forkTurns": "none", "packetHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "assignmentPosition": "last"},
+          {"type": "spawn_independent_proposal", "target": "proposal-b", "forkTurns": "none", "packetHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "assignmentPosition": "last"},
+          {"type": "spawn_independent_proposal", "target": "proposal-c", "forkTurns": "none", "packetHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "assignmentPosition": "last"}
         ],
         "forbiddenActions": [
           {"type": "inherit_parent_turns"},
@@ -439,12 +439,12 @@
         "candidate": {
           "outcome": "proposals-dispatched",
           "actions": [
-            {"type": "spawn_independent_proposal", "target": "proposal-a", "forkTurns": "none", "packetHash": "sha256:frozen-evidence-v1", "assignmentPosition": "last", "authority": "internal_delegation"},
-            {"type": "spawn_independent_proposal", "target": "proposal-b", "forkTurns": "none", "packetHash": "sha256:frozen-evidence-v1", "assignmentPosition": "last", "authority": "internal_delegation"},
-            {"type": "spawn_independent_proposal", "target": "proposal-c", "forkTurns": "none", "packetHash": "sha256:frozen-evidence-v1", "assignmentPosition": "last", "authority": "internal_delegation"}
+            {"type": "spawn_independent_proposal", "target": "proposal-a", "forkTurns": "none", "packetHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "assignmentPosition": "last", "authority": "internal_delegation"},
+            {"type": "spawn_independent_proposal", "target": "proposal-b", "forkTurns": "none", "packetHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "assignmentPosition": "last", "authority": "internal_delegation"},
+            {"type": "spawn_independent_proposal", "target": "proposal-c", "forkTurns": "none", "packetHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "assignmentPosition": "last", "authority": "internal_delegation"}
           ],
           "proof": [
-            {"type": "packet_integrity", "subject": "shared-evidence-packet", "ref": "sha256:frozen-evidence-v1", "passed": true},
+            {"type": "packet_integrity", "subject": "shared-evidence-packet", "ref": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "passed": true},
             {"type": "prompt_order", "subject": "stable-prefix-variable-suffix", "ref": "template:assignment-last", "passed": true}
           ],
           "routingChoice": "no-history-breakthrough-dispatch",

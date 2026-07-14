@@ -3686,6 +3686,22 @@ def test_skill_changes_are_guarded_by_pre_commit():
     for marker in ["Gauntlet skill changes detected", "targeted skill evals: planner", "skill evals:", "orchestration trace evals:", "skill linter"]:
         assert_contains(result.stdout, marker, "skill change checks")
 
+    result = run([
+        str(skill_check), "--changed-files",
+        "skills/refactor-codebase/assets/breakthrough-agent-packet.md",
+    ], cwd=ROOT)
+    for marker in ["Gauntlet skill changes detected", "targeted skill evals: refactor-codebase", "Ran 25 tests", "skill linter"]:
+        assert_contains(result.stdout + result.stderr, marker, "refactor asset change checks")
+
+
+def test_refactor_agent_prompt_renderer_integrity():
+    result = run([
+        "python3", "-m", "unittest", "discover",
+        "-s", str(SKILLS / "refactor-codebase" / "scripts"),
+        "-p", "test_render_agent_prompt.py", "-v",
+    ], cwd=ROOT)
+    assert_contains(result.stdout + result.stderr, "Ran 6 tests", "refactor prompt renderer tests")
+
 
 def test_superpowers_sources_are_attributed_and_retirement_is_allowlisted():
     attribution = ROOT / "docs" / "upstream-superpowers.md"
@@ -3927,6 +3943,7 @@ def main():
         test_skill_evals_separate_scorer_smoke_from_orchestration_outcomes,
         test_skill_linter_examples_and_noop_pruning,
         test_skill_changes_are_guarded_by_pre_commit,
+        test_refactor_agent_prompt_renderer_integrity,
         test_codex_install_layout_supports_workflow_check,
         test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks,
         test_superpowers_sources_are_attributed_and_retirement_is_allowlisted,

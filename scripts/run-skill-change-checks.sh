@@ -24,7 +24,7 @@ changed_skill_names=()
 if [ "${#changed_files[@]}" -gt 0 ]; then
   for file in "${changed_files[@]}"; do
     case "$file" in
-      skills/*/SKILL.md|skills/*/examples/*)
+      skills/*/*)
         skill_change=1
         skill_name="${file#skills/}"
         skill_name="${skill_name%%/*}"
@@ -81,5 +81,18 @@ fi
   --skills-root "$SKILLS_ROOT" \
   --only "$skill_names" \
   --json > "$ROOT/evals/results/skill-change-lint.json"
+
+if printf '%s\n' "${changed_skill_names[@]}" | grep -qx 'refactor-codebase'; then
+  env \
+    -u GIT_DIR \
+    -u GIT_WORK_TREE \
+    -u GIT_INDEX_FILE \
+    -u GIT_OBJECT_DIRECTORY \
+    -u GIT_ALTERNATE_OBJECT_DIRECTORIES \
+    -u GIT_COMMON_DIR \
+    python3 -m unittest discover \
+    -s "$SKILLS_ROOT/refactor-codebase/scripts" \
+    -p 'test_*.py'
+fi
 
 echo "skill linter: passed"
