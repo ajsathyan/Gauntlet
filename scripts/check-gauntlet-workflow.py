@@ -493,9 +493,10 @@ def test_skill_quality_bar_is_trigger_bounded():
     router = read(ROUTER_MD)
     readme = read(README_MD)
     quality_bar = read(ROOT / "docs" / "skill-quality-bar.md")
+    custom_agent_routing = read(ROOT / "docs" / "custom-agent-routing.md")
     coverage = read(ROOT / "docs" / "coverage-gaps.md")
     plan = read(ROOT / "docs" / "skill-quality-implementation-plan.md")
-    combined = "\n".join([agents, router, readme, quality_bar, coverage, plan])
+    combined = "\n".join([agents, router, readme, quality_bar, custom_agent_routing, coverage, plan])
 
     for marker in [
         "Skill Quality Bar",
@@ -514,6 +515,25 @@ def test_skill_quality_bar_is_trigger_bounded():
         "Matt Pocock",
     ]:
         assert_contains(combined, marker, "skill quality bar guidance")
+
+    assert_contains(agents, "Before finalizing a skill with `skill-creator`", "Gauntlet skill-creator checkpoint")
+    for marker in [
+        "Efficiency, Assignment, And Drift Pass",
+        "Is this cache-hit friendly in every step?",
+        "Are there ways to improve token efficiency?",
+        "Is this being assigned to the right custom agent?",
+        "How should this skill be structured to avoid response drift from its instructions?",
+        "route-codex-agent.py",
+    ]:
+        assert_contains(quality_bar, marker, "skill efficiency guidance")
+
+    for marker in [
+        "Pre-Dispatch Efficiency And Drift Check",
+        "Is this Ticket structured to avoid response drift from its instructions?",
+        "classifier result and started profile to match",
+        "stop and reclassify instead of silently substituting a profile",
+    ]:
+        assert_contains(custom_agent_routing, marker, "custom-agent efficiency guidance")
 
     for marker in [
         "ordinary Patch",

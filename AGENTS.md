@@ -130,6 +130,8 @@ Domain/tool skills may add concrete capability without imposing a second plannin
 
 Create every Gauntlet-owned skill under this repository's `skills/` directory with the installed `skill-creator`. The Codex and Claude Code plugin manifests bundle that directory automatically; do not maintain a separate installed copy as source. Use family prefixes such as `craft-` and `eval-` only when they make a coherent capability family easier to discover.
 
+Before finalizing a skill with `skill-creator`, ask: **Is this cache-hit friendly in every step? Are there ways to improve token efficiency? Is this being assigned to the right custom agent? How should this skill be structured to avoid response drift from its instructions?** Apply the detailed, trigger-bounded review in `docs/skill-quality-bar.md`; do not add delegation fields when the skill never delegates.
+
 Selected techniques adapted from Jesse Vincent's Superpowers are tracked in `docs/upstream-superpowers.md`; Gauntlet owns the runtime behavior and Superpowers remains disabled as a lifecycle.
 
 For meaningful skill, router, eval, or workflow changes, apply `docs/skill-quality-bar.md`: behavior delta, trigger clarity, completion criterion, output contract, positive steering, no-op pruning, progressive disclosure, practical explanation, cheap harness mechanics, negative cases, authority/completion checks, and baseline provenance.
