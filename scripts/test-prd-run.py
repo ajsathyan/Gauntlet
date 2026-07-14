@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import subprocess
 import tempfile
@@ -64,6 +65,14 @@ class PrdRunTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
+        self.repo = self.root / "repo"
+        self.repo.mkdir()
+        subprocess.run(["git", "init", "-q", "-b", "run/RUN1"], cwd=self.repo, check=True)
+        subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=self.repo, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=self.repo, check=True)
+        (self.repo / "tracked.txt").write_text("clean\n")
+        subprocess.run(["git", "add", "tracked.txt"], cwd=self.repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=self.repo, check=True)
         self.source = self.root / "prd.md"
         self.source.write_text(
             "# PRD\n\nImplementation target: E1\n\n## Epic E1: Balance\n\nEpic status: Accepted\n\n"
@@ -84,8 +93,8 @@ class PrdRunTests(unittest.TestCase):
     def write_graph(self, value: dict) -> None:
         self.graph.write_text(json.dumps(value))
 
-    def run_command(self, *args: str, ok: bool = True, env=None) -> subprocess.CompletedProcess[str]:
-        result = subprocess.run(["python3", str(SCRIPT), *args], text=True, capture_output=True, env={**os.environ, **(env or {})})
+    def run_command(self, *args: str, ok: bool = True, env=None, cwd=None) -> subprocess.CompletedProcess[str]:
+        result = subprocess.run(["python3", str(SCRIPT), *args], text=True, capture_output=True, cwd=cwd or self.repo, env={**os.environ, **(env or {})})
         if ok and result.returncode:
             self.fail(f"command failed: {args}\nstdout={result.stdout}\nstderr={result.stderr}")
         if not ok and result.returncode == 0:
@@ -141,11 +150,18 @@ class PrdRunTests(unittest.TestCase):
             "branch": "run/RUN1",
             "merge_executor": "parent-after-user-authority",
             "mode": "parent-branch",
-            "pr_strategy": "one-final-pr-per-run",
+            "pr_strategy": "single-final-pr",
         })
         resume = (self.run / "resume.md").read_text()
         self.assertIn("Integration branch: run/RUN1", resume)
-        self.assertIn("PR strategy: one-final-pr-per-run", resume)
+        self.assertIn("PR strategy: single-final-pr", resume)
+        common = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"], cwd=self.repo,
+            text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        registry = Path(common) if Path(common).is_absolute() else (self.repo / common).resolve()
+        bindings = json.loads((registry / "gauntlet" / "run-bindings.json").read_text())
+        self.assertEqual(Path(bindings["run/RUN1"]["run"]).resolve(), self.run.resolve())
 
     def test_init_accepts_named_branch_and_rejects_default_branch(self) -> None:
         self.run_command(
@@ -183,7 +199,7 @@ class PrdRunTests(unittest.TestCase):
         self.assertNotIn("Initial requirements", first)
         self.assertNotIn('"event_sequence"', first)
         self.assertNotIn("T2: Render balance", first)
-        self.assertNotIn("one-final-pr-per-run", first)
+        self.assertNotIn("single-final-pr", first)
         self.assertNotIn("run/RUN1", first)
         self.assertLess(first.index("# Global context"), first.index("# Cohort C1 context"))
         self.assertLess(first.index("# Cohort C1 context"), first.index("# Assigned ticket"))
@@ -578,10 +594,11 @@ class PrdRunTests(unittest.TestCase):
         self.run_command("verify-prd", "--run", str(self.run), "--result", "pass", "--summary", "All acceptance behavior observed.", "--evidence", str(prd_evidence))
         self.transition("prd_verified")
         revision = "a" * 40
+        self.run_command("record-authority", "--run", str(self.run), "--capability", "merge-to-default", "--source", "User authorized merge.")
         self.run_command("record-merge", "--run", str(self.run), "--pr", "PR-123", "--merged-sha", revision, "--main-sha", revision, "--evidence", "git-main-check")
         merge_record = self.manifest()["release"]["merge"]
         self.assertEqual(merge_record["integration_branch"], "run/RUN1")
-        self.assertEqual(merge_record["pr_strategy"], "one-final-pr-per-run")
+        self.assertEqual(merge_record["pr_strategy"], "single-final-pr")
         self.transition("merged")
         self.run_command("record-release", "--run", str(self.run), "--stage", "deployment", "--result", "fail", "--summary", "Deployment verification failed.", "--evidence", "deployment-failure-1")
         self.run_command("record-release", "--run", str(self.run), "--stage", "deployment", "--result", "pass", "--summary", "Retried without rollback.", "--evidence", "deployment-id-1", "--revision", revision, ok=False)
@@ -594,6 +611,7 @@ class PrdRunTests(unittest.TestCase):
         self.assertEqual(self.manifest()["state"], "complete")
 
     def test_non_deploy_run_records_reasoned_skips_without_fake_production(self) -> None:
+        subprocess.run(["git", "checkout", "-qb", "run/RUN2"], cwd=self.repo, check=True)
         self.run_command(
             "init", "--executions", str(self.root / "executions"), "--run-id", "RUN2", "--source", str(self.source),
             "--target", "E1", "--release-contract", "doc_org.md:v1", "--release-stages", "merge",
@@ -606,11 +624,21 @@ class PrdRunTests(unittest.TestCase):
         cohort.write_text("# Cohort proof\n\nIndependently compared the public API and view.\n")
         self.run_command("verify-cohort", "--run", str(self.run), "--cohort", "C1", "--result", "pass", "--evidence", str(cohort))
         self.transition("cohort_verified")
+        legacy_manifest = self.manifest()
+        legacy_manifest["integration"].pop("pr_strategy")
+        legacy_lock_path = self.run / "source-lock.json"
+        legacy_lock = json.loads(legacy_lock_path.read_text())
+        legacy_lock.pop("repository_identity")
+        legacy_lock_path.write_text(json.dumps(legacy_lock, indent=2, sort_keys=True) + "\n")
+        legacy_manifest["source_lock_sha256"] = hashlib.sha256(legacy_lock_path.read_bytes()).hexdigest()
+        (self.run / "manifest.json").write_text(json.dumps(legacy_manifest, indent=2, sort_keys=True) + "\n")
+        subprocess.run(["git", "checkout", "-q", "run/RUN1"], cwd=self.repo, check=True)
         prd = self.run / "evidence" / "prd-independent.md"
         prd.write_text("# Full PRD proof\n\nIndependently checked all target outcomes.\n")
         self.run_command("verify-prd", "--run", str(self.run), "--result", "pass", "--summary", "Target verified.", "--evidence", str(prd))
         self.transition("prd_verified")
         revision = "b" * 40
+        self.run_command("record-authority", "--run", str(self.run), "--capability", "merge-to-default", "--source", "User authorized merge.")
         self.run_command("record-merge", "--run", str(self.run), "--pr", "PR-124", "--merged-sha", revision, "--main-sha", revision, "--evidence", "git-main-check")
         self.transition("merged")
         self.run_command("record-release", "--run", str(self.run), "--stage", "deployment", "--result", "skipped", "--summary", "The accepted PRD has no deployment.", "--evidence", "source-lock release applicability")
@@ -631,6 +659,253 @@ class PrdRunTests(unittest.TestCase):
         self.write_graph(invalid)
         self.run_command("compile", "--run", str(self.run), "--graph", str(self.graph), ok=False)
         self.assertFalse((self.run / "ticket-graph.json").exists())
+
+    def test_pr_strategy_is_frozen_and_review_units_are_exact_and_dependency_safe(self) -> None:
+        self.run_command(
+            "init", "--executions", str(self.root / "executions"), "--run-id", "REVIEWRUN",
+            "--source", str(self.source), "--target", "E1", "--release-contract", "doc_org.md:v1",
+            "--pr-strategy", "review-prs-plus-final",
+        )
+        review_run = self.root / "executions" / "REVIEWRUN"
+        self.run_command("transition", "--run", str(review_run), "--to", "accepted")
+        value = graph()
+        value["review_units"] = {
+            "RU2": {"dependencies": ["RU1"], "ticket_ids": ["T2"]},
+            "RU1": {"dependencies": [], "ticket_ids": ["T1"]},
+        }
+        self.write_graph(value)
+        self.run_command("compile", "--run", str(review_run), "--graph", str(self.graph))
+        manifest = json.loads((review_run / "manifest.json").read_text())
+        self.assertEqual(list(manifest["review_units"]), ["RU1", "RU2"])
+        self.assertEqual(manifest["tickets"]["T1"]["review_unit_id"], "RU1")
+        self.assertEqual(manifest["tickets"]["T2"]["review_unit_id"], "RU2")
+
+        for mutation in ("missing", "duplicate", "dependency", "extra_dependency", "cycle"):
+            run_id = f"BAD{mutation.upper()}"
+            self.run_command(
+                "init", "--executions", str(self.root / "executions"), "--run-id", run_id,
+                "--source", str(self.source), "--target", "E1", "--release-contract", "doc_org.md:v1",
+                "--pr-strategy", "review-prs-plus-final",
+            )
+            bad_run = self.root / "executions" / run_id
+            self.run_command("transition", "--run", str(bad_run), "--to", "accepted")
+            bad = graph()
+            if mutation == "missing":
+                bad["review_units"] = {"RU1": {"dependencies": [], "ticket_ids": ["T1"]}}
+            elif mutation == "duplicate":
+                bad["review_units"] = {
+                    "RU1": {"dependencies": [], "ticket_ids": ["T1", "T2"]},
+                    "RU2": {"dependencies": ["RU1"], "ticket_ids": ["T2"]},
+                }
+            elif mutation == "dependency":
+                bad["review_units"] = {
+                    "RU1": {"dependencies": [], "ticket_ids": ["T1"]},
+                    "RU2": {"dependencies": [], "ticket_ids": ["T2"]},
+                }
+            elif mutation == "extra_dependency":
+                bad["tickets"][1]["dependencies"] = []
+                bad["review_units"] = {
+                    "RU1": {"dependencies": [], "ticket_ids": ["T1"]},
+                    "RU2": {"dependencies": ["RU1"], "ticket_ids": ["T2"]},
+                }
+            else:
+                bad["review_units"] = {
+                    "RU1": {"dependencies": ["RU2"], "ticket_ids": ["T1"]},
+                    "RU2": {"dependencies": ["RU1"], "ticket_ids": ["T2"]},
+                }
+            self.write_graph(bad)
+            self.run_command("compile", "--run", str(bad_run), "--graph", str(self.graph), ok=False)
+
+    def test_review_metadata_never_changes_child_bundle_bytes(self) -> None:
+        self.compile_and_start()
+        self.run_command("claim", "--run", str(self.run), "--ticket", "T1", "--agent", "agent-a", "--attempt", "1")
+        single = self.run_command("materialize-ticket", "--run", str(self.run), "--ticket", "T1").stdout
+
+        self.run_command(
+            "init", "--executions", str(self.root / "executions"), "--run-id", "REVIEWBYTES",
+            "--source", str(self.source), "--target", "E1", "--release-contract", "doc_org.md:v1",
+            "--pr-strategy", "review-prs-plus-final",
+        )
+        review_run = self.root / "executions" / "REVIEWBYTES"
+        self.run_command("transition", "--run", str(review_run), "--to", "accepted")
+        value = graph()
+        value["review_units"] = {"RU1": {"dependencies": [], "ticket_ids": ["T1", "T2"]}}
+        self.write_graph(value)
+        self.run_command("compile", "--run", str(review_run), "--graph", str(self.graph))
+        self.run_command("transition", "--run", str(review_run), "--to", "executing")
+        for capability in ("push-review-branch", "open-review-pr"):
+            self.run_command("record-authority", "--run", str(review_run), "--capability", capability, "--source", "Review flow authorized.")
+        self.run_command(
+            "review-unit", "--run", str(review_run), "--unit", "RU1", "--action", "opened",
+            "--branch", "review/RU1", "--pr", "PR-1",
+        )
+        self.run_command("claim", "--run", str(review_run), "--ticket", "T1", "--agent", "agent-a", "--attempt", "1")
+        review = self.run_command("materialize-ticket", "--run", str(review_run), "--ticket", "T1").stdout
+        self.assertEqual(single.replace(str(self.run), "<RUN>"), review.replace(str(review_run), "<RUN>"))
+        self.assertNotIn("RU1", review)
+        self.assertNotIn("review-prs-plus-final", review)
+
+    def test_source_lock_records_canonical_epic_and_scope_names(self) -> None:
+        lock = json.loads((self.run / "source-lock.json").read_text())
+        self.assertEqual(lock["epics"]["E1"]["title"], "Balance")
+        self.assertEqual(lock["epics"]["E1"]["scope_areas"]["E1-S1"]["responsibility"], "Balance behavior")
+
+    def test_review_unit_transitions_are_idempotent_and_reject_stale_base(self) -> None:
+        subprocess.run(["git", "checkout", "-qb", "run/REVIEWSTATE"], cwd=self.repo, check=True)
+        self.run_command(
+            "init", "--executions", str(self.root / "executions"), "--run-id", "REVIEWSTATE",
+            "--source", str(self.source), "--target", "E1", "--release-contract", "doc_org.md:v1",
+            "--pr-strategy", "review-prs-plus-final",
+        )
+        self.run = self.root / "executions" / "REVIEWSTATE"
+        value = graph(); value["review_units"] = {"RU1": {"dependencies": [], "ticket_ids": ["T1", "T2"]}}
+        self.write_graph(value)
+        self.transition("accepted")
+        self.run_command("compile", "--run", str(self.run), "--graph", str(self.graph))
+        self.transition("executing")
+        for capability in ("push-review-branch", "open-review-pr", "merge-to-integration"):
+            self.run_command("record-authority", "--run", str(self.run), "--capability", capability, "--source", "User authorized implementation PR flow.")
+        opened = ("review-unit", "--run", str(self.run), "--unit", "RU1", "--action", "opened", "--branch", "review/RU1", "--pr", "PR-1")
+        self.run_command(*opened); before = (self.run / "manifest.json").read_bytes(); self.run_command(*opened)
+        self.assertEqual((self.run / "manifest.json").read_bytes(), before)
+        proof = self.run / "evidence" / "ru1-check.md"; proof.write_text("# Review check\n\nTests passed against the named merge tree.\n")
+        base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.repo, text=True, capture_output=True, check=True).stdout.strip()
+        tree = subprocess.run(["git", "rev-parse", "HEAD^{tree}"], cwd=self.repo, text=True, capture_output=True, check=True).stdout.strip()
+        head = subprocess.run(
+            ["git", "commit-tree", tree, "-p", base, "-m", "review head"],
+            cwd=self.repo, text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        legacy_tested_merge = subprocess.run(
+            ["git", "commit-tree", tree, "-p", base, "-p", head, "-m", "legacy synthetic merge"],
+            cwd=self.repo, text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        self.run_command(
+            "review-unit", "--run", str(self.run), "--unit", "RU1", "--action", "checked",
+            "--head-sha", head[:8], "--tested-base-sha", base[:8], "--tested-merge-sha", legacy_tested_merge[:8],
+            "--proof-command", "python3 test.py", "--proof-result", "pass", "--proof-evidence", str(proof),
+        )
+        legacy = self.manifest()
+        self.assertEqual(legacy["review_units"]["RU1"]["check"]["head_sha"], head)
+        self.assertEqual(legacy["review_units"]["RU1"]["check"]["tested_base_sha"], base)
+        self.assertEqual(legacy["review_units"]["RU1"]["check"]["tested_tree_sha"], tree)
+        legacy["review_units"]["RU1"]["check"]["tested_merge_sha"] = legacy_tested_merge
+        legacy["review_units"]["RU1"]["check"].pop("tested_tree_sha")
+        (self.run / "manifest.json").write_text(json.dumps(legacy, indent=2, sort_keys=True) + "\n")
+        status = json.loads(self.run_command("review-unit-status", "--run", str(self.run), "--unit", "RU1").stdout)
+        self.assertEqual(status["unit"]["tickets"][0]["epicId"], "E1")
+        self.assertTrue(status["authority"]["merge-to-integration"])
+        self.run_command("review-unit", "--run", str(self.run), "--unit", "RU1", "--action", "merge-locked", "--current-base-sha", head, ok=False)
+        self.assertEqual(self.manifest()["review_units"]["RU1"]["state"], "checked")
+        self.run_command("review-unit", "--run", str(self.run), "--unit", "RU1", "--action", "merge-locked", "--current-base-sha", base)
+        newer_base = subprocess.run(
+            ["git", "commit-tree", tree, "-p", base, "-m", "new integration base"],
+            cwd=self.repo, text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        self.run_command(
+            "review-unit", "--run", str(self.run), "--unit", "RU1", "--action", "checked",
+            "--head-sha", head, "--tested-base-sha", newer_base, "--tested-tree-sha", tree,
+            "--proof-command", "python3 test.py", "--proof-result", "pass", "--proof-evidence", str(proof),
+            ok=False,
+        )
+        fresh_proof = self.run / "evidence" / "ru1-recheck.md"
+        fresh_proof.write_text("# Review recheck\n\nFresh tests passed against the changed base and synthetic tree.\n")
+        self.run_command(
+            "review-unit", "--run", str(self.run), "--unit", "RU1", "--action", "checked",
+            "--head-sha", head, "--tested-base-sha", newer_base, "--tested-tree-sha", tree,
+            "--proof-command", "python3 test.py", "--proof-result", "pass", "--proof-evidence", str(fresh_proof),
+        )
+        self.assertEqual(self.manifest()["review_units"]["RU1"]["state"], "checked")
+        base = newer_base
+        self.run_command("review-unit", "--run", str(self.run), "--unit", "RU1", "--action", "merge-locked", "--current-base-sha", base)
+        merge = subprocess.run(
+            ["git", "commit-tree", tree, "-p", base, "-p", head, "-m", "merge review unit"],
+            cwd=self.repo, text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        subprocess.run(["git", "update-ref", "refs/heads/run/REVIEWSTATE", merge], cwd=self.repo, check=True)
+        self.run_command("review-unit", "--run", str(self.run), "--unit", "RU1", "--action", "merged", "--merge-sha", merge, "--merged-tree-sha", "d" * 40, ok=False)
+        self.assertEqual(self.manifest()["review_units"]["RU1"]["state"], "merge-locked")
+        self.run_command("review-unit", "--run", str(self.run), "--unit", "RU1", "--action", "merged", "--merge-sha", merge, "--merged-tree-sha", tree)
+        verified = self.run / "evidence" / "ru1-verified.md"; verified.write_text("# Verified\n\nIntegration branch contains the reviewed merge.\n")
+        self.run_command("review-unit", "--run", str(self.run), "--unit", "RU1", "--action", "verified", "--evidence", str(verified), "--summary", "Reviewed merge is present.")
+        self.run_command("review-unit", "--run", str(self.run), "--unit", "RU1", "--action", "cleanup-eligible")
+        self.run_command("review-unit", "--run", str(self.run), "--unit", "RU1", "--action", "cleaned")
+        self.assertEqual(self.manifest()["review_units"]["RU1"]["state"], "cleaned")
+
+    def test_project_pr_is_closed_deterministic_and_bound_to_clean_repository(self) -> None:
+        self.compile_and_start(); self.complete("T1", "agent-a"); self.complete("T2", "agent-b")
+        self.transition("integrating")
+        cohort = self.run / "evidence" / "cohort-project.md"; cohort.write_text("# Cohort\n\nAPI and view agree.\n")
+        self.run_command("verify-cohort", "--run", str(self.run), "--cohort", "C1", "--result", "pass", "--evidence", str(cohort))
+        self.transition("cohort_verified")
+        prd = self.run / "evidence" / "prd-project.md"; prd.write_text("# PRD\n\nAll locked outcomes passed independent checks.\n")
+        self.run_command("verify-prd", "--run", str(self.run), "--result", "pass", "--summary", "All outcomes passed.", "--evidence", str(prd))
+        self.transition("prd_verified")
+        summary = self.root / "summary.json"
+        malformed = {
+            "title": "balance: make values canonical", "problem": "Balances could disagree across surfaces.",
+            "solution": {"outcome": "Canonical values.", "invariants": [], "preserved": [], "nonGoals": []},
+            "changelog": "Make account balances consistent.",
+            "testing": [{"command": "python3 test.py", "result": "pass", "proves": "Behavior agrees."}],
+            "securityRisk": None,
+        }
+        summary.write_text(json.dumps(malformed))
+        self.run_command("record-project-summary", "--run", str(self.run), "--artifact", str(summary), ok=False)
+        self.assertFalse((self.run / "release" / "project-summary.json").exists())
+        summary.write_text(json.dumps({
+            "title": "balance: make values canonical",
+            "problem": {"context": "Balances could disagree across surfaces.", "impact": "Users could see conflicting account state."},
+            "solution": {
+                "outcome": "Use one canonical calculation and render its result.",
+                "invariants": ["Stored and rendered balances agree."],
+                "preserved": ["Persistence format remains unchanged."],
+                "nonGoals": ["Redesigning the account page."],
+            },
+            "changelog": "Make account balances consistent across API and view.",
+            "testing": [{"command": "python3 scripts/test-prd-run.py", "result": "pass", "proves": "Independent PRD and cohort checks passed."}],
+            "securityRisk": None,
+        }))
+        self.run_command("record-project-summary", "--run", str(self.run), "--artifact", str(summary))
+        outcome = self.root / "outcome.json"
+        outcome.write_text(json.dumps({
+            "epicId": "E1", "title": "Balance", "outcome": "Balances now agree across supported surfaces.",
+            "scopeAreas": [
+                {"scopeAreaId": "E1-S1", "responsibility": "Balance behavior", "outcome": "The canonical calculator returns the expected value.", "claim": "Calculation is canonical.", "proofLayer": "prd", "evidenceRefs": ["evidence/prd-project.md"], "cannotVerify": []},
+                {"scopeAreaId": "E1-S2", "responsibility": "Presentation behavior", "outcome": "The view renders the canonical value.", "claim": "Presentation matches calculation.", "proofLayer": "cohort", "evidenceRefs": ["evidence/cohort-project.md"], "cannotVerify": []},
+            ], "decisions": [], "risks": [],
+        }))
+        self.run_command("record-epic-outcome", "--run", str(self.run), "--artifact", str(outcome))
+        self.run_command("record-authority", "--run", str(self.run), "--capability", "open-final-pr", "--source", "User requested the final PR.")
+        self.run_command(
+            "record-merge", "--run", str(self.run), "--pr", "PR-NOT-AUTHORIZED", "--merged-sha", "d" * 40,
+            "--main-sha", "d" * 40, "--evidence", "none", ok=False,
+        )
+
+        first = self.run_command("project-pr", "--run", str(self.run)).stdout
+        second = self.run_command("project-pr", "--run", str(self.run)).stdout
+        self.assertEqual(first, second)
+        projected = json.loads(first)
+        self.assertEqual(projected["schemaVersion"], "2.0")
+        self.assertEqual(set(projected), {"schemaVersion", "title", "problem", "solution", "changelog", "testing", "securityRisk", "substantialChanges", "releaseGates", "binding"})
+        self.assertEqual(projected["binding"]["branch"], "run/RUN1")
+        self.assertEqual(projected["problem"]["impact"], "Users could see conflicting account state.")
+        self.assertIsNone(projected["securityRisk"])
+        self.assertEqual(projected["testing"][0]["result"], "pass")
+        self.assertEqual([item["scopeAreaId"] for item in projected["substantialChanges"][0]["scopeAreas"]], ["E1-S1", "E1-S2"])
+        (self.repo / "untracked.txt").write_text("dirty\n")
+        self.run_command("project-pr", "--run", str(self.run), ok=False)
+        (self.repo / "untracked.txt").unlink()
+
+        unrelated = self.root / "unrelated"; unrelated.mkdir()
+        subprocess.run(["git", "init", "-q", "-b", "run/RUN1"], cwd=unrelated, check=True)
+        subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=unrelated, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=unrelated, check=True)
+        (unrelated / "tracked.txt").write_text("clean\n")
+        subprocess.run(["git", "add", "tracked.txt"], cwd=unrelated, check=True)
+        subprocess.run(["git", "commit", "-qm", "unrelated"], cwd=unrelated, check=True)
+        self.run_command("project-pr", "--run", str(self.run), cwd=unrelated, ok=False)
+
+        subprocess.run(["git", "commit", "--allow-empty", "-qm", "post-verification change"], cwd=self.repo, check=True)
+        self.run_command("project-pr", "--run", str(self.run), ok=False)
 
 
 if __name__ == "__main__":
