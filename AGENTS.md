@@ -2,8 +2,6 @@
 
 Gauntlet v2.0.2 is a product-thinking and proof harness for coding agents. This repository file governs work on Gauntlet itself. The portable workflow installed into agent homes lives in `router/AGENTS.md`; do not make the repository guide and global router byte-identical.
 
-Write user-facing explanations and prose artifacts in plain, concise language. Make the reasoning easy to follow from one sentence to the next. Prefer familiar words, and explain necessary technical terms instead of assuming the reader knows Gauntlet or engineering jargon.
-
 ## Sources of truth
 
 - `AGENTS.md`: repository contribution, implementation, proof, and release rules.

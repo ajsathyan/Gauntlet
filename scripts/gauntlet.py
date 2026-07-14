@@ -1241,6 +1241,18 @@ def closeout_fail(payload, code, message):
     return payload
 
 
+def closeout_install_command(repo, args, check=False):
+    command = [str(repo / "scripts" / "install.sh"), "--target", args.install_target]
+    if check:
+        command.append("--check")
+    if args.instructions_reviewed:
+        command.append("--instructions-reviewed")
+    command.extend(["--response-style", args.response_style])
+    if args.install_target == "codex":
+        command.extend(["--codex-preferences", args.codex_preferences])
+    return command
+
+
 def command_closeout_execute(args):
     repo = Path(args.git_root).resolve()
     payload = {
@@ -1320,6 +1332,32 @@ def command_closeout_execute(args):
         closeout_fail(payload, "unscoped_dirty_work", "Closeout refused unrelated or unlisted work: " + ", ".join(unscoped_dirty[:6]))
         print_payload(payload, args.json)
         return EXIT_CODES[payload["status"]]
+
+    if args.install_target != "none":
+        install_env = os.environ.copy()
+        if args.agent_home:
+            install_env["GAUNTLET_AGENT_HOME"] = str(Path(args.agent_home).expanduser())
+        install_preflight = subprocess.run(
+            closeout_install_command(repo, args, check=True),
+            cwd=repo,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=install_env,
+        )
+        payload["install"] = {
+            "target": args.install_target,
+            "applied": False,
+            "preflight": install_preflight.returncode == 0,
+        }
+        if install_preflight.returncode != 0:
+            closeout_fail(
+                payload,
+                "local_install_preflight_failed",
+                install_preflight.stderr.strip() or install_preflight.stdout.strip(),
+            )
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
 
     body_handle = tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, suffix="-gauntlet-pr.md")
     body_path = Path(body_handle.name)
@@ -1405,14 +1443,18 @@ def command_closeout_execute(args):
             if args.agent_home:
                 install_env["GAUNTLET_AGENT_HOME"] = str(Path(args.agent_home).expanduser())
             install_result = subprocess.run(
-                [str(repo / "scripts" / "install.sh"), "--target", args.install_target],
+                closeout_install_command(repo, args),
                 cwd=repo,
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=install_env,
             )
-            payload["install"] = {"target": args.install_target, "applied": install_result.returncode == 0}
+            payload["install"] = {
+                "target": args.install_target,
+                "applied": install_result.returncode == 0,
+                "preflight": True,
+            }
             if install_result.returncode != 0:
                 closeout_fail(payload, "local_install_failed", install_result.stderr.strip() or install_result.stdout.strip())
                 print_payload(payload, args.json)
@@ -2363,6 +2405,7 @@ def command_install_verify(args):
 
     require(agent_home / "gauntlet" / "AGENTS.md", "missing_installed_agents")
     require(agent_home / "gauntlet" / "router" / "AGENTS.md", "missing_router_source")
+    require(agent_home / "gauntlet" / "router" / "response-style.md", "missing_response_style_source")
     require(agent_home / "gauntlet" / "scripts" / "check-gauntlet-workflow.py", "missing_installed_workflow_check")
     require(agent_home / "gauntlet" / "scripts" / "gauntlet.py", "missing_installed_gauntlet_cli")
     require(agent_home / "skills", "missing_installed_skills")
@@ -2372,7 +2415,7 @@ def command_install_verify(args):
         router_text = installed_router.read_text(encoding="utf-8")
         expected_root = str(agent_home / "gauntlet")
         expected_skills = str(agent_home / "skills")
-        if "{{GAUNTLET_ROOT}}" in router_text or "{{AGENT_HOME}}" in router_text:
+        if any(placeholder in router_text for placeholder in ["{{GAUNTLET_ROOT}}", "{{AGENT_HOME}}", "{{RESPONSE_STYLE}}"]):
             findings.append({"code": "unresolved_router_placeholder", "severity": "fail", "message": "Installed router contains an unresolved path placeholder."})
         if expected_root not in router_text:
             findings.append({"code": "missing_installed_root_path", "severity": "fail", "message": "Installed router lacks the rendered Gauntlet root."})
@@ -2462,6 +2505,13 @@ def build_parser():
     closeout_execute.add_argument("--stage", action="append", required=True)
     closeout_execute.add_argument("--install-target", choices=["none", "codex", "claude"], default="none")
     closeout_execute.add_argument("--agent-home", default=None)
+    closeout_execute.add_argument("--instructions-reviewed", action="store_true")
+    closeout_execute.add_argument("--response-style", choices=["gauntlet", "existing"], default="gauntlet")
+    closeout_execute.add_argument(
+        "--codex-preferences",
+        choices=["prompt", "gauntlet", "existing", "skip"],
+        default="prompt",
+    )
     closeout_execute.add_argument("--title", required=True)
     closeout_execute.add_argument("--suggested-title", default=None)
     closeout_execute.add_argument("--content", type=Path, required=True)
