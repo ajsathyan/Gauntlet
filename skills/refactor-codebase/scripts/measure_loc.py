@@ -34,6 +34,11 @@ DEFAULT_RULES: Dict[str, Any] = {
     "categories": {
         "generated": [
             "generated/**", "**/generated/**", "dist/**", "**/dist/**", "build/**", "**/build/**",
+            "out/**", "**/out/**", "target/**", "**/target/**", ".next/**", "**/.next/**",
+            ".nuxt/**", "**/.nuxt/**", ".svelte-kit/**", "**/.svelte-kit/**",
+            ".turbo/**", "**/.turbo/**", ".vite/**", "**/.vite/**", ".cache/**", "**/.cache/**",
+            ".gauntlet/**", "**/.gauntlet/**", "evals/results/**", "**/evals/results/**",
+            "test-results/**", "**/test-results/**", "playwright-report/**", "**/playwright-report/**",
             "coverage/**", "**/coverage/**", "*.generated.*", "**/*.generated.*", "*.gen.*", "**/*.gen.*",
         ],
         "fixture": [

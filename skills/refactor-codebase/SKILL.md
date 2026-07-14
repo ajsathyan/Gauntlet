@@ -30,6 +30,8 @@ Choose a tracked or explicitly approved private work area in the destination rep
 
 Each phase writes concise filesystem evidence before advancing. Prefer JSON or TSV for inventories and measurements, Markdown for decisions, and links rather than duplicated prose. Another agent must be able to resume from the repository without chat history.
 
+Use these canonical artifact names exactly: `refactor-state.json`, `source-snapshot.json`, `baseline.json`, `capability-map.md`, `parity-ledger.json`, `compatibility-matrix.tsv`, `breakthrough-search.md`, `architecture-decision.md`, `prototype-results.json`, `migration-strategy.md`, `migration-register.tsv`, `temporary-scaffolding.tsv`, `performance-results.json`, and `final-verification.md`. Index additional raw evidence from `refactor-state.json` instead of substituting another format for a canonical artifact.
+
 Keep the state index compact and machine-readable. Include:
 
 - approved source snapshot identifier and integrity status;

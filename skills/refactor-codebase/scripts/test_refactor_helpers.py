@@ -72,11 +72,17 @@ class MeasureLocTests(unittest.TestCase):
             (root / "tests" / "fixtures").mkdir(parents=True)
             (root / "migrations").mkdir()
             (root / "generated").mkdir()
+            (root / ".next" / "server").mkdir(parents=True)
+            (root / ".gauntlet").mkdir()
+            (root / "evals" / "results").mkdir(parents=True)
             (root / "src" / "app.py").write_text("x = 1\n\ny = 2\n", encoding="utf-8")
             (root / "tests" / "test_app.py").write_text("def test_x():\n    assert True\n", encoding="utf-8")
             (root / "tests" / "fixtures" / "case.json").write_text('{"x": 1}\n', encoding="utf-8")
             (root / "migrations" / "001.sql").write_text("select 1;\n", encoding="utf-8")
             (root / "generated" / "client.ts").write_text("export {};\n", encoding="utf-8")
+            (root / ".next" / "server" / "bundle.js").write_text("generated();\n", encoding="utf-8")
+            (root / ".gauntlet" / "state.json").write_text('{"state": true}\n', encoding="utf-8")
+            (root / "evals" / "results" / "latest.json").write_text('{"pass": true}\n', encoding="utf-8")
             (root / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
             (root / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
 
@@ -88,7 +94,7 @@ class MeasureLocTests(unittest.TestCase):
             self.assertEqual(payload["categories"]["test"]["nonblankLines"], 2)
             self.assertEqual(payload["categories"]["fixture"]["files"], 1)
             self.assertEqual(payload["categories"]["migration"]["files"], 1)
-            self.assertEqual(payload["categories"]["generated"]["files"], 1)
+            self.assertEqual(payload["categories"]["generated"]["files"], 4)
             self.assertEqual(payload["categories"]["config"]["files"], 2)
 
             second_path = Path(temporary) / "second.json"
