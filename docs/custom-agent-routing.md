@@ -1,6 +1,6 @@
 # Codex Custom-Agent Routing
 
-Gauntlet selects a custom-agent profile from explicit Ticket fields. Selection is implemented by `scripts/route-codex-agent.py`; it does not call an LLM router. The parent runs that classifier, records its result before dispatch, and remains responsible for ticket compilation, integration, the acceptance oracle, and every merge, release, deployment, production, or rollback decision.
+Gauntlet selects a custom-agent profile from explicit Ticket fields. Selection is implemented by `scripts/route-codex-agent.py`; it does not call an LLM router. The parent runs that classifier, records its result, and passes it as `agent_name` in the native `spawn_agent` call. It must receive a child ID before waiting or proceeding. The parent remains responsible for ticket compilation, integration, the acceptance oracle, and every merge, release, deployment, production, or rollback decision.
 
 ## Ticket routing fields
 

@@ -82,7 +82,7 @@ Standing authorization: automatically use subagents when two or more useful lane
 - The Ticket Graph uses a dynamic ready queue: prioritize critical-path and interface-first work, preserve useful agent affinity, integrate completed tickets continuously, and wait at selective Cohort Verification barriers only where tickets share an invariant or interface.
 - Dispatch each child directly from one bounded ticket. Include only the material objective, ownership, dependencies, constraints, proof expectations, return contract, and ask-parent policy; proof fields are optional and proportional.
 - Native Codex state and main-chat messages own live coordination.
-- Codex children must be started with the explicit `gauntlet_*` profile returned by `scripts/route-codex-agent.py` under `docs/custom-agent-routing.md`. A profile mismatch is a routing failure, not permission to substitute silently.
+- Codex children must be started by calling native `spawn_agent` with `agent_name` equal to the explicit `gauntlet_*` profile returned by `scripts/route-codex-agent.py` under `docs/custom-agent-routing.md`. Do not wait before spawn returns a child ID, and do not perform a rejected child Ticket in the parent. A profile mismatch is a routing failure, not permission to substitute silently.
 - After a Gauntlet child reaches a terminal state, sync the privacy-bounded local audit with `scripts/subagent-audit.py`; Codex native state remains the immediate source of truth.
 - Keep files, mutable state, and proof targets disjoint. Avoid splitting one tightly coupled decision tree across lanes.
 - Children report `Needs decision` to the orchestrator instead of asking AJS directly.
