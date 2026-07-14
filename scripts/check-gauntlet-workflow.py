@@ -2994,6 +2994,8 @@ def test_workflow_etiquette_is_in_global_workflow():
         "confirm-git-risk",
         "Archive Summary",
         "compact machine receipts",
+        "native `spawn_agent` tool",
+        "successful spawn returns a child ID",
         "final outcome and proof",
     ]:
         assert_contains(combined, marker, "workflow etiquette global guidance")

@@ -9,6 +9,7 @@
 
 ## Proof And Limits
 
-- A pre-implementation local smoke proved that an explicitly requested `gauntlet_fast_reader` started with its configured Luna model and medium reasoning effort in native state.
+- An early isolated smoke appeared to start the requested profile, but the first merged-revision check exposed Codex's underscore-only agent-name constraint. The profiles were renamed and reinstalled.
+- After that correction, this machine's non-interactive `codex exec` runner did not spawn either a custom agent or two explicitly requested built-in agents, even with stable multi-agent support explicitly enabled. The router now forbids waiting or parent fallback until `spawn_agent` returns a child ID. Actual desktop dispatch remains `Cannot verify` until Codex is restarted and a new task exercises the installed profile.
 - Repository checks cover profile validation, preservation-safe installation, deterministic guidance, and audit export behavior. The exact merged revision must be installed and rechecked after merge.
 - Native state capture is immediate. The JSONL view is current after the router's terminal-state sync or a later manual/backfill sync; it is not an independent event stream.
