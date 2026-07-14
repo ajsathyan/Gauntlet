@@ -195,7 +195,7 @@ class MeasureLocTests(unittest.TestCase):
             self.assertEqual(payload["categories"]["test"]["nonblankLines"], 2)
             self.assertEqual(payload["categories"]["fixture"]["files"], 1)
             self.assertEqual(payload["categories"]["migration"]["files"], 1)
-            self.assertEqual(payload["categories"]["generated"]["files"], 4)
+            self.assertEqual(payload["categories"]["generated"]["files"], 3)
             self.assertEqual(payload["categories"]["config"]["files"], 2)
 
             current_root = Path(temporary) / "current"
@@ -273,9 +273,42 @@ class MeasureLocTests(unittest.TestCase):
                 bad.write_text(json.dumps(mutation), encoding="utf-8")
                 self.assertEqual(run_script(MEASURE_LOC, "compare", str(bad), str(good)).returncode, 2)
             (root / "app.py").write_text("x = 2\n", encoding="utf-8")
-            stale = run_script(MEASURE_LOC, "compare", str(good), str(good))
+            stale = run_script(MEASURE_LOC, "compare", str(good), str(good), "--verify-live")
             self.assertEqual(stale.returncode, 2)
             self.assertEqual(json.loads(stale.stdout)["error"]["code"], "stale-measurement")
+
+    def test_offline_receipts_and_repository_local_output_remain_comparable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "root"
+            root.mkdir()
+            (root / "app.py").write_text("x = 1\n", encoding="utf-8")
+            receipt = root / ".gauntlet" / "loc.json"
+            measured = run_script(MEASURE_LOC, "measure", str(root), "--output", str(receipt))
+            self.assertEqual(measured.returncode, 0, measured.stdout)
+            self.assertEqual(run_script(MEASURE_LOC, "compare", str(receipt), str(receipt), "--verify-live").returncode, 0)
+            saved = Path(temporary) / "saved.json"
+            shutil.copy2(receipt, saved)
+            shutil.rmtree(root)
+            self.assertEqual(run_script(MEASURE_LOC, "compare", str(saved), str(saved)).returncode, 0)
+            self.assertEqual(run_script(MEASURE_LOC, "compare", str(saved), str(saved), "--verify-live").returncode, 2)
+
+    def test_comparison_blocks_vendor_and_unmeasured_extension_transfer(self) -> None:
+        for destination in (Path("vendor/core.py"), Path("assets/core.txt")):
+            with self.subTest(destination=str(destination)), tempfile.TemporaryDirectory() as temporary:
+                baseline_root = Path(temporary) / "baseline-root"
+                current_root = Path(temporary) / "current-root"
+                (baseline_root / "src").mkdir(parents=True)
+                (current_root / destination.parent).mkdir(parents=True)
+                content = "x = 1\ny = 2\n"
+                (baseline_root / "src" / "core.py").write_text(content, encoding="utf-8")
+                (current_root / destination).write_text(content, encoding="utf-8")
+                baseline = Path(temporary) / "baseline.json"
+                current = Path(temporary) / "current.json"
+                self.assertEqual(run_script(MEASURE_LOC, "measure", str(baseline_root), "--output", str(baseline)).returncode, 0)
+                self.assertEqual(run_script(MEASURE_LOC, "measure", str(current_root), "--output", str(current)).returncode, 0)
+                result = run_script(MEASURE_LOC, "compare", str(baseline), str(current))
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertTrue(json.loads(result.stdout)["excludedInventoryChanged"])
 
 
 class ParityLedgerTests(unittest.TestCase):

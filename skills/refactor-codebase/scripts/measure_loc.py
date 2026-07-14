@@ -60,6 +60,7 @@ DEFAULT_RULES: Dict[str, Any] = {
         "production": ["**"],
     },
 }
+HARD_IGNORED = (".git/**", "**/.git/**", ".hg/**", "**/.hg/**", ".svn/**", "**/.svn/**", ".gauntlet/**", "**/.gauntlet/**")
 
 
 class LocError(Exception):
@@ -140,15 +141,28 @@ def content_sha256(path: Path) -> str:
         raise LocError("file-read-failed", f"Could not read {path}: {exc}") from exc
 
 
+def excluded_record(path: Path, relative: str, reason: str) -> Dict[str, Any]:
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        raise LocError("file-read-failed", f"Could not stat {path}: {exc}") from exc
+    return {"path": relative, "bytes": size, "sha256": content_sha256(path), "reason": reason}
+
+
 def measure(root: Path, rules: Dict[str, Any]) -> Dict[str, Any]:
     root = root.resolve()
     if not root.is_dir():
         raise LocError("root-not-directory", f"Project root is not a directory: {root}")
     category_files: Dict[str, List[Dict[str, Any]]] = {category: [] for category in CATEGORIES}
+    excluded_files: List[Dict[str, Any]] = []
     for path in sorted((item for item in root.rglob("*") if item.is_file() or item.is_symlink()), key=lambda item: item.as_posix()):
         relative = path.relative_to(root).as_posix()
         category = classify(relative, rules)
-        if category is None or path.is_symlink():
+        if path.is_symlink() or matches(relative, HARD_IGNORED):
+            continue
+        if category is None:
+            reason = "excluded-pattern" if matches(relative, rules["exclude"]) else "unmeasured-extension-or-include-rule"
+            excluded_files.append(excluded_record(path, relative, reason))
             continue
         total, nonblank = line_counts(path)
         category_files[category].append({
@@ -169,6 +183,7 @@ def measure(root: Path, rules: Dict[str, Any]) -> Dict[str, Any]:
         }
     production_test = summaries["production"]["nonblankLines"] + summaries["test"]["nonblankLines"]
     tree_digest = hashlib.sha256(canonical(category_files).encode("utf-8")).hexdigest()
+    excluded_digest = hashlib.sha256(canonical(excluded_files).encode("utf-8")).hexdigest()
     return {
         "schemaVersion": SCHEMA_VERSION,
         "root": str(root),
@@ -176,6 +191,12 @@ def measure(root: Path, rules: Dict[str, Any]) -> Dict[str, Any]:
         "rulesHash": hashlib.sha256(canonical(rules).encode("utf-8")).hexdigest(),
         "rules": rules,
         "treeDigest": tree_digest,
+        "excludedInventory": {
+            "files": len(excluded_files),
+            "bytes": sum(item["bytes"] for item in excluded_files),
+            "digest": excluded_digest,
+            "entries": excluded_files,
+        },
         "categories": summaries,
         "productionTestNonblankLines": production_test,
         "allMeasuredNonblankLines": sum(summaries[item]["nonblankLines"] for item in CATEGORIES),
@@ -243,13 +264,41 @@ def validate_measurement(value: Dict[str, Any], label: str) -> Dict[str, Any]:
     expected_tree_digest = hashlib.sha256(canonical(canonical_files).encode("utf-8")).hexdigest()
     if value.get("treeDigest") != expected_tree_digest:
         raise LocError("invalid-measurement", f"{label}.treeDigest does not match its entries")
+    excluded = value.get("excludedInventory")
+    if not isinstance(excluded, dict) or set(excluded) != {"files", "bytes", "digest", "entries"}:
+        raise LocError("invalid-measurement", f"{label}.excludedInventory has an invalid shape")
+    excluded_entries = excluded["entries"]
+    if not isinstance(excluded_entries, list):
+        raise LocError("invalid-measurement", f"{label}.excludedInventory.entries must be an array")
+    for entry in excluded_entries:
+        if not isinstance(entry, dict) or set(entry) != {"path", "bytes", "sha256", "reason"}:
+            raise LocError("invalid-measurement", f"{label} contains an invalid excluded entry")
+        path = entry["path"]
+        if not isinstance(path, str) or not path or Path(path).is_absolute() or ".." in Path(path).parts:
+            raise LocError("invalid-measurement", f"{label} contains an unsafe excluded path")
+        if not nonnegative_int(entry["bytes"]) or not isinstance(entry["sha256"], str) or len(entry["sha256"]) != 64:
+            raise LocError("invalid-measurement", f"{label} contains invalid excluded metadata")
+        if entry["reason"] not in {"excluded-pattern", "unmeasured-extension-or-include-rule"}:
+            raise LocError("invalid-measurement", f"{label} contains an invalid excluded reason")
+    if excluded_entries != sorted(excluded_entries, key=lambda item: item["path"]):
+        raise LocError("invalid-measurement", f"{label}.excludedInventory entries must be path-sorted")
+    expected_excluded = {
+        "files": len(excluded_entries),
+        "bytes": sum(item["bytes"] for item in excluded_entries),
+        "digest": hashlib.sha256(canonical(excluded_entries).encode("utf-8")).hexdigest(),
+    }
+    if any(excluded.get(field) != expected for field, expected in expected_excluded.items()):
+        raise LocError("invalid-measurement", f"{label}.excludedInventory summary does not match its entries")
     root = value.get("root")
     if not isinstance(root, str) or not root:
         raise LocError("invalid-measurement", f"{label}.root must identify the measured tree")
-    live = measure(Path(root), rules)
-    if live["treeDigest"] != expected_tree_digest:
-        raise LocError("stale-measurement", f"{label} no longer matches the live tree at its recorded root")
     return rules
+
+
+def verify_live(value: Dict[str, Any], label: str, rules: Dict[str, Any]) -> None:
+    live = measure(Path(value["root"]), rules)
+    if live["treeDigest"] != value["treeDigest"] or live["excludedInventory"]["digest"] != value["excludedInventory"]["digest"]:
+        raise LocError("stale-measurement", f"{label} no longer matches the live tree at its recorded root")
 
 
 def write_output(path: Optional[Path], payload: Dict[str, Any]) -> None:
@@ -270,8 +319,11 @@ def command_measure(args: argparse.Namespace) -> int:
 def command_compare(args: argparse.Namespace) -> int:
     baseline = load_json(Path(args.baseline), "invalid-measurement")
     current = load_json(Path(args.current), "invalid-measurement")
-    validate_measurement(baseline, "baseline")
-    validate_measurement(current, "current")
+    baseline_rules = validate_measurement(baseline, "baseline")
+    current_rules = validate_measurement(current, "current")
+    if args.verify_live:
+        verify_live(baseline, "baseline", baseline_rules)
+        verify_live(current, "current", current_rules)
     comparable = baseline.get("rulesHash") == current.get("rulesHash") and baseline.get("metric") == current.get("metric")
     report: Dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
@@ -298,14 +350,18 @@ def command_compare(args: argparse.Namespace) -> int:
     }
     reduction_lines = max(0, before - after)
     displaced_lines = sum(max(0, category_deltas[item]) for item in ("generated", "config", "fixture", "migration"))
-    displaced = reduction_lines > 0 and displaced_lines > 0
+    excluded_changed = baseline["excludedInventory"]["digest"] != current["excludedInventory"]["digest"]
+    displaced = reduction_lines > 0 and (displaced_lines > 0 or excluded_changed)
     report.update({
         "categoryNonblankLineDeltas": category_deltas,
         "displacedComplexity": displaced,
         "displacedIntoNonProductionLines": displaced_lines,
+        "excludedInventoryChanged": excluded_changed,
+        "excludedFileDelta": current["excludedInventory"]["files"] - baseline["excludedInventory"]["files"],
+        "excludedByteDelta": current["excludedInventory"]["bytes"] - baseline["excludedInventory"]["bytes"],
     })
     if displaced:
-        report["reason"] = "Production/test LOC fell while excluded or non-production categories grew; inspect and account for displaced complexity before certifying the reduction."
+        report["reason"] = "Production/test LOC fell while excluded content changed or non-production categories grew; inspect and account for displaced complexity before certifying the reduction."
     emit(report)
     return 1 if displaced else 0
 
@@ -321,6 +377,7 @@ def parser() -> argparse.ArgumentParser:
     compare_parser = subparsers.add_parser("compare", help="Compare two saved measurements.")
     compare_parser.add_argument("baseline", help="Baseline measurement JSON.")
     compare_parser.add_argument("current", help="Current measurement JSON.")
+    compare_parser.add_argument("--verify-live", action="store_true", help="Also require each recorded root to exist and still match its receipt.")
     compare_parser.set_defaults(handler=command_compare)
     return root
 

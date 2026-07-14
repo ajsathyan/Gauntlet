@@ -104,8 +104,8 @@ class CompareBenchmarksTests(unittest.TestCase):
             original = benchmark([10, 10, 10, 10, 10])
             baseline.write_text(json.dumps(original), encoding="utf-8")
             for field, replacement in (
-                ("workload", {"id": "smaller", "inputDigest": "sha256:x"}),
-                ("environment", {"os": "other"}),
+                ("workload", {"id": "smaller", "inputDigest": "sha256:x", "scale": 10}),
+                ("environment", {"os": "other", "architecture": "x86_64", "runtime": "python-3.12", "flags": []}),
                 ("oracle", {"id": "other", "result": "pass", "evidence": ["ok"]}),
             ):
                 changed = benchmark([5, 5, 5, 5, 5])
@@ -149,6 +149,43 @@ class CompareBenchmarksTests(unittest.TestCase):
             result = run_script(str(baseline), str(candidate))
             self.assertEqual(result.returncode, 0, result.stdout)
             self.assertTrue(json.loads(result.stdout)["improvementProved"])
+
+    def test_rejects_empty_protocol_identity_and_exception_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            baseline = Path(temporary) / "baseline.json"
+            candidate = Path(temporary) / "candidate.json"
+            for field, invalid in (("command", None), ("machine", ""), ("dependencyState", "  "), ("cachePolicy", None)):
+                payload = benchmark([10, 10, 10, 10, 10])
+                payload["protocol"][field] = invalid
+                baseline.write_text(json.dumps(payload), encoding="utf-8")
+                candidate.write_text(json.dumps(benchmark([5, 5, 5, 5, 5])), encoding="utf-8")
+                self.assertEqual(run_script(str(baseline), str(candidate)).returncode, 2)
+            for reason in (None, "", "   ", "short"):
+                before = benchmark([10, 10, 10])
+                after = benchmark([5, 5, 5])
+                for payload in (before, after):
+                    payload["protocol"].update({"expensiveRunException": True, "expensiveRunReason": reason})
+                baseline.write_text(json.dumps(before), encoding="utf-8")
+                candidate.write_text(json.dumps(after), encoding="utf-8")
+                self.assertEqual(run_script(str(baseline), str(candidate)).returncode, 2)
+
+    def test_rejects_missing_workload_and_environment_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            baseline = Path(temporary) / "baseline.json"
+            candidate = Path(temporary) / "candidate.json"
+            candidate.write_text(json.dumps(benchmark([5, 5, 5, 5, 5])), encoding="utf-8")
+            mutations = []
+            for field in ("id", "inputDigest", "scale"):
+                payload = benchmark([10, 10, 10, 10, 10])
+                payload["workload"].pop(field)
+                mutations.append(payload)
+            for field in ("os", "architecture", "runtime", "flags"):
+                payload = benchmark([10, 10, 10, 10, 10])
+                payload["environment"].pop(field)
+                mutations.append(payload)
+            for payload in mutations:
+                baseline.write_text(json.dumps(payload), encoding="utf-8")
+                self.assertEqual(run_script(str(baseline), str(candidate)).returncode, 2)
 
 
 if __name__ == "__main__":

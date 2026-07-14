@@ -59,6 +59,9 @@ def load(path: Path, label: str) -> Dict[str, Any]:
         missing = [field for field in PROTOCOL_FIELDS if field not in protocol]
         if missing:
             errors.append(f"{label}.protocol is missing: {', '.join(missing)}")
+        for field in ("command", "machine", "dependencyState", "cachePolicy"):
+            if not isinstance(protocol.get(field), str) or not protocol.get(field, "").strip():
+                errors.append(f"{label}.protocol.{field} must be a non-empty string")
         if not isinstance(protocol.get("warmups"), int) or isinstance(protocol.get("warmups"), bool) or protocol.get("warmups", -1) < 0:
             errors.append(f"{label}.protocol.warmups must be a non-negative integer")
         if not isinstance(protocol.get("concurrency"), int) or isinstance(protocol.get("concurrency"), bool) or protocol.get("concurrency", 0) < 1:
@@ -72,12 +75,30 @@ def load(path: Path, label: str) -> Dict[str, Any]:
                 errors.append(f"{label}.protocol.warmups must be at least 1 unless cachePolicy is cold")
         if not isinstance(protocol.get("expensiveRunException"), bool):
             errors.append(f"{label}.protocol.expensiveRunException must be boolean")
-        elif protocol.get("expensiveRunException") and not isinstance(protocol.get("expensiveRunReason"), str):
-            errors.append(f"{label}.protocol.expensiveRunReason must explain the exception")
+        elif protocol.get("expensiveRunException") and (
+            not isinstance(protocol.get("expensiveRunReason"), str)
+            or len(protocol.get("expensiveRunReason", "").strip()) < 10
+        ):
+            errors.append(f"{label}.protocol.expensiveRunReason must contain a concrete non-empty explanation")
     for field in ("workload", "environment", "oracle"):
         value = payload.get(field)
         if not isinstance(value, dict) or not value:
             errors.append(f"{label}.{field} must be a non-empty object")
+    workload = payload.get("workload")
+    if isinstance(workload, dict):
+        for field in ("id", "inputDigest"):
+            if not isinstance(workload.get(field), str) or not workload.get(field, "").strip():
+                errors.append(f"{label}.workload.{field} must be a non-empty string")
+        if "scale" not in workload or workload.get("scale") is None or isinstance(workload.get("scale"), bool):
+            errors.append(f"{label}.workload.scale must identify the measured scale")
+    environment = payload.get("environment")
+    if isinstance(environment, dict):
+        for field in ("os", "architecture", "runtime"):
+            if not isinstance(environment.get(field), str) or not environment.get(field, "").strip():
+                errors.append(f"{label}.environment.{field} must be a non-empty string")
+        flags = environment.get("flags")
+        if not isinstance(flags, list) or not all(isinstance(item, str) for item in flags):
+            errors.append(f"{label}.environment.flags must be a string array")
     oracle = payload.get("oracle")
     if isinstance(oracle, dict):
         if not isinstance(oracle.get("id"), str) or not oracle.get("id", "").strip():
