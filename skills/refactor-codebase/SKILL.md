@@ -26,7 +26,7 @@ Keep user-supplied quantitative targets as acceptance criteria. Do not lower the
 
 ## Persist The Run
 
-Choose a tracked or explicitly approved private work area in the destination repository. Store `refactor-state.json` there as the state index; never store run artifacts in the source. Record the current phase, source and artifact hashes, gate results, open mismatches, temporary scaffolding, and invalidation status.
+Choose a tracked or explicitly approved private work area in the destination repository. Store `refactor-state.json` there as the state index; never store run artifacts in the source. Treat `source-snapshot.json` as sensitive by default and keep it private unless a human has reviewed and approved it for tracking; its path and symlink tokens avoid raw local metadata but may still disclose information through hashes and repository state. Record the current phase, source and artifact hashes, gate results, open mismatches, temporary scaffolding, and invalidation status.
 
 Each phase writes concise filesystem evidence before advancing. Prefer JSON or TSV for inventories and measurements, Markdown for decisions, and links rather than duplicated prose. Another agent must be able to resume from the repository without chat history.
 

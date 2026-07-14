@@ -38,7 +38,7 @@ def issue(issues: List[Dict[str, str]], code: str, location: str, message: str) 
 
 
 def string_list(value: Any) -> bool:
-    return isinstance(value, list) and all(isinstance(item, str) and item.strip() for item in value)
+    return isinstance(value, list) and bool(value) and all(isinstance(item, str) and item.strip() for item in value)
 
 
 def validate(payload: Any, allow_incomplete: bool) -> Dict[str, Any]:

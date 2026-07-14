@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -40,8 +41,9 @@ class SourceIntegrityTests(unittest.TestCase):
             snapshot = run_script(SOURCE_INTEGRITY, "snapshot", str(root), "--output", str(snapshot_path))
             self.assertEqual(snapshot.returncode, 0, snapshot.stderr)
             payload = json.loads(snapshot.stdout)
-            self.assertEqual(payload["schemaVersion"], 1)
-            self.assertEqual([entry["path"] for entry in payload["trackedFiles"]], ["app.py", "current.py"])
+            self.assertEqual(payload["schemaVersion"], 2)
+            self.assertEqual(len(payload["trackedFiles"]), 2)
+            self.assertTrue(all("pathToken" in entry and "path" not in entry for entry in payload["trackedFiles"]))
 
             matching = run_script(SOURCE_INTEGRITY, "compare", str(root), str(snapshot_path))
             self.assertEqual(matching.returncode, 0, matching.stdout)
@@ -53,6 +55,105 @@ class SourceIntegrityTests(unittest.TestCase):
             report = json.loads(changed.stdout)
             self.assertFalse(report["match"])
             self.assertIn("trackedFiles", report["changedFields"])
+
+    def test_snapshot_detects_untracked_content_addition_and_deletion(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "source"
+            root.mkdir()
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            untracked = root / "runtime.json"
+            untracked.write_text("one\n", encoding="utf-8")
+            snapshot_path = Path(temporary) / "snapshot.json"
+            self.assertEqual(
+                run_script(SOURCE_INTEGRITY, "snapshot", str(root), "--output", str(snapshot_path)).returncode,
+                0,
+            )
+
+            untracked.write_text("two\n", encoding="utf-8")
+            changed = run_script(SOURCE_INTEGRITY, "compare", str(root), str(snapshot_path))
+            self.assertEqual(changed.returncode, 1, changed.stdout)
+            self.assertIn("untrackedFiles", json.loads(changed.stdout)["changedFields"])
+
+            untracked.write_text("one\n", encoding="utf-8")
+            (root / "added.txt").write_text("added\n", encoding="utf-8")
+            added = run_script(SOURCE_INTEGRITY, "compare", str(root), str(snapshot_path))
+            self.assertEqual(added.returncode, 1, added.stdout)
+
+            (root / "added.txt").unlink()
+            untracked.unlink()
+            deleted = run_script(SOURCE_INTEGRITY, "compare", str(root), str(snapshot_path))
+            self.assertEqual(deleted.returncode, 1, deleted.stdout)
+
+    def test_snapshot_detects_untracked_symlink_target_and_file_type_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "source"
+            root.mkdir()
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            entry = root / "current"
+            os.symlink("first-target", entry)
+            snapshot_path = Path(temporary) / "snapshot.json"
+            self.assertEqual(
+                run_script(SOURCE_INTEGRITY, "snapshot", str(root), "--output", str(snapshot_path)).returncode,
+                0,
+            )
+
+            entry.unlink()
+            os.symlink("second-target", entry)
+            changed_target = run_script(SOURCE_INTEGRITY, "compare", str(root), str(snapshot_path))
+            self.assertEqual(changed_target.returncode, 1, changed_target.stdout)
+
+            entry.unlink()
+            entry.write_text("first-target", encoding="utf-8")
+            changed_type = run_script(SOURCE_INTEGRITY, "compare", str(root), str(snapshot_path))
+            self.assertEqual(changed_type.returncode, 1, changed_type.stdout)
+
+    def test_publishable_snapshot_omits_raw_local_paths_and_symlink_targets(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="private-home-segment-") as temporary:
+            root = Path(temporary) / "sensitive-source-name"
+            root.mkdir()
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "secret-filename.env").write_text("value\n", encoding="utf-8")
+            os.symlink("/Users/private-user/private-target", root / "private-link-name")
+
+            result = run_script(SOURCE_INTEGRITY, "snapshot", str(root))
+            self.assertEqual(result.returncode, 0, result.stdout)
+            serialized = result.stdout
+            for sensitive_value in (
+                str(root),
+                "private-home-segment-",
+                "sensitive-source-name",
+                "secret-filename.env",
+                "private-link-name",
+                "/Users/private-user/private-target",
+            ):
+                self.assertNotIn(sensitive_value, serialized)
+
+    def test_dirty_submodule_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            child = Path(temporary) / "child"
+            child.mkdir()
+            subprocess.run(["git", "init", "-q", str(child)], check=True)
+            subprocess.run(["git", "-C", str(child), "config", "user.email", "test@example.com"], check=True)
+            subprocess.run(["git", "-C", str(child), "config", "user.name", "Test"], check=True)
+            (child / "child.txt").write_text("one\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(child), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(child), "commit", "-qm", "initial"], check=True)
+
+            root = Path(temporary) / "source"
+            root.mkdir()
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.com"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+            subprocess.run(
+                ["git", "-c", "protocol.file.allow=always", "-C", str(root), "submodule", "add", "-q", str(child), "module"],
+                check=True,
+            )
+            subprocess.run(["git", "-C", str(root), "commit", "-qam", "submodule"], check=True)
+            (root / "module" / "child.txt").write_text("two\n", encoding="utf-8")
+
+            result = run_script(SOURCE_INTEGRITY, "snapshot", str(root))
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertEqual(json.loads(result.stdout)["error"]["code"], "dirty-submodule-unsupported")
 
     def test_output_inside_source_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -97,9 +198,11 @@ class MeasureLocTests(unittest.TestCase):
             self.assertEqual(payload["categories"]["generated"]["files"], 4)
             self.assertEqual(payload["categories"]["config"]["files"], 2)
 
+            current_root = Path(temporary) / "current"
+            shutil.copytree(root, current_root)
             second_path = Path(temporary) / "second.json"
-            (root / "src" / "app.py").write_text("x = 1\n", encoding="utf-8")
-            second = run_script(MEASURE_LOC, "measure", str(root), "--output", str(second_path))
+            (current_root / "src" / "app.py").write_text("x = 1\n", encoding="utf-8")
+            second = run_script(MEASURE_LOC, "measure", str(current_root), "--output", str(second_path))
             self.assertEqual(second.returncode, 0, second.stderr)
             compared = run_script(MEASURE_LOC, "compare", str(first_path), str(second_path))
             self.assertEqual(compared.returncode, 0, compared.stdout)
@@ -125,6 +228,54 @@ class MeasureLocTests(unittest.TestCase):
             compared = run_script(MEASURE_LOC, "compare", str(baseline), str(current))
             self.assertEqual(compared.returncode, 1)
             self.assertFalse(json.loads(compared.stdout)["comparable"])
+
+    def test_comparison_blocks_category_transfer(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            baseline_root = Path(temporary) / "baseline-root"
+            current_root = Path(temporary) / "current-root"
+            (baseline_root / "src").mkdir(parents=True)
+            (current_root / "generated").mkdir(parents=True)
+            (baseline_root / "src" / "core.py").write_text("x = 1\ny = 2\n", encoding="utf-8")
+            (current_root / "generated" / "core.py").write_text("x = 1\ny = 2\n", encoding="utf-8")
+            baseline = Path(temporary) / "baseline.json"
+            current = Path(temporary) / "current.json"
+            self.assertEqual(run_script(MEASURE_LOC, "measure", str(baseline_root), "--output", str(baseline)).returncode, 0)
+            self.assertEqual(run_script(MEASURE_LOC, "measure", str(current_root), "--output", str(current)).returncode, 0)
+            result = run_script(MEASURE_LOC, "compare", str(baseline), str(current))
+            self.assertEqual(result.returncode, 1, result.stdout)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["displacedComplexity"])
+            self.assertEqual(payload["categoryNonblankLineDeltas"]["generated"], 2)
+
+    def test_comparison_rejects_fabricated_or_stale_measurements(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "root"
+            root.mkdir()
+            (root / "app.py").write_text("x = 1\n", encoding="utf-8")
+            good = Path(temporary) / "good.json"
+            self.assertEqual(run_script(MEASURE_LOC, "measure", str(root), "--output", str(good)).returncode, 0)
+            original = json.loads(good.read_text(encoding="utf-8"))
+            mutations = []
+            fabricated = json.loads(json.dumps(original))
+            fabricated["productionTestNonblankLines"] = 0
+            mutations.append(fabricated)
+            retained_hash = json.loads(json.dumps(original))
+            retained_hash["rules"]["extensions"].append(".madeup")
+            mutations.append(retained_hash)
+            negative = json.loads(json.dumps(original))
+            negative["categories"]["production"]["nonblankLines"] = -1
+            mutations.append(negative)
+            boolean = json.loads(json.dumps(original))
+            boolean["allMeasuredNonblankLines"] = True
+            mutations.append(boolean)
+            for index, mutation in enumerate(mutations):
+                bad = Path(temporary) / f"bad-{index}.json"
+                bad.write_text(json.dumps(mutation), encoding="utf-8")
+                self.assertEqual(run_script(MEASURE_LOC, "compare", str(bad), str(good)).returncode, 2)
+            (root / "app.py").write_text("x = 2\n", encoding="utf-8")
+            stale = run_script(MEASURE_LOC, "compare", str(good), str(good))
+            self.assertEqual(stale.returncode, 2)
+            self.assertEqual(json.loads(stale.stdout)["error"]["code"], "stale-measurement")
 
 
 class ParityLedgerTests(unittest.TestCase):
@@ -182,6 +333,23 @@ class ParityLedgerTests(unittest.TestCase):
             result = run_script(VALIDATE_LEDGER, str(path))
             self.assertEqual(result.returncode, 1)
             self.assertIn("invalid-disposition", {issue["code"] for issue in json.loads(result.stdout)["issues"]})
+
+    def test_complete_ledger_rejects_each_empty_evidence_array(self) -> None:
+        cases = (
+            ("area", lambda ledger: ledger["inventoryAreas"][0].update(evidence=[]), "invalid-area-evidence"),
+            ("baseline", lambda ledger: ledger["rows"][0].update(baselineEvidence=[]), "invalid-baseline-evidence"),
+            ("parity", lambda ledger: ledger["rows"][0].update(parityEvidence=[]), "invalid-parity-evidence"),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            for name, mutate, expected_code in cases:
+                with self.subTest(name=name):
+                    ledger = self.complete_ledger()
+                    mutate(ledger)
+                    path = Path(temporary) / f"{name}.json"
+                    path.write_text(json.dumps(ledger), encoding="utf-8")
+                    result = run_script(VALIDATE_LEDGER, str(path))
+                    self.assertEqual(result.returncode, 1, result.stdout)
+                    self.assertIn(expected_code, {item["code"] for item in json.loads(result.stdout)["issues"]})
 
 
 if __name__ == "__main__":

@@ -8,8 +8,8 @@
 
 ## Actions
 
-1. Decide what “exactly as it exists” means. If staged, unstaged, untracked, ignored-but-required, modified-submodule, or unavailable LFS state would be omitted by a clone, inventory it and obtain the one material choice: committed `HEAD` or current filesystem.
-2. Run [source_integrity.py](../scripts/source_integrity.py) in `snapshot` mode with output outside the source. Supplement its read-only snapshot with approved remotes and any relevant ignored-file or LFS interpretation it cannot infer.
+1. Decide what “exactly as it exists” means. If staged, unstaged, untracked, ignored-but-required, modified-submodule, or unavailable LFS state would be omitted by a clone, inventory it and obtain the one material choice: committed `HEAD` or current filesystem. The integrity helper hashes approved untracked content but rejects dirty initialized submodules; commit or otherwise freeze a dirty submodule before continuing rather than accepting an unverifiable current-filesystem snapshot.
+2. Run [source_integrity.py](../scripts/source_integrity.py) in `snapshot` mode with output outside the source. It emits stable tokens instead of raw paths and symlink targets. Treat the resulting `source-snapshot.json` as sensitive and private by default because hashes and repository metadata can still disclose information; track it only after explicit human review and approval. Supplement it with approved remotes and any relevant ignored-file or LFS interpretation it cannot infer.
 3. Create an independent local repository at the destination and verify that its Git directory, index, config, hooks, and working tree are not shared with the source. Do not create or push a hosted fork without explicit authority.
 4. Run potentially mutating baseline commands in a disposable clone of the approved snapshot.
 5. Run [measure_loc.py](../scripts/measure_loc.py) against the approved snapshot. Use its physical nonblank LOC as the canonical source measure, preserve its emitted rules hash, and report production/test, generated, configuration, fixture, and migration categories separately. Record any additional exclusions such as vendored or minified inputs.

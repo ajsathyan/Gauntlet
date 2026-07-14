@@ -15,7 +15,7 @@ import sys
 from typing import Any, Dict, List, Optional, Sequence
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class IntegrityError(Exception):
@@ -52,6 +52,12 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def path_token(path: str) -> str:
+    """Return a stable path identifier without publishing the path itself."""
+    payload = b"source-integrity-path\0" + path.encode("utf-8", errors="surrogateescape")
+    return hashlib.sha256(payload).hexdigest()
+
+
 def filesystem_record(path: Path) -> Dict[str, Any]:
     try:
         metadata = path.lstat()
@@ -64,8 +70,7 @@ def filesystem_record(path: Path) -> Dict[str, Any]:
             "state": "present",
             "kind": "symlink",
             "permissions": permissions,
-            "target": target,
-            "sha256": hashlib.sha256(target.encode("utf-8", errors="surrogateescape")).hexdigest(),
+            "targetSha256": hashlib.sha256(target.encode("utf-8", errors="surrogateescape")).hexdigest(),
         }
     if stat.S_ISREG(metadata.st_mode):
         return {
@@ -95,25 +100,40 @@ def index_entries(root: Path) -> List[Dict[str, str]]:
     return sorted(entries, key=lambda item: (item["path"], item["stage"]))
 
 
+def untracked_entries(root: Path) -> List[Dict[str, Any]]:
+    raw = git(root, ["ls-files", "--others", "--exclude-standard", "-z"])
+    entries: List[Dict[str, Any]] = []
+    for path in raw.split("\0"):
+        if not path:
+            continue
+        entries.append({"pathToken": path_token(path), "filesystem": filesystem_record(root / path)})
+    return sorted(entries, key=lambda item: item["pathToken"])
+
+
 def submodule_record(root: Path, entry: Dict[str, str]) -> Dict[str, Any]:
     path = root / entry["path"]
     record: Dict[str, Any] = {
-        "path": entry["path"],
+        "pathToken": path_token(entry["path"]),
         "indexObject": entry["indexObject"],
         "filesystem": filesystem_record(path),
     }
-    if path.is_dir():
+    if path.is_dir() and (path / ".git").exists():
         head = git(path, ["rev-parse", "--verify", "HEAD"], allow_failure=True).strip()
         status = git(
             path,
-            ["status", "--porcelain=v2", "--branch", "--untracked-files=all"],
+            ["status", "--porcelain=v2", "--untracked-files=all"],
             allow_failure=True,
-        )
+        ).strip()
+        if status:
+            raise IntegrityError(
+                "dirty-submodule-unsupported",
+                "Source integrity snapshots require every initialized submodule to have a clean working tree.",
+            )
         record["head"] = head or None
-        record["statusPorcelainV2"] = status.splitlines()
+        record["initialized"] = bool(head)
     else:
         record["head"] = None
-        record["statusPorcelainV2"] = []
+        record["initialized"] = False
     return record
 
 
@@ -131,21 +151,28 @@ def snapshot(root: Path) -> Dict[str, Any]:
         if entry["indexMode"] == "160000":
             submodules.append(submodule_record(root, entry))
             continue
-        tracked.append({**entry, "filesystem": filesystem_record(root / entry["path"])})
+        tracked.append({
+            "pathToken": path_token(entry["path"]),
+            "indexMode": entry["indexMode"],
+            "indexObject": entry["indexObject"],
+            "stage": entry["stage"],
+            "filesystem": filesystem_record(root / entry["path"]),
+        })
 
     head = git(root, ["rev-parse", "--verify", "HEAD"], allow_failure=True).strip()
-    status_lines = git(
-        root,
-        ["status", "--porcelain=v2", "--branch", "--untracked-files=all"],
-    ).splitlines()
     return {
         "schemaVersion": SCHEMA_VERSION,
-        "sourceRoot": str(root),
         "head": head or None,
-        "statusPorcelainV2": status_lines,
         "trackedFiles": tracked,
+        "untrackedFiles": untracked_entries(root),
         "submodules": submodules,
         "hashAlgorithm": "sha256",
+        "privacy": {
+            "pathRepresentation": "domain-separated-sha256-token",
+            "rawPathsIncluded": False,
+            "rawSymlinkTargetsIncluded": False,
+            "trackingSensitivity": "Review before tracking; hashes and repository metadata may still be sensitive.",
+        },
         "readOnlyGitPolicy": {
             "gitOptionalLocks": False,
             "fsmonitor": False,
@@ -195,14 +222,12 @@ def command_snapshot(args: argparse.Namespace) -> int:
 def command_compare(args: argparse.Namespace) -> int:
     expected = load_json(Path(args.snapshot))
     actual = snapshot(Path(args.source))
-    compared_fields = ["head", "statusPorcelainV2", "trackedFiles", "submodules"]
+    compared_fields = ["head", "trackedFiles", "untrackedFiles", "submodules"]
     changed_fields = [field for field in compared_fields if expected.get(field) != actual.get(field)]
     report = {
         "schemaVersion": SCHEMA_VERSION,
         "match": not changed_fields,
         "changedFields": changed_fields,
-        "expectedSourceRoot": expected.get("sourceRoot"),
-        "actualSourceRoot": actual.get("sourceRoot"),
         "comparedFields": compared_fields,
     }
     emit(report)
