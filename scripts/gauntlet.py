@@ -1302,6 +1302,11 @@ def command_epic_tasks_record_run(args):
             locked_epics = list(locked_epics)
         if locked_epics and locked_epics != [args.epic]:
             raise ValueError("Execution Run must lock exactly the recorded Epic")
+        locked_launch = source_lock.get("launch_set") or {}
+        if Path(locked_launch.get("path", "")).resolve() != launch_path:
+            raise ValueError("Execution Run is bound to a different Epic launch set")
+        if locked_launch.get("coverage_sha256") != launch["coverageSha256"] or locked_launch.get("task_id") != epic["taskId"]:
+            raise ValueError("Execution Run launch coverage or native task identity does not match")
         if epic["runPath"] and Path(epic["runPath"]).resolve() != run_path:
             raise ValueError("Epic is already mapped to a different Execution Run")
         epic["runPath"] = str(run_path)

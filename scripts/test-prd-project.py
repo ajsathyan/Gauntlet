@@ -346,6 +346,13 @@ class EpicProjectTests(unittest.TestCase):
             lock = json.loads((root / "executions" / "APP-001-RUN" / "source-lock.json").read_text(encoding="utf-8"))
             self.assertEqual(lock["target_epic_ids"], ["APP-001"])
             self.assertEqual(lock["launch_set"]["task_id"], "task-123")
+            record_args = argparse.Namespace(
+                git_root=root, launch_set=launch_path, epic="APP-001",
+                run=root / "executions" / "APP-001-RUN", json=True,
+            )
+            with mock.patch("gauntlet.print_payload") as output:
+                self.assertEqual(gauntlet.command_epic_tasks_record_run(record_args), 0)
+            self.assertEqual(output.call_args.args[0]["epics"]["APP-001"]["runPath"], str((root / "executions" / "APP-001-RUN").resolve()))
 
 
 if __name__ == "__main__":
