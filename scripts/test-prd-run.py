@@ -22,7 +22,19 @@ def object_hash(value: object) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def graph(*, with_cohort: bool = False) -> dict:
+def consequence_review(*triggers: str) -> dict:
+    return {
+        "required": True,
+        "triggers": list(triggers),
+        "lenses": [
+            {"id": "authority-security", "charter": "Review authority and security boundaries."},
+            {"id": "failure-recovery", "charter": "Review failure handling and recovery."},
+            {"id": "black-box", "charter": "Review externally observable behavior."},
+        ],
+    }
+
+
+def graph(*, with_cohort: bool = False, review: dict | None = None) -> dict:
     cohort = "C1" if with_cohort else None
     return {
         "version": 1,
@@ -31,7 +43,7 @@ def graph(*, with_cohort: bool = False) -> dict:
             "fixtures": "sha256:" + "d" * 64,
             "environment": "sha256:" + "b" * 64,
         },
-        "review": {"required": False, "triggers": [], "lenses": []},
+        "review": review or {"required": False, "triggers": [], "lenses": []},
         "planned_checks": [
             {
                 "id": "ticket-T1", "tier": "ticket", "ticket_ids": ["T1"],
@@ -101,6 +113,7 @@ class PrdRunTests(unittest.TestCase):
         (self.repo / "tracked.txt").write_text("clean\n")
         subprocess.run(["git", "add", "tracked.txt"], cwd=self.repo, check=True)
         subprocess.run(["git", "commit", "-qm", "initial"], cwd=self.repo, check=True)
+        subprocess.run(["git", "branch", "main", "HEAD"], cwd=self.repo, check=True)
 
         self.canonical = self.root / "prd.md"
         self.snapshot = self.root / "prd.locked.md"
@@ -271,6 +284,43 @@ class PrdRunTests(unittest.TestCase):
             "--source", "User implementation authority in source task",
         )
 
+    def consequence_oracle(self, *, lens: str | None = None, safeguard: str | None = None) -> str:
+        policy = self.manifest()["consequence_review"]["policy"]
+        return object_hash({
+            "schemaVersion": "gauntlet.consequence-proof.v1",
+            "triggers": policy["triggers"],
+            **({"lens": lens} if lens is not None else {"safeguard": safeguard}),
+        })
+
+    def record_consequence_reviews(self, *, result: str = "pass") -> None:
+        for lens in ("authority-security", "failure-recovery", "black-box"):
+            receipt = self.verification_receipt(
+                f"review-{lens}-{result}", result=result, oracle=self.consequence_oracle(lens=lens),
+            )
+            self.command(
+                "record-review", "--run", str(self.run), "--lens", lens,
+                "--verification-receipt", str(receipt),
+            )
+
+    def record_safeguard(self, kind: str, *, result: str = "pass", ok: bool = True):
+        receipt = self.verification_receipt(
+            f"safeguard-{kind}-{result}", result=result, oracle=self.consequence_oracle(safeguard=kind),
+        )
+        return self.command(
+            "record-safeguard", "--run", str(self.run), "--kind", kind,
+            "--verification-receipt", str(receipt), ok=ok,
+        )
+
+    def finish_consequence_implementation(self) -> None:
+        self.finish_ticket("T1", "agent-a")
+        self.finish_ticket("T2", "agent-b")
+        self.transition("integrating")
+        self.record_consequence_reviews()
+        lock = json.loads((self.run / "source-lock.json").read_text())
+        final = self.verification_receipt("final-consequence", oracle=lock["epics"]["E1"]["section_sha256"])
+        self.command("verify-epic", "--run", str(self.run), "--verification-receipt", str(final))
+        self.transition("epic_verified")
+
     def test_init_requires_complete_launch_membership_and_rejects_multi_epic_run(self) -> None:
         lock = json.loads((self.run / "source-lock.json").read_text())
         self.assertEqual(["E1"], lock["target_epic_ids"])
@@ -290,6 +340,8 @@ class PrdRunTests(unittest.TestCase):
             "--launch-set", str(self.launch), "--release-contract", "doc_org.md:v2", ok=False,
         )
         self.assertIn("exactly one target Epic", result.stderr)
+        help_text = self.command("init", "--help").stdout
+        self.assertIn("immutable launch-set.source.md", help_text)
 
     def test_old_run_schema_and_retired_authored_summary_commands_fail(self) -> None:
         lock_path = self.run / "source-lock.json"
@@ -412,6 +464,13 @@ class PrdRunTests(unittest.TestCase):
         self.assertEqual("final-epic", run_facts["plannedChecks"][-1]["tier"])
         self.assertEqual(3, len(run_facts["verificationReceipts"]))
         self.assertEqual({"delegated"}, {item["ownerKind"] for item in run_facts["owners"]})
+        self.assertEqual("not-required", run_facts["review"]["status"])
+        self.assertEqual([], run_facts["review"]["results"])
+        self.assertTrue(all(
+            item["status"] == "not-required"
+            for item in run_facts["release"]["safeguards"].values()
+        ))
+        self.assertFalse(any(gate["id"] == "consequence-review" for gate in facts["releaseGates"]))
 
     def test_completion_keeps_release_dimensions_separate_and_reconciles_merge(self) -> None:
         self.compile_and_start()
@@ -431,6 +490,7 @@ class PrdRunTests(unittest.TestCase):
         self.assertFalse(merged["deployed"])
         self.assertFalse(merged["productionProved"])
 
+        self.grant("deploy-production")
         self.command(
             "record-release", "--run", str(self.run), "--stage", "deployment", "--result", "pass",
             "--summary", "Exact merged revision deployed.", "--evidence", "deploy-1", "--revision", revision,
@@ -440,6 +500,7 @@ class PrdRunTests(unittest.TestCase):
         self.assertTrue(deployed["deployed"])
         self.assertFalse(deployed["productionProved"])
 
+        self.grant("verify-production")
         self.command(
             "record-release", "--run", str(self.run), "--stage", "production-verification", "--result", "pass",
             "--summary", "Production oracle passed.", "--evidence", "production-1", "--revision", revision,
@@ -484,6 +545,166 @@ class PrdRunTests(unittest.TestCase):
         self.assertTrue(after["complete"])
         self.assertFalse(after["deployed"])
         self.assertFalse(after["productionProved"])
+
+    def test_consequence_policy_rejects_false_generic_duplicate_and_missing_panels(self) -> None:
+        self.transition("accepted")
+        invalid = []
+        false_required = consequence_review("billing-paid-actions")
+        false_required["required"] = False
+        invalid.append((false_required, "review.required=true"))
+
+        generic = consequence_review("billing-paid-actions")
+        generic["lenses"][0]["id"] = "generic-review"
+        invalid.append((generic, "requires exactly"))
+
+        duplicate = consequence_review("billing-paid-actions")
+        duplicate["lenses"][2]["id"] = "black-box"
+        duplicate["lenses"][1]["id"] = "black-box"
+        invalid.append((duplicate, "distinct lens IDs"))
+
+        missing = consequence_review("billing-paid-actions")
+        missing["lenses"].pop()
+        invalid.append((missing, "requires exactly"))
+
+        arbitrary = consequence_review("this-seems-risky")
+        invalid.append((arbitrary, "canonical high-consequence categories"))
+
+        for review, message in invalid:
+            with self.subTest(message=message):
+                self.graph.write_text(json.dumps(graph(review=review)))
+                result = self.command("compile", "--run", str(self.run), "--graph", str(self.graph), ok=False)
+                self.assertIn(message, result.stderr)
+
+    def test_final_verification_rejects_mismatched_and_stale_consequence_reviews(self) -> None:
+        self.compile_and_start(value=graph(review=consequence_review("credentials-auth-permissions")))
+        self.finish_ticket("T1", "agent-a")
+        self.finish_ticket("T2", "agent-b")
+        self.transition("integrating")
+
+        wrong = self.verification_receipt(
+            "review-wrong-commit", oracle=self.consequence_oracle(lens="authority-security"),
+        )
+        raw = json.loads(wrong.read_text())
+        raw["identity"]["commitSha"] = "0" * 40
+        wrong.write_text(json.dumps(raw))
+        result = self.command(
+            "record-review", "--run", str(self.run), "--lens", "authority-security",
+            "--verification-receipt", str(wrong), ok=False,
+        )
+        self.assertIn("exact integrated commit and tree", result.stderr)
+
+        wrong_oracle = self.verification_receipt("review-wrong-oracle")
+        result = self.command(
+            "record-review", "--run", str(self.run), "--lens", "authority-security",
+            "--verification-receipt", str(wrong_oracle), ok=False,
+        )
+        self.assertIn("controller-owned oracle", result.stderr)
+
+        self.record_consequence_reviews()
+        (self.repo / "tracked.txt").write_text("new candidate\n")
+        subprocess.run(["git", "add", "tracked.txt"], cwd=self.repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "advance candidate"], cwd=self.repo, check=True)
+        lock = json.loads((self.run / "source-lock.json").read_text())
+        final = self.verification_receipt("final-after-review", oracle=lock["epics"]["E1"]["section_sha256"])
+        result = self.command(
+            "verify-epic", "--run", str(self.run), "--verification-receipt", str(final), ok=False,
+        )
+        self.assertIn("exact candidate revision", result.stderr)
+
+    def test_consequence_dry_run_live_authority_and_bounded_evidence_are_enforced(self) -> None:
+        self.compile_and_start(value=graph(review=consequence_review("billing-paid-actions")))
+        self.finish_consequence_implementation()
+        revision = self.revision()[0]
+        self.grant("open-final-pr")
+        pr_facts = json.loads(self.command("project-pr", "--run", str(self.run)).stdout)
+        gate_status = {item["id"]: item["status"] for item in pr_facts["releaseGates"]}
+        self.assertEqual("pass", gate_status["consequence-review"])
+        self.assertEqual("pending", gate_status["dry-run-no-mutation"])
+
+        self.grant("merge-to-default")
+        merge = (
+            "record-merge", "--run", str(self.run), "--pr", "PR-CONSEQUENCE",
+            "--merged-sha", revision, "--main-sha", revision, "--evidence", "default-ref",
+        )
+        result = self.command(*merge, ok=False)
+        self.assertIn("dry-run-no-mutation", result.stderr)
+        self.record_safeguard("dry-run-no-mutation", result="fail")
+        result = self.command(*merge, ok=False)
+        self.assertIn("is fail", result.stderr)
+        self.record_safeguard("dry-run-no-mutation")
+        self.command(*merge)
+        self.command(*merge)
+        self.transition("merged")
+
+        deploy = (
+            "record-release", "--run", str(self.run), "--stage", "deployment", "--result", "pass",
+            "--summary", "Exact revision deployed.", "--evidence", "provider-deploy", "--revision", revision,
+        )
+        self.assertIn("deploy-production", self.command(*deploy, ok=False).stderr)
+        self.grant("deploy-production")
+        self.assertIn("perform-paid-action", self.command(*deploy, ok=False).stderr)
+        self.grant("perform-paid-action")
+        self.command(*deploy)
+        self.transition("deployed")
+
+        production = (
+            "record-release", "--run", str(self.run), "--stage", "production-verification", "--result", "pass",
+            "--summary", "Bounded production oracle passed.", "--evidence", "provider-canary", "--revision", revision,
+        )
+        self.assertIn("verify-production", self.command(*production, ok=False).stderr)
+        self.grant("verify-production")
+        self.assertIn("bounded-live", self.command(*production, ok=False).stderr)
+        self.record_safeguard("bounded-live")
+        self.assertIn("rollback-readiness", self.command(*production, ok=False).stderr)
+        self.record_safeguard("rollback-readiness")
+        self.command(*production)
+
+        rollback = (
+            "record-rollback", "--run", str(self.run), "--trigger", "canary-failure",
+            "--action", "restore previous revision", "--result", "pass", "--evidence", "rollback-log",
+        )
+        self.assertIn("execute-rollback", self.command(*rollback, ok=False).stderr)
+        facts = json.loads(self.command("run-facts", "--run", str(self.run)).stdout)
+        self.assertEqual("gauntlet/epic-run-facts/v1", facts["schemaVersion"])
+        self.assertEqual("pass", facts["review"]["status"])
+        self.assertTrue(all(item["status"] == "pass" for item in facts["release"]["safeguards"].values()))
+
+    def test_record_merge_rejects_nonexistent_stale_and_unrelated_main_but_replays_valid_fact(self) -> None:
+        (self.repo / "tracked.txt").write_text("candidate commit\n")
+        subprocess.run(["git", "add", "tracked.txt"], cwd=self.repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "candidate"], cwd=self.repo, check=True)
+        self.compile_and_start()
+        self.finish_implementation()
+        self.transition("epic_verified")
+        self.grant("merge-to-default")
+        head = self.revision()[0]
+        old_main = subprocess.run(
+            ["git", "rev-parse", "refs/heads/main"], cwd=self.repo, text=True, capture_output=True, check=True,
+        ).stdout.strip()
+
+        nonexistent = self.command(
+            "record-merge", "--run", str(self.run), "--pr", "PR-X", "--merged-sha", "f" * 40,
+            "--main-sha", "f" * 40, "--evidence", "default-ref", ok=False,
+        )
+        self.assertIn("cannot resolve", nonexistent.stderr)
+        stale = self.command(
+            "record-merge", "--run", str(self.run), "--pr", "PR-X", "--merged-sha", head,
+            "--main-sha", head, "--evidence", "default-ref", ok=False,
+        )
+        self.assertIn("currently observed default-branch ref", stale.stderr)
+        unrelated = self.command(
+            "record-merge", "--run", str(self.run), "--pr", "PR-X", "--merged-sha", old_main,
+            "--main-sha", old_main, "--evidence", "default-ref", ok=False,
+        )
+        self.assertIn("not an ancestor", unrelated.stderr)
+
+        subprocess.run(["git", "update-ref", "refs/heads/main", head], cwd=self.repo, check=True)
+        valid = (
+            "record-merge", "--run", str(self.run), "--pr", "PR-X", "--merged-sha", head,
+            "--main-sha", head, "--evidence", "default-ref",
+        )
+        self.command(*valid)
+        self.command(*valid)
 
     def test_graph_rejects_unknown_optional_cohort_and_cycles(self) -> None:
         self.transition("accepted")

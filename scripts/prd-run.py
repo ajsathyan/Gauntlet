@@ -52,7 +52,29 @@ AUTHORITY_CAPABILITIES = (
     "merge-to-integration",
     "open-final-pr",
     "merge-to-default",
+    "deploy-production",
+    "verify-production",
+    "perform-paid-action",
+    "perform-destructive-action",
+    "apply-migration",
+    "use-credentials",
+    "execute-rollback",
 )
+HIGH_CONSEQUENCE_TRIGGERS = (
+    "billing-paid-actions",
+    "credentials-auth-permissions",
+    "migrations-data-loss",
+    "production-authority",
+    "destructive-actions",
+)
+REQUIRED_REVIEW_LENSES = ("authority-security", "failure-recovery", "black-box")
+SAFEGUARD_KINDS = ("dry-run-no-mutation", "bounded-live", "rollback-readiness")
+TRIGGER_AUTHORITY = {
+    "billing-paid-actions": "perform-paid-action",
+    "credentials-auth-permissions": "use-credentials",
+    "migrations-data-loss": "apply-migration",
+    "destructive-actions": "perform-destructive-action",
+}
 REVIEW_UNIT_STATES = ("pending", "opened", "checked", "merge-locked", "merged", "verified", "cleanup-eligible", "cleaned")
 
 
@@ -621,13 +643,33 @@ def normalize_graph(raw: Any) -> dict[str, Any]:
             "charter": require_string(lens["charter"], f"review.lenses[{index}].charter"),
             "id": require_string(lens["id"], f"review.lenses[{index}].id"),
         })
+    triggers = sorted(string_list(review_raw_facts["triggers"], "review.triggers"))
+    if len(triggers) != len(set(triggers)):
+        raise RunError("review.triggers must not contain duplicates")
+    unknown_triggers = set(triggers) - set(HIGH_CONSEQUENCE_TRIGGERS)
+    if unknown_triggers:
+        raise RunError(
+            "review.triggers must use canonical high-consequence categories; "
+            f"unsupported={sorted(unknown_triggers)}"
+        )
+    lens_ids = [item["id"] for item in lenses]
+    if len(lens_ids) != len(set(lens_ids)):
+        raise RunError("review.lenses must use distinct lens IDs")
     review_out_facts = {
         "lenses": lenses,
         "required": review_raw_facts["required"],
-        "triggers": sorted(string_list(review_raw_facts["triggers"], "review.triggers")),
+        "triggers": triggers,
     }
-    if review_out_facts["required"] and not review_out_facts["lenses"]:
-        raise RunError("required review must declare at least one distinct lens")
+    if triggers:
+        if not review_out_facts["required"]:
+            raise RunError("high-consequence triggers require review.required=true")
+        if len(lens_ids) != len(REQUIRED_REVIEW_LENSES) or set(lens_ids) != set(REQUIRED_REVIEW_LENSES):
+            raise RunError(
+                "high-consequence review requires exactly the authority-security, "
+                "failure-recovery, and black-box lenses"
+            )
+    elif review_out_facts["required"] or lenses:
+        raise RunError("ordinary work requires review.required=false and zero lenses")
 
     review_raw = raw.get("review_units")
     review_out: dict[str, Any] = {}
@@ -841,6 +883,8 @@ def record_verification_receipt(
     source_path: Path,
     destination_name: str,
     label: str,
+    *,
+    expected_oracle: str | None = None,
 ) -> tuple[dict[str, Any], str]:
     lock = read_json(run / "source-lock.json")
     commit, tree = exact_integration_revision(manifest, lock)
@@ -852,6 +896,8 @@ def record_verification_receipt(
         expected_commit=commit,
         expected_tree=tree,
     )
+    if expected_oracle is not None and receipt["identity"]["oracleSha256"] != expected_oracle:
+        raise RunError(f"{label} uses the wrong controller-owned oracle")
     destination = run / "receipts" / destination_name
     if destination.exists() and read_json(destination) != receipt:
         destination = destination.with_name(f"{destination.stem}-{object_hash(receipt)[:12]}{destination.suffix}")
@@ -860,6 +906,74 @@ def record_verification_receipt(
     atomic_json(destination, receipt)
     relative = pin_artifact(run, manifest, destination)
     return receipt, relative
+
+
+def consequence_oracle(manifest: dict[str, Any], *, lens: str | None = None, safeguard: str | None = None) -> str:
+    policy = manifest.get("consequence_review", {}).get("policy", {})
+    subject = {"lens": lens} if lens is not None else {"safeguard": safeguard}
+    return object_hash({
+        "schemaVersion": "gauntlet.consequence-proof.v1",
+        "triggers": policy.get("triggers", []),
+        **subject,
+    })
+
+
+def exact_record_status(record: dict[str, Any] | None, commit: str | None, tree: str | None = None) -> str:
+    if not record:
+        return "pending"
+    if record.get("result") != "pass":
+        return "fail"
+    identity = record.get("identity", {})
+    if not commit or identity.get("commitSha") != commit or (tree and identity.get("treeSha") != tree):
+        return "stale"
+    return "pass"
+
+
+def consequence_review_status(manifest: dict[str, Any], commit: str | None, tree: str | None = None) -> dict[str, Any]:
+    policy = manifest.get("consequence_review", {}).get("policy", {"required": False, "triggers": [], "lenses": []})
+    records = manifest.get("consequence_review", {}).get("results", {})
+    results = [
+        {
+            "id": lens["id"],
+            "status": exact_record_status(records.get(lens["id"]), commit, tree),
+            "evidence": records.get(lens["id"], {}).get("evidence", []),
+        }
+        for lens in policy.get("lenses", [])
+    ]
+    status = "not-required" if not policy.get("required") else (
+        "pass" if results and all(item["status"] == "pass" for item in results) else
+        "fail" if any(item["status"] == "fail" for item in results) else
+        "stale" if any(item["status"] == "stale" for item in results) else
+        "pending"
+    )
+    return {**policy, "results": results, "status": status}
+
+
+def safeguard_status(manifest: dict[str, Any], kind: str, commit: str | None, tree: str | None = None) -> dict[str, Any]:
+    policy = manifest.get("consequence_review", {}).get("policy", {})
+    triggered = bool(policy.get("triggers"))
+    required = triggered and (
+        kind == "dry-run-no-mutation"
+        or bool(manifest.get("release", {}).get("applicability", {}).get("production-verification"))
+    )
+    record = manifest.get("release", {}).get("safeguards", {}).get(kind)
+    return {
+        "evidence": record.get("evidence", []) if record else [],
+        "kind": kind,
+        "required": required,
+        "status": exact_record_status(record, commit, tree) if required else "not-required",
+    }
+
+
+def require_safeguard(manifest: dict[str, Any], kind: str, commit: str, tree: str | None = None) -> None:
+    status = safeguard_status(manifest, kind, commit, tree)
+    if status["required"] and status["status"] != "pass":
+        raise RunError(f"required {kind} safeguard is {status['status']} on the exact final revision")
+
+
+def trigger_authorities(manifest: dict[str, Any]) -> list[str]:
+    triggers = manifest.get("consequence_review", {}).get("policy", {}).get("triggers", [])
+    return sorted({TRIGGER_AUTHORITY[item] for item in triggers if item in TRIGGER_AUTHORITY})
 
 
 def observed_integration_head(manifest: dict[str, Any], lock: dict[str, Any]) -> str | None:
@@ -1080,8 +1194,11 @@ def require_sha(value: Any, label: str) -> str:
 
 def canonical_git_object(repo: Path, value: Any, label: str, expected_type: str) -> str:
     supplied = require_sha(value, label)
-    resolved = require_sha(git_value(["rev-parse", "--verify", supplied], label, repo), label)
-    object_type = git_value(["cat-file", "-t", resolved], f"{label} type", repo)
+    try:
+        resolved = require_sha(git_value(["rev-parse", "--verify", supplied], label, repo), label)
+        object_type = git_value(["cat-file", "-t", resolved], f"{label} type", repo)
+    except RunError as exc:
+        raise RunError(f"cannot resolve {label} as a Git {expected_type} object") from exc
     if object_type != expected_type:
         raise RunError(f"{label} must identify a Git {expected_type} object")
     return resolved
@@ -1370,6 +1487,32 @@ def integration_ref(repo: Path, branch: str) -> str:
     raise RunError(f"integration branch is not available locally or from origin: {branch}")
 
 
+def observed_default_branch_ref(repo: Path) -> tuple[str, str]:
+    symbolic = subprocess.run(
+        ["git", "-C", str(repo), "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
+        text=True,
+        capture_output=True,
+    )
+    if symbolic.returncode == 0:
+        ref = symbolic.stdout.strip()
+        sha = git_value(["rev-parse", "--verify", f"{ref}^{{commit}}"], "observed default branch", repo)
+        return ref, canonical_git_object(repo, sha, "observed default branch", "commit")
+    candidates = []
+    for ref in ("refs/heads/main", "refs/heads/master"):
+        result = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", ref],
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            candidates.append(ref)
+    if len(candidates) != 1:
+        raise RunError("cannot determine one currently observed default-branch ref")
+    ref = candidates[0]
+    sha = git_value(["rev-parse", "--verify", f"{ref}^{{commit}}"], "observed default branch", repo)
+    return ref, canonical_git_object(repo, sha, "observed default branch", "commit")
+
+
 def run_binding_registry(repo: Path) -> Path:
     raw = Path(git_value(["rev-parse", "--git-common-dir"], "Git common directory", repo))
     common = raw if raw.is_absolute() else (repo / raw).resolve()
@@ -1393,6 +1536,9 @@ def register_run_binding(repo: Path, branch: str, run: Path, repository_identity
 
 
 def release_gates(manifest: dict[str, Any], completion: dict[str, Any]) -> list[dict[str, Any]]:
+    final = manifest["release"].get("epic-verification", {})
+    final_commit = final.get("integration_head_sha")
+    final_tree = final.get("identity", {}).get("treeSha")
     gates = [
         {
             "blocksOverallCompletion": True,
@@ -1420,7 +1566,6 @@ def release_gates(manifest: dict[str, Any], completion: dict[str, Any]) -> list[
             "status": "pass" if all(item.get("result") == "pass" for item in manifest["cohorts"].values()) else "pending",
             "summary": "Every declared shared invariant passed once.",
         })
-    final = manifest["release"].get("epic-verification", {})
     gates.append({
         "blocksOverallCompletion": True,
         "blocksPr": True,
@@ -1430,6 +1575,42 @@ def release_gates(manifest: dict[str, Any], completion: dict[str, Any]) -> list[
         "status": "pass" if completion["implemented"] else final.get("result", "pending"),
         "summary": "Final Epic verification covered canonical acceptance on the exact integrated revision.",
     })
+    review = consequence_review_status(manifest, final_commit, final_tree)
+    if review["required"]:
+        gates.append({
+            "blocksOverallCompletion": True,
+            "blocksPr": True,
+            "evidenceRefs": sorted(reference for item in review["results"] for reference in item["evidence"]),
+            "id": "consequence-review",
+            "stage": "implementation",
+            "status": review["status"],
+            "summary": "The fixed authority/security, failure/recovery, and black-box lenses passed on the exact candidate revision.",
+        })
+        dry_run = safeguard_status(manifest, "dry-run-no-mutation", final_commit, final_tree)
+        gates.append({
+            "blocksOverallCompletion": True,
+            "blocksPr": False,
+            "evidenceRefs": dry_run["evidence"],
+            "id": "dry-run-no-mutation",
+            "stage": "merge",
+            "status": dry_run["status"],
+            "summary": "Repository-owned dry-run and no-mutation proof passed on the exact final revision.",
+        })
+        if manifest["release"]["applicability"]["production-verification"]:
+            for kind, summary in (
+                ("bounded-live", "Repository-owned bounded-live proof passed before production verification."),
+                ("rollback-readiness", "Repository-owned rollback readiness proof passed before production verification."),
+            ):
+                safeguard = safeguard_status(manifest, kind, final_commit, final_tree)
+                gates.append({
+                    "blocksOverallCompletion": True,
+                    "blocksPr": False,
+                    "evidenceRefs": safeguard["evidence"],
+                    "id": kind,
+                    "stage": "release",
+                    "status": safeguard["status"],
+                    "summary": summary,
+                })
     if manifest.get("integration", {}).get("pr_strategy") == "review-prs-plus-final":
         gates.append({
             "blocksOverallCompletion": True, "blocksPr": True,
@@ -1498,7 +1679,13 @@ def cmd_project_pr(args: argparse.Namespace) -> None:
         item["integration_verification"]["receipt"] for item in manifest["tickets"].values()
     } | {
         item["receipt"] for item in manifest["cohorts"].values() if item.get("receipt")
-    } | {verification["receipt"]})
+    } | {verification["receipt"]} | {
+        item["receipt"] for item in manifest.get("consequence_review", {}).get("results", {}).values()
+        if item.get("receipt")
+    } | {
+        item["receipt"] for item in manifest["release"].get("safeguards", {}).values()
+        if item.get("receipt")
+    })
     projection = {
         "binding": {
             "branch": branch, "generation": manifest["generation"], "graphSha256": manifest["graph_sha256"],
@@ -1705,6 +1892,8 @@ def cmd_compile(args: argparse.Namespace) -> None:
         for unit_id, unit in graph["review_units"].items()
     }
     manifest["cohorts"] = {key: {"result": None, **graph["cohorts"][key]} for key in sorted(graph["cohorts"])}
+    manifest["consequence_review"] = {"policy": graph["review"], "results": {}}
+    manifest["release"]["safeguards"] = {}
     manifest["shared_context"] = {
         "cohorts": {key: f"shared-context/{key.lower()}-v1.md" for key in sorted(graph["cohorts"])},
         "global": "shared-context/global-v1.md",
@@ -1922,13 +2111,24 @@ def run_facts_projection(run: Path, manifest: dict[str, Any]) -> dict[str, Any]:
             "result": "pass",
         })
     epic_id = lock["target_epic_ids"][0]
+    final_commit = final.get("integration_head_sha") if final else None
+    final_tree = final.get("identity", {}).get("treeSha") if final else None
+    review = consequence_review_status(manifest, final_commit or commit, final_tree or tree)
+    safeguards = {
+        kind: safeguard_status(manifest, kind, final_commit or commit, final_tree or tree)
+        for kind in SAFEGUARD_KINDS
+    }
     return {
         "epicId": epic_id,
         "epicTitle": lock["epics"][epic_id]["title"],
         "exactRevision": completion_projection(manifest, observed_head=commit)["exactRevision"],
         "owners": [item["owner"] for _, item in sorted(manifest["tickets"].items()) if item.get("owner")],
         "plannedChecks": graph["planned_checks"],
-        "review": graph["review"],
+        "review": review,
+        "release": {
+            "applicability": manifest["release"]["applicability"],
+            "safeguards": safeguards,
+        },
         "schemaVersion": "gauntlet/epic-run-facts/v1",
         "verificationIdentity": {
             "commit": commit,
@@ -2223,6 +2423,58 @@ def cmd_verify_cohort(args: argparse.Namespace) -> None:
     save_manifest(run, manifest)
 
 
+def cmd_record_review(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    require_state(manifest, ("integrating",))
+    policy = manifest.get("consequence_review", {}).get("policy", {})
+    expected = {item["id"] for item in policy.get("lenses", [])}
+    if not policy.get("required") or args.lens not in expected:
+        raise RunError(f"review lens is not required by this run: {args.lens}")
+    verification, relative = record_verification_receipt(
+        run,
+        manifest,
+        Path(args.verification_receipt),
+        f"consequence-review-{args.lens}.json",
+        f"{args.lens} consequence review receipt",
+        expected_oracle=consequence_oracle(manifest, lens=args.lens),
+    )
+    manifest["consequence_review"]["results"][args.lens] = {**verification, "receipt": relative}
+    event(run, manifest, "consequence_review_recorded", {"lens": args.lens, "result": verification["result"]})
+    save_manifest(run, manifest)
+
+
+def cmd_record_safeguard(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    policy = manifest.get("consequence_review", {}).get("policy", {})
+    if not policy.get("triggers"):
+        raise RunError("ordinary runs do not require consequence safeguards")
+    if args.kind != "dry-run-no-mutation" and not manifest["release"]["applicability"]["production-verification"]:
+        raise RunError(f"{args.kind} is not required without an applicable production-verification stage")
+    if args.kind == "bounded-live":
+        require_state(manifest, ("deployed",))
+        require_authority(manifest, "deploy-production", "verify-production", *trigger_authorities(manifest))
+    else:
+        require_state(manifest, ("epic_verified", "merged", "deployed"))
+    final = manifest.get("release", {}).get("epic-verification", {})
+    if final.get("result") != "pass":
+        raise RunError("consequence safeguards require passing final Epic verification")
+    verification, relative = record_verification_receipt(
+        run,
+        manifest,
+        Path(args.verification_receipt),
+        f"safeguard-{args.kind}.json",
+        f"{args.kind} safeguard receipt",
+        expected_oracle=consequence_oracle(manifest, safeguard=args.kind),
+    )
+    if verification["identity"]["commitSha"] != final.get("integration_head_sha"):
+        raise RunError("safeguard receipt does not match the exact final verified revision")
+    manifest["release"].setdefault("safeguards", {})[args.kind] = {**verification, "receipt": relative}
+    event(run, manifest, "consequence_safeguard_recorded", {"kind": args.kind, "result": verification["result"]})
+    save_manifest(run, manifest)
+
+
 def cmd_record_release(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
@@ -2236,6 +2488,16 @@ def cmd_record_release(args: argparse.Namespace) -> None:
         raise RunError(f"applicable release stage cannot be skipped: {stage}")
     if not applicable and args.result != "skipped":
         raise RunError(f"inapplicable release stage must be recorded as skipped: {stage}")
+    if applicable:
+        final = manifest.get("release", {}).get("epic-verification", {})
+        final_commit = require_sha(final.get("integration_head_sha"), "final verified revision")
+        require_safeguard(manifest, "dry-run-no-mutation", final_commit)
+        if stage == "deployment":
+            require_authority(manifest, "deploy-production", *trigger_authorities(manifest))
+        else:
+            require_authority(manifest, "verify-production")
+            require_safeguard(manifest, "bounded-live", final_commit)
+            require_safeguard(manifest, "rollback-readiness", final_commit)
     previous = manifest["release"].get(stage, {})
     if previous.get("result") == "fail" and args.result == "pass" and manifest["release"].get("rollback", {}).get("result") != "pass":
         raise RunError(f"failed {stage} cannot be replaced with pass until rollback evidence is recorded")
@@ -2273,6 +2535,11 @@ def cmd_verify_epic(args: argparse.Namespace) -> None:
     failed_cohorts = [cohort_id for cohort_id, item in manifest["cohorts"].items() if item.get("result") != "pass"]
     if pending or failed_cohorts:
         raise RunError(f"final Epic verification requires integrated Tickets and passing declared Cohorts; pending={pending}, cohorts={failed_cohorts}")
+    lock = read_json(run / "source-lock.json")
+    commit, tree = exact_integration_revision(manifest, lock)
+    review = consequence_review_status(manifest, commit, tree)
+    if review["required"] and review["status"] != "pass":
+        raise RunError(f"final Epic verification requires all consequence lenses to pass on the exact candidate revision; status={review['status']}")
     verification, relative = record_verification_receipt(
         run,
         manifest,
@@ -2280,7 +2547,6 @@ def cmd_verify_epic(args: argparse.Namespace) -> None:
         "final-epic-verification.json",
         "final Epic verification receipt",
     )
-    lock = read_json(run / "source-lock.json")
     epic_id = lock["target_epic_ids"][0]
     if verification["identity"]["oracleSha256"] != lock["epics"][epic_id]["section_sha256"]:
         raise RunError("final Epic verification oracle must identify the locked canonical Epic section")
@@ -2304,10 +2570,34 @@ def cmd_record_merge(args: argparse.Namespace) -> None:
     require_state(manifest, ("epic_verified", "merged"))
     if "authority" in manifest:
         require_authority(manifest, "merge-to-default")
-    merged = require_string(args.merged_sha, "merged SHA").lower()
-    main = require_string(args.main_sha, "main SHA").lower()
-    if not re.fullmatch(r"[0-9a-f]{7,64}", merged) or merged != main:
+    lock = read_json(run / "source-lock.json")
+    repository_root = Path(require_string(lock.get("repository_root"), "source-lock.repository_root")).resolve()
+    repo, repository_identity = git_repository_identity(repository_root)
+    if repo != repository_root or repository_identity != lock.get("repository_identity"):
+        raise RunError("source-lock.repository_root no longer resolves to the locked repository")
+    merged = canonical_git_object(repo, args.merged_sha, "merged SHA", "commit")
+    main = canonical_git_object(repo, args.main_sha, "main SHA", "commit")
+    if merged != main:
         raise RunError("merged SHA and verified main SHA must be the same Git object ID")
+    default_ref, observed_main = observed_default_branch_ref(repo)
+    if main != observed_main:
+        raise RunError(f"verified main SHA does not equal the currently observed default-branch ref {default_ref}")
+    verified_head = canonical_git_object(
+        repo,
+        manifest["release"]["epic-verification"].get("integration_head_sha"),
+        "final verified integration head",
+        "commit",
+    )
+    ancestry = subprocess.run(
+        ["git", "-C", str(repo), "merge-base", "--is-ancestor", verified_head, main],
+        text=True,
+        capture_output=True,
+    )
+    if ancestry.returncode == 1:
+        raise RunError("final verified integration head is not an ancestor of the observed default branch")
+    if ancestry.returncode != 0:
+        raise RunError(f"cannot verify merge ancestry: {ancestry.stderr.strip() or ancestry.stdout.strip()}")
+    require_safeguard(manifest, "dry-run-no-mutation", verified_head)
     integration = manifest.get("integration", {})
     record = {
         "evidence": require_string(args.evidence, "merge evidence"),
@@ -2317,7 +2607,7 @@ def cmd_record_merge(args: argparse.Namespace) -> None:
         "pr": require_string(args.pr, "PR reference"),
         "pr_strategy": integration.get("pr_strategy"),
         "result": "pass",
-        "verified_head_sha": manifest["release"]["epic-verification"]["integration_head_sha"],
+        "verified_head_sha": verified_head,
     }
     existing = manifest["release"].get("merge")
     if existing and existing != record:
@@ -2334,6 +2624,7 @@ def cmd_record_merge(args: argparse.Namespace) -> None:
 def cmd_record_rollback(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
+    require_authority(manifest, "execute-rollback")
     record = {
         "action": require_string(args.action, "rollback action"), "evidence": require_string(args.evidence, "rollback evidence"),
         "result": args.result, "trigger": require_string(args.trigger, "rollback trigger"),
@@ -2408,6 +2699,9 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
         ["source-lock.json", "ticket-graph.json", "ticket-graph.md", "manifest.json", "resume.md", "events.jsonl"],
         [],
     )
+    manifest["consequence_review"] = {"policy": graph["review"], "results": {}}
+    manifest["release"]["safeguards"] = {}
+    manifest["release"].pop("epic-verification", None)
     for ticket_id in sorted(impacted):
         item = manifest["tickets"][ticket_id]
         history = dict(item.get("revision_history", {}))
@@ -2482,7 +2776,12 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     commands = root.add_subparsers(dest="command", required=True)
     init = commands.add_parser("init")
-    init.add_argument("--executions", required=True); init.add_argument("--run-id", required=True); init.add_argument("--source", required=True)
+    init.add_argument("--executions", required=True); init.add_argument("--run-id", required=True)
+    init.add_argument(
+        "--source",
+        required=True,
+        help="immutable launch-set.source.md / launch source snapshot (not the mutable canonical PRD)",
+    )
     init.add_argument("--target", required=True, action="append"); init.add_argument("--launch-set", required=True)
     init.add_argument("--instruction-version", default="prd-run/v1")
     init.add_argument("--release-contract", required=True); init.add_argument("--release-stages", default="merge")
@@ -2522,6 +2821,12 @@ def parser() -> argparse.ArgumentParser:
     cohort = commands.add_parser("verify-cohort")
     cohort.add_argument("--run", required=True); cohort.add_argument("--cohort", required=True)
     cohort.add_argument("--verification-receipt", required=True); cohort.set_defaults(func=cmd_verify_cohort)
+    review = commands.add_parser("record-review")
+    review.add_argument("--run", required=True); review.add_argument("--lens", required=True, choices=REQUIRED_REVIEW_LENSES)
+    review.add_argument("--verification-receipt", required=True); review.set_defaults(func=cmd_record_review)
+    safeguard = commands.add_parser("record-safeguard")
+    safeguard.add_argument("--run", required=True); safeguard.add_argument("--kind", required=True, choices=SAFEGUARD_KINDS)
+    safeguard.add_argument("--verification-receipt", required=True); safeguard.set_defaults(func=cmd_record_safeguard)
     verify_epic = commands.add_parser("verify-epic")
     verify_epic.add_argument("--run", required=True); verify_epic.add_argument("--verification-receipt", required=True)
     verify_epic.set_defaults(func=cmd_verify_epic)
