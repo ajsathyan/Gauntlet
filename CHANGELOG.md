@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now lets one product task shape and launch many independently shippable Epics while giving each Epic its own visible task, Execution Run, exact-revision verification, schema 3.0 Project PR, dependency-aware lifecycle copy, and release state. The cutover retires duplicate implementation-plan and model-authored completion-summary mechanics, makes Cohorts optional, and preserves stronger consequence-triggered review and production dry-run gates.
+
 - Gauntlet now documents how existing local-document profiles are migrated without overwriting canonical documents or rewriting completed Execution Run evidence.
 
 - Gauntlet now freezes each PRD run's review topology, supports parent-owned Review Unit PRs for large tightly coupled targets, and generates one schema v2 Project PR with deterministic Epic and Scope Area coverage.

@@ -14,7 +14,7 @@ For each issue, output:
 If a field is outside accepted scope, write `Not relevant because...` instead of creating speculative work. Optional example: read `examples/ready-item.md` only when output shape is ambiguous.
 
 - Classification: bug, test failure, review finding, release concern, cleanup, open question, duplicate, or no-action
-- Decision: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, `Reject`, or `Ready`
+- Decision: `Block`, `Ready`, `Defer`, `Reject`, `Duplicate`, or `No action`
 - Priority: P0/P1/P2/P3
 - Status: `Ready`, `Blocked`, `Deferred`, `Duplicate`, `Rejected`, or `No action`
 - Source handle or source text
@@ -35,7 +35,6 @@ Independent findings may be triaged by parallel subagents when sources do not ov
 - Do not assign root cause without evidence.
 - Split broad findings into implementable tasks.
 - For Production Quality Bar findings, keep automatable proof separate from Human judgment and downgrade speculative launch concerns with `Not relevant because...`, `Defer`, or `Reject`.
-- Preserve the Release launch cut line, panel delta, decisions, and `| Concern | Decision | Why Not Defer | Proof | Plan Delta |`.
-- A `Ship blocker` must name concrete harm, why fallback/deferral/recovery is not acceptable, executable proof, and plan delta.
+- Use `Block` only for concrete harm or missing authority/proof that prevents the accepted next action. Name the decision, recommended resolution, impact, and unaffected work that may continue.
 - Cleanup becomes Ready only with evidence, scope, done criteria, and verification; otherwise Defer, Reject, or No action.
 - Make `Done when` an observable outcome or invariant with meaningful limits. For consequential behavior, include a plausible wrong case and required non-effects; a phrase, populated field, self-report, or green command alone is insufficient.

@@ -30,7 +30,7 @@ If the first two answers expose a tightly coupled or context-heavy handoff, keep
 
 Apply the first matching rule:
 
-1. If `work_class = verification` and `proof = security`, select `gauntlet_security_reviewer`. Security-sensitive implementation or release work gets its normal writer or release profile plus a separate security-verification Ticket in the same Cohort Verification group.
+1. If `work_class = verification` and `proof = security`, select `gauntlet_security_reviewer`. Create this separate read-only review only when a consequential trust, credential, permission, paid/destructive authority, migration, or production boundary triggers it; ordinary implementation uses direct parent verification.
 2. If `work_class = release` or `proof = release`, select `gauntlet_release_integrator`. It prepares and verifies the release; the parent retains integration and release authority.
 3. If `work_class = verification` or `proof = behavioral`, select `gauntlet_independent_verifier`. The verifier must not verify work it authored.
 4. If `work_class = research`, select `gauntlet_deep_expert_researcher` only when `complexity = deep` or `risk = consequential`; otherwise keep bounded research in the parent task or use the normal Gauntlet research path.
@@ -39,7 +39,7 @@ Apply the first matching rule:
 7. If `work_class = implementation`, `authority = local-write`, and `complexity` is `routine` or `standard`, select `gauntlet_standard_worker`.
 8. Otherwise, do not delegate. The parent resolves the inconsistent or incomplete routing fields.
 
-`risk = consequential` does not by itself select a writer. It strengthens review and proof requirements. `context_shape = high-volume` favors the fast reader only for read-only source work; it does not override security, release, verification, or deep-work rules.
+`risk = consequential` does not by itself select a writer. When a concrete high-consequence boundary is present, route three distinct parallel verification charters—security/authority, failure/recovery, and black-box non-effects—after deterministic checks pass. `context_shape = high-volume` favors the fast reader only for read-only source work.
 
 ## Escalation and context
 

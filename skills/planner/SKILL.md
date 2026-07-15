@@ -5,7 +5,7 @@ description: Use when a spec needs bounded steps, delegation tickets, dependenci
 
 # Planner
 
-Turn work into steps. Define appetite before scope; split only independent ownership and proof.
+Shape canonical plan steps. Define appetite before scope; split only independent ownership and proof.
 
 ## Output Contract
 
@@ -22,7 +22,7 @@ Include routing only when material; omit no-op fields.
 
 ## Gauntlet Ticket
 
-Each dispatched child gets one concise prose ticket. Include only fields that apply:
+Each dispatched child gets one concise prose ticket with only applicable fields:
 
 - Objective
 - Ownership: files, state, contracts, or evidence the child owns and must avoid
@@ -39,20 +39,20 @@ Each dispatched child gets one concise prose ticket. Include only fields that ap
   - `Cannot verify` limits
 - Return contract and ask-parent policy
 
-Unless specified otherwise, the child works autonomously without routine narration. It returns only the requested artifact or findings, compact proof, and risk. It contacts the parent early only for new authority, an unrecoverable blocker, a safety stop, or a required heartbeat.
+The child works autonomously without routine narration. It returns only the artifact or findings, compact proof, and risk. It contacts the parent only for new authority, an unrecoverable blocker, a safety stop, or a required heartbeat.
 
 ## Rules
 
 - Use end-to-end steps unless files, state, and proof are independent enough to split.
 - Convert uncertainty into probes, assumptions, or `Cannot verify` items. Name one first-ready lane.
-- Dispatch through native Codex state. Keep shared context in the canonical plan and send each child only its bounded ticket.
+- Dispatch through native Codex state. Send each child only its bounded ticket.
 - When scope changes materially, update affected ownership, dependencies, and proof. Keep no-op checks silent.
-- Define proof around observable behavior or invariants, not phrases, fields, self-reports, or a green command alone.
+- Define proof around observable behavior or invariants, not self-reports or a green command alone.
 - Child tests are evidence, not sole acceptance. A ticket may authorize oracle or fixture edits, but an edited oracle cannot establish acceptance until the parent independently reviews or redefines it.
-- Compare or adversarially check consequential performance, security, reliability, and hot-path work.
+- Plan targeted Ticket checks, optional Cohort checks for a named shared invariant, and one final Epic verification on the exact integrated revision. Reuse a receipt only when commit/tree, command, toolchain, fixtures or oracle, and relevant environment all match.
+- Use direct parent verification for ordinary work. Add independent review only for a concrete consequential boundary.
 - Do not split tightly coupled state or one decision tree across child lanes.
-- For Release panels, preserve the launch cut line, panel delta, and `| Concern | Decision | Why Not Defer | Proof | Plan Delta |` table. Allowed decisions are `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, and `Reject`. A `Ship blocker` needs concrete harm, no acceptable fallback or deferral, executable proof, and a real plan delta.
-- When duplicate Release planning prompts are used, compare missing blockers, dependency order, proof, first task, deferrals, and rejections. Do not union every idea.
+- For billing/paid actions, credentials/auth/permissions, migrations/data loss, production authority, destructive actions, or equivalent harm, plan three parallel review lenses on the exact revision: trust/security/authority; failure/concurrency/recovery; and black-box behavior/non-effects. Run deterministic checks first, fix once, rerun affected proof, then require the repository-owned dry run and meaningful bounded canary and rollback.
 - For TypeScript work, include the TS Durability gate only when the classifier says `durabilityRequired: true` or the user explicitly asks.
 - Trigger the Production Quality Bar only for near-launch, private-beta, production-bound, hardened, or audited work; otherwise omit it. When triggered, attach release proof such as dry-run/no-mutation evidence, automated GitHub release tags, and explicit deferrals.
 - Stop planning once the first build step and first meaningful proof path are obvious.

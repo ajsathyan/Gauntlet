@@ -56,7 +56,7 @@ The workflow is built around Research, Patch, Feature, and Release paths; Standa
 | Scoped role skills | Adds product architecture, planning, triage, implementation, black-box testing, experience review, and deep code review only at smoke, delta, or full scope when useful. |
 | Run logs | Writes a tiny exceptions-first Markdown receipt for material Feature/Release work: assumptions, decisions, skipped checks, failures, `Cannot verify`, and follow-ups. |
 | Local product documents | Uses a default-on, lazily materialized ignored `local-docs/` profile in the primary worktree, with an explicit per-project opt-out, while preserving tracked repository documentation and Git/PR/release traceability. |
-| PRD execution | Compiles one accepted multi-Epic PRD's build-ready target into a durable Ticket Graph with bounded child context, resumable state, frozen parent-owned PR topology, deterministic Epic/Scope review coverage, cohort proof, and end-to-end release authority. |
+| PRD execution | Lets one product task shape many independently shippable Epics, then launches one visible task and one durable Execution Run per build-ready Epic with bounded context, exact-revision proof, and end-to-end release authority. |
 | Subagent orchestration | Renders cache-oriented bounded context, audits model requests and routing, bundles compatible Tickets without head-of-line blocking, and preserves parent-only consequential authority. |
 | Comparative evaluation | Admits isolated automatic-oracle tasks and runs condition-blind paired Gauntlet-versus-baseline experiments with replay, ablations, sealed core slots, and replaceable harness adapters. |
 | Skill quality bar | Gives future skill and workflow edits a practical behavior-delta, trigger, completion, proof, and token-cost bar without making every Patch heavier. |
@@ -146,9 +146,9 @@ python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs ensure \
 
 The profile creates ignored `doc_org.md` and `local-docs/` paths in the primary worktree through Git's local exclude file. It never repurposes or ignores the repository's tracked `docs/` directory. Linked implementation worktrees read the primary copies and return durable updates to the main task. To opt out for one project, run `python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs disable --project-root "$PROJECT_ROOT"`; `docs enable` removes that project's marker.
 
-`doc_org.md` owns one release contract. A human-readable PRD may contain multiple Epics organized by stable Scope Areas; only its explicit build-ready target compiles into the generated Ticket Graph. The resulting Execution Run keeps authoritative state on disk, survives conversation compaction, gives each child only bounded context, and verifies tickets individually and in meaningful cohorts before full PRD proof. Small reviewable targets use one complete Project PR. Large tightly coupled targets may freeze parent-owned Review Unit PRs into the integration branch before the complete Project PR. Independently shippable outcomes use separate runs. See [docs/local-documentation.md](docs/local-documentation.md) and [docs/prd-execution.md](docs/prd-execution.md).
+`doc_org.md` owns one release contract. A human-readable PRD may contain multiple independently shippable Epics organized by stable Scope Areas. Keep going while product ideas are flowing: capture each outcome as an Epic, make its release stages and dependency boundaries explicit, and launch the accepted set together when it is ready. Gauntlet creates one visible implementation task, one durable Execution Run, one integration branch, and one complete Project PR per Epic. Dependency-ready Epics can work in parallel while blocked Epics wait on their named `merged`, `deployed`, or `productionProved` boundary. See [docs/local-documentation.md](docs/local-documentation.md) and [docs/prd-execution.md](docs/prd-execution.md).
 
-“Implement the PRD” carries that accepted target through branch/worktree setup, implementation, proof, PR, merge, specified deployment and production changes, verification, rollback when required, durable updates, and cleanup. It stops rather than guessing when authority, credentials, safety, rollout/rollback validity, or required production proof is missing.
+“Implement the PRD” freezes that accepted launch set, starts every dependency-ready Epic in its own task, and carries each through branch/worktree setup, implementation, one fresh final Epic verification, Project PR, merge, specified deployment and production changes, rollback when required, durable updates, and cleanup. The product task tells you what started, what is waiting, and when a material decision needs you; otherwise you can take a break while the Epic tasks work.
 
 ## 🧰 Skill Quality Bar
 
@@ -360,7 +360,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [docs/upstream-superpowers.md](docs/upstream-superpowers.md) | Attributes adapted techniques and explains selective upstream update review and runtime retirement. |
 | [docs/upstream-eval-skills.md](docs/upstream-eval-skills.md) | Records the vendored eval-skill source, namespace mapping, update procedure, and license location. |
 | [docs/local-documentation.md](docs/local-documentation.md) | Defines the default-on lazy local-document profile, explicit project opt-out, tracked/private boundary, canonical primary-worktree rule, and release/configuration contracts. |
-| [docs/prd-execution.md](docs/prd-execution.md) | Defines PRD/Epic/Scope Area/Ticket Graph terminology, frozen Project PR and Review Unit topology, durable execution artifacts, ready-queue scheduling, bounded child context, verification layers, and end-to-end implementation authority. |
+| [docs/prd-execution.md](docs/prd-execution.md) | Defines the product-task-to-Epic-task launch model, one-Epic Ticket Graphs and Project PRs, durable execution artifacts, bounded child context, tiered verification, lifecycle copy, and end-to-end implementation authority. |
 | [docs/custom-agent-routing.md](docs/custom-agent-routing.md) | Defines deterministic Ticket-to-profile selection, escalation, bounded context, and audit requirements. |
 | [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
 | [docs/github-discipline.md](docs/github-discipline.md) | Beginner-friendly branch, worktree, commit, PR, merge, child-chat, and solo-builder defaults. |
@@ -370,7 +370,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [docs/promotion-scanner.md](docs/promotion-scanner.md) | Trigger policy and gap-routing guidance for promotion scans. |
 | [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
 | [scripts/gauntlet.py](scripts/gauntlet.py) | Deterministic CLI for guarded one-command closeout, merge/archive actions, analytics, install verification, follow-up packets, compatibility memory linting, and PR/changelog drafts. |
-| [templates/local-docs/](templates/local-docs) | Scaffolds `doc_org.md`, the local index, epic PRDs, research, decisions, implementation plans, and run logs. |
+| [templates/local-docs/](templates/local-docs) | Scaffolds `doc_org.md`, the local index, Epic PRDs, research, decisions, and run logs without a duplicate implementation-plan document. |
 | [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals with instruction-conflict preflight and conflict-aware Codex response defaults. |
 | [scripts/install-codex-agents.py](scripts/install-codex-agents.py) | Validates, installs, retires, and verifies Gauntlet-owned Codex profiles without overwriting user-owned agents. |
 | [scripts/subagent-audit.py](scripts/subagent-audit.py) | Idempotently exports privacy-bounded Gauntlet subagent usage from Codex native local state. |
@@ -386,7 +386,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [scripts/lint-skills.py](scripts/lint-skills.py) | Lints skill frontmatter, word budget, contract slots, optional examples, and bounded subagent guidance. |
 | [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill text coverage, declared trace-field scorer contracts, and linting when staged Gauntlet skill files change. |
 | [scripts/install-git-hooks.sh](scripts/install-git-hooks.sh) | Installs the pre-commit hook that enforces skill-change checks. |
-| [scripts/prd-run.py](scripts/prd-run.py) | Creates, validates, resumes, and advances deterministic disk-backed PRD Execution Runs and emits the schema v2 complete Project PR projection. |
+| [scripts/prd-run.py](scripts/prd-run.py) | Creates, validates, resumes, and advances deterministic one-Epic Execution Runs; exposes `completion` and `run-facts`; verifies the exact Epic revision; and emits the schema 3.0 Project PR projection. |
 | [scripts/generated_context.py](scripts/generated_context.py) | Renders versioned bounded machine projections with stable-prefix metadata and adversarial validation. |
 | [scripts/eval-task.py](scripts/eval-task.py) | Admits development evaluation tasks with separate hidden verifiers, cached immutable checks, current liveness, and quarantine. |
 | [scripts/eval-run.py](scripts/eval-run.py) | Records paired executions, state-conditional replay, adapter equivalence, total-package and ablation estimands, and sealed core-study state. |

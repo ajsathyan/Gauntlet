@@ -64,7 +64,7 @@ Use the relevant installed Gauntlet skill from `{{AGENT_HOME}}/skills/<skill>/SK
 - `researcher`: produce bounded evidence-backed research without importing implementation ceremony.
 - `debugger`: reproduce, isolate, and prove root cause before a fix.
 - `product-architect`: shape user-facing workflow, information architecture, first value, trust, and meaningful metrics.
-- `maintain-prd`: keep the canonical multi-Epic PRD current without implementing it.
+- `maintain-prd`: keep shaping independently shippable Epics in the canonical product PRD until the user authorizes one launch set.
 - `planner`: turn an accepted spec into bounded implementation tasks.
 - `implementer`: execute accepted tasks with scoped changes and proof.
 - `implement-prd`: compile and execute an accepted PRD target through its authorized release path.
@@ -88,7 +88,7 @@ Stop planning when the first coherent build step and its proof path are clear. D
 
 Unless the primary worktree contains `.gauntlet/doc-org.disabled`, the local-document profile is active by default. Before creating or changing product, research, decision, planning, or run-log documents, lazily materialize it with `python3 {{GAUNTLET_ROOT}}/scripts/gauntlet.py docs ensure --project-root "$PROJECT_ROOT"`, then read `doc_org.md` and `local-docs/INDEX.md`. Keep ignored canonical documents in the primary worktree and tracked repository documentation in the repository's established public or maintainer-facing location. `docs check` reports the mode without changing the project; `docs disable` opts out one project and `docs enable` reactivates it.
 
-Treat a PRD as the human product source: Epics are stable outcomes and Scope Areas are stable responsibilities. At implementation time, compile only the explicit build-ready target into a Ticket Graph of independently assignable Tickets. One Execution Run owns durable local state; Receipts point to evidence, and Cohort Verification proves shared interfaces or invariants. Follow `{{GAUNTLET_ROOT}}/docs/prd-execution.md`.
+Treat a PRD as the human product source: Epics are independently shippable outcomes and Scope Areas are stable responsibilities. Keep shaping Epics until the user authorizes one launch set. Then create one visible task and one Execution Run per build-ready Epic, start dependency-ready Epics in parallel, and let each Epic compile its own Ticket Graph. Receipts point to evidence; Cohort Verification is optional and reserved for shared interfaces or invariants; one final Epic verification decides that Epic's completion state. Follow `{{GAUNTLET_ROOT}}/docs/prd-execution.md`.
 
 For material Gauntlet work, apply the durable control architecture by default: human-readable sources own intent; versioned deterministic controllers own mechanical invariants and canonical state; `{{GAUNTLET_ROOT}}/scripts/generated_context.py` renders bounded machine projections under `{{GAUNTLET_ROOT}}/docs/generated-context.md`; replaceable harness adapters cannot redefine Gauntlet acceptance; and local artifacts survive compaction and restart. Use `{{GAUNTLET_ROOT}}/docs/evaluation-tasks.md`, `{{GAUNTLET_ROOT}}/docs/evaluation-protocol.md`, and `{{GAUNTLET_ROOT}}/docs/evaluation-harnesses.md` for automatic comparative evaluation. This architecture does not apply to Normal Requests and must not add a model round trip or continuous verifier to the healthy path.
 
@@ -96,7 +96,7 @@ For material Gauntlet work, apply the durable control architecture by default: h
 
 - Read before editing, match repository patterns, keep interfaces narrow, and avoid unrelated cleanup.
 - Preserve unrelated dirty work. Never overwrite, discard, archive over, or include it without authority.
-- Use a branch for persisted changes. For multi-Ticket runs, keep `main` clean and use one parent integration branch. Freeze a single Project PR for small targets or parent-owned Review Unit PRs plus one complete Project PR for large tightly coupled targets; split independently shippable outcomes into separate runs. Use a separate worktree for p0-p2, broad, dirty-worktree, or write-heavy delegated work.
+- Use a branch for persisted changes. Keep `main` clean and give each Epic Run one parent integration branch and one complete Project PR. Tickets and optional cohorts integrate into that branch; independently shippable Epics never share a run or PR. Use a separate worktree for p0-p2, broad, dirty-worktree, or write-heavy delegated work.
 - Add or update tests when behavior changes. When a practical harness exists, observe the relevant failure, implement the smallest source fix, and refactor while green.
 - Diagnose before fixing unexpected behavior: reproduce, trace the earliest divergence, state a falsifiable cause, and run the smallest discriminating check.
 - Evidence precedes completion claims. State what proof establishes and what remains unverifiable.
@@ -118,9 +118,9 @@ Detailed Git and archive guidance: `{{GAUNTLET_ROOT}}/docs/github-discipline.md`
 
 Archive behavior is authority-sensitive: use the installed archive planner and execute only the actions it returns. Preserve the user's requested merge behavior and do not invent an additional confirmation after merge authority has already been granted.
 
-“Merge this” or “land this” authorizes the accepted branch-to-PR, required-check, merge, verification, and safe-cleanup sequence. “Push to git” authorizes only the current branch, and a request to open a PR does not authorize merging it. Use `{{GAUNTLET_ROOT}}/scripts/gauntlet.py merge prepare|plan|execute --run <run>` for a run-backed schema v2 Project PR; retain schema v1 `--handoff` only for non-run patches. Run `execute` only with merge authority.
+“Merge this” or “land this” authorizes the accepted branch-to-PR, required-check, merge, verification, and safe-cleanup sequence. “Push to git” authorizes only the current branch, and a request to open a PR does not authorize merging it. Use `{{GAUNTLET_ROOT}}/scripts/gauntlet.py merge prepare|plan|execute --run <run>` for a run-backed schema 3.0 Project PR; retain schema v1 `--handoff` only for non-run Patches. Run `execute` only with merge authority.
 
-“Implement the PRD” authorizes the accepted build-ready target through branch/worktree creation, Ticket Graph execution, incremental integration, proof, PR, merge, exact-default-branch deployment when specified, documented production changes, verification, required rollback, durable updates, and cleanup. Exclude proposed, deferred, and materially unresolved work. Stop for missing authority or credentials, an unsafe or destructive effect absent from the PRD, production reality that invalidates rollout or rollback, or required production proof that cannot be obtained.
+“Implement the PRD” authorizes one frozen launch set. The product task creates one visible task per independently shippable Epic, reconciles dependency-ready starts, and uses the canonical lifecycle copy at launch, material blockers, Epic completion, and aggregate completion. Each Epic task owns its branch/worktree, Ticket Graph, proof, one Project PR, merge, specified deployment and production changes, verification, rollback, durable updates, and cleanup. Exclude proposed, deferred, and materially unresolved work. Stop for missing authority or credentials, unsafe or destructive effects absent from the PRD, invalid rollout or rollback, or required production proof that cannot be obtained.
 
 When the user asks to apply Gauntlet locally, merge it through a new PR, and then archive the task, use `{{GAUNTLET_ROOT}}/scripts/gauntlet.py closeout execute` with explicit `--stage` paths. Execute its returned Codex app actions in order; the CLI plans those app actions but cannot archive the task by itself.
 

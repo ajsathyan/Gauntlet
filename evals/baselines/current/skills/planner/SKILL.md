@@ -1,42 +1,62 @@
 ---
 name: planner
-description: Use after intake to shape an accepted spec into bounded, ordered implementation steps with risks, non-goals, proof requirements, and a first ready task.
+description: Use when a spec needs bounded steps, delegation tickets, dependencies, proof, risks, deferrals, and a first ready task.
 ---
 
 # Planner
 
-Shape work into user-valuable implementation steps. Define appetite before scope. Keep the whole workflow visible: user/system goal, affected interfaces, acceptance criteria, risks, and verification.
+Shape canonical plan steps. Define appetite before scope; split only independent ownership and proof.
 
-Separate mode from depth. Mode is `Patch`, `Feature`, or `Release`; depth is `Standard` or `Deep`. For Patch with Deep depth, keep the patch narrow while planning alternative probes, benchmark/security proof, and the stopping rule for "best enough."
+## Output Contract
 
-Output:
+Optional example: `examples/ticket.md`.
 
-- Problem
-- Target outcome
-- Appetite
-- Mode and depth
-- Ordered implementation steps
-- Triggered gates
-- Must-haves
-- Non-goals
-- Scope pressure and deferrals
-- Risks/unknowns
-- Verification plan
+- Problem, target outcome, and appetite
+- Must-haves and non-goals
+- Deferrals, risks, verification, and ordered implementation steps
+- Independent child lanes and **Gauntlet Tickets**, only when work will be dispatched
+- Material scope additions and their effect on ownership, dependencies, and proof
 - First ready task
 
-Rules:
+Include routing only when material; omit no-op fields.
 
-- Start from the user or system workflow.
-- Prefer end-to-end steps over component piles.
-- Convert uncertainty into probes, checks, or explicit assumptions.
-- For performance, security, reliability, and hot-path work, plan at least one comparison or adversarial check when appetite allows.
-- For Release role panels, produce one launch cut line and one decision table: `| Concern | Decision | Why Not Defer | Proof | Plan Delta |`.
-- Use only these panel decisions: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, and `Reject`.
-- Treat `Ship blocker` as a high bar: concrete user/data/money/security/legal/release harm, no acceptable fallback or deferral, executable proof, and a real panel delta. Downgrade concerns that fail any part of this bar.
-- Run an anti-theater check for panels: keep the panel only if the panel delta changes scope, ordering, proof, risk priority, the first ready task, deferral, fallback, launch cut line, or rejects a plausible alternative. Otherwise collapse to a normal plan and say the panel added no unique value.
-- For Release, auth, billing, migrations, permissions, privacy, concurrency, data integrity, or ambiguous broad work, run the same planning prompt twice when cost is reasonable. Compare missing blockers, dependency order, proof requirements, first ready task, deferrals, and rejections. Merge only items that pass the decision table. Do not union every idea.
-- For Feature, Release, or broad changes, include a scope-discipline note: required new abstractions, likely-obsolete paths, explicit non-goals, and the architecture hygiene proof path. Do not plan speculative generalization.
-- For TypeScript work, include the TS Durability gate decision when relevant. Apply heavyweight TypeScript durability standards only when `.gauntlet-ts-durability.json` has `durabilityRequired: true` or the user explicitly asks for them.
-- Do not over-specify internals before code discovery.
-- Stop planning once the next build step and the first meaningful proof path are obvious.
-- Preserve implementer autonomy while making proof requirements clear.
+## Gauntlet Ticket
+
+Each dispatched child gets one concise prose ticket with only applicable fields:
+
+- Objective
+- Ownership: files, state, contracts, or evidence the child owns and must avoid
+- Material dependencies and inputs/outputs
+- Constraints and authority
+- Proof contract, proportional to risk:
+  - Claim or invariant
+  - Observable oracle
+  - Required checks
+  - Negative control or plausible wrong case
+  - Required non-effects
+  - Oracle/fixture ownership and anti-tamper boundary
+  - Parent independent verification
+  - `Cannot verify` limits
+- Return contract and ask-parent policy
+
+The child works autonomously without routine narration. It returns only the artifact or findings, compact proof, and risk. It contacts the parent only for new authority, an unrecoverable blocker, a safety stop, or a required heartbeat.
+
+## Rules
+
+- Use end-to-end steps unless files, state, and proof are independent enough to split.
+- Convert uncertainty into probes, assumptions, or `Cannot verify` items. Name one first-ready lane.
+- Dispatch through native Codex state. Send each child only its bounded ticket.
+- When scope changes materially, update affected ownership, dependencies, and proof. Keep no-op checks silent.
+- Define proof around observable behavior or invariants, not self-reports or a green command alone.
+- Child tests are evidence, not sole acceptance. A ticket may authorize oracle or fixture edits, but an edited oracle cannot establish acceptance until the parent independently reviews or redefines it.
+- Plan targeted Ticket checks, optional Cohort checks for a named shared invariant, and one final Epic verification on the exact integrated revision. Reuse a receipt only when commit/tree, command, toolchain, fixtures or oracle, and relevant environment all match.
+- Use direct parent verification for ordinary work. Add independent review only for a concrete consequential boundary.
+- Do not split tightly coupled state or one decision tree across child lanes.
+- For billing/paid actions, credentials/auth/permissions, migrations/data loss, production authority, destructive actions, or equivalent harm, plan three parallel review lenses on the exact revision: trust/security/authority; failure/concurrency/recovery; and black-box behavior/non-effects. Run deterministic checks first, fix once, rerun affected proof, then require the repository-owned dry run and meaningful bounded canary and rollback.
+- For TypeScript work, include the TS Durability gate only when the classifier says `durabilityRequired: true` or the user explicitly asks.
+- Trigger the Production Quality Bar only for near-launch, private-beta, production-bound, hardened, or audited work; otherwise omit it. When triggered, attach release proof such as dry-run/no-mutation evidence, automated GitHub release tags, and explicit deferrals.
+- Stop planning once the first build step and first meaningful proof path are obvious.
+
+## Attribution
+
+End-to-end task sizing, explicit interfaces, and execution checkpoints are adapted from Jesse Vincent's Superpowers `writing-plans` and `executing-plans` skills, version 5.1.3 (MIT). See `docs/upstream-superpowers.md`.

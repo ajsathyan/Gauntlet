@@ -59,7 +59,7 @@ For genuine scope additions, check the added scope and its boundary with accepte
 
 Unless the primary worktree contains `.gauntlet/doc-org.disabled`, the global router's default local-document profile applies before creating or changing covered documents; read `doc_org.md` and `local-docs/INDEX.md` after the router materializes it. Canonical local documents stay in the primary worktree; tracked documentation stays in the repository's established documentation location.
 
-An accepted multi-Epic PRD is the human product source. At implementation time, compile only its explicit build-ready target into a Ticket Graph; do not turn proposed, deferred, or materially unresolved work into tickets. Follow `docs/prd-execution.md` for terminology, durable artifacts, resumption, scheduling, and release authority.
+An accepted multi-Epic PRD is the human product source. Keep shaping independently shippable Epics until the user authorizes one launch set. At implementation time, create one visible task and one Execution Run for each build-ready Epic, start dependency-ready Epics in parallel, and keep proposed, deferred, or materially unresolved work out of execution. Follow `docs/prd-execution.md` for terminology, durable artifacts, resumption, scheduling, and release authority.
 
 For material Gauntlet workflows, use one durable control pattern: human-readable sources own intent; versioned deterministic controllers own mechanically checkable rules and canonical state; bounded machine projections carry only relevant context; replaceable adapters cannot redefine Gauntlet acceptance; and local evidence survives compaction and restart. Use `docs/generated-context.md` for generated prompts and `docs/evaluation-tasks.md`, `docs/evaluation-protocol.md`, plus `docs/evaluation-harnesses.md` for automatic comparative evaluation. Keep these controls out of the Normal Request path.
 
@@ -78,17 +78,17 @@ After an Execution Run starts, its source lock, manifest, and resume artifact ow
 
 Standing authorization: automatically use subagents when two or more useful lanes have independent file or evidence ownership, mutable state, and proof, and the speed or independent-evidence gain clearly beats the context cost. Do not wait for the user to request delegation, and do not require Release classification. Keep execution in the main task when the split would serialize on shared state, duplicate substantial context, or weaken proof.
 
-- The main chat owns the accepted plan, user decisions, final branch, integration, PR, merge decision, and final synthesis.
+- The product task owns the accepted launch set, cross-Epic decisions, lifecycle copy, and aggregate synthesis. Each Epic task owns its run, branch, integration, PR, and Epic result.
 - Write-heavy lanes use isolated worktrees unless a tiny disjoint patch clearly does not need one.
 - A Gauntlet Ticket is a generated execution assignment within the current plan or Execution Run, not an issue-tracker record.
-- The Ticket Graph uses a dynamic ready queue: prioritize critical-path and interface-first work, preserve useful agent affinity, integrate completed tickets continuously, and wait at selective Cohort Verification barriers only where tickets share an invariant or interface.
+- Each Epic task compiles its own Ticket Graph and uses a dynamic ready queue: prioritize critical-path and interface-first work, preserve useful agent affinity, integrate completed tickets continuously, and use Cohort Verification only where tickets share an invariant or interface.
 - Dispatch each child directly from one bounded ticket. Include only the material objective, ownership, dependencies, constraints, proof expectations, return contract, and ask-parent policy; proof fields are optional and proportional.
 - Native Codex state and main-chat messages own live coordination.
 - Codex children must be started by calling native `spawn_agent` with `agent_name` equal to the explicit `gauntlet_*` profile returned by `scripts/route-codex-agent.py` under `docs/custom-agent-routing.md`. Do not wait before spawn returns a child ID, and do not perform a rejected child Ticket in the parent. A profile mismatch is a routing failure, not permission to substitute silently.
 - After a Gauntlet child reaches a terminal state, sync the privacy-bounded local audit with `scripts/subagent-audit.py`; Codex native state remains the immediate source of truth.
 - Keep files, mutable state, and proof targets disjoint. Avoid splitting one tightly coupled decision tree across lanes.
 - Children report `Needs decision` to the orchestrator instead of asking AJS directly.
-- The main chat owns the oracle, independently reruns or resolves child evidence, integrates commits as results arrive, runs targeted integration checks, and runs combined proof after all required tickets finish. It owns any frozen Review Unit PRs into the integration branch and the complete Project PR to `main`.
+- The Epic parent owns the oracle, independently reruns or resolves child evidence, integrates commits as results arrive, runs targeted checks, uses shared integration checks only where a cohort earns them, and runs one final Epic verification after all required tickets finish.
 - Materialize one bounded child context with named dependency contracts and outputs. Children do not load the whole PRD, manifest, event stream, or unrelated receipts by default.
 - Keep delegation, child progress, completion, and receipts out of user-facing narration. All applicable etiquette and gates still run internally; surface only the user-facing action or material exception they require.
 
@@ -152,7 +152,7 @@ Keep deterministic coverage, scorer plumbing, and behavioral outcome evidence di
 ## Git, contextual merge, and PR discipline
 
 - Branch from `main`; use isolated worktrees when the workspace is dirty, the work is p0-p2, the change is broad, or child lanes write files.
-- For a multi-Ticket run, keep `main` clean and use one parent integration branch. Freeze `single-final-pr` for a small reviewable target or `review-prs-plus-final` for a large tightly coupled target with parent-owned Review Unit PRs into that branch. Both end in one complete Project PR with deterministic locked Epic/Scope coverage; split independently shippable outcomes into separate runs.
+- Keep `main` clean and give each Epic Run one parent integration branch and one complete Project PR. Tickets and optional cohorts integrate into that branch; independently shippable Epics never share a run or PR.
 - Commit coherent checkpoints. Preserve useful commits; do not squash or rebase unless AJS or the repository asks.
 - Treat the PR as the proof and decision bundle: changed files, execution-backed checks, review context, run log, changelog, and residual risk.
 - Automated merges use merge commits. Direct push to `main` is an explicit tiny-change shortcut, not the default.
@@ -160,11 +160,11 @@ Keep deterministic coverage, scorer plumbing, and behavioral outcome evidence di
 
 “Merge this,” “land this,” or “merge this to main” authorizes the complete safe closeout for the accepted scope: prepare the non-run handoff or run-backed Project PR projection, update `CHANGELOG.md`, commit and push the task branch, create or update the applicable PR, wait for required checks and blocking review state, merge, delete the remote task branch, verify the default branch, and clean local task state only when no unique work remains. Ask only for a new material decision or preservation risk.
 
-“Implement the PRD” authorizes the accepted build-ready target through branch/worktree creation, Ticket Graph execution, incremental integration, proof, PR, merge, exact-default-branch deployment when specified, documented production changes, production verification, required rollback, durable updates, and safe cleanup. It excludes proposed, deferred, and materially unresolved work. Stop for missing authority or credentials, an unsafe or destructive effect absent from the PRD, production reality that invalidates rollout or rollback, or required production proof that cannot be obtained.
+“Implement the PRD” authorizes one frozen launch set. The product task creates one visible Epic task per independently shippable Epic, reconciles dependency-ready starts, and gives the user concise start, blocker, Epic-finish, and aggregate-finish copy. Each Epic task owns branch/worktree creation, Ticket Graph execution, proof, one Project PR, merge, specified deployment and production changes, verification, required rollback, durable updates, and safe cleanup. It excludes proposed, deferred, and materially unresolved work. Stop only for a material blocker such as missing authority or credentials, an unsafe or destructive effect absent from the PRD, invalid rollout or rollback, or required production proof that cannot be obtained.
 
 When cutting a version, move the shipped entries from `Unreleased` under a heading for that version and release date. Keep the `Unreleased` heading for future work, and never delete released changelog history.
 
-“Push to git” means push the current branch; it does not authorize direct-pushing or merging `main`. Use `scripts/gauntlet.py merge prepare|plan|execute --run <run>` for an Execution Run's controller-owned schema v2 Project PR projection. Use `--handoff <schema-v1.json>` only for a non-run patch. A branch bound to a run must not downgrade to `--handoff`. Run `execute` only with merge authority; a request to open a PR does not authorize merging it.
+“Push to git” means push the current branch; it does not authorize direct-pushing or merging `main`. Use `scripts/gauntlet.py merge prepare|plan|execute --run <run>` for an Execution Run's controller-owned schema 3.0 Project PR projection. Use `--handoff <schema-v1.json>` only for a non-run Patch. A branch bound to a run must not downgrade to `--handoff`. Run `execute` only with merge authority; a request to open a PR does not authorize merging it.
 
 When AJS asks to apply Gauntlet locally, merge it through a new PR, and then archive the task, use one `scripts/gauntlet.py closeout execute` invocation with explicit `--stage` paths. The command preflights archive inputs, commits only the named scope plus `CHANGELOG.md`, merges through the existing PR gates, updates and installs the merged default branch, and returns the Codex app actions. The main task must execute those returned app actions in order because the local CLI cannot mutate Codex task state.
 

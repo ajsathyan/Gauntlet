@@ -36,15 +36,16 @@ Automatable checks belong in CI, local scripts, tests, linters, browser checks, 
 
 Apply `docs/meaningful-proof.md` to every launch claim. A dry run must assert relevant before/after state, and restart, rollback, repeated-run, or duplicate-action claims need a representative failure or negative-control scenario when feasible. Field presence, release-note text, a receipt, or a self-reported pass is not launch proof.
 
-Human judgment belongs in product architecture, planning, deep review, adversarial review, experience review, issue triage, and launch cut-line decisions. If the standard is missing or cannot be verified, capture `Cannot verify` or a pending `GAP-###`; do not silently invent a rule.
+Human judgment is triggered by concrete consequence. Do not summon a broad role panel for ordinary work. If the standard is missing or cannot be verified, capture `Cannot verify` or a pending `GAP-###`; do not silently invent a rule.
 
-## Role Routing
+## Consequence-Triggered Review Funnel
 
-- `planner`: decide whether the Production Quality Bar is triggered, cap it, name deferrals, and attach release proof.
-- `product-architect`: define trust, feedback loops, and decision-oriented UI only when launch scope makes them relevant.
-- `deep-code-reviewer`: inspect ownership boundaries, invariants, durable state, state machines, and release proof.
-- `adversarial-reviewer`: inspect threat model, redaction, trust boundaries, destructive actions, retries, rollback, and recovery.
-- `black-box-tester`: prove observable outcomes, dry-run/no-mutation behavior, persisted state, logs, release artifacts, and user-visible recovery.
-- `experience-reviewer`: validate confidence, freshness, sample size, blockers, evidence, completion, and next action in launch-ready UI.
-- `issue-triager`: classify launch findings as `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, `Reject`, or `Ready`.
-- `run-log-builder`: record only material assumptions, decisions, skipped proof, `Cannot verify`, launch cut lines, release proof, and gap candidates.
+Use direct parent verification for ordinary work. Trigger three independent review agents only for billing or paid actions, credentials/auth/permissions, migrations or data loss, production authority, destructive actions, or equivalent material harm. Run cheap deterministic checks before model review so reviewers do not spend turns on mechanical failures.
+
+The three charters are fixed and non-overlapping:
+
+1. `adversarial-reviewer`: trust boundaries, security, credentials, permissions, paid/destructive authority, and redaction.
+2. `deep-code-reviewer`: failure paths, concurrency, idempotency, durable state, rollback, and recovery.
+3. `black-box-tester`: observable behavior, dry-run/no-mutation proof, persisted state, required non-effects, and operator recovery.
+
+Run them in parallel on the same exact integrated revision. Deduplicate findings by shared fix, apply one fix pass, rerun deterministic checks, and rerun only a lens whose reviewed boundary changed or whose finding needs confirmation. Then execute the repository-owned dry run and any meaningful bounded canary, reconciliation, and rollback. A dry run alone does not prove live provider permissions, races, money movement, or migration effects.

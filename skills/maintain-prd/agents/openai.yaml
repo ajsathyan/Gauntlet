@@ -1,4 +1,4 @@
 interface:
   display_name: "Maintain PRD"
-  short_description: "Shape and maintain a canonical multi-epic PRD"
-  default_prompt: "Use $maintain-prd to turn this product discussion into the canonical multi-epic PRD without implementing it."
+  short_description: "Shape product ideas into launchable Epics"
+  default_prompt: "Use $maintain-prd to keep this product discussion in one canonical PRD, shape distinct outcomes into independently launchable Epics, and do not implement them yet."

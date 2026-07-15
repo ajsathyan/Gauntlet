@@ -20,6 +20,8 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 | Stable local epic | `scripts/gauntlet.py docs epic create --project-root "$PROJECT_ROOT" --title "$TITLE"` |
 | Epic in an existing PRD | Add `--prd "epics/<home>/<file>_PRD.md"` to `docs epic create` |
 | PRD execution contract | `docs/prd-execution.md` |
+| Epic launch planning | `scripts/gauntlet.py epic-tasks plan --git-root "$PROJECT_ROOT" --launch-set "$LAUNCH_SET" --json` |
+| Epic launch reconciliation | `scripts/gauntlet.py epic-tasks reconcile --git-root "$PROJECT_ROOT" --launch-set "$LAUNCH_SET" --json` |
 | Run-backed Project PR | `scripts/prd-run.py project-pr --run "$RUN_PATH"` |
 | Run-backed merge preparation | `scripts/gauntlet.py merge prepare --git-root "$PROJECT_ROOT" --run "$RUN_PATH" --json` |
 | Run-backed merge preflight | `scripts/gauntlet.py merge plan --git-root "$PROJECT_ROOT" --run "$RUN_PATH" --json` |
@@ -48,10 +50,10 @@ Use these helpers when the matching manual loop appears. They are advisory unles
 - Child implementation lanes should use separate git worktrees by default when they write code, edit multiple files, or have uncertain ownership. Read-only review, exploration, summarization, and log-analysis lanes do not need worktrees by default.
 - Native Codex state owns child progress; use stable lane ids rather than title/status churn.
 - The main chat owns user questions, the oracle, independent evidence verification, merge decisions, Review Unit topology, and final synthesis. Small runs open one complete Project PR; large tightly coupled runs may open parent-owned Review Unit PRs into the integration branch before the same complete Project PR. Independently shippable outcomes use separate runs. Child chats return compact reports and archive after integration.
-- Schedule ready tickets by critical path and unlock value, preserve useful agent affinity, land interfaces first, and integrate continuously. Use selective cohort barriers for shared invariants instead of a global wait after every child.
+- The product task starts every dependency-ready Epic in its own visible task. Inside one Epic, schedule Tickets by critical path, preserve useful affinity, integrate continuously, use Cohorts only for shared invariants, and finish with one exact-revision Epic verification.
 - Materialize bounded child context from stable instructions, one ticket, relevant versioned shared context, named dependencies, and owned source. Stable prefixes can improve cache reuse, but no helper may claim a guaranteed cache hit.
 - After an Execution Run starts, recover from its source lock, manifest, and resume file; use the append-only event stream only for debugging.
-- Run-backed merge consumes the controller's schema v2 projection through `--run`; caller-authored schema v1 `--handoff` remains only for non-run patches.
+- Run-backed merge consumes schema 3.0 Epic facts through `--run`; caller-authored schema v1 `--handoff` remains only for non-run Patches.
 - Use `scripts/generated_context.py` for repeated Gauntlet-owned machine context instead of rebuilding prompts in each workflow. Keep prompt-family templates minimal and separate.
 - Reconcile routing start metadata asynchronously and stop only new affected dispatches when a profile/version circuit opens; do not add a model handshake to healthy dispatch.
 - Persist and integrate constituent Tickets independently inside a context-affine lane so a stalled sibling never blocks downstream work.

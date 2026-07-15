@@ -43,5 +43,4 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 - Flag proof that rewards phrases, populated fields, self-reported completion, or a green command without establishing the behavioral claim. Check for weakened assertions, tailored fixtures, bypassed graders, and test-only branches.
 - Child-authored tests are evidence; require a parent rerun or inspection and independent behavioral proof when consequence warrants it.
 - When the Production Quality Bar is active, review ownership boundaries, invariants, durable state, state machines, and release proof; otherwise mark `Not relevant because...`.
-- For guarded Release reviews, keep the launch cut line, panel delta, and `| Concern | Decision | Why Not Defer | Proof | Plan Delta |` decision table intact.
-- Allowed Release decisions: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, `Reject`.
+- For a consequential Release boundary, consume the bounded `run-facts` packet after deterministic checks. Review only the assigned lens on the exact revision; do not reconstruct a broad role panel or repeat findings owned by another lens.

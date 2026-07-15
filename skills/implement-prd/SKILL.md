@@ -1,31 +1,32 @@
 ---
 name: implement-prd
-description: Execute an accepted, build-ready PRD end to end by freezing its Implementation Target, compiling a deterministic Ticket Graph, coordinating bounded subagents, integrating and verifying results, and completing the authorized pull-request, merge, deployment, production-change, documentation, and cleanup path. Use when the user explicitly asks to implement the PRD or an identified build-ready PRD target.
+description: Launch an accepted PRD by creating one visible implementation task and one deterministic Execution Run per build-ready Epic, then carry each Epic through bounded Tickets, exact-revision verification, and its authorized release stages. Use when the user explicitly asks to implement the PRD or an identified build-ready PRD target.
 ---
 
 # Implement PRD
 
-Execute the accepted Implementation Target through release. The PRD owns product truth; the compiled Ticket Graph owns execution decomposition; the local execution run owns operational state after it starts.
+Launch the accepted Implementation Target from the product task. The PRD owns product truth; the launch set owns complete target membership and Epic dependencies; each visible Epic task owns exactly one compiled Ticket Graph and one local Execution Run.
 
 Read [the execution contract](references/execution-contract.md) before compiling or resuming a run.
 
 ## Authority And Stop Conditions
 
-Treat an explicit `implement the PRD` request as authority for the accepted, build-ready target's normal end-to-end path: branch/worktree, implementation, tests, commits, the frozen parent-owned PR strategy and complete Project PR, required-check merge, deployment of the exact verified `main` revision, documented production changes named by the PRD, production verification, canonical-document updates, and safe cleanup. A narrower explicit request controls.
+Treat an explicit `implement the PRD` request as authority to freeze the complete accepted target, create one visible task per independently shippable Epic, and carry every dependency-ready Epic through branch/worktree, implementation, tests, commits, Project PR, required-check merge, named deployment and production stages, canonical-document reconciliation, and safe cleanup. A narrower explicit request controls.
 
 Stop for credentials or permissions that are unavailable; a materially unresolved product decision; a destructive, unsafe, or external effect absent from the accepted PRD; production reality that invalidates rollout or rollback; a preservation conflict; or required production proof that cannot be obtained. Do not expand the Implementation Target to proposed, deferred, or unresolved Epics.
 
 ## Procedure
 
-1. When the default local-document profile applies, read `doc_org.md`, `local-docs/INDEX.md`, the canonical PRD, repository instructions, and the relevant release topology. For an opted-out project, use its established tracked PRD and documentation locations. Verify that each targeted Epic is accepted and build-ready.
-2. Validate and freeze the PRD target. Record its content hash, stable Epic and Scope Area IDs, applicable instruction versions, and release contract in `source-lock.json`. At run initialization, freeze `single-final-pr` for a small reviewable target or `review-prs-plus-final` for a large, tightly coupled target. Use separate Execution Runs for independently shippable outcomes.
-3. Compile a deterministic Ticket Graph. Use H2 Epic, H3 Ticket, and canonical H4 fields; keep one implementation owner per Ticket. Add separate verifier Tickets instead of co-owning implementation. For `review-prs-plus-final`, compile `review_units` with exact Ticket coverage and dependencies; membership is immutable after compile.
-4. Initialize the disk execution run and compact resume state. Once initialized, use disk state as authority and conversation history as advisory.
-5. Materialize only ready Tickets through the shared generated-context renderer. Dispatch one active Ticket per child by default. When several ready Tickets declare the same affinity and share a cohort and dependency contract, claim and materialize them as one context lane; keep each Ticket's receipt, status, proof, integration, and downstream release independent. Keep recursion shallow and the parent in control of scheduling and integration.
-6. Integrate completed Tickets as they become ready. Independently inspect or rerun their evidence, then record the receipt and immediate Ticket verification.
-7. Run selective cohort barriers for Tickets sharing an interface or invariant. After all required cohorts pass, run full-PRD verification against the accepted source and parent-owned oracle.
-8. If the frozen strategy uses Review Unit PRs, have the parent merge each verified unit into the integration branch through the controller-backed Review Unit surface. Then generate `project-pr --run <run>` and complete the schema v2 run-backed Project PR through `merge prepare|plan|execute --run <run>`. The Project PR must cover every locked Epic and Scope Area. Continue through exact-main deployment, documented production changes, production verification, canonical-document updates, and safe cleanup. Record rollback evidence when verification fails.
-9. Mark the run complete only after every required state and proof layer is satisfied or an explicit stop condition is recorded.
+1. In the product task, read `doc_org.md`, `local-docs/INDEX.md`, the canonical PRD, repository instructions, and release topology. Verify every target Epic is accepted, build-ready, independently shippable, independently reversible, and explicit about dependency boundaries and release stages.
+2. Run `gauntlet.py epic-tasks init` once to freeze the complete target and immutable source snapshot. Use `epic-tasks plan` to emit only missing dependency-ready `create_thread` actions. Execute those actions, record each proven native task ID, and never create an implementation task recursively from an Epic task.
+3. In each visible Epic task, read `source.snapshotPath` from the launch set and pass that immutable snapshot to `prd-run.py init --source ... --launch-set ...` with exactly one `--target` and that Epic's release stages. Never pass the mutable canonical PRD path. Freeze `single-final-pr` for a small reviewable Epic or `review-prs-plus-final` for a large tightly coupled Epic.
+4. Compile one deterministic Ticket Graph for the locked Epic. Keep one implementation owner per Ticket. Cohorts are optional and exist only for a named shared invariant. Use direct parent verification by default; create independent verification Tickets only for a consequential boundary.
+5. Initialize compact resume state. Once initialized, disk state is authoritative and conversation history is advisory.
+6. Materialize only ready Tickets. Reuse one child for compatible sequential work when affinity saves context; keep each Ticket's receipt, status, integration, and dependency release independent.
+7. Integrate results continuously. Resolve the child receipt and record targeted parent verification. Reuse a check only when commit/tree, command, toolchain, fixtures or oracle, and relevant environment identity are identical.
+8. Run each declared shared-invariant Cohort check once. Then run `verify-epic` with a fresh final verification receipt that covers the canonical Epic section and exact integrated revision. A failing final criterion keeps `implemented` false and prevents Project PR generation.
+9. For a triggered consequential boundary, run deterministic checks first, then the three distinct review lenses in parallel. Fix findings once and rerun only affected proof. Before a production-hitting action, run the repository-owned dry run and any meaningful bounded canary and rollback gate.
+10. Generate schema 3.0 Project PR facts from controller state; do not author a project summary or Epic outcome artifact. Complete merge and applicable release stages, reconcile the exact projection into the canonical PRD/index, and let the product task start newly dependency-ready Epics.
 
 ## Scheduling And Context
 
@@ -33,11 +34,11 @@ Stop for credentials or permissions that are unavailable; a materially unresolve
 - Use `claim-lane` and `materialize-lane` only for explicitly compatible ready Tickets. A blocked lane sibling never delays another Ticket's receipt, integration, or dependent release.
 - Keep mutable ownership and proof paths disjoint. Integrate incrementally rather than waiting for one final bulk merge.
 - Build child prompts with a stable instruction prefix and canonical field order. Put volatile run data last, omit empty fields, sort stable IDs, and preserve whitespace.
-- Give each child only its materialized Ticket, relevant versioned cohort context, named dependency contracts, and required source slices. Never send the whole PRD, manifest, event stream, unrelated receipts, or raw test logs.
+- Give each child only its materialized Ticket, optional relevant cohort context, named dependency contracts, and required source slices. Never send the whole PRD, manifest, event stream, unrelated receipts, or raw test logs.
 - Keep the integration branch, PR strategy, Review Unit membership/state, merge authority, and Project PR projection in parent-owned run state; never add them to a child bundle merely for visibility.
 - Treat cache reuse as an optimization, not a correctness assumption.
 - Keep routine child narration out of chat. Store raw output under evidence and require compact machine receipts.
 
 ## Completion
 
-Complete only when the accepted target is implemented; Ticket, cohort, full-PRD, release, and production checks required by the source have passed; the exact merged revision is the released revision; durable documentation is updated; unrelated work is preserved; and residual risk or unavailable proof is explicit.
+An Epic is implementation-complete only when its Tickets, declared Cohorts, and final Epic verification pass on the exact integrated revision. `implemented`, `merged`, `deployed`, `productionProved`, and run `complete` remain separate controller facts. The product launch is release-complete only when every non-stopped target Epic has closed its applicable stages; durable documentation is reconciled, unrelated work is preserved, and residual risk or unavailable proof is explicit.

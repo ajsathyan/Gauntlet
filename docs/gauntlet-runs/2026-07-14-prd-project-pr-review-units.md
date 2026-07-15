@@ -1,5 +1,7 @@
 # PRD Project PR And Review Units
 
+> Superseded runtime evidence. The active contract now creates one visible task, one Execution Run, and one Project PR per independently shippable Epic. See `docs/prd-execution.md`.
+
 Date: 2026-07-14
 Status: Implemented and verified
 
