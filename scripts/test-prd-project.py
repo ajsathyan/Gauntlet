@@ -317,6 +317,36 @@ class EpicProjectTests(unittest.TestCase):
         retired = {"schemaVersion": "2.0"}
         self.assertTrue(gauntlet.validate_merge_handoff(retired))
 
+    def test_launch_controller_initializes_the_single_epic_run_controller(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.init_git(root)
+            subprocess.run(["git", "checkout", "-b", "codex/app-001"], cwd=root, check=True, capture_output=True, text=True)
+            source = self.write_prd(root, "APP-001", [epic("APP-001", "Account foundation")])
+            launch_path = root / "launch.json"
+            launch, source_text = gauntlet.build_epic_launch_set(source, [])
+            snapshot = root / "launch.source.md"
+            snapshot.write_text(source_text, encoding="utf-8")
+            launch["source"]["snapshotPath"] = str(snapshot)
+            launch["epics"]["APP-001"].update({"taskId": "task-123", "status": "in-progress"})
+            gauntlet.write_launch_set(launch_path, launch)
+            result = subprocess.run([
+                "python3", str(Path(gauntlet.__file__).with_name("prd-run.py")), "init",
+                "--executions", str(root / "executions"),
+                "--run-id", "APP-001-RUN",
+                "--source", str(snapshot),
+                "--target", "APP-001",
+                "--launch-set", str(launch_path),
+                "--release-contract", "test-contract",
+                "--release-stages", "merge",
+                "--integration-branch", "codex/app-001",
+                "--pr-strategy", "single-final-pr",
+            ], cwd=root, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            lock = json.loads((root / "executions" / "APP-001-RUN" / "source-lock.json").read_text(encoding="utf-8"))
+            self.assertEqual(lock["target_epic_ids"], ["APP-001"])
+            self.assertEqual(lock["launch_set"]["task_id"], "task-123")
+
 
 if __name__ == "__main__":
     unittest.main()
