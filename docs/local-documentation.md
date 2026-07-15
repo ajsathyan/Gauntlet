@@ -17,6 +17,10 @@ Both `doc_org.md` and `local-docs/` are ignored through the repository's local G
 
 The project-local opt-out marker is `.gauntlet/doc-org.disabled` in the primary worktree. It is ignored by the normal Gauntlet project rule, persists across runs, and does not delete an existing local-document profile. Remove it with `docs enable` before creating or changing canonical local documents again.
 
+## Existing Profiles
+
+`docs ensure` is intentionally non-destructive. It creates missing profile paths but does not overwrite an existing `doc_org.md`, `local-docs/INDEX.md`, or canonical document. When the reusable contract changes, review the primary worktree's existing `doc_org.md` against the installed `templates/local-docs/doc_org.md.tmpl` and update only the reusable policy sections that changed. Do not rewrite completed Execution Run manifests, source locks, receipts, or release evidence; those artifacts preserve the contract and topology used by their historical run.
+
 ## Visibility Boundary
 
 `local-docs/` is for local working history. It is not a security boundary and must not contain credentials, secret values, private destinations, or sensitive resource identifiers.
