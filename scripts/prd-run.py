@@ -97,7 +97,9 @@ def sha_bytes(value: bytes) -> str:
 def canonical_consequence_triggers(raw: str | None, label: str) -> list[str]:
     if raw is None:
         raise RunError(f"{label} must declare High-consequence triggers")
-    if raw.strip().lower() in {"none", "n/a", "not applicable"}:
+    if not raw.strip():
+        raise RunError(f"{label} must be literal `none` or a non-empty canonical trigger list")
+    if raw.strip().lower() == "none":
         return []
     triggers = sorted(string_list([item.strip().lower() for item in raw.split(",") if item.strip()], label))
     unknown = set(triggers) - set(HIGH_CONSEQUENCE_TRIGGERS)
@@ -186,7 +188,7 @@ def source_contract(path: Path, requested_targets: list[str]) -> dict[str, Any]:
                 for heading in ("Product Acceptance", "Design Acceptance", "Engineering Acceptance")
             }
             consequence_match = re.search(
-                r"^High-consequence triggers:\s*(.*?)\s*$", section,
+                r"^High-consequence triggers:[ \t]*([^\r\n]*)[ \t]*$", section,
                 re.MULTILINE | re.IGNORECASE,
             )
             epics[epic_id] = {

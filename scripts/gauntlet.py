@@ -877,7 +877,7 @@ def epic_source_sections(source_text):
 
 
 def epic_metadata(section_text, name, default=None):
-    match = re.search(rf"^{re.escape(name)}:\s*(.*?)\s*$", section_text, re.MULTILINE | re.IGNORECASE)
+    match = re.search(rf"^{re.escape(name)}:[ \t]*([^\r\n]*)[ \t]*$", section_text, re.MULTILINE | re.IGNORECASE)
     return match.group(1).strip() if match else default
 
 
@@ -915,7 +915,11 @@ def parse_release_stages(raw):
 
 
 def parse_consequence_triggers(raw):
-    if not raw or raw.strip().lower() in {"none", "n/a", "not applicable"}:
+    if raw is None:
+        return []
+    if not raw.strip():
+        raise ValueError("High-consequence triggers must be literal `none` or a non-empty canonical list")
+    if raw.strip().lower() == "none":
         return []
     triggers = sorted({item.strip().lower() for item in raw.split(",") if item.strip()})
     unknown = set(triggers) - HIGH_CONSEQUENCE_TRIGGERS
@@ -1380,21 +1384,19 @@ def command_epic_tasks_release_start(args):
             raise ValueError("A recorded Epic task cannot be released for recreation")
         if epic["status"] != "starting":
             raise ValueError("Only an ambiguous starting action can be released")
-        receipt_path = Path(args.reconciliation_receipt).resolve()
-        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-        required = {"schemaVersion", "adapter", "taskKey", "result", "observedTaskIds", "nativeIndexSha256"}
-        if set(receipt) != required:
-            raise ValueError("Native task reconciliation receipt has an unsupported shape")
-        if receipt.get("schemaVersion") != "gauntlet.native-task-reconciliation.v1" or receipt.get("adapter") != "codex-app-task-index-v1":
-            raise ValueError("Native task reconciliation receipt uses an unsupported adapter contract")
-        if receipt.get("taskKey") != args.task_key or receipt.get("result") != "absent" or receipt.get("observedTaskIds") != []:
-            raise ValueError("Native task reconciliation must prove this exact task key is absent")
-        if not re.fullmatch(r"[0-9a-f]{64}", receipt.get("nativeIndexSha256") or "") or has_secret(canonical_json(receipt)):
-            raise ValueError("Native task reconciliation receipt is invalid or unsafe")
+        index_path = Path(args.native_index).resolve()
+        native_index = json.loads(index_path.read_text(encoding="utf-8"))
+        if not isinstance(native_index, dict) or set(native_index) != {"schemaVersion", "query", "threads", "unavailableHosts"}:
+            raise ValueError("Native task index has an unsupported shape")
+        if native_index.get("schemaVersion") != 2 or native_index.get("query") != args.task_key:
+            raise ValueError("Native task index must be the exact Codex task-key query")
+        if native_index.get("threads") != [] or native_index.get("unavailableHosts") != []:
+            raise ValueError("Native task index does not prove this task key is absent on every available host")
+        if has_secret(canonical_json(native_index)):
+            raise ValueError("Native task index contains unsafe content")
         epic["startReconciliation"] = {
-            "adapter": receipt["adapter"],
-            "nativeIndexSha256": receipt["nativeIndexSha256"],
-            "receiptSha256": sha256_bytes(receipt_path.read_bytes()),
+            "adapter": "codex-app-list-threads-v2",
+            "nativeIndexSha256": sha256_bytes(canonical_json(native_index).encode("utf-8")),
             "result": "absent",
         }
         epic["status"] = "planned"
@@ -1819,25 +1821,26 @@ def acquire_run_merge_lease(repo, run_path, handoff):
         "baseRef": default_ref,
     }
     lease_path = launch_merge_lease_path(launch_path)
+    persist_merge_lease(repo, lease_path, lease, default_head)
+    return lease_path, lease
+
+
+def persist_merge_lease(repo, lease_path, lease, default_head):
     if lease_path.exists():
         current = json.loads(lease_path.read_text(encoding="utf-8"))
         if current != lease:
-            if current.get("epicId") == epic_id and current.get("candidateHead") == candidate:
+            if current.get("epicId") == lease["epicId"] and current.get("candidateHead") == lease["candidateHead"]:
                 lease_path.unlink()
                 raise ValueError("Default branch changed while this Epic held the merge lease; re-integrate and reverify")
-            if current.get("epicId") == epic_id:
+            if current.get("epicId") == lease["epicId"]:
                 old_candidate = current.get("candidateHead")
-                old_merged = git(["merge-base", "--is-ancestor", old_candidate, default_head], repo)
-                if old_merged.returncode == 0:
+                if default_represents_candidate(repo, old_candidate, default_head):
                     raise ValueError("The previous leased Epic candidate is already on the default branch; reconcile that merge before replacing the lease")
-                if old_merged.returncode != 1:
-                    raise ValueError(old_merged.stderr.strip() or "Cannot prove the previous leased candidate was not merged")
                 atomic_write_text(lease_path, json.dumps(lease, indent=2, sort_keys=True) + "\n")
             else:
                 raise ValueError(f"Default-branch merge lease is held by {current.get('epicId', 'another Epic')}")
     else:
         write_new_file(lease_path, json.dumps(lease, indent=2, sort_keys=True) + "\n")
-    return lease_path, lease
 
 
 def validate_run_merge_lease(repo, lease_path, lease):
@@ -1855,18 +1858,23 @@ def default_represents_candidate(repo, candidate, default_head):
     ancestry = git(["merge-base", "--is-ancestor", candidate, default_head], repo)
     if ancestry.returncode == 0:
         return True
+    if ancestry.returncode != 1:
+        raise ValueError(ancestry.stderr.strip() or "Cannot determine candidate ancestry")
     candidate_tree = git(["rev-parse", f"{candidate}^{{tree}}"], repo)
     default_tree = git(["rev-parse", f"{default_head}^{{tree}}"], repo)
+    if candidate_tree.returncode != 0 or default_tree.returncode != 0:
+        raise ValueError(candidate_tree.stderr.strip() or default_tree.stderr.strip() or "Cannot compare candidate and default trees")
     return (
-        candidate_tree.returncode == 0 and default_tree.returncode == 0
-        and candidate_tree.stdout.strip() == default_tree.stdout.strip()
+        candidate_tree.stdout.strip() == default_tree.stdout.strip()
     )
 
 
 def release_run_merge_lease(repo, lease_path, lease, merged_head):
     default_head, _ = refresh_default_head(repo)
-    if default_head != merged_head or not default_represents_candidate(repo, lease["candidateHead"], default_head):
-        raise ValueError("Observed default branch does not contain the leased candidate")
+    if not default_represents_candidate(repo, lease["candidateHead"], merged_head):
+        raise ValueError("Recorded merge head preserves neither candidate ancestry nor the exact candidate tree")
+    if git(["merge-base", "--is-ancestor", merged_head, default_head], repo).returncode != 0:
+        raise ValueError("Current default branch does not contain the recorded merge head")
     if not Path(lease_path).is_file() or json.loads(Path(lease_path).read_text(encoding="utf-8")) != lease:
         raise ValueError("Run-backed merge lease changed before release")
     Path(lease_path).unlink()
@@ -1890,6 +1898,14 @@ def persisted_run_merge_lease(run_path, handoff):
     if not nonempty_string(lease.get("baseHead")) or not nonempty_string(lease.get("baseRef")):
         raise ValueError("Persisted merge lease is incomplete")
     return lease_path, lease
+
+
+def recorded_run_merge_head(run_path):
+    manifest = json.loads((Path(run_path) / "manifest.json").read_text(encoding="utf-8"))
+    main_sha = manifest.get("release", {}).get("merge", {}).get("main_sha")
+    if not re.fullmatch(r"[0-9a-f]{7,64}", main_sha or ""):
+        raise ValueError("Execution Run has no valid recorded merge head")
+    return main_sha
 
 
 def command_epic_tasks_merge_lease_acquire(args):
@@ -1917,12 +1933,7 @@ def command_epic_tasks_merge_lease_acquire(args):
             "baseHead": args.verified_base,
             "baseRef": default_ref,
         }
-        if lease_path.exists():
-            current = json.loads(lease_path.read_text(encoding="utf-8"))
-            if current != lease:
-                raise ValueError(f"Default-branch merge lease is held by {current.get('epicId', 'another Epic')}")
-        else:
-            write_new_file(lease_path, json.dumps(lease, indent=2, sort_keys=True) + "\n")
+        persist_merge_lease(args.git_root, lease_path, lease, default_head)
         payload = epic_launch_payload(launch_path, launch, args.git_root, mergeLease=lease)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "fail", "findings": [{"code": "epic_merge_lease_failed", "severity": "fail", "message": str(exc)}]}
@@ -1940,9 +1951,9 @@ def command_epic_tasks_merge_lease_release(args):
         if lease.get("epicId") != args.epic or lease.get("candidateHead") != args.candidate_head:
             raise ValueError("Merge lease does not match the releasing Epic and candidate")
         default_head, _ = refresh_default_head(args.git_root)
-        if default_head != args.merged_head:
-            raise ValueError("Merged head must equal the currently observed default-branch head")
-        if not default_represents_candidate(args.git_root, args.candidate_head, default_head):
+        if git(["merge-base", "--is-ancestor", args.merged_head, default_head], args.git_root).returncode != 0:
+            raise ValueError("Currently observed default branch does not contain the recorded merged head")
+        if not default_represents_candidate(args.git_root, args.candidate_head, args.merged_head):
             raise ValueError("Merged revision does not contain the leased candidate head")
         lease_path.unlink()
         payload = epic_launch_payload(launch_path, launch, args.git_root, releasedMergeLease={"epicId": args.epic, "mergedHead": args.merged_head})
@@ -3963,8 +3974,7 @@ def command_merge_reconcile(args):
                 if json.loads(completion_output).get("merged") is True:
                     persisted = persisted_run_merge_lease(run_path, handoff)
                     if persisted:
-                        default_head, _ = refresh_default_head(repo)
-                        release_run_merge_lease(repo, persisted[0], persisted[1], default_head)
+                        release_run_merge_lease(repo, persisted[0], persisted[1], recorded_run_merge_head(run_path))
                         payload["mergeLeaseReleased"] = True
                     payload["reconciled"] = True
                     payload["alreadyRecorded"] = True
@@ -4232,8 +4242,7 @@ def command_run_closeout_execute(args, repo, payload):
         try:
             persisted = persisted_run_merge_lease(run_path, handoff)
             if persisted:
-                default_head, _ = refresh_default_head(repo)
-                release_run_merge_lease(repo, persisted[0], persisted[1], default_head)
+                release_run_merge_lease(repo, persisted[0], persisted[1], recorded_run_merge_head(run_path))
                 payload["mergeLeaseReleased"] = True
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             closeout_fail(payload, "epic_merge_lease_recovery_failed", str(exc))
@@ -5668,7 +5677,7 @@ def build_parser():
     epic_release.add_argument("--launch-set", type=Path, required=True)
     epic_release.add_argument("--epic", required=True)
     epic_release.add_argument("--task-key", required=True)
-    epic_release.add_argument("--reconciliation-receipt", type=Path, required=True)
+    epic_release.add_argument("--native-index", type=Path, required=True)
     epic_release.add_argument("--json", action="store_true")
     epic_release.set_defaults(func=command_epic_tasks_release_start)
     epic_record_run = epic_task_subcommands.add_parser("record-run", help="Bind an Epic task to its single-Epic Execution Run.")

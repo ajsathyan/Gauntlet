@@ -139,23 +139,21 @@ class EpicProjectTests(unittest.TestCase):
             self.assertEqual({item["epicId"] for item in replay["reconcileRequired"]}, {"APP-001", "APP-002"})
 
             _, current = gauntlet.load_launch_set(launch_path)
-            reconciliation = root / "native-reconciliation.json"
-            reconciliation.write_text(json.dumps({
-                "schemaVersion": "gauntlet.native-task-reconciliation.v1",
-                "adapter": "codex-app-task-index-v1",
-                "taskKey": gauntlet.launch_task_key(current, "APP-001"),
-                "result": "absent",
-                "observedTaskIds": [],
-                "nativeIndexSha256": "a" * 64,
+            native_index = root / "native-index.json"
+            native_index.write_text(json.dumps({
+                "schemaVersion": 2,
+                "query": gauntlet.launch_task_key(current, "APP-001"),
+                "threads": [],
+                "unavailableHosts": [],
             }), encoding="utf-8")
             release_args = argparse.Namespace(
                 git_root=root, launch_set=launch_path, epic="APP-001",
                 task_key=gauntlet.launch_task_key(current, "APP-001"),
-                reconciliation_receipt=root / "missing-reconciliation.json", json=True,
+                native_index=root / "missing-native-index.json", json=True,
             )
             with mock.patch("gauntlet.print_payload"):
                 self.assertEqual(gauntlet.command_epic_tasks_release_start(release_args), 1)
-            release_args.reconciliation_receipt = reconciliation
+            release_args.native_index = native_index
             with mock.patch("gauntlet.print_payload"):
                 self.assertEqual(gauntlet.command_epic_tasks_release_start(release_args), 0)
             with mock.patch("gauntlet.print_payload") as output:
@@ -217,6 +215,13 @@ class EpicProjectTests(unittest.TestCase):
             ]), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "Ships independently"):
                 gauntlet.build_epic_launch_set(coupled, [])
+            blank = self.write_prd(root, "APP-001", [
+                epic("APP-001", "Blank consequence declaration").replace(
+                    "High-consequence triggers: none", "High-consequence triggers:",
+                ),
+            ])
+            with self.assertRaisesRegex(ValueError, "literal `none`"):
+                gauntlet.build_epic_launch_set(blank, [])
 
     def test_copy_secret_rejection_and_titles(self):
         title = epic_task_title("p1", "APP-001", "Account foundation")
@@ -457,12 +462,56 @@ class EpicProjectTests(unittest.TestCase):
             lease_path.write_text(json.dumps(old), encoding="utf-8")
             handoff["binding"]["headSha"] = "a" * 40
             def fake_git(arguments, _repo):
-                code = 1 if arguments[-2:] == ["c" * 40, "b" * 40] else 0
-                return subprocess.CompletedProcess(arguments, code, "", "")
+                if arguments[:3] == ["merge-base", "--is-ancestor", "c" * 40]:
+                    return subprocess.CompletedProcess(arguments, 1, "", "")
+                if arguments[:2] == ["rev-parse", ("c" * 40) + "^{tree}"]:
+                    return subprocess.CompletedProcess(arguments, 0, "old-tree\n", "")
+                if arguments[:2] == ["rev-parse", ("b" * 40) + "^{tree}"]:
+                    return subprocess.CompletedProcess(arguments, 0, "default-tree\n", "")
+                return subprocess.CompletedProcess(arguments, 0, "", "")
             with mock.patch("gauntlet.refresh_default_head", return_value=("b" * 40, "origin/main")), mock.patch("gauntlet.git", side_effect=fake_git):
                 _, replaced = gauntlet.acquire_run_merge_lease(root, run, handoff)
             self.assertEqual(replaced["candidateHead"], "a" * 40)
             self.assertEqual(json.loads(lease_path.read_text()), replaced)
+
+            lease_path.write_text(json.dumps(old), encoding="utf-8")
+            def squash_git(arguments, _repo):
+                if arguments[:3] == ["merge-base", "--is-ancestor", "c" * 40]:
+                    return subprocess.CompletedProcess(arguments, 1, "", "")
+                if arguments[0] == "rev-parse":
+                    return subprocess.CompletedProcess(arguments, 0, "same-tree\n", "")
+                return subprocess.CompletedProcess(arguments, 0, "", "")
+            with mock.patch("gauntlet.refresh_default_head", return_value=("b" * 40, "origin/main")), mock.patch("gauntlet.git", side_effect=squash_git):
+                with self.assertRaisesRegex(ValueError, "already on the default branch"):
+                    gauntlet.acquire_run_merge_lease(root, run, handoff)
+
+    def test_squash_lease_recovery_survives_later_default_advancement(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.init_git(root)
+            candidate = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True,
+            ).stdout.strip()
+            tree = subprocess.run(
+                ["git", "rev-parse", "HEAD^{tree}"], cwd=root, check=True, capture_output=True, text=True,
+            ).stdout.strip()
+            squashed = subprocess.run(
+                ["git", "commit-tree", tree, "-m", "squashed equivalent"],
+                cwd=root, check=True, capture_output=True, text=True,
+            ).stdout.strip()
+            subprocess.run(["git", "update-ref", "refs/heads/main", squashed], cwd=root, check=True)
+            (root / "later.txt").write_text("later default work\n", encoding="utf-8")
+            subprocess.run(["git", "add", "later.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-m", "later default"], cwd=root, check=True, capture_output=True, text=True)
+            lease_path = root / "lease.json"
+            lease = {
+                "schemaVersion": "gauntlet.epic-merge-lease.v1", "coverageSha256": "a" * 64,
+                "epicId": "APP-001", "candidateHead": candidate,
+                "baseHead": candidate, "baseRef": "origin/main",
+            }
+            lease_path.write_text(json.dumps(lease), encoding="utf-8")
+            gauntlet.release_run_merge_lease(root, lease_path, lease, squashed)
+            self.assertFalse(lease_path.exists())
 
     def test_project_pr_schema_three_is_generated_facts_only(self):
         projection = self.project_pr_projection()
