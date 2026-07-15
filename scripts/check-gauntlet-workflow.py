@@ -1605,6 +1605,35 @@ def merge_run_handoff_fixture(repo, run_path):
 def write_fake_project_pr(repo, run_path, projection):
     run_path.mkdir(parents=True, exist_ok=True)
     (run_path / "project-pr.json").write_text(json.dumps(projection), encoding="utf-8")
+    launch_path = run_path.parent / "epic-launch.json"
+    snapshot_path = run_path.parent / "epic-launch.source.md"
+    existing_launch = json.loads(launch_path.read_text(encoding="utf-8")) if launch_path.is_file() else None
+    snapshot_path.write_text("# Locked Epic fixture\n", encoding="utf-8")
+    source_sha = hashlib.sha256(snapshot_path.read_bytes()).hexdigest()
+    epic_id = existing_launch["targetEpicIds"][0] if existing_launch else projection["epic"]["id"]
+    epic_title = existing_launch["epics"][epic_id]["title"] if existing_launch else projection["epic"]["title"]
+    coverage = {
+        "schemaVersion": "gauntlet.epic-launch.v1",
+        "source": {"path": str(repo / "product.md"), "sha256": source_sha},
+        "targetEpicIds": [epic_id],
+        "epics": {epic_id: {"title": epic_title, "dependencies": [], "releaseStages": ["merge"]}},
+    }
+    coverage_sha = hashlib.sha256(json.dumps(coverage, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+    launch = {
+        **coverage,
+        "source": {**coverage["source"], "snapshotPath": str(snapshot_path)},
+        "coverageSha256": coverage_sha,
+        "epics": {epic_id: {
+            **coverage["epics"][epic_id], "taskId": "task-fixture", "runPath": str(run_path.resolve()),
+            "status": "implementation-complete", "blocker": None, "stopDisposition": None, "emittedEvents": [],
+        }},
+        "aggregateEmittedEvents": [],
+    }
+    launch_path.write_text(json.dumps(launch), encoding="utf-8")
+    (run_path / "source-lock.json").write_text(json.dumps({
+        "target_epic_ids": [epic_id],
+        "launch_set": {"path": str(launch_path), "coverage_sha256": coverage_sha, "task_id": "task-fixture"},
+    }), encoding="utf-8")
     controller = repo / "scripts" / "prd-run.py"
     controller.parent.mkdir(parents=True, exist_ok=True)
     controller.write_text(
@@ -1997,6 +2026,8 @@ def test_gauntlet_cli_run_merge_execute_uses_bound_projection_and_safe_cleanup_o
         expected = ["git_push", "gh_pr_edit", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch", "delete_remote_branch"]
         if action_types != expected:
             raise AssertionError(f"run-backed execute action order mismatch: {action_types}")
+        if data.get("mergeLeaseReleased") is not True or (run_path.parent / "epic-launch.merge-lease.json").exists():
+            raise AssertionError(f"run-backed execute must hold and release the launch merge lease: {data}")
         merge_log = Path(tmp, "gh.log").read_text(encoding="utf-8")
         if f"--match-head-commit {projection['binding']['headSha']}" not in merge_log:
             raise AssertionError(f"final merge was not bound to the projected head: {merge_log}")

@@ -161,7 +161,10 @@ class EpicProjectTests(unittest.TestCase):
             launch["source"]["snapshotPath"] = str(snapshot)
             launch["epics"]["APP-001"]["status"] = "starting"
             gauntlet.write_launch_set(launch_path, launch)
-            args = argparse.Namespace(git_root=root, launch_set=launch_path, epic="APP-001", task_id="task-123", json=True)
+            args = argparse.Namespace(
+                git_root=root, launch_set=launch_path, epic="APP-001",
+                task_key=gauntlet.launch_task_key(launch, "APP-001"), task_id="task-123", json=True,
+            )
             with mock.patch("gauntlet.print_payload") as output:
                 self.assertEqual(gauntlet.command_epic_tasks_record_task(args), 0)
             events = output.call_args.args[0]["lifecycleEvents"]
@@ -170,6 +173,17 @@ class EpicProjectTests(unittest.TestCase):
             with mock.patch("gauntlet.print_payload") as output:
                 self.assertEqual(gauntlet.command_epic_tasks_record_task(args), 0)
             self.assertEqual(output.call_args.args[0]["lifecycleEvents"], [])
+
+            _, recorded = gauntlet.load_launch_set(launch_path)
+            recorded["epics"]["APP-001"].update({"taskId": None, "status": "planned"})
+            gauntlet.write_launch_set(launch_path, recorded)
+            with mock.patch("gauntlet.print_payload") as output:
+                self.assertEqual(gauntlet.command_epic_tasks_record_task(args), 1)
+            self.assertIn("starting state", output.call_args.args[0]["findings"][0]["message"])
+            args.task_key = "wrong-task-key"
+            with mock.patch("gauntlet.print_payload") as output:
+                self.assertEqual(gauntlet.command_epic_tasks_record_task(args), 1)
+            self.assertIn("task key", output.call_args.args[0]["findings"][0]["message"])
 
     def test_cycle_missing_dependency_and_non_independent_epic_fail_before_state(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -200,6 +214,36 @@ class EpicProjectTests(unittest.TestCase):
                 "epic_title": "TOKEN=supersecretvalue",
                 "dependency_note": "None",
             })
+
+    def test_doc_execution_contract_migration_preserves_unmanaged_bytes(self):
+        current = (Path(gauntlet.__file__).parents[1] / "templates" / "local-docs" / "doc_org.md.tmpl").read_text(encoding="utf-8")
+        prefix, managed = current.split(gauntlet.DOC_EXECUTION_BLOCK_BEGIN, 1)
+        body, suffix = managed.split(gauntlet.DOC_EXECUTION_BLOCK_END, 1)
+        legacy = prefix + body.lstrip("\n") + suffix.lstrip("\n")
+        start = legacy.index("## PRD Compilation And Ticket Graph\n")
+        end = legacy.index("## Future Tasks\n", start)
+        legacy_hash = gauntlet.sha256_bytes(legacy[start:end].encode("utf-8"))
+        with mock.patch.object(gauntlet, "DOC_EXECUTION_LEGACY_HASHES", {legacy_hash}):
+            migrated, state = gauntlet.migrate_doc_execution_contract(legacy)
+        self.assertEqual(state, "migrated")
+        self.assertEqual(migrated[:migrated.index(gauntlet.DOC_EXECUTION_BLOCK_BEGIN)], prefix)
+        self.assertTrue(migrated.endswith(suffix.lstrip("\n")))
+        self.assertIn(gauntlet.DOC_EXECUTION_BLOCK_END, migrated)
+
+        customized = legacy.replace("one fresh final check", "a customized final check")
+        unchanged, state = gauntlet.migrate_doc_execution_contract(customized)
+        self.assertEqual((unchanged, state), (customized, "customized"))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            policy = Path(temporary) / "doc_org.md"
+            policy.write_text(legacy, encoding="utf-8")
+            with mock.patch.object(gauntlet, "DOC_EXECUTION_LEGACY_HASHES", {legacy_hash}):
+                findings, migration_required = gauntlet.ensure_doc_execution_contract(
+                    {"policyPath": policy}, dry_run=True,
+                )
+            self.assertTrue(migration_required)
+            self.assertEqual(findings[0]["code"], "local_execution_contract_migration_planned")
+            self.assertEqual(policy.read_text(encoding="utf-8"), legacy)
 
     def test_source_snapshot_is_immutable_input_for_queued_packets(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -279,6 +323,48 @@ class EpicProjectTests(unittest.TestCase):
             self.assertEqual(data["epics"]["APP-001"]["status"], "implementation-complete")
             self.assertIn("This does not yet prove merge", data["lifecycleEvents"][0]["copy"])
 
+    def test_canonical_reconciliation_rejects_target_acceptance_drift(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.init_git(root)
+            source = self.write_prd(root, "APP-001", [epic("APP-001", "Account foundation")])
+            docs = root / "local-docs"
+            docs.mkdir()
+            index = docs / "INDEX.md"
+            index.write_text(
+                "| ID | Title | Type | Status | Created | Dependencies | Supersedes | Implementation | Verification |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| `APP-001` | Account foundation | PRD | Accepted | now | None | None | Not implemented | Not verified |\n",
+                encoding="utf-8",
+            )
+            launch_path = root / "launch.json"
+            launch, source_text = gauntlet.build_epic_launch_set(source, [])
+            snapshot = root / "launch.source.md"
+            snapshot.write_text(source_text, encoding="utf-8")
+            launch["source"]["snapshotPath"] = str(snapshot)
+            launch["epics"]["APP-001"].update({"taskId": "task-123", "runPath": str(root / "run"), "status": "implementation-complete"})
+            gauntlet.write_launch_set(launch_path, launch)
+            projection = {
+                "available": True, "implemented": True, "complete": False,
+                "exactRevision": "a" * 40, "sourceSha256": launch["source"]["sha256"],
+            }
+            args = argparse.Namespace(git_root=root, launch_set=launch_path, epic="APP-001", json=True)
+            source.write_text(source.read_text(encoding="utf-8") + "\n## Epic APP-999: Unrelated idea\n\nEpic status: Proposed\n", encoding="utf-8")
+            with mock.patch("gauntlet.completion_projection_for_run", return_value=projection), mock.patch("gauntlet.print_payload"):
+                self.assertEqual(gauntlet.command_epic_tasks_reconcile_docs(args), 0)
+            reconciled = source.read_text(encoding="utf-8")
+            self.assertIn("Epic status: Implementation-complete", reconciled)
+            self.assertIn("APP-999: Unrelated idea", reconciled)
+
+            source.write_text(reconciled.replace("- The observable outcome passes.", "- A materially different outcome passes."), encoding="utf-8")
+            before_source = source.read_text(encoding="utf-8")
+            before_index = index.read_text(encoding="utf-8")
+            with mock.patch("gauntlet.completion_projection_for_run", return_value=projection), mock.patch("gauntlet.print_payload") as output:
+                self.assertEqual(gauntlet.command_epic_tasks_reconcile_docs(args), 1)
+            self.assertIn("acceptance changed", output.call_args.args[0]["findings"][0]["message"])
+            self.assertEqual(source.read_text(encoding="utf-8"), before_source)
+            self.assertEqual(index.read_text(encoding="utf-8"), before_index)
+
     def test_merge_lease_serializes_and_detects_base_drift(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -305,6 +391,54 @@ class EpicProjectTests(unittest.TestCase):
                 self.assertEqual(gauntlet.command_epic_tasks_merge_lease_acquire(args), 1)
             self.assertIn("advanced", output.call_args.args[0]["findings"][0]["message"])
 
+            gauntlet.launch_merge_lease_path(launch_path).unlink()
+            (root / "advance.txt").write_text("advance default\n", encoding="utf-8")
+            subprocess.run(["git", "add", "advance.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-m", "advance default"], cwd=root, check=True, capture_output=True, text=True)
+            advanced = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
+            args.verified_base = advanced
+            with mock.patch("gauntlet.completion_projection_for_run", return_value=projection), mock.patch("gauntlet.print_payload") as output:
+                self.assertEqual(gauntlet.command_epic_tasks_merge_lease_acquire(args), 1)
+            self.assertIn("does not contain", output.call_args.args[0]["findings"][0]["message"])
+
+    def test_persisted_merge_lease_is_bound_to_the_exact_launch_candidate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = self.write_prd(root, "APP-001", [epic("APP-001", "Account foundation")])
+            launch_path = root / "launch.json"
+            launch, source_text = gauntlet.build_epic_launch_set(source, [])
+            snapshot = root / "launch.source.md"
+            snapshot.write_text(source_text, encoding="utf-8")
+            run = root / "run"
+            run.mkdir()
+            launch["source"]["snapshotPath"] = str(snapshot)
+            launch["epics"]["APP-001"].update({"taskId": "task-123", "runPath": str(run), "status": "implementation-complete"})
+            gauntlet.write_launch_set(launch_path, launch)
+            (run / "source-lock.json").write_text(json.dumps({
+                "target_epic_ids": ["APP-001"],
+                "epics": {"APP-001": {}},
+                "launch_set": {
+                    "path": str(launch_path),
+                    "coverage_sha256": launch["coverageSha256"],
+                    "task_id": "task-123",
+                },
+            }), encoding="utf-8")
+            handoff = {"epic": {"id": "APP-001"}, "binding": {"runId": "run", "headSha": "a" * 40}}
+            lease = {
+                "schemaVersion": "gauntlet.epic-merge-lease.v1",
+                "coverageSha256": launch["coverageSha256"],
+                "epicId": "APP-001",
+                "candidateHead": "a" * 40,
+                "baseHead": "b" * 40,
+                "baseRef": "origin/main",
+            }
+            lease_path = gauntlet.launch_merge_lease_path(launch_path)
+            lease_path.write_text(json.dumps(lease), encoding="utf-8")
+            self.assertEqual(gauntlet.persisted_run_merge_lease(run, handoff), (lease_path, lease))
+            handoff["binding"]["headSha"] = "c" * 40
+            with self.assertRaisesRegex(ValueError, "does not match"):
+                gauntlet.persisted_run_merge_lease(run, handoff)
+
     def test_project_pr_schema_three_is_generated_facts_only(self):
         projection = self.project_pr_projection()
         self.assertEqual(gauntlet.validate_run_merge_handoff(projection), [])
@@ -314,8 +448,49 @@ class EpicProjectTests(unittest.TestCase):
         self.assertIn("blocks overall completion: yes", body)
         self.assertNotIn("Substantial Changes", body)
         self.assertEqual(gauntlet.projection_changelog_entry(projection), "Implement APP-001: Account foundation.")
+        safeguarded = json.loads(json.dumps(projection))
+        safeguarded["releaseGates"].append({
+            "blocksOverallCompletion": True,
+            "blocksPr": False,
+            "evidenceRefs": [],
+            "id": "dry-run-no-mutation",
+            "stage": "merge",
+            "status": "pending",
+            "summary": "Dry run remains pending.",
+        })
+        self.assertEqual([item["id"] for item in gauntlet.pending_run_merge_gates(safeguarded)], ["dry-run-no-mutation"])
+        self.assertFalse(gauntlet.completion_allows_archive(projection["completion"]))
+        archive_ready = json.loads(json.dumps(projection["completion"]))
+        archive_ready["complete"] = True
+        self.assertTrue(gauntlet.completion_allows_archive(archive_ready))
         retired = {"schemaVersion": "2.0"}
         self.assertTrue(gauntlet.validate_merge_handoff(retired))
+
+        contradictory = json.loads(json.dumps(projection))
+        contradictory["completion"].update({
+            "implemented": False,
+            "merged": True,
+            "deployed": True,
+            "productionProved": True,
+            "complete": True,
+            "epicId": "APP-999",
+            "exactRevision": None,
+            "exactState": "complete",
+            "pendingGates": [],
+            "sourceSha256": "invalid",
+            "verificationSummary": None,
+        })
+        codes = {item["code"] for item in gauntlet.validate_run_merge_handoff(contradictory)}
+        self.assertTrue({
+            "contradictory_completion_projection",
+            "completion_epic_mismatch",
+            "invalid_completion_projection",
+        }.issubset(codes))
+        invalid_gate = json.loads(json.dumps(projection))
+        invalid_gate["releaseGates"][0]["status"] = "trust-me"
+        self.assertIn("invalid_release_gate", {
+            item["code"] for item in gauntlet.validate_run_merge_handoff(invalid_gate)
+        })
 
     def test_launch_controller_initializes_the_single_epic_run_controller(self):
         with tempfile.TemporaryDirectory() as temporary:

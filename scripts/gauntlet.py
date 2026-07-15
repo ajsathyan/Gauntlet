@@ -22,6 +22,11 @@ CHECKER = SCRIPTS / "check-workflow-etiquette.py"
 LOCAL_DOC_TEMPLATES = ROOT / "templates" / "local-docs"
 EPIC_COPY_TEMPLATE = ROOT / "templates" / "epic-execution-copy.json"
 LOCAL_DOC_OPT_OUT = Path(".gauntlet") / "doc-org.disabled"
+DOC_EXECUTION_BLOCK_BEGIN = "<!-- BEGIN GAUNTLET EXECUTION CONTRACT v2 -->"
+DOC_EXECUTION_BLOCK_END = "<!-- END GAUNTLET EXECUTION CONTRACT v2 -->"
+DOC_EXECUTION_LEGACY_HASHES = {
+    "5315292c4648aaa6bc04bd810730c7f480a79efb01e81cc882966a63407538e8",
+}
 EPIC_LAUNCH_SCHEMA = "gauntlet.epic-launch.v1"
 EPIC_STATES = {
     "planned", "starting", "in-progress", "needs-decision",
@@ -372,6 +377,65 @@ def render_local_doc_template(name, replacements):
     return rendered
 
 
+def managed_execution_block():
+    template = (LOCAL_DOC_TEMPLATES / "doc_org.md.tmpl").read_text(encoding="utf-8")
+    start = template.index(DOC_EXECUTION_BLOCK_BEGIN)
+    end = template.index(DOC_EXECUTION_BLOCK_END, start) + len(DOC_EXECUTION_BLOCK_END)
+    return template[start:end] + "\n\n"
+
+
+def migrate_doc_execution_contract(text):
+    """Return (updated, state) without rewriting project-authored policy."""
+    begin_count = text.count(DOC_EXECUTION_BLOCK_BEGIN)
+    end_count = text.count(DOC_EXECUTION_BLOCK_END)
+    current = managed_execution_block()
+    if begin_count or end_count:
+        if begin_count != 1 or end_count != 1:
+            return text, "ambiguous"
+        start = text.index(DOC_EXECUTION_BLOCK_BEGIN)
+        end = text.index(DOC_EXECUTION_BLOCK_END, start) + len(DOC_EXECUTION_BLOCK_END)
+        observed = text[start:end] + "\n\n"
+        if observed != current:
+            return text, "customized"
+        return text, "current"
+
+    start_marker = "## PRD Compilation And Ticket Graph\n"
+    end_marker = "## Future Tasks\n"
+    if text.count(start_marker) != 1 or text.count(end_marker) != 1:
+        return text, "ambiguous"
+    start = text.index(start_marker)
+    end = text.index(end_marker, start)
+    legacy = text[start:end]
+    if sha256_bytes(legacy.encode("utf-8")) not in DOC_EXECUTION_LEGACY_HASHES:
+        return text, "customized"
+    return text[:start] + current + text[end:], "migrated"
+
+
+def ensure_doc_execution_contract(context, dry_run=False):
+    path = context["policyPath"]
+    if not path.is_file():
+        return [], False
+    original = path.read_text(encoding="utf-8")
+    updated, state = migrate_doc_execution_contract(original)
+    findings = []
+    if state == "migrated":
+        if not dry_run:
+            atomic_write_text(path, updated)
+        findings.append({
+            "code": "local_execution_contract_migrated" if not dry_run else "local_execution_contract_migration_planned",
+            "severity": "pass",
+            "message": "Gauntlet updated only the versioned local execution contract and preserved project-authored policy bytes.",
+        })
+        return findings, True
+    if state in {"ambiguous", "customized"}:
+        findings.append({
+            "code": "local_execution_contract_review",
+            "severity": "review",
+            "message": "The materialized doc_org.md execution contract is customized or ambiguous; Gauntlet left it unchanged for human review.",
+        })
+    return findings, False
+
+
 def write_new_file(path, content):
     path.parent.mkdir(parents=True, exist_ok=True)
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
@@ -536,7 +600,8 @@ def command_docs_ensure(args):
 
     all_paths_exist = all(path.exists() for path in [context["policyPath"], context["docsRoot"], context["indexPath"]])
     if all_paths_exist:
-        findings = local_docs_validation_findings(context, require_profile=True)
+        migration_findings, migrated = ensure_doc_execution_contract(context, dry_run=args.dry_run)
+        findings = migration_findings + local_docs_validation_findings(context, require_profile=True)
         return local_docs_payload(
             args,
             context,
@@ -545,11 +610,14 @@ def command_docs_ensure(args):
             materialized=True,
             created=[],
             preserved=[],
+            migrated=migrated,
         )
 
     prefix = args.epic_prefix or (local_epic_prefix(context["indexPath"]) if context["indexPath"].is_file() else inferred_epic_prefix(context))
     findings, created, preserved = initialize_local_docs(args, context, prefix)
     if not args.dry_run and not any(finding.get("severity") == "fail" for finding in findings):
+        migration_findings, _ = ensure_doc_execution_contract(context, dry_run=False)
+        findings.extend(migration_findings)
         findings.extend(local_docs_validation_findings(context, require_profile=True))
     return local_docs_payload(
         args,
@@ -610,6 +678,9 @@ def command_docs_check(args):
     opted_out = local_docs_opted_out(context)
     findings = local_docs_validation_findings(context)
     materialized = any(path.exists() for path in [context["policyPath"], context["docsRoot"], context["indexPath"]])
+    if not opted_out and context["policyPath"].is_file():
+        migration_findings, _ = ensure_doc_execution_contract(context, dry_run=True)
+        findings.extend(migration_findings)
     if opted_out:
         findings.append({
             "code": "local_document_profile_opted_out",
@@ -1044,6 +1115,10 @@ def completion_projection_for_run(repo, run_path):
     return data
 
 
+def completion_allows_archive(completion):
+    return isinstance(completion, dict) and completion.get("complete") is True
+
+
 def dependency_satisfied(epic, dependency, projections):
     projection = projections.get(dependency["epicId"])
     if not projection or projection.get("available") is not True:
@@ -1085,7 +1160,7 @@ def epic_task_packet(launch_path, launch, epic_id, repo):
                 "boundary": dependency["boundary"],
                 "exactRevision": projection.get("exactRevision"),
             })
-    source_path = Path(launch["source"]["path"])
+    source_path = Path(launch["source"]["snapshotPath"])
     try:
         source_reference = source_path.relative_to(Path(repo).resolve()).as_posix()
     except ValueError:
@@ -1241,8 +1316,12 @@ def command_epic_tasks_record_task(args):
         epic = launch["epics"].get(args.epic)
         if not epic:
             raise ValueError(f"Epic is not in the launch set: {args.epic}")
+        if launch_task_key(launch, args.epic) != args.task_key:
+            raise ValueError("Epic task key does not match the launch set")
         if epic["taskId"] and epic["taskId"] != args.task_id:
             raise ValueError(f"{args.epic} is already mapped to a different task ID")
+        if not epic["taskId"] and epic["status"] != "starting":
+            raise ValueError("A new Epic task can be recorded only from the starting state")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{2,255}", args.task_id):
             raise ValueError("Task ID has an invalid format")
         events = []
@@ -1297,11 +1376,13 @@ def command_epic_tasks_record_run(args):
         if not source_lock_path.is_file():
             raise ValueError(f"Execution Run lacks source-lock.json: {run_path}")
         source_lock = json.loads(source_lock_path.read_text(encoding="utf-8"))
-        locked_epics = source_lock.get("epics") or source_lock.get("target_epics") or source_lock.get("targetEpicIds") or []
+        locked_epics = source_lock.get("target_epic_ids") or source_lock.get("target_epics") or source_lock.get("targetEpicIds") or []
         if isinstance(locked_epics, dict):
             locked_epics = list(locked_epics)
-        if locked_epics and locked_epics != [args.epic]:
+        if locked_epics != [args.epic]:
             raise ValueError("Execution Run must lock exactly the recorded Epic")
+        if set(source_lock.get("epics") or {}) != {args.epic}:
+            raise ValueError("Execution Run source-lock Epic facts must match the recorded Epic exactly")
         locked_launch = source_lock.get("launch_set") or {}
         if Path(locked_launch.get("path", "")).resolve() != launch_path:
             raise ValueError("Execution Run is bound to a different Epic launch set")
@@ -1334,6 +1415,8 @@ def command_epic_tasks_blocker(args):
         epic = launch["epics"].get(args.epic)
         if not epic:
             raise ValueError(f"Epic is not in the launch set: {args.epic}")
+        if not epic.get("taskId") or epic["status"] not in {"in-progress", "needs-decision"}:
+            raise ValueError("Only a started Epic task can report a blocker")
         blocker = json.loads(Path(args.blocker).read_text(encoding="utf-8"))
         allowed = {"classification", "decision", "recommendation", "reason", "impact", "authorityNotGranted", "question"}
         if set(blocker) - allowed or "classification" not in blocker:
@@ -1518,6 +1601,39 @@ def replace_epic_metadata(source_text, epic_id, updates):
     return source_text[:start] + updated + source_text[start + len(section):]
 
 
+def epic_acceptance_identity(source_text, epic_id):
+    sections = epic_source_sections(source_text)
+    if epic_id not in sections:
+        raise ValueError(f"Canonical PRD no longer contains {epic_id}")
+    controller_fields = {"epic status", "implemented by", "verified by"}
+    lines = []
+    for line in sections[epic_id]["text"].splitlines():
+        match = re.match(r"^([A-Za-z][A-Za-z ]+):\s*.*$", line)
+        if match and match.group(1).strip().lower() in controller_fields:
+            continue
+        lines.append(line.rstrip())
+    return sha256_bytes(("\n".join(lines).strip() + "\n").encode("utf-8"))
+
+
+def index_epic_cells(index_text, epic_id):
+    for line in index_text.splitlines():
+        if re.match(rf"^\|\s*`{re.escape(epic_id)}`\s*\|", line):
+            cells = [cell.strip() for cell in line.split("|")]
+            if len(cells) < 11:
+                raise ValueError(f"Index row for {epic_id} has an unexpected shape")
+            return {"status": cells[4], "implementation": cells[8], "verification": cells[9]}
+    raise ValueError(f"Local document index has no row for {epic_id}")
+
+
+def placeholder_index_value(value, kind):
+    lowered = value.lower()
+    markers = {
+        "implementation": ("not started", "not implemented", "not authorized", "build-ready"),
+        "verification": ("not verified", "not authorized", "build-ready"),
+    }
+    return any(marker in lowered for marker in markers[kind])
+
+
 def update_epic_index(index_text, epic_id, status, implementation, verification):
     lines = index_text.splitlines()
     found = False
@@ -1560,6 +1676,18 @@ def command_epic_tasks_reconcile_docs(args):
         final_status = "Complete" if projection.get("complete") is True else "Implementation-complete"
         source_before = source_path.read_text(encoding="utf-8")
         index_before = index_path.read_text(encoding="utf-8")
+        locked_source = launch_source_text(launch)
+        if epic_acceptance_identity(source_before, args.epic) != epic_acceptance_identity(locked_source, args.epic):
+            raise ValueError("Canonical Epic acceptance changed after launch; start a new run for the revised source")
+        existing_cells = index_epic_cells(index_before, args.epic)
+        desired_implementation = f"Execution Run `{Path(epic['runPath']).name}` at `{exact_revision}`"
+        desired_verification = f"Final Epic verification passed on `{exact_revision}`"
+        if existing_cells["status"] not in {"Accepted", final_status}:
+            raise ValueError("Canonical index status conflicts with the launch and completion projection")
+        if existing_cells["implementation"] != desired_implementation and not placeholder_index_value(existing_cells["implementation"], "implementation"):
+            raise ValueError("Canonical index implementation cell conflicts with the completion projection")
+        if existing_cells["verification"] != desired_verification and not placeholder_index_value(existing_cells["verification"], "verification"):
+            raise ValueError("Canonical index verification cell conflicts with the completion projection")
         source_after = replace_epic_metadata(source_before, args.epic, {
             "Epic status": final_status,
             "Implemented by": f"Execution Run {Path(epic['runPath']).name} at `{exact_revision}`",
@@ -1567,8 +1695,8 @@ def command_epic_tasks_reconcile_docs(args):
         })
         index_after = update_epic_index(
             index_before, args.epic, final_status,
-            f"Execution Run `{Path(epic['runPath']).name}` at `{exact_revision}`",
-            f"Final Epic verification passed on `{exact_revision}`",
+            desired_implementation,
+            desired_verification,
         )
         if source_after != source_before:
             atomic_write_text(source_path, source_after)
@@ -1600,6 +1728,108 @@ def current_default_head(repo):
     return result.stdout.strip(), remote_ref
 
 
+def refresh_default_head(repo):
+    remote = git(["remote", "get-url", "origin"], repo)
+    if remote.returncode == 0:
+        fetched = git(["fetch", "origin"], repo)
+        if fetched.returncode != 0:
+            raise ValueError(fetched.stderr.strip() or fetched.stdout.strip() or "Cannot refresh origin before merge")
+    return current_default_head(repo)
+
+
+def run_launch_lease_context(run_path, handoff):
+    run_path = Path(run_path).resolve()
+    lock_path = run_path / "source-lock.json"
+    if not lock_path.is_file():
+        raise ValueError("Run-backed merge requires source-lock.json with an Epic launch binding")
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    target = lock.get("target_epic_ids")
+    launch_binding = lock.get("launch_set")
+    if not isinstance(target, list) or len(target) != 1 or not isinstance(launch_binding, dict):
+        raise ValueError("Run-backed merge requires exactly one launch-bound Epic")
+    launch_path, launch = load_launch_set(launch_binding.get("path", ""))
+    launch_source_text(launch)
+    epic_id = target[0]
+    epic = launch["epics"].get(epic_id)
+    if (
+        launch_binding.get("coverage_sha256") != launch["coverageSha256"]
+        or handoff.get("epic", {}).get("id") != epic_id
+        or handoff.get("binding", {}).get("runId") != run_path.name
+        or not epic
+        or epic.get("taskId") != launch_binding.get("task_id")
+        or Path(epic.get("runPath") or "").resolve() != run_path
+    ):
+        raise ValueError("Run, launch coverage, Epic, task, or run-path binding does not match")
+    return launch_path, launch, epic_id
+
+
+def acquire_run_merge_lease(repo, run_path, handoff):
+    launch_path, launch, epic_id = run_launch_lease_context(run_path, handoff)
+    candidate = handoff["binding"]["headSha"]
+    default_head, default_ref = refresh_default_head(repo)
+    if git(["merge-base", "--is-ancestor", default_head, candidate], repo).returncode != 0:
+        raise ValueError("Verified Epic candidate does not contain the current default-branch head; re-integrate and reverify")
+    lease = {
+        "schemaVersion": "gauntlet.epic-merge-lease.v1",
+        "coverageSha256": launch["coverageSha256"],
+        "epicId": epic_id,
+        "candidateHead": candidate,
+        "baseHead": default_head,
+        "baseRef": default_ref,
+    }
+    lease_path = launch_merge_lease_path(launch_path)
+    if lease_path.exists():
+        current = json.loads(lease_path.read_text(encoding="utf-8"))
+        if current != lease:
+            if current.get("epicId") == epic_id and current.get("candidateHead") == candidate:
+                lease_path.unlink()
+                raise ValueError("Default branch changed while this Epic held the merge lease; re-integrate and reverify")
+            raise ValueError(f"Default-branch merge lease is held by {current.get('epicId', 'another Epic')}")
+    else:
+        write_new_file(lease_path, json.dumps(lease, indent=2, sort_keys=True) + "\n")
+    return lease_path, lease
+
+
+def validate_run_merge_lease(repo, lease_path, lease):
+    if not Path(lease_path).is_file() or json.loads(Path(lease_path).read_text(encoding="utf-8")) != lease:
+        raise ValueError("Run-backed merge lease disappeared or changed")
+    default_head, _ = refresh_default_head(repo)
+    if default_head != lease["baseHead"]:
+        Path(lease_path).unlink(missing_ok=True)
+        raise ValueError("Default branch advanced after lease acquisition; re-integrate and reverify")
+    if git(["merge-base", "--is-ancestor", lease["baseHead"], lease["candidateHead"]], repo).returncode != 0:
+        raise ValueError("Leased candidate no longer contains its verified default-branch base")
+
+
+def release_run_merge_lease(repo, lease_path, lease, merged_head):
+    default_head, _ = refresh_default_head(repo)
+    if default_head != merged_head or git(["merge-base", "--is-ancestor", lease["candidateHead"], default_head], repo).returncode != 0:
+        raise ValueError("Observed default branch does not contain the leased candidate")
+    if not Path(lease_path).is_file() or json.loads(Path(lease_path).read_text(encoding="utf-8")) != lease:
+        raise ValueError("Run-backed merge lease changed before release")
+    Path(lease_path).unlink()
+
+
+def persisted_run_merge_lease(run_path, handoff):
+    """Return the exact launch lease for interrupted merge recovery, if one exists."""
+    launch_path, launch, epic_id = run_launch_lease_context(run_path, handoff)
+    lease_path = launch_merge_lease_path(launch_path)
+    if not lease_path.is_file():
+        return None
+    lease = json.loads(lease_path.read_text(encoding="utf-8"))
+    expected = {
+        "schemaVersion": "gauntlet.epic-merge-lease.v1",
+        "coverageSha256": launch["coverageSha256"],
+        "epicId": epic_id,
+        "candidateHead": handoff["binding"]["headSha"],
+    }
+    if any(lease.get(key) != value for key, value in expected.items()):
+        raise ValueError("Persisted merge lease does not match this launch-bound Epic candidate")
+    if not nonempty_string(lease.get("baseHead")) or not nonempty_string(lease.get("baseRef")):
+        raise ValueError("Persisted merge lease is incomplete")
+    return lease_path, lease
+
+
 def command_epic_tasks_merge_lease_acquire(args):
     try:
         launch_path, launch = load_launch_set(args.launch_set)
@@ -1614,6 +1844,8 @@ def command_epic_tasks_merge_lease_acquire(args):
         default_head, default_ref = current_default_head(args.git_root)
         if default_head != args.verified_base:
             raise ValueError(f"Default branch advanced from {args.verified_base} to {default_head}; re-integrate and reverify before merging")
+        if git(["merge-base", "--is-ancestor", default_head, args.candidate_head], args.git_root).returncode != 0:
+            raise ValueError("Candidate does not contain the verified default-branch base; re-integrate and reverify before merging")
         lease_path = launch_merge_lease_path(launch_path)
         lease = {
             "schemaVersion": "gauntlet.epic-merge-lease.v1",
@@ -1645,7 +1877,10 @@ def command_epic_tasks_merge_lease_release(args):
         lease = json.loads(lease_path.read_text(encoding="utf-8"))
         if lease.get("epicId") != args.epic or lease.get("candidateHead") != args.candidate_head:
             raise ValueError("Merge lease does not match the releasing Epic and candidate")
-        result = git(["merge-base", "--is-ancestor", args.candidate_head, args.merged_head], args.git_root)
+        default_head, _ = refresh_default_head(args.git_root)
+        if default_head != args.merged_head:
+            raise ValueError("Merged head must equal the currently observed default-branch head")
+        result = git(["merge-base", "--is-ancestor", args.candidate_head, default_head], args.git_root)
         if result.returncode != 0:
             raise ValueError("Merged revision does not contain the leased candidate head")
         lease_path.unlink()
@@ -2352,8 +2587,31 @@ def validate_run_merge_handoff(data):
         for field in ["implemented", "merged", "deployed", "productionProved", "complete"]:
             if not isinstance(completion.get(field), bool):
                 findings.append(handoff_finding("invalid_completion_projection", f"completion.{field} must be boolean."))
-        if completion.get("implemented") and not re.fullmatch(r"[0-9a-f]{40,64}", completion.get("exactRevision") or ""):
+        implemented = completion.get("implemented") is True
+        merged = completion.get("merged") is True
+        deployed = completion.get("deployed") is True
+        production_proved = completion.get("productionProved") is True
+        complete = completion.get("complete") is True
+        if (merged and not implemented) or (deployed and not merged) or (production_proved and not deployed) or (complete and not (implemented and merged)):
+            findings.append(handoff_finding("contradictory_completion_projection", "Completion stages must be monotonic and complete requires implemented plus merged."))
+        if implemented and not re.fullmatch(r"[0-9a-f]{40,64}", completion.get("exactRevision") or ""):
             findings.append(handoff_finding("invalid_completion_projection", "Implemented state requires an exact revision."))
+        if not implemented and completion.get("exactRevision") is not None:
+            findings.append(handoff_finding("invalid_completion_projection", "An unimplemented state cannot claim an exact verified revision."))
+        if implemented and not nonempty_string(completion.get("verificationSummary")):
+            findings.append(handoff_finding("invalid_completion_projection", "Implemented state requires a final verification summary."))
+        if not re.fullmatch(r"[0-9a-f]{64}", completion.get("sourceSha256") or ""):
+            findings.append(handoff_finding("invalid_completion_projection", "completion.sourceSha256 must be a lowercase SHA-256 digest."))
+        expected_state = (
+            "complete" if complete else
+            "production-proved" if production_proved else
+            "deployed" if deployed else
+            "merged" if merged else
+            "implementation-complete" if implemented else
+            "in-progress"
+        )
+        if completion.get("exactState") != expected_state:
+            findings.append(handoff_finding("contradictory_completion_projection", f"completion.exactState must be {expected_state} for the declared stage facts."))
         validate_string_list(findings, completion.get("pendingGates"), "invalid_completion_projection", "completion.pendingGates")
 
     deferrals = data.get("deferrals")
@@ -2376,6 +2634,8 @@ def validate_run_merge_handoff(data):
             for field in ["id", "stage", "status", "summary"]:
                 if not nonempty_string(gate.get(field)):
                     findings.append(handoff_finding("invalid_release_gate", f"releaseGates item {index}.{field} must be non-empty."))
+            if gate.get("status") not in {"pass", "fail", "pending", "stale", "not-required", "not-applicable"}:
+                findings.append(handoff_finding("invalid_release_gate", f"releaseGates item {index}.status is unsupported."))
             if gate.get("id") in seen:
                 findings.append(handoff_finding("duplicate_release_gate", f"Release gate {gate.get('id')} appears more than once."))
             seen.add(gate.get("id"))
@@ -2383,6 +2643,21 @@ def validate_run_merge_handoff(data):
                 if not isinstance(gate.get(field), bool):
                     findings.append(handoff_finding("invalid_release_gate", f"releaseGates item {index}.{field} must be boolean."))
             validate_string_list(findings, gate.get("evidenceRefs"), "invalid_release_gate_evidence", f"releaseGates item {index}.evidenceRefs")
+    if isinstance(epic, dict) and isinstance(completion, dict):
+        if epic.get("id") != completion.get("epicId"):
+            findings.append(handoff_finding("completion_epic_mismatch", "completion.epicId must equal epic.id."))
+    if isinstance(binding, dict) and isinstance(completion, dict) and completion.get("implemented") is True:
+        if binding.get("headSha") != completion.get("exactRevision"):
+            findings.append(handoff_finding("completion_revision_mismatch", "The implemented revision must equal binding.headSha."))
+    if isinstance(gates, list) and isinstance(completion, dict):
+        open_overall = [
+            gate for gate in gates if isinstance(gate, dict) and gate.get("blocksOverallCompletion") is True
+            and gate.get("status") not in {"pass", "not-applicable"}
+        ]
+        if completion.get("complete") is True and open_overall:
+            findings.append(handoff_finding("contradictory_completion_projection", "Complete state cannot retain an open overall-completion release gate."))
+        if completion.get("complete") is not True and not completion.get("pendingGates"):
+            findings.append(handoff_finding("contradictory_completion_projection", "An incomplete state must name at least one pending gate."))
     if has_secret(json.dumps(data, sort_keys=True)):
         findings.append(handoff_finding("secret_like_run_projection", "Run projection contains secret-like content."))
     return findings
@@ -2479,6 +2754,14 @@ def projection_changelog_entry(data):
         epic = data["epic"]
         return f"Implement {epic['id']}: {epic['title']}."
     return data["changelog"]
+
+
+def pending_run_merge_gates(handoff):
+    return [
+        gate for gate in handoff.get("releaseGates", [])
+        if gate.get("stage") == "merge" and gate.get("id") != "merge-to-default"
+        and gate.get("status") not in {"pass", "not-applicable"}
+    ]
 
 
 def ensure_unreleased_changelog(changelog_path, entry):
@@ -3420,7 +3703,7 @@ def delete_remote_branch(repo, branch, expected_sha=None, git_runner=None):
     return deletion
 
 
-def execute_merge_plan(payload, git_root, handoff_source, body_path, run_path=None):
+def execute_merge_plan(payload, git_root, handoff_source, body_path, run_path=None, merge_lease=None):
     repo = Path(git_root).resolve()
     executed = []
     branch = payload.get("branch")
@@ -3450,6 +3733,15 @@ def execute_merge_plan(payload, git_root, handoff_source, body_path, run_path=No
             action["prNumber"] = pr.get("number")
             result = gh(["pr", "checks", str(pr.get("number")), "--watch"], repo)
         elif action_type == "gh_pr_merge":
+            if run_path:
+                if not merge_lease:
+                    add_finding(payload, "epic_merge_lease_missing", "fail", "Run-backed merge requires the launch-set merge lease.")
+                    break
+                try:
+                    validate_run_merge_lease(repo, merge_lease[0], merge_lease[1])
+                except (OSError, ValueError, json.JSONDecodeError) as exc:
+                    add_finding(payload, "epic_merge_lease_invalid", "fail", str(exc))
+                    break
             pr, _ = current_pr(repo)
             if not refreshed_pr_is_mergeable(payload, pr, expected_head):
                 break
@@ -3511,6 +3803,12 @@ def command_merge_execute(args):
         payload["findings"].extend(run_binding_findings(repo, run_path, handoff))
         if handoff.get("binding") != payload.get("runBinding") or render_pr_body(handoff) != body_path.read_text(encoding="utf-8"):
             add_finding(payload, "run_projection_changed_during_execute", "fail", "Execution Run projection changed after planning; run merge prepare again.")
+        pending_merge_gates = pending_run_merge_gates(handoff)
+        if pending_merge_gates:
+            add_finding(
+                payload, "run_merge_safeguard_pending", "fail",
+                "Run-backed merge has pending controller safeguards: " + ", ".join(gate.get("id", "unknown") for gate in pending_merge_gates),
+            )
         payload["status"] = status_for(payload)
         if payload["status"] not in {"pass", "warn"}:
             payload["mergePlan"]["canMerge"] = False
@@ -3525,10 +3823,20 @@ def command_merge_execute(args):
             payload["status"] = status_for(payload)
             print_payload(payload, args.json)
             return EXIT_CODES[payload["status"]]
+        try:
+            merge_lease = acquire_run_merge_lease(repo, run_path, handoff)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            add_finding(payload, "epic_merge_lease_failed", "fail", str(exc))
+            payload["mergePlan"]["canMerge"] = False
+            payload["mergePlan"]["actions"] = []
+            payload["status"] = status_for(payload)
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
     else:
         handoff = merge_input_path(repo, args.handoff)
         run_path = None
-    payload = execute_merge_plan(payload, repo, handoff, body_path, run_path=run_path)
+        merge_lease = None
+    payload = execute_merge_plan(payload, repo, handoff, body_path, run_path=run_path, merge_lease=merge_lease)
     if run_path and payload["status"] in {"pass", "warn"} and any(
         action.get("type") == "verify_default_branch" for action in payload.get("executedActions", [])
     ):
@@ -3553,6 +3861,11 @@ def command_merge_execute(args):
                     add_finding(payload, "record_merge_transition_failed", "fail", transition_error)
                 else:
                     payload["runMergeRecorded"] = {"mainSha": main_sha, "pr": pr_reference}
+                    try:
+                        release_run_merge_lease(repo, merge_lease[0], merge_lease[1], main_sha)
+                        payload["mergeLeaseReleased"] = True
+                    except (OSError, ValueError, json.JSONDecodeError) as exc:
+                        add_finding(payload, "epic_merge_lease_release_failed", "fail", str(exc))
         payload["status"] = status_for(payload)
     print_payload(payload, args.json)
     return EXIT_CODES[payload["status"]]
@@ -3562,22 +3875,30 @@ def command_merge_reconcile(args):
     repo = Path(args.git_root).resolve()
     run_path = merge_input_path(repo, args.run)
     payload = {"schemaVersion": "1.0", "status": "pass", "findings": [], "runPath": str(run_path), "reconciled": False}
-    completion_output, completion_error = run_prd_controller(repo, ["completion", "--run", str(run_path)])
-    if not completion_error:
-        try:
-            if json.loads(completion_output).get("merged") is True:
-                payload["reconciled"] = True
-                payload["alreadyRecorded"] = True
-                print_payload(payload, args.json)
-                return EXIT_CODES[payload["status"]]
-        except json.JSONDecodeError:
-            pass
     handoff, error = run_project_pr(repo, run_path)
     if error:
         add_finding(payload, "project_pr_projection_failed", "fail", error)
     elif validate_run_merge_handoff(handoff):
         payload["findings"].extend(validate_run_merge_handoff(handoff))
     else:
+        completion_output, completion_error = run_prd_controller(repo, ["completion", "--run", str(run_path)])
+        if not completion_error:
+            try:
+                if json.loads(completion_output).get("merged") is True:
+                    persisted = persisted_run_merge_lease(run_path, handoff)
+                    if persisted:
+                        default_head, _ = refresh_default_head(repo)
+                        release_run_merge_lease(repo, persisted[0], persisted[1], default_head)
+                        payload["mergeLeaseReleased"] = True
+                    payload["reconciled"] = True
+                    payload["alreadyRecorded"] = True
+                    print_payload(payload, args.json)
+                    return EXIT_CODES[payload["status"]]
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                add_finding(payload, "merge_reconcile_lease_failed", "fail", str(exc))
+                payload["status"] = status_for(payload)
+                print_payload(payload, args.json)
+                return EXIT_CODES[payload["status"]]
         binding = handoff["binding"]
         default_result = git(["fetch", "origin"], repo)
         if default_result.returncode != 0:
@@ -3606,6 +3927,16 @@ def command_merge_reconcile(args):
                     else:
                         main_sha = main_result.stdout.strip()
                         pr_reference = str(pr.get("url") or pr.get("number"))
+                        try:
+                            persisted = persisted_run_merge_lease(run_path, handoff)
+                        except (OSError, ValueError, json.JSONDecodeError) as exc:
+                            add_finding(payload, "merge_reconcile_lease_failed", "fail", str(exc))
+                            persisted = None
+                        if persisted is None and not payload["findings"]:
+                            add_finding(
+                                payload, "merge_lease_not_observed", "review",
+                                "The merge is independently observable, but no controller merge lease survived to prove serialized execution.",
+                            )
                         _, record_error = run_prd_controller(repo, [
                             "record-merge", "--run", str(run_path), "--pr", pr_reference,
                             "--merged-sha", main_sha, "--main-sha", main_sha,
@@ -3619,6 +3950,12 @@ def command_merge_reconcile(args):
                                 add_finding(payload, "record_merge_transition_failed", "fail", transition_error)
                             else:
                                 payload.update({"reconciled": True, "mainSha": main_sha, "pr": pr_reference})
+                                if persisted:
+                                    try:
+                                        release_run_merge_lease(repo, persisted[0], persisted[1], main_sha)
+                                        payload["mergeLeaseReleased"] = True
+                                    except (OSError, ValueError, json.JSONDecodeError) as exc:
+                                        add_finding(payload, "merge_reconcile_lease_release_failed", "fail", str(exc))
     payload["status"] = status_for(payload)
     print_payload(payload, args.json)
     return EXIT_CODES[payload["status"]]
@@ -3663,6 +4000,12 @@ def command_run_closeout_execute(args, repo, payload):
         return EXIT_CODES[payload["status"]]
     payload["findings"].extend(validate_run_merge_handoff(handoff))
     payload["findings"].extend(run_binding_findings(repo, run_path, handoff))
+    pending_merge_gates = pending_run_merge_gates(handoff)
+    if pending_merge_gates:
+        add_finding(
+            payload, "run_merge_safeguard_pending", "fail",
+            "Run-backed merge has pending controller safeguards: " + ", ".join(gate.get("id", "unknown") for gate in pending_merge_gates),
+        )
     if payload["findings"]:
         payload["status"] = status_for(payload)
         print_payload(payload, args.json)
@@ -3706,7 +4049,20 @@ def command_run_closeout_execute(args, repo, payload):
         merge_args = argparse.Namespace(git_root=repo, handoff=None, run=run_path, body=body_path, json=True)
         merge_payload = build_merge_payload(merge_args)
         if merge_payload["status"] in {"pass", "warn"}:
-            merge_payload = execute_merge_plan(merge_payload, repo, handoff, body_path, run_path=run_path)
+            granted, authority_error = run_authority_granted(repo, run_path, "merge-to-default")
+            if not granted:
+                add_finding(merge_payload, "merge_to_default_authority_missing", "fail", authority_error)
+                merge_payload["status"] = status_for(merge_payload)
+            else:
+                try:
+                    merge_lease = acquire_run_merge_lease(repo, run_path, handoff)
+                    merge_payload = execute_merge_plan(
+                        merge_payload, repo, handoff, body_path,
+                        run_path=run_path, merge_lease=merge_lease,
+                    )
+                except (OSError, ValueError, json.JSONDecodeError) as exc:
+                    add_finding(merge_payload, "epic_merge_lease_failed", "fail", str(exc))
+                    merge_payload["status"] = status_for(merge_payload)
         payload["merge"] = merge_payload
         payload["findings"].extend(merge_payload.get("findings", []))
         payload["status"] = status_for(payload)
@@ -3733,6 +4089,27 @@ def command_run_closeout_execute(args, repo, payload):
             print_payload(payload, args.json)
             return EXIT_CODES[payload["status"]]
         payload["runMergeRecorded"] = {"mainSha": main_sha, "pr": pr_reference}
+        try:
+            release_run_merge_lease(repo, merge_lease[0], merge_lease[1], main_sha)
+            payload["mergeLeaseReleased"] = True
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            closeout_fail(payload, "epic_merge_lease_release_failed", str(exc))
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+
+        completion_output, completion_error = run_prd_controller(repo, ["completion", "--run", str(run_path)])
+        try:
+            completion = json.loads(completion_output) if not completion_error else None
+        except json.JSONDecodeError:
+            completion = None
+        if not completion_allows_archive(completion):
+            payload["releasePending"] = completion or {"error": completion_error or "completion projection unavailable"}
+            payload["remainingAppActions"] = []
+            payload["localCleanup"] = {"branch": branch_name(repo), "safeAfterTaskExit": False}
+            add_finding(payload, "run_release_stages_pending", "review", "The Epic merged, but required release stages remain open; closeout will not archive the task.")
+            payload["status"] = status_for(payload)
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
 
         if args.install_target != "none":
             install_result = subprocess.run(
@@ -5121,6 +5498,7 @@ def build_parser():
     epic_record_task.add_argument("--git-root", type=Path, default=Path.cwd())
     epic_record_task.add_argument("--launch-set", type=Path, required=True)
     epic_record_task.add_argument("--epic", required=True)
+    epic_record_task.add_argument("--task-key", required=True)
     epic_record_task.add_argument("--task-id", required=True)
     epic_record_task.add_argument("--json", action="store_true")
     epic_record_task.set_defaults(func=command_epic_tasks_record_task)
