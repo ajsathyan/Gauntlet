@@ -47,10 +47,9 @@ REQUIRED_HANDOFF_FIELDS = {
     "testing",
     "securityRisk",
 }
-REQUIRED_RUN_HANDOFF_FIELDS = REQUIRED_HANDOFF_FIELDS | {
-    "substantialChanges",
-    "releaseGates",
-    "binding",
+REQUIRED_RUN_HANDOFF_FIELDS = {
+    "schemaVersion", "title", "binding", "acceptedCriteria", "changedPaths",
+    "completion", "deferrals", "epic", "releaseGates", "verificationReceipts",
 }
 RUN_BINDING_FIELDS = {
     "runId",
@@ -60,7 +59,7 @@ RUN_BINDING_FIELDS = {
     "repository",
     "branch",
     "headSha",
-    "prdVerificationSha256",
+    "epicVerificationSha256",
 }
 SECTION_REQUIRED = [
     ("goal", ["goal"]),
@@ -2007,6 +2006,26 @@ def archive_summary_from_content(path):
     return {"source": "content", "path": str(path), "bullets": bullets}, []
 
 
+def archive_summary_from_run(repo, run_path):
+    output, error = run_prd_controller(repo, ["completion", "--run", str(Path(run_path).resolve())])
+    if error:
+        return None, [{"code": "run_completion_unavailable", "severity": "fail", "message": error}]
+    try:
+        completion = json.loads(output)
+        lock = json.loads((Path(run_path).resolve() / "source-lock.json").read_text(encoding="utf-8"))
+        epic_id = lock["target_epic_ids"][0]
+        epic = lock["epics"][epic_id]
+    except (KeyError, IndexError, json.JSONDecodeError, OSError) as exc:
+        return None, [{"code": "invalid_run_completion", "severity": "fail", "message": str(exc)}]
+    bullets = [
+        f"{epic_id}: {epic['title']} — {completion['exactState']}.",
+        f"Final Epic verification revision: {completion.get('exactRevision') or 'unavailable'}.",
+    ]
+    pending = completion.get("pendingGates") or []
+    bullets.append("Pending gates: " + (", ".join(pending) if pending else "none") + ".")
+    return {"source": "completion-projection", "run": Path(run_path).resolve().name, "bullets": bullets}, []
+
+
 def parse_followups(text):
     followups = []
     lines = (text or "").splitlines()
@@ -2273,126 +2292,99 @@ def validate_string_list(findings, value, code, label, allow_empty=True):
 
 
 def validate_run_merge_handoff(data):
-    findings = validate_handoff_v1_fields(data, expected_schema="2.0")
+    findings = []
     if not isinstance(data, dict):
-        return findings
+        return [handoff_finding("invalid_run_projection", "Run projection must be a JSON object.")]
+    if data.get("schemaVersion") != "3.0":
+        findings.append(handoff_finding("invalid_run_schema", "Run projection schemaVersion must be 3.0."))
     for field in sorted(REQUIRED_RUN_HANDOFF_FIELDS - set(data)):
-        findings.append(handoff_finding("missing_run_handoff_field", f"Run merge handoff is missing: {field}."))
+        findings.append(handoff_finding("missing_run_projection_field", f"Run projection is missing: {field}."))
+    unknown = set(data) - REQUIRED_RUN_HANDOFF_FIELDS
+    if unknown:
+        findings.append(handoff_finding("unknown_run_projection_field", "Run projection contains unsupported fields: " + ", ".join(sorted(unknown)) + "."))
+    if not nonempty_string(data.get("title")):
+        findings.append(handoff_finding("invalid_run_title", "title must be non-empty."))
 
     binding = data.get("binding")
     if not isinstance(binding, dict):
         findings.append(handoff_finding("invalid_run_binding", "binding must be an object."))
     else:
-        for field in sorted(RUN_BINDING_FIELDS - set(binding)):
-            findings.append(handoff_finding("missing_run_binding", f"binding is missing: {field}."))
-        if not nonempty_string(binding.get("runId")):
-            findings.append(handoff_finding("invalid_run_binding", "binding.runId must be non-empty."))
+        if set(binding) != RUN_BINDING_FIELDS:
+            findings.append(handoff_finding("invalid_run_binding", "binding must contain exactly the schema 3.0 binding fields."))
+        if not nonempty_string(binding.get("runId")) or not nonempty_string(binding.get("repository")):
+            findings.append(handoff_finding("invalid_run_binding", "binding.runId and binding.repository must be non-empty."))
         if not isinstance(binding.get("generation"), int) or isinstance(binding.get("generation"), bool) or binding.get("generation", -1) < 0:
             findings.append(handoff_finding("invalid_run_binding", "binding.generation must be a non-negative integer."))
-        repository = binding.get("repository")
-        if not nonempty_string(repository) and not (
-            isinstance(repository, dict)
-            and nonempty_string(repository.get("root"))
-            and nonempty_string(repository.get("identity"))
-        ):
-            findings.append(handoff_finding("invalid_run_binding", "binding.repository must identify the repository, optionally with root and identity."))
         for field in ["branch", "headSha"]:
             if not nonempty_string(binding.get(field)):
                 findings.append(handoff_finding("invalid_run_binding", f"binding.{field} must be non-empty."))
-        for field in ["sourceLockSha256", "graphSha256", "prdVerificationSha256"]:
+        for field in ["sourceLockSha256", "graphSha256", "epicVerificationSha256"]:
             if not isinstance(binding.get(field), str) or not re.fullmatch(r"[0-9a-f]{64}", binding[field]):
                 findings.append(handoff_finding("invalid_run_binding_hash", f"binding.{field} must be a lowercase SHA-256 digest."))
 
-    changes = data.get("substantialChanges")
-    if not isinstance(changes, list) or not changes:
-        findings.append(handoff_finding("missing_substantial_changes", "substantialChanges must contain at least one canonical Epic outcome."))
+    epic = data.get("epic")
+    if not isinstance(epic, dict) or set(epic) != {"id", "title", "scopeAreas"}:
+        findings.append(handoff_finding("invalid_epic_projection", "epic must contain id, title, and scopeAreas."))
     else:
-        seen_epics = set()
-        seen_scopes = set()
-        for change_index, change in enumerate(changes, 1):
-            if not isinstance(change, dict):
-                findings.append(handoff_finding("invalid_substantial_change", f"substantialChanges item {change_index} must be an object."))
-                continue
-            epic_id = change.get("epicId")
-            if not nonempty_string(epic_id) or not nonempty_string(change.get("title")) or not nonempty_string(change.get("outcome")):
-                findings.append(handoff_finding("missing_epic_outcome", f"substantialChanges item {change_index} must identify an Epic with title and outcome."))
-            elif epic_id in seen_epics:
-                findings.append(handoff_finding("duplicate_epic_outcome", f"Epic {epic_id} appears more than once."))
-            else:
-                seen_epics.add(epic_id)
-            scopes = change.get("scopeAreas")
-            if not isinstance(scopes, list) or not scopes:
-                findings.append(handoff_finding("missing_scope_area_outcome", f"Epic {epic_id or change_index} must contain at least one Scope Area outcome."))
-            else:
-                for scope_index, scope in enumerate(scopes, 1):
-                    if not isinstance(scope, dict):
-                        findings.append(handoff_finding("invalid_scope_area_outcome", f"Epic {epic_id or change_index} Scope Area {scope_index} must be an object."))
-                        continue
-                    scope_id = scope.get("scopeAreaId")
-                    for field in ["scopeAreaId", "responsibility", "outcome", "claim", "proofLayer"]:
-                        if not nonempty_string(scope.get(field)):
-                            findings.append(handoff_finding("missing_scope_area_outcome", f"Epic {epic_id or change_index} Scope Area {scope_index}.{field} must be non-empty."))
-                    if nonempty_string(scope_id):
-                        if scope_id in seen_scopes:
-                            findings.append(handoff_finding("duplicate_scope_area_outcome", f"Scope Area {scope_id} appears more than once."))
-                        seen_scopes.add(scope_id)
-                    validate_string_list(findings, scope.get("evidenceRefs"), "invalid_scope_evidence", f"Scope Area {scope_id or scope_index}.evidenceRefs", allow_empty=False)
-                    cannot_verify = scope.get("cannotVerify")
-                    validate_string_list(findings, cannot_verify, "invalid_cannot_verify", f"Scope Area {scope_id or scope_index}.cannotVerify")
-            decisions = change.get("decisions")
-            if not isinstance(decisions, list):
-                findings.append(handoff_finding("invalid_substantial_change_decisions", f"Epic {epic_id or change_index}.decisions must be a list."))
-            else:
-                for decision_index, decision in enumerate(decisions, 1):
-                    if not isinstance(decision, dict) or any(not nonempty_string(decision.get(field)) for field in ["id", "outcome", "rationale", "provenance"]):
-                        findings.append(handoff_finding("invalid_substantial_change_decision", f"Epic {epic_id or change_index} decision {decision_index} is incomplete."))
-            risks = change.get("risks")
-            if not isinstance(risks, list):
-                findings.append(handoff_finding("invalid_substantial_change_risks", f"Epic {epic_id or change_index}.risks must be a list."))
-            else:
-                for risk_index, risk in enumerate(risks, 1):
-                    if not isinstance(risk, dict):
-                        findings.append(handoff_finding("invalid_substantial_change_risk", f"Epic {epic_id or change_index} risk {risk_index} must be an object."))
-                        continue
-                    for field in ["id", "summary", "disposition"]:
-                        if not nonempty_string(risk.get(field)):
-                            findings.append(handoff_finding("invalid_substantial_change_risk", f"Epic {epic_id or change_index} risk {risk_index}.{field} must be non-empty."))
-                    if not isinstance(risk.get("blocking"), bool):
-                        findings.append(handoff_finding("invalid_substantial_change_risk", f"Epic {epic_id or change_index} risk {risk_index}.blocking must be boolean."))
-                    if risk.get("gateId") is not None and not nonempty_string(risk.get("gateId")):
-                        findings.append(handoff_finding("invalid_substantial_change_risk", f"Epic {epic_id or change_index} risk {risk_index}.gateId must be null or non-empty."))
-                    validate_string_list(findings, risk.get("evidenceRefs"), "invalid_risk_evidence", f"Epic {epic_id or change_index} risk {risk_index}.evidenceRefs")
+        if not nonempty_string(epic.get("id")) or not nonempty_string(epic.get("title")):
+            findings.append(handoff_finding("invalid_epic_projection", "epic.id and epic.title must be non-empty."))
+        scopes = epic.get("scopeAreas")
+        if not isinstance(scopes, list) or not scopes:
+            findings.append(handoff_finding("invalid_epic_projection", "epic.scopeAreas must be non-empty."))
+        else:
+            for index, scope in enumerate(scopes, 1):
+                if not isinstance(scope, dict) or set(scope) != {"id", "responsibility"} or any(not nonempty_string(scope.get(key)) for key in ["id", "responsibility"]):
+                    findings.append(handoff_finding("invalid_epic_scope", f"epic.scopeAreas item {index} must contain id and responsibility."))
+    validate_string_list(findings, data.get("acceptedCriteria"), "invalid_accepted_criteria", "acceptedCriteria", allow_empty=False)
+    validate_string_list(findings, data.get("changedPaths"), "invalid_changed_paths", "changedPaths")
+    validate_string_list(findings, data.get("verificationReceipts"), "invalid_verification_receipts", "verificationReceipts", allow_empty=False)
+
+    completion = data.get("completion")
+    completion_fields = {"implemented", "merged", "deployed", "productionProved", "complete", "epicId", "exactRevision", "exactState", "pendingGates", "sourceSha256", "verificationSummary"}
+    if not isinstance(completion, dict) or set(completion) != completion_fields:
+        findings.append(handoff_finding("invalid_completion_projection", "completion has an unsupported shape."))
+    else:
+        for field in ["implemented", "merged", "deployed", "productionProved", "complete"]:
+            if not isinstance(completion.get(field), bool):
+                findings.append(handoff_finding("invalid_completion_projection", f"completion.{field} must be boolean."))
+        if completion.get("implemented") and not re.fullmatch(r"[0-9a-f]{40,64}", completion.get("exactRevision") or ""):
+            findings.append(handoff_finding("invalid_completion_projection", "Implemented state requires an exact revision."))
+        validate_string_list(findings, completion.get("pendingGates"), "invalid_completion_projection", "completion.pendingGates")
+
+    deferrals = data.get("deferrals")
+    if not isinstance(deferrals, dict) or set(deferrals) != {"cannotVerify", "nonGoals"}:
+        findings.append(handoff_finding("invalid_deferrals", "deferrals must contain cannotVerify and nonGoals."))
+    else:
+        validate_string_list(findings, deferrals.get("cannotVerify"), "invalid_deferrals", "deferrals.cannotVerify")
+        validate_string_list(findings, deferrals.get("nonGoals"), "invalid_deferrals", "deferrals.nonGoals")
 
     gates = data.get("releaseGates")
-    gate_ids = set()
     if not isinstance(gates, list) or not gates:
-        findings.append(handoff_finding("missing_release_gate", "releaseGates must contain the pending post-merge gates, including skipped stages."))
+        findings.append(handoff_finding("missing_release_gate", "releaseGates must be non-empty."))
     else:
-        for gate_index, gate in enumerate(gates, 1):
-            if not isinstance(gate, dict):
-                findings.append(handoff_finding("invalid_release_gate", f"releaseGates item {gate_index} must be an object."))
+        seen = set()
+        required_gate_fields = {"id", "stage", "status", "summary", "evidenceRefs", "blocksPr", "blocksOverallCompletion"}
+        for index, gate in enumerate(gates, 1):
+            if not isinstance(gate, dict) or set(gate) != required_gate_fields:
+                findings.append(handoff_finding("invalid_release_gate", f"releaseGates item {index} has an unsupported shape."))
                 continue
-            for field in ["id", "stage", "summary", "status"]:
+            for field in ["id", "stage", "status", "summary"]:
                 if not nonempty_string(gate.get(field)):
-                    findings.append(handoff_finding("invalid_release_gate", f"releaseGates item {gate_index}.{field} must be non-empty."))
-            if nonempty_string(gate.get("id")):
-                if gate["id"] in gate_ids:
-                    findings.append(handoff_finding("duplicate_release_gate", f"Release gate {gate['id']} appears more than once."))
-                gate_ids.add(gate["id"])
-            if not isinstance(gate.get("blocking"), bool):
-                findings.append(handoff_finding("invalid_release_gate", f"releaseGates item {gate_index}.blocking must be boolean."))
-            validate_string_list(findings, gate.get("evidenceRefs"), "invalid_release_gate_evidence", f"Release gate {gate.get('id') or gate_index}.evidenceRefs")
-    for change in changes if isinstance(changes, list) else []:
-        if not isinstance(change, dict):
-            continue
-        for risk in change.get("risks", []) if isinstance(change.get("risks"), list) else []:
-            if isinstance(risk, dict) and risk.get("gateId") and risk["gateId"] not in gate_ids:
-                findings.append(handoff_finding("unknown_risk_gate", f"Risk {risk.get('id', '<unknown>')} references missing release gate {risk['gateId']}."))
+                    findings.append(handoff_finding("invalid_release_gate", f"releaseGates item {index}.{field} must be non-empty."))
+            if gate.get("id") in seen:
+                findings.append(handoff_finding("duplicate_release_gate", f"Release gate {gate.get('id')} appears more than once."))
+            seen.add(gate.get("id"))
+            for field in ["blocksPr", "blocksOverallCompletion"]:
+                if not isinstance(gate.get(field), bool):
+                    findings.append(handoff_finding("invalid_release_gate", f"releaseGates item {index}.{field} must be boolean."))
+            validate_string_list(findings, gate.get("evidenceRefs"), "invalid_release_gate_evidence", f"releaseGates item {index}.evidenceRefs")
+    if has_secret(json.dumps(data, sort_keys=True)):
+        findings.append(handoff_finding("secret_like_run_projection", "Run projection contains secret-like content."))
     return findings
 
 
 def validate_merge_handoff(data):
-    if isinstance(data, dict) and data.get("schemaVersion") == "2.0":
+    if isinstance(data, dict) and data.get("schemaVersion") == "3.0":
         return validate_run_merge_handoff(data)
     return validate_handoff_v1_fields(data)
 
@@ -2402,78 +2394,45 @@ def merge_binding_digest(data):
 
 
 def render_run_pr_body(data):
+    epic = data["epic"]
+    completion = data["completion"]
     lines = [
-        "## Problem",
-        "",
-        data["problem"]["context"].strip(),
-        "",
-        data["problem"]["impact"].strip(),
-        "",
-        "## Solution",
-        "",
-        data["solution"]["outcome"].strip(),
-        "",
-        "## Substantial Changes",
-        "",
+        f"## Epic {epic['id']}: {epic['title']}", "",
+        f"Implementation state: **{completion['exactState']}**", "",
+        "### Scope Areas", "",
+        *[f"- `{scope['id']}` — {scope['responsibility']}" for scope in epic["scopeAreas"]], "",
+        "## Accepted Criteria", "",
+        *[f"- {item}" for item in data["acceptedCriteria"]], "",
+        "## Changed Paths", "",
+        *([f"- `{path}`" for path in data["changedPaths"]] or ["- None recorded."]), "",
+        "## Verification", "",
+        f"- Exact verified revision: `{completion['exactRevision']}`",
+        f"- {completion['verificationSummary'] or 'Final Epic verification passed.'}",
+        *[f"- Receipt: `{receipt}`" for receipt in data["verificationReceipts"]], "",
+        "## Completion State", "",
+        f"- Implemented: {'yes' if completion['implemented'] else 'no'}",
+        f"- Merged: {'yes' if completion['merged'] else 'no'}",
+        f"- Deployed: {'yes' if completion['deployed'] else 'no'}",
+        f"- Production-proved: {'yes' if completion['productionProved'] else 'no'}",
+        f"- Complete across applicable stages: {'yes' if completion['complete'] else 'no'}", "",
+        "## Deferrals", "",
+        *([f"- Cannot verify: {item}" for item in data["deferrals"]["cannotVerify"]] or ["- Cannot verify: none."]),
+        *([f"- Non-goal: {item}" for item in data["deferrals"]["nonGoals"]] or ["- Non-goals: none."]), "",
+        "## Release Gates", "",
     ]
-    for change in data["substantialChanges"]:
-        lines.extend([
-            f"### Epic {change['epicId']}: {change['title'].strip()}",
-            "",
-            change["outcome"].strip(),
-            "",
-        ])
-        for scope in change["scopeAreas"]:
-            lines.extend([
-                f"#### Scope Area {scope['scopeAreaId']}: {scope['responsibility'].strip()}",
-                "",
-                f"- Outcome: {scope['outcome'].strip()}",
-                f"- Claim: {scope['claim'].strip()}",
-                f"- Proof layer: {scope['proofLayer'].strip()}",
-                f"- Evidence: {', '.join(item.strip() for item in scope['evidenceRefs'])}",
-            ])
-            if scope["cannotVerify"]:
-                lines.append(f"- Cannot verify: {'; '.join(item.strip() for item in scope['cannotVerify'])}")
-            lines.append("")
-        if change["decisions"]:
-            lines.extend(["Decisions:", ""])
-            for decision in change["decisions"]:
-                lines.append(
-                    f"- **{decision['id'].strip()} — {decision['outcome'].strip()}**: "
-                    f"{decision['rationale'].strip()} (provenance: {decision['provenance'].strip()})"
-                )
-            lines.append("")
-        if change["risks"]:
-            lines.extend(["Risks:", ""])
-            for risk in change["risks"]:
-                gate = f"; gate: {risk['gateId'].strip()}" if risk.get("gateId") else ""
-                evidence = f"; evidence: {', '.join(item.strip() for item in risk['evidenceRefs'])}" if risk["evidenceRefs"] else ""
-                lines.append(
-                    f"- **{risk['id'].strip()}**: {risk['summary'].strip()} — {risk['disposition'].strip()} "
-                    f"(blocking: {'yes' if risk['blocking'] else 'no'}{gate}{evidence})"
-                )
-            lines.append("")
-
-    lines.extend(["## Changelog", "", f"- {data['changelog'].strip()}", "", "## Testing", ""])
-    lines.extend(
-        f"- `{item['command'].strip()}` — **{item['result'].strip().upper()}** — {item['proves'].strip()}"
-        for item in data["testing"]
-    )
-    if data.get("securityRisk"):
-        lines.extend(["", "## Security / Risk", "", data["securityRisk"].strip()])
-    lines.extend(["", "## Pending Post-Merge Gates", ""])
     for gate in data["releaseGates"]:
         evidence = f" Evidence: {', '.join(item.strip() for item in gate['evidenceRefs'])}." if gate["evidenceRefs"] else ""
         lines.append(
             f"- **{gate['id'].strip()} — {gate['stage'].strip()}**: {gate['status'].strip()} — "
-            f"{gate['summary'].strip()} (blocking: {'yes' if gate['blocking'] else 'no'}).{evidence}"
+            f"{gate['summary'].strip()} (blocks PR: {'yes' if gate['blocksPr'] else 'no'}; "
+            f"blocks overall completion: {'yes' if gate['blocksOverallCompletion'] else 'no'}).{evidence}"
         )
     lines.extend(["", f"<!-- gauntlet-merge-binding: {merge_binding_digest(data)} -->"])
     return "\n".join(lines).rstrip() + "\n"
 
 
 def render_pr_body(data):
-    if data.get("schemaVersion") == "2.0":
+    if data.get("schemaVersion") == "3.0":
         return render_run_pr_body(data)
     solution = data["solution"]
     solution_parts = [solution["outcome"].strip()]
@@ -2508,6 +2467,13 @@ def render_pr_body(data):
     if data.get("securityRisk"):
         lines.extend(["", "## Security / Risk", "", data["securityRisk"].strip()])
     return "\n".join(lines).rstrip() + "\n"
+
+
+def projection_changelog_entry(data):
+    if data.get("schemaVersion") == "3.0":
+        epic = data["epic"]
+        return f"Implement {epic['id']}: {epic['title']}."
+    return data["changelog"]
 
 
 def ensure_unreleased_changelog(changelog_path, entry):
@@ -3160,7 +3126,7 @@ def command_merge_prepare(args):
     }
     data = None
     if run_path and handoff_path:
-        add_finding(payload, "run_handoff_downgrade_rejected", "fail", "A PRD Execution Run must use the controller's schema v2 projection; do not supply a caller-authored handoff.")
+        add_finding(payload, "run_handoff_downgrade_rejected", "fail", "A PRD Execution Run must use the controller's schema 3.0 projection; do not supply a caller-authored handoff.")
     elif run_path:
         data, error = run_project_pr(repo, run_path)
         if error:
@@ -3177,19 +3143,19 @@ def command_merge_prepare(args):
             add_finding(payload, "invalid_handoff_file", "fail", str(error))
             data = None
         if data is not None:
-            if data.get("schemaVersion") == "2.0":
-                add_finding(payload, "run_projection_requires_run", "fail", "Schema v2 is accepted only from `project-pr --run`; use --run instead of --handoff.")
+            if data.get("schemaVersion") == "3.0":
+                add_finding(payload, "run_projection_requires_run", "fail", "Schema 3.0 is accepted only from `project-pr --run`; use --run instead of --handoff.")
             bound_run = branch_bound_run(repo, branch_name(repo))
             if bound_run:
-                add_finding(payload, "run_handoff_downgrade_rejected", "fail", f"Branch {branch_name(repo)} is bound to Execution Run {bound_run}; use --run and schema v2.")
+                add_finding(payload, "run_handoff_downgrade_rejected", "fail", f"Branch {branch_name(repo)} is bound to Execution Run {bound_run}; use --run and schema 3.0.")
             payload["findings"].extend(validate_merge_handoff(data))
     if data is not None:
         payload["title"] = data.get("title")
-        payload["changelogEntry"] = data.get("changelog")
+        payload["changelogEntry"] = projection_changelog_entry(data)
         if not payload["findings"]:
             body_path.parent.mkdir(parents=True, exist_ok=True)
             body_path.write_text(render_pr_body(data), encoding="utf-8")
-            payload["changelogChanged"] = ensure_unreleased_changelog(changelog_path, data["changelog"])
+            payload["changelogChanged"] = ensure_unreleased_changelog(changelog_path, projection_changelog_entry(data))
     payload["status"] = status_for(payload)
     print_payload(payload, args.json)
     return EXIT_CODES[payload["status"]]
@@ -3236,7 +3202,7 @@ def load_merge_inputs(args, payload):
     if git(["rev-parse", "--is-inside-work-tree"], repo).returncode != 0:
         add_finding(payload, "git_root_not_repo", "fail", f"Not a git repository: {repo}")
     if run_path and handoff_path:
-        add_finding(payload, "run_handoff_downgrade_rejected", "fail", "A PRD Execution Run must use the controller's schema v2 projection; do not supply a caller-authored handoff.")
+        add_finding(payload, "run_handoff_downgrade_rejected", "fail", "A PRD Execution Run must use the controller's schema 3.0 projection; do not supply a caller-authored handoff.")
     elif run_path:
         data, error = run_project_pr(repo, run_path)
         if error:
@@ -3252,11 +3218,11 @@ def load_merge_inputs(args, payload):
         except (json.JSONDecodeError, OSError) as error:
             add_finding(payload, "invalid_handoff_file", "fail", str(error))
         if data is not None:
-            if data.get("schemaVersion") == "2.0":
-                add_finding(payload, "run_projection_requires_run", "fail", "Schema v2 is accepted only from `project-pr --run`; use --run instead of --handoff.")
+            if data.get("schemaVersion") == "3.0":
+                add_finding(payload, "run_projection_requires_run", "fail", "Schema 3.0 is accepted only from `project-pr --run`; use --run instead of --handoff.")
             bound_run = branch_bound_run(repo, branch_name(repo))
             if bound_run:
-                add_finding(payload, "run_handoff_downgrade_rejected", "fail", f"Branch {branch_name(repo)} is bound to Execution Run {bound_run}; use --run and schema v2.")
+                add_finding(payload, "run_handoff_downgrade_rejected", "fail", f"Branch {branch_name(repo)} is bound to Execution Run {bound_run}; use --run and schema 3.0.")
             payload["findings"].extend(validate_merge_handoff(data))
     if not body_path.is_file():
         add_finding(payload, "missing_pr_body", "fail", f"PR body does not exist: {body_path}")
@@ -3309,7 +3275,7 @@ def collect_merge_state(git_root, handoff, body):
         "defaultCounts": default_counts,
         "pr": pr,
         "prError": pr_error,
-        "runBacked": handoff.get("schemaVersion") == "2.0" if isinstance(handoff, dict) else False,
+        "runBacked": handoff.get("schemaVersion") == "3.0" if isinstance(handoff, dict) else False,
     }
 
 
@@ -3558,6 +3524,97 @@ def command_merge_execute(args):
         handoff = merge_input_path(repo, args.handoff)
         run_path = None
     payload = execute_merge_plan(payload, repo, handoff, body_path, run_path=run_path)
+    if run_path and payload["status"] in {"pass", "warn"} and any(
+        action.get("type") == "verify_default_branch" for action in payload.get("executedActions", [])
+    ):
+        default_branch = payload.get("defaultBranch") or "main"
+        main_result = git(["rev-parse", f"origin/{default_branch}"], repo)
+        pr = payload.get("pr") or {}
+        pr_reference = str(pr.get("url") or pr.get("number") or "run-backed-project-pr")
+        if main_result.returncode != 0:
+            add_finding(payload, "record_merge_head_failed", "fail", main_result.stderr.strip() or main_result.stdout.strip())
+        else:
+            main_sha = main_result.stdout.strip()
+            _, record_error = run_prd_controller(repo, [
+                "record-merge", "--run", str(run_path), "--pr", pr_reference,
+                "--merged-sha", main_sha, "--main-sha", main_sha,
+                "--evidence", f"origin/{default_branch} contains verified head {handoff['binding']['headSha']}",
+            ])
+            if record_error:
+                add_finding(payload, "record_merge_failed", "fail", record_error)
+            else:
+                _, transition_error = run_prd_controller(repo, ["transition", "--run", str(run_path), "--to", "merged"])
+                if transition_error:
+                    add_finding(payload, "record_merge_transition_failed", "fail", transition_error)
+                else:
+                    payload["runMergeRecorded"] = {"mainSha": main_sha, "pr": pr_reference}
+        payload["status"] = status_for(payload)
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def command_merge_reconcile(args):
+    repo = Path(args.git_root).resolve()
+    run_path = merge_input_path(repo, args.run)
+    payload = {"schemaVersion": "1.0", "status": "pass", "findings": [], "runPath": str(run_path), "reconciled": False}
+    completion_output, completion_error = run_prd_controller(repo, ["completion", "--run", str(run_path)])
+    if not completion_error:
+        try:
+            if json.loads(completion_output).get("merged") is True:
+                payload["reconciled"] = True
+                payload["alreadyRecorded"] = True
+                print_payload(payload, args.json)
+                return EXIT_CODES[payload["status"]]
+        except json.JSONDecodeError:
+            pass
+    handoff, error = run_project_pr(repo, run_path)
+    if error:
+        add_finding(payload, "project_pr_projection_failed", "fail", error)
+    elif validate_run_merge_handoff(handoff):
+        payload["findings"].extend(validate_run_merge_handoff(handoff))
+    else:
+        binding = handoff["binding"]
+        default_result = git(["fetch", "origin"], repo)
+        if default_result.returncode != 0:
+            add_finding(payload, "merge_reconcile_fetch_failed", "fail", default_result.stderr.strip() or default_result.stdout.strip())
+        else:
+            settings, settings_error = repository_merge_settings(repo)
+            if settings_error:
+                add_finding(payload, "merge_reconcile_settings_failed", "fail", settings_error)
+            else:
+                default_branch = ((settings or {}).get("defaultBranchRef") or {}).get("name") or "main"
+                main_result = git(["rev-parse", f"origin/{default_branch}"], repo)
+                ancestor = git(["merge-base", "--is-ancestor", binding["headSha"], f"origin/{default_branch}"], repo)
+                merged_pr = gh([
+                    "pr", "list", "--head", binding["branch"], "--state", "merged", "--limit", "1",
+                    "--json", "number,url,headRefOid,baseRefName",
+                ], repo)
+                if main_result.returncode != 0 or ancestor.returncode != 0:
+                    add_finding(payload, "merge_not_observed", "fail", "The verified Epic head is not reachable from the remote default branch.")
+                elif merged_pr.returncode != 0:
+                    add_finding(payload, "merged_pr_lookup_failed", "fail", merged_pr.stderr.strip() or merged_pr.stdout.strip())
+                else:
+                    records = json.loads(merged_pr.stdout or "[]")
+                    pr = records[0] if records else None
+                    if not pr or pr.get("headRefOid") != binding["headSha"] or pr.get("baseRefName") != default_branch:
+                        add_finding(payload, "merged_pr_identity_mismatch", "fail", "No merged PR matches the verified Epic head and default branch.")
+                    else:
+                        main_sha = main_result.stdout.strip()
+                        pr_reference = str(pr.get("url") or pr.get("number"))
+                        _, record_error = run_prd_controller(repo, [
+                            "record-merge", "--run", str(run_path), "--pr", pr_reference,
+                            "--merged-sha", main_sha, "--main-sha", main_sha,
+                            "--evidence", f"origin/{default_branch} contains verified head {binding['headSha']}",
+                        ])
+                        if record_error:
+                            add_finding(payload, "record_merge_failed", "fail", record_error)
+                        else:
+                            _, transition_error = run_prd_controller(repo, ["transition", "--run", str(run_path), "--to", "merged"])
+                            if transition_error:
+                                add_finding(payload, "record_merge_transition_failed", "fail", transition_error)
+                            else:
+                                payload.update({"reconciled": True, "mainSha": main_sha, "pr": pr_reference})
+    payload["status"] = status_for(payload)
     print_payload(payload, args.json)
     return EXIT_CODES[payload["status"]]
 
@@ -3592,6 +3649,119 @@ def closeout_install_command(repo, args, check=False):
     return command
 
 
+def command_run_closeout_execute(args, repo, payload):
+    run_path = merge_input_path(repo, args.run)
+    handoff, error = run_project_pr(repo, run_path)
+    if error:
+        closeout_fail(payload, "project_pr_projection_failed", error)
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+    payload["findings"].extend(validate_run_merge_handoff(handoff))
+    payload["findings"].extend(run_binding_findings(repo, run_path, handoff))
+    if payload["findings"]:
+        payload["status"] = status_for(payload)
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+    parsed_title = parse_thread_title(args.title)
+    parsed_suggestion = parse_thread_title(args.suggested_title) if args.suggested_title else None
+    if parsed_title["format"] != "current" and (not parsed_suggestion or parsed_suggestion["format"] != "current"):
+        closeout_fail(payload, "invalid_archive_title", "Provide a current 'p#: four word goal' title or a valid --suggested-title before closeout begins.")
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+    if dirty_paths(repo):
+        closeout_fail(payload, "uncommitted_merge_work", "Run-backed closeout requires a clean, exactly verified Epic branch.")
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+    changelog_entry = projection_changelog_entry(handoff)
+    changelog_bullet = f"- {changelog_entry}"
+    changelog_text = (repo / "CHANGELOG.md").read_text(encoding="utf-8") if (repo / "CHANGELOG.md").is_file() else ""
+    if changelog_bullet not in changelog_text.splitlines():
+        closeout_fail(payload, "run_changelog_not_prepared", "Prepare and commit the deterministic run changelog entry before final Epic verification.")
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+
+    install_env = os.environ.copy()
+    if args.agent_home:
+        install_env["GAUNTLET_AGENT_HOME"] = str(Path(args.agent_home).expanduser())
+    if args.install_target != "none":
+        preflight = subprocess.run(
+            closeout_install_command(repo, args, check=True), cwd=repo, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=install_env,
+        )
+        payload["install"] = {"target": args.install_target, "applied": False, "preflight": preflight.returncode == 0}
+        if preflight.returncode != 0:
+            closeout_fail(payload, "local_install_preflight_failed", preflight.stderr.strip() or preflight.stdout.strip())
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, suffix="-gauntlet-epic-pr.md") as handle:
+        handle.write(render_pr_body(handoff))
+        body_path = Path(handle.name)
+    try:
+        merge_args = argparse.Namespace(git_root=repo, handoff=None, run=run_path, body=body_path, json=True)
+        merge_payload = build_merge_payload(merge_args)
+        if merge_payload["status"] in {"pass", "warn"}:
+            merge_payload = execute_merge_plan(merge_payload, repo, handoff, body_path, run_path=run_path)
+        payload["merge"] = merge_payload
+        payload["findings"].extend(merge_payload.get("findings", []))
+        payload["status"] = status_for(payload)
+        if payload["status"] not in {"pass", "warn"}:
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+        default_branch = merge_payload.get("defaultBranch") or "main"
+        main_result = git(["rev-parse", f"origin/{default_branch}"], repo)
+        if main_result.returncode != 0:
+            closeout_fail(payload, "record_merge_head_failed", main_result.stderr.strip() or main_result.stdout.strip())
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+        main_sha = main_result.stdout.strip()
+        pr = merge_payload.get("pr") or {}
+        pr_reference = str(pr.get("url") or pr.get("number") or "run-backed-project-pr")
+        _, record_error = run_prd_controller(repo, [
+            "record-merge", "--run", str(run_path), "--pr", pr_reference,
+            "--merged-sha", main_sha, "--main-sha", main_sha,
+            "--evidence", f"origin/{default_branch} contains verified head {handoff['binding']['headSha']}",
+        ])
+        _, transition_error = run_prd_controller(repo, ["transition", "--run", str(run_path), "--to", "merged"]) if not record_error else (None, None)
+        if record_error or transition_error:
+            closeout_fail(payload, "record_merge_failed", record_error or transition_error)
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+        payload["runMergeRecorded"] = {"mainSha": main_sha, "pr": pr_reference}
+
+        if args.install_target != "none":
+            install_result = subprocess.run(
+                closeout_install_command(repo, args), cwd=repo, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=install_env,
+            )
+            payload["install"] = {"target": args.install_target, "applied": install_result.returncode == 0, "preflight": True}
+            if install_result.returncode != 0:
+                closeout_fail(payload, "local_install_failed", install_result.stderr.strip() or install_result.stdout.strip())
+                print_payload(payload, args.json)
+                return EXIT_CODES[payload["status"]]
+        else:
+            payload["install"] = {"target": "none", "applied": False}
+
+        archive_args = argparse.Namespace(
+            title=args.title, suggested_title=args.suggested_title, content=None, run=run_path,
+            git_root=repo, require_kickoff=False, require_assumptions=False,
+            archive_anyway=False, confirm_git_risk=False, allow_dirty=[], json=True,
+        )
+        archive_payload = build_archive_payload(archive_args)
+        if archive_payload["status"] in {"pass", "warn"}:
+            archive_payload = execute_archive_actions(archive_payload, repo)
+        payload["archive"] = archive_payload
+        payload["archiveSummary"] = archive_payload.get("archiveSummary")
+        payload["findings"].extend(archive_payload.get("findings", []))
+        payload["status"] = status_for(payload)
+        payload["remainingAppActions"] = archive_payload.get("remainingAppActions", []) if payload["status"] in {"pass", "warn"} else []
+        payload["localCleanup"] = {"branch": branch_name(repo), "safeAfterTaskExit": True}
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+    finally:
+        body_path.unlink(missing_ok=True)
+
+
 def command_closeout_execute(args):
     repo = Path(args.git_root).resolve()
     payload = {
@@ -3609,6 +3779,22 @@ def command_closeout_execute(args):
         print_payload(payload, args.json)
         return EXIT_CODES[payload["status"]]
 
+    if getattr(args, "run", None):
+        if getattr(args, "handoff", None):
+            closeout_fail(payload, "run_handoff_downgrade_rejected", "Run-backed closeout accepts --run only, not a caller-authored handoff.")
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+        return command_run_closeout_execute(args, repo, payload)
+
+    if not getattr(args, "handoff", None):
+        closeout_fail(payload, "missing_handoff_file", "Non-run Patch closeout requires --handoff.")
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+    if not args.stage:
+        closeout_fail(payload, "missing_stage_scope", "Non-run Patch closeout requires at least one --stage path.")
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+
     handoff_path = merge_input_path(repo, args.handoff)
     if not handoff_path.is_file():
         closeout_fail(payload, "missing_handoff_file", f"Merge handoff does not exist: {handoff_path}")
@@ -3620,8 +3806,8 @@ def command_closeout_execute(args):
         closeout_fail(payload, "invalid_handoff_file", str(error))
         print_payload(payload, args.json)
         return EXIT_CODES[payload["status"]]
-    if isinstance(handoff, dict) and handoff.get("schemaVersion") == "2.0":
-        add_finding(payload, "run_projection_requires_run", "fail", "Schema v2 must be projected by merge --run and cannot be supplied to closeout as a file.")
+    if isinstance(handoff, dict) and handoff.get("schemaVersion") == "3.0":
+        add_finding(payload, "run_projection_requires_run", "fail", "Schema 3.0 must be projected by merge --run and cannot be supplied to closeout as a file.")
     payload["findings"].extend(validate_merge_handoff(handoff))
     if payload["findings"]:
         payload["status"] = status_for(payload)
@@ -4125,7 +4311,10 @@ def build_archive_payload(args):
 
     try:
         payload = run_checker(args)
-        summary, findings = archive_summary_from_content(getattr(args, "content", None))
+        if getattr(args, "run", None):
+            summary, findings = archive_summary_from_run(args.git_root, args.run)
+        else:
+            summary, findings = archive_summary_from_content(getattr(args, "content", None))
         for finding in findings:
             add_finding(payload, finding["code"], finding["severity"], finding["message"])
         payload["archiveSummary"] = summary or {
@@ -4814,6 +5003,7 @@ def add_archive_args(parser):
     parser.add_argument("--title", default=None)
     parser.add_argument("--suggested-title", default=None)
     parser.add_argument("--content", type=Path, default=None)
+    parser.add_argument("--run", type=Path, default=None, help="Use a deterministic Epic completion projection instead of an authored Archive Summary.")
     parser.add_argument("--git-root", type=Path, default=Path.cwd())
     parser.add_argument("--require-kickoff", action="store_true")
     parser.add_argument("--require-assumptions", action="store_true")
@@ -4853,6 +5043,11 @@ def build_parser():
         merge_command.add_argument("--body", type=Path, default=Path(".gauntlet/pr-body.md"))
         merge_command.add_argument("--json", action="store_true")
         merge_command.set_defaults(func=func)
+    merge_reconcile = merge_subcommands.add_parser("reconcile", help="Record an already-observed run-backed merge idempotently.")
+    merge_reconcile.add_argument("--git-root", type=Path, default=Path.cwd())
+    merge_reconcile.add_argument("--run", type=Path, required=True)
+    merge_reconcile.add_argument("--json", action="store_true")
+    merge_reconcile.set_defaults(func=command_merge_reconcile)
 
     review_unit = subcommands.add_parser("review-unit", help="Prepare or execute a parent-owned review-unit PR into an Execution Run integration branch.")
     review_unit_subcommands = review_unit.add_subparsers(dest="review_unit_command", required=True)
@@ -4876,8 +5071,9 @@ def build_parser():
     closeout_subcommands = closeout.add_subparsers(dest="closeout_command", required=True)
     closeout_execute = closeout_subcommands.add_parser("execute")
     closeout_execute.add_argument("--git-root", type=Path, default=Path.cwd())
-    closeout_execute.add_argument("--handoff", type=Path, required=True)
-    closeout_execute.add_argument("--stage", action="append", required=True)
+    closeout_execute.add_argument("--handoff", type=Path, default=None)
+    closeout_execute.add_argument("--run", type=Path, default=None)
+    closeout_execute.add_argument("--stage", action="append", default=[])
     closeout_execute.add_argument("--install-target", choices=["none", "codex", "claude"], default="none")
     closeout_execute.add_argument("--agent-home", default=None)
     closeout_execute.add_argument("--instructions-reviewed", action="store_true")
@@ -4889,7 +5085,7 @@ def build_parser():
     )
     closeout_execute.add_argument("--title", required=True)
     closeout_execute.add_argument("--suggested-title", default=None)
-    closeout_execute.add_argument("--content", type=Path, required=True)
+    closeout_execute.add_argument("--content", type=Path, default=None)
     closeout_execute.add_argument("--json", action="store_true")
     closeout_execute.set_defaults(func=command_closeout_execute)
 

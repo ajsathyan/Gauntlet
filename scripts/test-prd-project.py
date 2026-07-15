@@ -31,6 +31,55 @@ Release stages: merge
 
 
 class EpicProjectTests(unittest.TestCase):
+    def project_pr_projection(self):
+        digest = "a" * 64
+        revision = "b" * 40
+        return {
+            "schemaVersion": "3.0",
+            "title": "APP-001: implement Account foundation",
+            "binding": {
+                "branch": "codex/app-001",
+                "generation": 3,
+                "graphSha256": digest,
+                "headSha": revision,
+                "epicVerificationSha256": digest,
+                "repository": "example/repository",
+                "runId": "APP-001-RUN",
+                "sourceLockSha256": digest,
+            },
+            "acceptedCriteria": ["Accounts can be created and read."],
+            "changedPaths": ["src/accounts.py"],
+            "completion": {
+                "complete": False,
+                "deployed": False,
+                "epicId": "APP-001",
+                "exactRevision": revision,
+                "exactState": "implementation-complete",
+                "implemented": True,
+                "merged": False,
+                "pendingGates": ["merge"],
+                "productionProved": False,
+                "sourceSha256": digest,
+                "verificationSummary": "Canonical account acceptance passed.",
+            },
+            "deferrals": {"cannotVerify": [], "nonGoals": ["Production deployment"]},
+            "epic": {
+                "id": "APP-001",
+                "scopeAreas": [{"id": "APP-001-S01", "responsibility": "Account lifecycle"}],
+                "title": "Account foundation",
+            },
+            "releaseGates": [{
+                "blocksOverallCompletion": True,
+                "blocksPr": False,
+                "evidenceRefs": [],
+                "id": "merge-to-default",
+                "stage": "merge",
+                "status": "pending",
+                "summary": "The verified Epic head still needs to merge.",
+            }],
+            "verificationReceipts": ["receipts/final-epic.json"],
+        }
+
     def init_git(self, root):
         subprocess.run(["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True, text=True)
         subprocess.run(["git", "config", "user.email", "gauntlet@example.com"], cwd=root, check=True)
@@ -255,6 +304,18 @@ class EpicProjectTests(unittest.TestCase):
             with mock.patch("gauntlet.completion_projection_for_run", return_value=projection), mock.patch("gauntlet.print_payload") as output:
                 self.assertEqual(gauntlet.command_epic_tasks_merge_lease_acquire(args), 1)
             self.assertIn("advanced", output.call_args.args[0]["findings"][0]["message"])
+
+    def test_project_pr_schema_three_is_generated_facts_only(self):
+        projection = self.project_pr_projection()
+        self.assertEqual(gauntlet.validate_run_merge_handoff(projection), [])
+        body = gauntlet.render_pr_body(projection)
+        self.assertIn("Implementation state: **implementation-complete**", body)
+        self.assertIn("Merged: no", body)
+        self.assertIn("blocks overall completion: yes", body)
+        self.assertNotIn("Substantial Changes", body)
+        self.assertEqual(gauntlet.projection_changelog_entry(projection), "Implement APP-001: Account foundation.")
+        retired = {"schemaVersion": "2.0"}
+        self.assertTrue(gauntlet.validate_merge_handoff(retired))
 
 
 if __name__ == "__main__":
