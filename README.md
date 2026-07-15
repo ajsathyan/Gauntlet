@@ -220,14 +220,17 @@ Install or adapt those files into whatever persistent global instruction, skill,
 
 Before changing anything, inspect the target agent's existing global instructions and configuration. Preserve unrelated user content byte-for-byte. Compare existing guidance with Gauntlet's candidate guidance for semantic conflicts, including voice, tone, verbosity, workflow authority, approval, sandbox, merge, and destructive-action rules. When guidance conflicts, show both conflicting passages to the user, explain the practical difference, and ask which one should remain active. Do not install through an unresolved conflict or silently remove, disable, or rewrite user-owned guidance.
 
-For Codex, Gauntlet's response defaults are:
+For Codex, Gauntlet's defaults are:
 
 ```toml
 model_verbosity = "low"
 personality = "none"
+
+[agents]
+max_threads = 24
 ```
 
-If either key already has a different value, show the existing and Gauntlet values and ask which to keep. For Claude Code, install the response-style guidance through the managed `CLAUDE.md` import; do not add Codex-only configuration keys.
+If any key already has a different value, show the existing and Gauntlet values and ask which to keep. For Claude Code, install the response-style guidance through the managed `CLAUDE.md` import; do not add Codex-only configuration keys.
 
 Preserve these concepts:
 - Patch, Feature, and Release build stages
@@ -275,7 +278,7 @@ Use `--check` to run the same marker, instruction-review, and Codex-preference p
 
 `./scripts/install.sh` defaults to `--target codex`, which installs Gauntlet into `$HOME/.codex` unless `AGENT_HOME` or `GAUNTLET_AGENT_HOME` is set. For Claude Code, use `./scripts/install.sh --target claude` or `GAUNTLET_INSTALL_TARGET=claude ./scripts/install.sh`; this installs into `$HOME/.claude` by default.
 
-The Codex target writes or replaces one Gauntlet managed block inside the agent-home `AGENTS.md`, preserving unrelated instructions outside the block. It also adds `model_verbosity = "low"` and `personality = "none"` as top-level settings in `config.toml`, and installs seven named profiles under `~/.codex/agents/`. The agent installer owns only files recorded in its hash manifest; it refuses unowned collisions and modified managed files, preserves unrelated profiles, and safely removes an unchanged profile only after Gauntlet retires it. Restart or reload Codex after installation so the profiles are discovered.
+The Codex target writes or replaces one Gauntlet managed block inside the agent-home `AGENTS.md`, preserving unrelated instructions outside the block. It also adds `model_verbosity = "low"` and `personality = "none"` as top-level settings plus `agents.max_threads = 24` in `config.toml`, and installs seven named profiles under `~/.codex/agents/`. The agent installer owns only files recorded in its hash manifest; it refuses unowned collisions and modified managed files, preserves unrelated profiles, and safely removes an unchanged profile only after Gauntlet retires it. Restart or reload Codex after installation so the profiles and thread limit are discovered.
 
 Ticket routing is deterministic and documented in [docs/custom-agent-routing.md](docs/custom-agent-routing.md). It selects an explicit profile from the Ticket's work class, complexity, risk, authority, proof type, and context shape. The parent remains responsible for integration, pull requests, merges, deployment, production changes, and rollback decisions.
 
@@ -289,7 +292,7 @@ python3 ~/.codex/gauntlet/scripts/subagent-audit.py summary --json
 When Codex already has a different value, the installer stops before changing any files and prints both the existing and candidate values. After asking the user, rerun with one explicit choice:
 
 ```sh
-# Use Gauntlet's low-verbosity, no-personality defaults.
+# Use Gauntlet's low-verbosity, no-personality, 24-thread defaults.
 ./scripts/install.sh --target codex --codex-preferences gauntlet
 
 # Keep existing values while adding only missing Gauntlet defaults.
@@ -371,7 +374,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
 | [scripts/gauntlet.py](scripts/gauntlet.py) | Deterministic CLI for guarded one-command closeout, merge/archive actions, analytics, install verification, follow-up packets, compatibility memory linting, and PR/changelog drafts. |
 | [templates/local-docs/](templates/local-docs) | Scaffolds `doc_org.md`, the local index, Epic PRDs, research, decisions, and run logs without a duplicate implementation-plan document. |
-| [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals with instruction-conflict preflight and conflict-aware Codex response defaults. |
+| [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals with instruction-conflict preflight and conflict-aware Codex response and subagent defaults. |
 | [scripts/install-codex-agents.py](scripts/install-codex-agents.py) | Validates, installs, retires, and verifies Gauntlet-owned Codex profiles without overwriting user-owned agents. |
 | [scripts/subagent-audit.py](scripts/subagent-audit.py) | Idempotently exports privacy-bounded Gauntlet subagent usage from Codex native local state. |
 | [scripts/route-codex-agent.py](scripts/route-codex-agent.py) | Deterministically maps validated Ticket routing fields to an explicit named Codex profile. |

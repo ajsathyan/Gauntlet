@@ -3855,6 +3855,8 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         config = read(agent_home / "config.toml")
         assert_contains(config, 'model_verbosity = "low"', "Codex low-verbosity default")
         assert_contains(config, 'personality = "none"', "Codex no-personality default")
+        assert_contains(config, "[agents]", "Codex agents table")
+        assert_contains(config, "max_threads = 24", "Gauntlet subagent concurrency default")
         installed_agents = read(agent_home / "AGENTS.md")
         if not installed_agents.startswith(user_content):
             raise AssertionError("Codex install must preserve every pre-existing user byte before the managed block")
@@ -4246,6 +4248,7 @@ def test_install_docs_explain_codex_and_claude_targets():
         "--codex-preferences existing",
         "model_verbosity = \"low\"",
         "personality = \"none\"",
+        "max_threads = 24",
         "show both conflicting passages",
         "never removes or rewrites user-owned instructions",
         "reject malformed managed markers",
@@ -4329,6 +4332,8 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         clean_config = read(clean_home / "config.toml")
         if clean_config.count('model_verbosity = "low"') != 1 or clean_config.count('personality = "none"') != 1:
             raise AssertionError("new Codex config should contain each Gauntlet preference exactly once")
+        if clean_config.count("[agents]") != 1 or clean_config.count("max_threads = 24") != 1:
+            raise AssertionError("new Codex config should set the Gauntlet agent thread cap exactly once")
         run_install(clean_home)
         if read(clean_home / "config.toml") != clean_config:
             raise AssertionError("Codex preference reinstall should be byte-idempotent")
@@ -4336,7 +4341,10 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         conflict_home = root / "conflict"
         conflict_home.mkdir()
         conflict_config = conflict_home / "config.toml"
-        original = 'model = "custom"\nmodel_verbosity = "high" # keep comment\n\n[features]\ngoals = true\n'
+        original = (
+            'model = "custom"\nmodel_verbosity = "high" # keep comment\n\n'
+            '[agents]\nmax_threads = 8 # keep agent comment\n\n[features]\ngoals = true\n'
+        )
         conflict_config.write_text(original)
         conflict_config.chmod(0o600)
         result = run_install(conflict_home, check=False)
@@ -4347,6 +4355,8 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         for marker in [
             'model_verbosity = "high"',
             'model_verbosity = "low"',
+            "agents.max_threads = 8",
+            "agents.max_threads = 24",
             "--codex-preferences gauntlet",
             "--codex-preferences existing",
         ]:
@@ -4357,7 +4367,9 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         assert_contains(resolved, 'model = "custom"', "Codex unrelated config preservation")
         assert_contains(resolved, 'model_verbosity = "low"', "Gauntlet verbosity choice")
         assert_contains(resolved, 'personality = "none"', "Gauntlet personality insertion")
+        assert_contains(resolved, "max_threads = 24", "Gauntlet agent thread choice")
         assert_contains(resolved, "# keep comment", "Codex config trailing-comment preservation")
+        assert_contains(resolved, "# keep agent comment", "Codex agent config trailing-comment preservation")
         assert_contains(resolved, "[features]\ngoals = true", "Codex table preservation")
         if conflict_config.stat().st_mode & 0o777 != 0o600:
             raise AssertionError("Codex config update should preserve permissions")
@@ -4379,11 +4391,34 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         existing_home = root / "existing"
         existing_home.mkdir()
         existing_config = existing_home / "config.toml"
-        existing_original = 'model_verbosity = "high"\npersonality = "friendly"\n'
+        existing_original = (
+            'model_verbosity = "high"\npersonality = "friendly"\n\n'
+            '[agents]\nmax_threads = 8\n'
+        )
         existing_config.write_text(existing_original)
         run_install(existing_home, extra_args=["--codex-preferences", "existing"])
         if existing_config.read_text() != existing_original:
-            raise AssertionError("existing Codex preference choice should preserve both values byte-for-byte")
+            raise AssertionError("existing Codex preference choice should preserve all values byte-for-byte")
+
+        unsupported_home = root / "unsupported-agents"
+        unsupported_home.mkdir()
+        unsupported_config = unsupported_home / "config.toml"
+        unsupported_original = "agents.max_threads = 8\n"
+        unsupported_config.write_text(unsupported_original)
+        unsupported = run_install(unsupported_home, check=False)
+        if unsupported.returncode == 0 or "unsupported top-level agents syntax" not in unsupported.stderr:
+            raise AssertionError("unsupported Codex agents syntax should fail safely")
+        if unsupported_config.read_text() != unsupported_original or (unsupported_home / "gauntlet").exists():
+            raise AssertionError("unsupported Codex agents syntax must stop before any mutation")
+
+        agents_home = root / "agents-table"
+        agents_home.mkdir()
+        agents_config = agents_home / "config.toml"
+        agents_config.write_text('[agents]\nmax_depth = 1\n\n[features]\ngoals = true\n')
+        run_install(agents_home)
+        agents_result = agents_config.read_text()
+        assert_contains(agents_result, "[agents]\nmax_depth = 1\nmax_threads = 24", "existing agents table insertion")
+        assert_contains(agents_result, "[features]\ngoals = true", "table following agents preservation")
 
         skip_home = root / "skip"
         skip_home.mkdir()
@@ -4397,7 +4432,9 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         linked_home = root / "linked"
         linked_home.mkdir()
         linked_target = root / "shared-config.toml"
-        linked_target.write_text('model_verbosity = "low"\npersonality = "none"\n')
+        linked_target.write_text(
+            'model_verbosity = "low"\npersonality = "none"\n\n[agents]\nmax_threads = 24\n'
+        )
         linked_target.chmod(0o600)
         (linked_home / "config.toml").symlink_to(linked_target)
         run_install(linked_home)
@@ -4412,7 +4449,10 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         crlf_config.write_bytes(b'personality_notes = "keep"\r\n[features]\r\ngoals = true\r\n')
         run_install(crlf_home)
         crlf_result = crlf_config.read_bytes()
-        for marker in [b'personality_notes = "keep"', b'model_verbosity = "low"', b'personality = "none"']:
+        for marker in [
+            b'personality_notes = "keep"', b'model_verbosity = "low"', b'personality = "none"',
+            b'[agents]', b'max_threads = 24',
+        ]:
             if marker not in crlf_result:
                 raise AssertionError(f"Codex CRLF config missing preserved or inserted value: {marker!r}")
         if b"\n" in crlf_result.replace(b"\r\n", b""):
