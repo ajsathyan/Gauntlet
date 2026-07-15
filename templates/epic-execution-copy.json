@@ -8,8 +8,8 @@
     "aggregate_start": {
       "required": ["target_count", "started_count", "queued_count"],
       "variants": {
-        "break": "We’re off! Your product is mapped into {target_count} accepted, build-ready Epics. {started_count} are underway; {queued_count} are lined up behind named dependencies. Time for a break? I’ll keep things moving and bring you back only when a decision changes scope, cost, authority, or safety.",
-        "gated": "We’re off! Your product is mapped into {target_count} accepted, build-ready Epics. {started_count} are underway; {queued_count} are lined up behind named dependencies. I’ll keep the autonomous work moving and bring the next required authority decision back here."
+        "break": "We’re off! Your product is mapped into {target_count} accepted, build-ready Epics. {started_count} underway; {queued_count} waiting on named dependencies. Time for a break? I’ll keep things moving and bring you back only when a decision changes scope, cost, authority, or safety.",
+        "gated": "We’re off! Your product is mapped into {target_count} accepted, build-ready Epics. {started_count} underway; {queued_count} waiting on named dependencies. I’ll keep the autonomous work moving and bring the next required authority decision back here."
       }
     },
     "epic_start": {
