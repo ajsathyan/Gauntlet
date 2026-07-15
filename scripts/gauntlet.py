@@ -33,6 +33,13 @@ EPIC_STATES = {
     "implementation-complete", "failed", "stopped",
 }
 DEPENDENCY_BOUNDARIES = {"merged", "deployed", "productionProved"}
+HIGH_CONSEQUENCE_TRIGGERS = {
+    "billing-paid-actions",
+    "credentials-auth-permissions",
+    "migrations-data-loss",
+    "production-authority",
+    "destructive-actions",
+}
 STATUS_ORDER = {"pass": 0, "warn": 1, "review": 2, "fail": 3}
 EXIT_CODES = {"pass": 0, "warn": 0, "review": 2, "fail": 1}
 DEFERRED_AGENT_ACTIONS = {
@@ -907,6 +914,16 @@ def parse_release_stages(raw):
     return sorted(requested)
 
 
+def parse_consequence_triggers(raw):
+    if not raw or raw.strip().lower() in {"none", "n/a", "not applicable"}:
+        return []
+    triggers = sorted({item.strip().lower() for item in raw.split(",") if item.strip()})
+    unknown = set(triggers) - HIGH_CONSEQUENCE_TRIGGERS
+    if unknown:
+        raise ValueError("Unknown high-consequence trigger: " + ", ".join(sorted(unknown)))
+    return triggers
+
+
 def implementation_target_ids(source_text):
     match = re.search(r"^Implementation target:\s*(.*?)\s*$", source_text, re.MULTILINE | re.IGNORECASE)
     if not match:
@@ -961,10 +978,14 @@ def build_epic_launch_set(source_path, target_ids, priority="p1"):
     for epic_id, section in sections.items():
         status = epic_metadata(section["text"], "Epic status", "")
         dependencies = parse_dependency_list(epic_metadata(section["text"], "Depends on", "None"))
+        consequence_raw = epic_metadata(section["text"], "High-consequence triggers", None)
+        if consequence_raw is None and epic_id in target_ids:
+            raise ValueError(f"{epic_id} must declare `High-consequence triggers: none` or canonical trigger IDs")
         parsed[epic_id] = {
             "title": section["title"],
             "dependencies": dependencies,
             "releaseStages": parse_release_stages(epic_metadata(section["text"], "Release stages", "merge")),
+            "consequenceTriggers": parse_consequence_triggers(consequence_raw),
             "sourceStatus": status,
         }
     missing = [epic_id for epic_id in target_ids if epic_id not in parsed]
@@ -996,6 +1017,7 @@ def build_epic_launch_set(source_path, target_ids, priority="p1"):
                 "title": parsed[epic_id]["title"],
                 "dependencies": parsed[epic_id]["dependencies"],
                 "releaseStages": parsed[epic_id]["releaseStages"],
+                "consequenceTriggers": parsed[epic_id]["consequenceTriggers"],
             }
             for epic_id in target_ids
         },
@@ -1010,6 +1032,7 @@ def build_epic_launch_set(source_path, target_ids, priority="p1"):
             "status": "planned",
             "blocker": None,
             "stopDisposition": None,
+            "startReconciliation": None,
             "emittedEvents": [],
         }
     return {
@@ -1036,6 +1059,7 @@ def launch_coverage_projection(data):
                 "title": data["epics"][epic_id]["title"],
                 "dependencies": data["epics"][epic_id]["dependencies"],
                 "releaseStages": data["epics"][epic_id]["releaseStages"],
+                "consequenceTriggers": data["epics"][epic_id]["consequenceTriggers"],
             }
             for epic_id in data["targetEpicIds"]
         },
@@ -1356,6 +1380,23 @@ def command_epic_tasks_release_start(args):
             raise ValueError("A recorded Epic task cannot be released for recreation")
         if epic["status"] != "starting":
             raise ValueError("Only an ambiguous starting action can be released")
+        receipt_path = Path(args.reconciliation_receipt).resolve()
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        required = {"schemaVersion", "adapter", "taskKey", "result", "observedTaskIds", "nativeIndexSha256"}
+        if set(receipt) != required:
+            raise ValueError("Native task reconciliation receipt has an unsupported shape")
+        if receipt.get("schemaVersion") != "gauntlet.native-task-reconciliation.v1" or receipt.get("adapter") != "codex-app-task-index-v1":
+            raise ValueError("Native task reconciliation receipt uses an unsupported adapter contract")
+        if receipt.get("taskKey") != args.task_key or receipt.get("result") != "absent" or receipt.get("observedTaskIds") != []:
+            raise ValueError("Native task reconciliation must prove this exact task key is absent")
+        if not re.fullmatch(r"[0-9a-f]{64}", receipt.get("nativeIndexSha256") or "") or has_secret(canonical_json(receipt)):
+            raise ValueError("Native task reconciliation receipt is invalid or unsafe")
+        epic["startReconciliation"] = {
+            "adapter": receipt["adapter"],
+            "nativeIndexSha256": receipt["nativeIndexSha256"],
+            "receiptSha256": sha256_bytes(receipt_path.read_bytes()),
+            "result": "absent",
+        }
         epic["status"] = "planned"
         write_launch_set(launch_path, launch)
         payload = epic_launch_payload(launch_path, launch, args.git_root)
@@ -1784,7 +1825,16 @@ def acquire_run_merge_lease(repo, run_path, handoff):
             if current.get("epicId") == epic_id and current.get("candidateHead") == candidate:
                 lease_path.unlink()
                 raise ValueError("Default branch changed while this Epic held the merge lease; re-integrate and reverify")
-            raise ValueError(f"Default-branch merge lease is held by {current.get('epicId', 'another Epic')}")
+            if current.get("epicId") == epic_id:
+                old_candidate = current.get("candidateHead")
+                old_merged = git(["merge-base", "--is-ancestor", old_candidate, default_head], repo)
+                if old_merged.returncode == 0:
+                    raise ValueError("The previous leased Epic candidate is already on the default branch; reconcile that merge before replacing the lease")
+                if old_merged.returncode != 1:
+                    raise ValueError(old_merged.stderr.strip() or "Cannot prove the previous leased candidate was not merged")
+                atomic_write_text(lease_path, json.dumps(lease, indent=2, sort_keys=True) + "\n")
+            else:
+                raise ValueError(f"Default-branch merge lease is held by {current.get('epicId', 'another Epic')}")
     else:
         write_new_file(lease_path, json.dumps(lease, indent=2, sort_keys=True) + "\n")
     return lease_path, lease
@@ -1801,9 +1851,21 @@ def validate_run_merge_lease(repo, lease_path, lease):
         raise ValueError("Leased candidate no longer contains its verified default-branch base")
 
 
+def default_represents_candidate(repo, candidate, default_head):
+    ancestry = git(["merge-base", "--is-ancestor", candidate, default_head], repo)
+    if ancestry.returncode == 0:
+        return True
+    candidate_tree = git(["rev-parse", f"{candidate}^{{tree}}"], repo)
+    default_tree = git(["rev-parse", f"{default_head}^{{tree}}"], repo)
+    return (
+        candidate_tree.returncode == 0 and default_tree.returncode == 0
+        and candidate_tree.stdout.strip() == default_tree.stdout.strip()
+    )
+
+
 def release_run_merge_lease(repo, lease_path, lease, merged_head):
     default_head, _ = refresh_default_head(repo)
-    if default_head != merged_head or git(["merge-base", "--is-ancestor", lease["candidateHead"], default_head], repo).returncode != 0:
+    if default_head != merged_head or not default_represents_candidate(repo, lease["candidateHead"], default_head):
         raise ValueError("Observed default branch does not contain the leased candidate")
     if not Path(lease_path).is_file() or json.loads(Path(lease_path).read_text(encoding="utf-8")) != lease:
         raise ValueError("Run-backed merge lease changed before release")
@@ -1880,8 +1942,7 @@ def command_epic_tasks_merge_lease_release(args):
         default_head, _ = refresh_default_head(args.git_root)
         if default_head != args.merged_head:
             raise ValueError("Merged head must equal the currently observed default-branch head")
-        result = git(["merge-base", "--is-ancestor", args.candidate_head, default_head], args.git_root)
-        if result.returncode != 0:
+        if not default_represents_candidate(args.git_root, args.candidate_head, default_head):
             raise ValueError("Merged revision does not contain the leased candidate head")
         lease_path.unlink()
         payload = epic_launch_payload(launch_path, launch, args.git_root, releasedMergeLease={"epicId": args.epic, "mergedHead": args.merged_head})
@@ -2656,6 +2717,8 @@ def validate_run_merge_handoff(data):
         ]
         if completion.get("complete") is True and open_overall:
             findings.append(handoff_finding("contradictory_completion_projection", "Complete state cannot retain an open overall-completion release gate."))
+        if completion.get("complete") is True and completion.get("pendingGates"):
+            findings.append(handoff_finding("contradictory_completion_projection", "Complete state cannot retain pending gates."))
         if completion.get("complete") is not True and not completion.get("pendingGates"):
             findings.append(handoff_finding("contradictory_completion_projection", "An incomplete state must name at least one pending gate."))
     if has_secret(json.dumps(data, sort_keys=True)):
@@ -3337,12 +3400,16 @@ def run_binding_findings(repo, run_path, data):
         projected_repository = projected_repository.get("identity")
     if projected_repository != expected_repository:
         findings.append(handoff_finding("repository_drift", "Run projection repository identity does not match --git-root; run merge prepare again."))
-    current_branch = branch_name(repo)
-    if binding.get("branch") != current_branch:
-        findings.append(handoff_finding("integration_branch_drift", f"Run projection is bound to branch {binding.get('branch')}, not {current_branch}; run merge prepare again."))
-    head = current_head(repo)
-    if binding.get("headSha") != head:
-        findings.append(handoff_finding("integration_head_drift", f"Run projection is bound to HEAD {binding.get('headSha')}, not {head}; run merge prepare again."))
+    if (data.get("completion") or {}).get("merged") is True:
+        if git(["cat-file", "-e", f"{binding.get('headSha')}^{{commit}}"], repo).returncode != 0:
+            findings.append(handoff_finding("integration_head_missing", "The exact verified Epic head is no longer available in the repository."))
+    else:
+        current_branch = branch_name(repo)
+        if binding.get("branch") != current_branch:
+            findings.append(handoff_finding("integration_branch_drift", f"Run projection is bound to branch {binding.get('branch')}, not {current_branch}; run merge prepare again."))
+        head = current_head(repo)
+        if binding.get("headSha") != head:
+            findings.append(handoff_finding("integration_head_drift", f"Run projection is bound to HEAD {binding.get('headSha')}, not {head}; run merge prepare again."))
     return findings
 
 
@@ -3763,7 +3830,16 @@ def execute_merge_plan(payload, git_root, handoff_source, body_path, run_path=No
             if fetch.returncode != 0:
                 result = fetch
             else:
-                result = git(["merge-base", "--is-ancestor", expected_head, f"origin/{default_branch}"], repo)
+                ancestor = git(["merge-base", "--is-ancestor", expected_head, f"origin/{default_branch}"], repo)
+                if ancestor.returncode == 0:
+                    result = ancestor
+                else:
+                    candidate_tree = git(["rev-parse", f"{expected_head}^{{tree}}"], repo)
+                    default_tree = git(["rev-parse", f"origin/{default_branch}^{{tree}}"], repo)
+                    if candidate_tree.returncode == 0 and default_tree.returncode == 0 and candidate_tree.stdout.strip() == default_tree.stdout.strip():
+                        result = subprocess.CompletedProcess(ancestor.args, 0, "tree-equivalent\n", "")
+                    else:
+                        result = ancestor
         else:
             add_finding(payload, "unknown_merge_action", "fail", f"Unknown merge action: {action_type}")
             break
@@ -3910,13 +3986,13 @@ def command_merge_reconcile(args):
             else:
                 default_branch = ((settings or {}).get("defaultBranchRef") or {}).get("name") or "main"
                 main_result = git(["rev-parse", f"origin/{default_branch}"], repo)
-                ancestor = git(["merge-base", "--is-ancestor", binding["headSha"], f"origin/{default_branch}"], repo)
+                represented = default_represents_candidate(repo, binding["headSha"], f"origin/{default_branch}")
                 merged_pr = gh([
                     "pr", "list", "--head", binding["branch"], "--state", "merged", "--limit", "1",
                     "--json", "number,url,headRefOid,baseRefName",
                 ], repo)
-                if main_result.returncode != 0 or ancestor.returncode != 0:
-                    add_finding(payload, "merge_not_observed", "fail", "The verified Epic head is not reachable from the remote default branch.")
+                if main_result.returncode != 0 or not represented:
+                    add_finding(payload, "merge_not_observed", "fail", "The remote default branch preserves neither verified-head ancestry nor the exact verified candidate tree.")
                 elif merged_pr.returncode != 0:
                     add_finding(payload, "merged_pr_lookup_failed", "fail", merged_pr.stderr.strip() or merged_pr.stdout.strip())
                 else:
@@ -3991,6 +4067,116 @@ def closeout_install_command(repo, args, check=False):
     return command
 
 
+def advance_run_release_state(repo, run_path):
+    """Close only controller-provable release state; never invent live evidence."""
+    transitions = []
+    while True:
+        manifest_path = Path(run_path) / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        state = manifest.get("state")
+        release = manifest.get("release", {})
+        applicability = release.get("applicability", {})
+        if state == "merged":
+            expected = "pass" if applicability.get("deployment") else "skipped"
+            record = release.get("deployment", {})
+            if expected == "skipped" and record.get("result") != "skipped":
+                _, error = run_prd_controller(repo, [
+                    "record-release", "--run", str(run_path), "--stage", "deployment",
+                    "--result", "skipped", "--summary", "Deployment is not applicable to this Epic.",
+                    "--evidence", "locked release applicability excludes deployment",
+                ])
+                if error:
+                    return transitions, error
+                transitions.append("deployment:not-applicable")
+                continue
+            if record.get("result") != expected:
+                return transitions, None
+            _, error = run_prd_controller(repo, ["transition", "--run", str(run_path), "--to", "deployed"])
+            if error:
+                return transitions, error
+            transitions.append("deployed")
+            continue
+        if state == "deployed":
+            expected = "pass" if applicability.get("production-verification") else "skipped"
+            record = release.get("production-verification", {})
+            if expected == "skipped" and record.get("result") != "skipped":
+                _, error = run_prd_controller(repo, [
+                    "record-release", "--run", str(run_path), "--stage", "production-verification",
+                    "--result", "skipped", "--summary", "Production verification is not applicable to this Epic.",
+                    "--evidence", "locked release applicability excludes production verification",
+                ])
+                if error:
+                    return transitions, error
+                transitions.append("production-verification:not-applicable")
+                continue
+            if record.get("result") != expected:
+                return transitions, None
+            _, error = run_prd_controller(repo, ["transition", "--run", str(run_path), "--to", "production_verified"])
+            if error:
+                return transitions, error
+            transitions.append("production_verified")
+            continue
+        if state == "production_verified":
+            _, error = run_prd_controller(repo, ["transition", "--run", str(run_path), "--to", "complete"])
+            if error:
+                return transitions, error
+            transitions.append("complete")
+            continue
+        return transitions, None
+
+
+def finalize_run_closeout(args, repo, payload, run_path, install_env):
+    transitions, transition_error = advance_run_release_state(repo, run_path)
+    payload["releaseTransitions"] = transitions
+    if transition_error:
+        closeout_fail(payload, "run_release_transition_failed", transition_error)
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+    completion_output, completion_error = run_prd_controller(repo, ["completion", "--run", str(run_path)])
+    try:
+        completion = json.loads(completion_output) if not completion_error else None
+    except json.JSONDecodeError:
+        completion = None
+    if not completion_allows_archive(completion):
+        payload["releasePending"] = completion or {"error": completion_error or "completion projection unavailable"}
+        payload["remainingAppActions"] = []
+        payload["localCleanup"] = {"branch": branch_name(repo), "safeAfterTaskExit": False}
+        add_finding(payload, "run_release_stages_pending", "review", "The Epic merged, but required release stages remain open; closeout will not install or archive the task.")
+        payload["status"] = status_for(payload)
+        print_payload(payload, args.json)
+        return EXIT_CODES[payload["status"]]
+
+    if args.install_target != "none":
+        install_result = subprocess.run(
+            closeout_install_command(repo, args), cwd=repo, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=install_env,
+        )
+        payload["install"] = {"target": args.install_target, "applied": install_result.returncode == 0, "preflight": True}
+        if install_result.returncode != 0:
+            closeout_fail(payload, "local_install_failed", install_result.stderr.strip() or install_result.stdout.strip())
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+    else:
+        payload["install"] = {"target": "none", "applied": False}
+
+    archive_args = argparse.Namespace(
+        title=args.title, suggested_title=args.suggested_title, content=None, run=run_path,
+        git_root=repo, require_kickoff=False, require_assumptions=False,
+        archive_anyway=False, confirm_git_risk=False, allow_dirty=[], json=True,
+    )
+    archive_payload = build_archive_payload(archive_args)
+    if archive_payload["status"] in {"pass", "warn"}:
+        archive_payload = execute_archive_actions(archive_payload, repo)
+    payload["archive"] = archive_payload
+    payload["archiveSummary"] = archive_payload.get("archiveSummary")
+    payload["findings"].extend(archive_payload.get("findings", []))
+    payload["status"] = status_for(payload)
+    payload["remainingAppActions"] = archive_payload.get("remainingAppActions", []) if payload["status"] in {"pass", "warn"} else []
+    payload["localCleanup"] = {"branch": branch_name(repo), "safeAfterTaskExit": True}
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
 def command_run_closeout_execute(args, repo, payload):
     run_path = merge_input_path(repo, args.run)
     handoff, error = run_project_pr(repo, run_path)
@@ -4041,6 +4227,23 @@ def command_run_closeout_execute(args, repo, payload):
             closeout_fail(payload, "local_install_preflight_failed", preflight.stderr.strip() or preflight.stdout.strip())
             print_payload(payload, args.json)
             return EXIT_CODES[payload["status"]]
+
+    if handoff.get("completion", {}).get("merged") is True:
+        try:
+            persisted = persisted_run_merge_lease(run_path, handoff)
+            if persisted:
+                default_head, _ = refresh_default_head(repo)
+                release_run_merge_lease(repo, persisted[0], persisted[1], default_head)
+                payload["mergeLeaseReleased"] = True
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            closeout_fail(payload, "epic_merge_lease_recovery_failed", str(exc))
+            print_payload(payload, args.json)
+            return EXIT_CODES[payload["status"]]
+        payload["merge"] = {
+            "schemaVersion": "1.0", "status": "pass", "findings": [],
+            "alreadyRecorded": True, "runBinding": handoff.get("binding"),
+        }
+        return finalize_run_closeout(args, repo, payload, run_path, install_env)
 
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, suffix="-gauntlet-epic-pr.md") as handle:
         handle.write(render_pr_body(handoff))
@@ -4097,49 +4300,7 @@ def command_run_closeout_execute(args, repo, payload):
             print_payload(payload, args.json)
             return EXIT_CODES[payload["status"]]
 
-        completion_output, completion_error = run_prd_controller(repo, ["completion", "--run", str(run_path)])
-        try:
-            completion = json.loads(completion_output) if not completion_error else None
-        except json.JSONDecodeError:
-            completion = None
-        if not completion_allows_archive(completion):
-            payload["releasePending"] = completion or {"error": completion_error or "completion projection unavailable"}
-            payload["remainingAppActions"] = []
-            payload["localCleanup"] = {"branch": branch_name(repo), "safeAfterTaskExit": False}
-            add_finding(payload, "run_release_stages_pending", "review", "The Epic merged, but required release stages remain open; closeout will not archive the task.")
-            payload["status"] = status_for(payload)
-            print_payload(payload, args.json)
-            return EXIT_CODES[payload["status"]]
-
-        if args.install_target != "none":
-            install_result = subprocess.run(
-                closeout_install_command(repo, args), cwd=repo, text=True,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=install_env,
-            )
-            payload["install"] = {"target": args.install_target, "applied": install_result.returncode == 0, "preflight": True}
-            if install_result.returncode != 0:
-                closeout_fail(payload, "local_install_failed", install_result.stderr.strip() or install_result.stdout.strip())
-                print_payload(payload, args.json)
-                return EXIT_CODES[payload["status"]]
-        else:
-            payload["install"] = {"target": "none", "applied": False}
-
-        archive_args = argparse.Namespace(
-            title=args.title, suggested_title=args.suggested_title, content=None, run=run_path,
-            git_root=repo, require_kickoff=False, require_assumptions=False,
-            archive_anyway=False, confirm_git_risk=False, allow_dirty=[], json=True,
-        )
-        archive_payload = build_archive_payload(archive_args)
-        if archive_payload["status"] in {"pass", "warn"}:
-            archive_payload = execute_archive_actions(archive_payload, repo)
-        payload["archive"] = archive_payload
-        payload["archiveSummary"] = archive_payload.get("archiveSummary")
-        payload["findings"].extend(archive_payload.get("findings", []))
-        payload["status"] = status_for(payload)
-        payload["remainingAppActions"] = archive_payload.get("remainingAppActions", []) if payload["status"] in {"pass", "warn"} else []
-        payload["localCleanup"] = {"branch": branch_name(repo), "safeAfterTaskExit": True}
-        print_payload(payload, args.json)
-        return EXIT_CODES[payload["status"]]
+        return finalize_run_closeout(args, repo, payload, run_path, install_env)
     finally:
         body_path.unlink(missing_ok=True)
 
@@ -5507,6 +5668,7 @@ def build_parser():
     epic_release.add_argument("--launch-set", type=Path, required=True)
     epic_release.add_argument("--epic", required=True)
     epic_release.add_argument("--task-key", required=True)
+    epic_release.add_argument("--reconciliation-receipt", type=Path, required=True)
     epic_release.add_argument("--json", action="store_true")
     epic_release.set_defaults(func=command_epic_tasks_release_start)
     epic_record_run = epic_task_subcommands.add_parser("record-run", help="Bind an Epic task to its single-Epic Execution Run.")

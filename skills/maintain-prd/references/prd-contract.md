@@ -11,6 +11,7 @@ Each target Epic also declares these exact machine-readable fields:
 - `Ships independently: yes`;
 - `Rolls back independently: yes`;
 - `Release stages: merge` or `merge,deployment,production-verification`.
+- `High-consequence triggers: none` or a comma-separated subset of `billing-paid-actions`, `credentials-auth-permissions`, `migrations-data-loss`, `production-authority`, and `destructive-actions`.
 
 Dependencies may cross target Epics, but they must name the required upstream boundary: `merged`, `deployed`, or `productionProved`. An Epic that cannot ship and roll back independently is not a launchable Epic yet; reshape the boundary instead of placing several Epics in one Execution Run.
 
@@ -39,5 +40,6 @@ An Epic may enter `Implementation target` only when:
 - authority, privacy, security, configuration, rollout, and rollback questions that could change implementation are resolved or explicitly gated;
 - every remaining `Open Question` or `Cannot Verify` item is non-blocking and has an owner or decision gate.
 - `Build ready`, `Ships independently`, and `Rolls back independently` are all `yes`, with explicit release stages and dependency boundaries.
+- the closed high-consequence trigger declaration matches the accepted scope; omission is not equivalent to `none`.
 
 Do not call a target build-ready merely because every heading contains text.

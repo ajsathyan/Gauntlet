@@ -20,6 +20,7 @@ Ships independently: yes
 Rolls back independently: yes
 Depends on: {depends}
 Release stages: merge
+High-consequence triggers: none
 
 ### Scope Area {epic_id}-S01: Outcome
 
@@ -138,10 +139,23 @@ class EpicProjectTests(unittest.TestCase):
             self.assertEqual({item["epicId"] for item in replay["reconcileRequired"]}, {"APP-001", "APP-002"})
 
             _, current = gauntlet.load_launch_set(launch_path)
+            reconciliation = root / "native-reconciliation.json"
+            reconciliation.write_text(json.dumps({
+                "schemaVersion": "gauntlet.native-task-reconciliation.v1",
+                "adapter": "codex-app-task-index-v1",
+                "taskKey": gauntlet.launch_task_key(current, "APP-001"),
+                "result": "absent",
+                "observedTaskIds": [],
+                "nativeIndexSha256": "a" * 64,
+            }), encoding="utf-8")
             release_args = argparse.Namespace(
                 git_root=root, launch_set=launch_path, epic="APP-001",
-                task_key=gauntlet.launch_task_key(current, "APP-001"), json=True,
+                task_key=gauntlet.launch_task_key(current, "APP-001"),
+                reconciliation_receipt=root / "missing-reconciliation.json", json=True,
             )
+            with mock.patch("gauntlet.print_payload"):
+                self.assertEqual(gauntlet.command_epic_tasks_release_start(release_args), 1)
+            release_args.reconciliation_receipt = reconciliation
             with mock.patch("gauntlet.print_payload"):
                 self.assertEqual(gauntlet.command_epic_tasks_release_start(release_args), 0)
             with mock.patch("gauntlet.print_payload") as output:
@@ -439,6 +453,17 @@ class EpicProjectTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "does not match"):
                 gauntlet.persisted_run_merge_lease(run, handoff)
 
+            old = {**lease, "candidateHead": "c" * 40}
+            lease_path.write_text(json.dumps(old), encoding="utf-8")
+            handoff["binding"]["headSha"] = "a" * 40
+            def fake_git(arguments, _repo):
+                code = 1 if arguments[-2:] == ["c" * 40, "b" * 40] else 0
+                return subprocess.CompletedProcess(arguments, code, "", "")
+            with mock.patch("gauntlet.refresh_default_head", return_value=("b" * 40, "origin/main")), mock.patch("gauntlet.git", side_effect=fake_git):
+                _, replaced = gauntlet.acquire_run_merge_lease(root, run, handoff)
+            self.assertEqual(replaced["candidateHead"], "a" * 40)
+            self.assertEqual(json.loads(lease_path.read_text()), replaced)
+
     def test_project_pr_schema_three_is_generated_facts_only(self):
         projection = self.project_pr_projection()
         self.assertEqual(gauntlet.validate_run_merge_handoff(projection), [])
@@ -491,6 +516,44 @@ class EpicProjectTests(unittest.TestCase):
         self.assertIn("invalid_release_gate", {
             item["code"] for item in gauntlet.validate_run_merge_handoff(invalid_gate)
         })
+        ghost_pending = json.loads(json.dumps(projection))
+        ghost_pending["completion"].update({
+            "complete": True, "merged": True, "exactState": "complete", "pendingGates": ["ghost"],
+        })
+        ghost_pending["releaseGates"][0]["status"] = "pass"
+        self.assertIn("contradictory_completion_projection", {
+            item["code"] for item in gauntlet.validate_run_merge_handoff(ghost_pending)
+        })
+
+    def test_merge_only_release_state_closes_without_extra_user_or_model_work(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary)
+            manifest_path = run / "manifest.json"
+            manifest_path.write_text(json.dumps({
+                "state": "merged",
+                "release": {
+                    "applicability": {"merge": True, "deployment": False, "production-verification": False},
+                },
+            }), encoding="utf-8")
+
+            def controller(_repo, arguments):
+                manifest = json.loads(manifest_path.read_text())
+                if arguments[0] == "record-release":
+                    stage = arguments[arguments.index("--stage") + 1]
+                    manifest["release"][stage] = {"result": "skipped"}
+                elif arguments[0] == "transition":
+                    manifest["state"] = arguments[arguments.index("--to") + 1]
+                manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                return "", None
+
+            with mock.patch("gauntlet.run_prd_controller", side_effect=controller):
+                transitions, error = gauntlet.advance_run_release_state(run, run)
+            self.assertIsNone(error)
+            self.assertEqual(transitions, [
+                "deployment:not-applicable", "deployed",
+                "production-verification:not-applicable", "production_verified", "complete",
+            ])
+            self.assertEqual(json.loads(manifest_path.read_text())["state"], "complete")
 
     def test_launch_controller_initializes_the_single_epic_run_controller(self):
         with tempfile.TemporaryDirectory() as temporary:

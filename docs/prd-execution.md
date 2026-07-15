@@ -23,7 +23,7 @@ One product task may develop a coherent product across many Epics. When the user
 
 ## Shape The Product, Then Launch Together
 
-During product discussion, keep related Epics in one canonical PRD when that preserves useful shared context. Invite the user to continue fleshing out implementation ideas as distinct Epics. A target Epic is launchable only when it is accepted, build-ready, independently shippable, independently reversible, explicit about release stages, and either dependency-ready or linked to a named upstream `merged`, `deployed`, or `productionProved` boundary.
+During product discussion, keep related Epics in one canonical PRD when that preserves useful shared context. Invite the user to continue fleshing out implementation ideas as distinct Epics. A target Epic is launchable only when it is accepted, build-ready, independently shippable, independently reversible, explicit about release stages and closed high-consequence trigger IDs (or `none`), and either dependency-ready or linked to a named upstream `merged`, `deployed`, or `productionProved` boundary.
 
 `Implementation target` lists the complete launch membership. Proposed, deferred, unresolved, or non-independent outcomes remain outside it. The product task runs `gauntlet.py epic-tasks init`, then executes only the controller's missing dependency-ready `create_thread` actions. Native task IDs and one-Epic run paths are recorded back into the launch set. Ambiguous task creation is reconciled before any retry.
 

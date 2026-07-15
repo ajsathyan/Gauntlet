@@ -119,7 +119,7 @@ class PrdRunTests(unittest.TestCase):
         self.snapshot = self.root / "prd.locked.md"
         content = (
             "# PRD\n\nImplementation target: E1\n\n"
-            "## Epic E1: Balance\n\nEpic status: Accepted\n\n"
+            "## Epic E1: Balance\n\nEpic status: Accepted\n\nHigh-consequence triggers: none\n\n"
             "### Scope Area E1-S1: Balance behavior\n\nInitial balance requirements.\n\n"
             "### Scope Area E1-S2: Presentation behavior\n\nInitial presentation requirements.\n\n"
             "### Product Acceptance\n\n- The public balance is correct.\n\n"
@@ -161,11 +161,13 @@ class PrdRunTests(unittest.TestCase):
                 "title": "Balance" if epic_id == "E1" else "History",
                 "dependencies": [],
                 "releaseStages": ["deployment", "merge", "production-verification"],
+                "consequenceTriggers": [],
                 "taskId": f"task-{epic_id.lower()}",
                 "runPath": None,
                 "status": "starting",
                 "blocker": None,
                 "stopDisposition": None,
+                "startReconciliation": None,
                 "emittedEvents": [],
             }
             for epic_id in target_ids
@@ -181,6 +183,7 @@ class PrdRunTests(unittest.TestCase):
                 epic_id: {
                     "dependencies": sorted(epics[epic_id]["dependencies"], key=lambda item: (item["epicId"], item["boundary"])),
                     "releaseStages": sorted(epics[epic_id]["releaseStages"]),
+                    "consequenceTriggers": sorted(epics[epic_id]["consequenceTriggers"]),
                     "title": epics[epic_id]["title"],
                 }
                 for epic_id in sorted(epics)
@@ -220,6 +223,25 @@ class PrdRunTests(unittest.TestCase):
         self.transition("accepted")
         self.command("compile", "--run", str(self.run), "--graph", str(self.graph))
         self.transition("executing")
+
+    def restart_with_consequence(self, trigger: str) -> None:
+        subprocess.run(["git", "switch", "-c", "run/RUN2"], cwd=self.repo, check=True, capture_output=True, text=True)
+        content = self.snapshot.read_text().replace(
+            "High-consequence triggers: none",
+            f"High-consequence triggers: {trigger}",
+        )
+        self.canonical.write_text(content)
+        self.snapshot.write_text(content)
+        self.write_launch_set(epics={
+            "E1": {
+                "title": "Balance", "dependencies": [],
+                "releaseStages": ["deployment", "merge", "production-verification"],
+                "consequenceTriggers": [trigger], "taskId": "task-e1", "runPath": None,
+                "status": "starting", "blocker": None, "stopDisposition": None, "startReconciliation": None, "emittedEvents": [],
+            },
+        })
+        self.init_run(run_id="RUN2")
+        self.run = self.root / "executions" / "RUN2"
 
     def revision(self) -> tuple[str, str]:
         commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.repo, text=True, capture_output=True, check=True).stdout.strip()
@@ -470,6 +492,20 @@ class PrdRunTests(unittest.TestCase):
             item["status"] == "not-required"
             for item in run_facts["release"]["safeguards"].values()
         ))
+
+        revision = self.revision()[0]
+        self.grant("merge-to-default")
+        self.command(
+            "record-merge", "--run", str(self.run), "--pr", "PR-1",
+            "--merged-sha", revision, "--main-sha", revision,
+            "--evidence", "main contains the exact verified candidate",
+        )
+        self.transition("merged")
+        subprocess.run(["git", "switch", "main"], cwd=self.repo, check=True, capture_output=True, text=True)
+        (self.repo / "post-merge-local.txt").write_text("unrelated local state\n", encoding="utf-8")
+        later = json.loads(self.command("project-pr", "--run", str(self.run)).stdout)
+        self.assertTrue(later["completion"]["merged"])
+        self.assertEqual(revision, later["binding"]["headSha"])
         self.assertFalse(any(gate["id"] == "consequence-review" for gate in facts["releaseGates"]))
 
     def test_completion_keeps_release_dimensions_separate_and_reconciles_merge(self) -> None:
@@ -576,6 +612,7 @@ class PrdRunTests(unittest.TestCase):
                 self.assertIn(message, result.stderr)
 
     def test_final_verification_rejects_mismatched_and_stale_consequence_reviews(self) -> None:
+        self.restart_with_consequence("credentials-auth-permissions")
         self.compile_and_start(value=graph(review=consequence_review("credentials-auth-permissions")))
         self.finish_ticket("T1", "agent-a")
         self.finish_ticket("T2", "agent-b")
@@ -611,7 +648,17 @@ class PrdRunTests(unittest.TestCase):
         )
         self.assertIn("exact candidate revision", result.stderr)
 
+    def test_ticket_graph_cannot_omit_locked_consequence_triggers(self) -> None:
+        self.restart_with_consequence("billing-paid-actions")
+        self.transition("accepted")
+        self.graph.write_text(json.dumps(graph()))
+        result = self.command("compile", "--run", str(self.run), "--graph", str(self.graph), ok=False)
+        self.assertIn("must exactly match", result.stderr)
+        self.graph.write_text(json.dumps(graph(review=consequence_review("billing-paid-actions"))))
+        self.command("compile", "--run", str(self.run), "--graph", str(self.graph))
+
     def test_consequence_dry_run_live_authority_and_bounded_evidence_are_enforced(self) -> None:
+        self.restart_with_consequence("billing-paid-actions")
         self.compile_and_start(value=graph(review=consequence_review("billing-paid-actions")))
         self.finish_consequence_implementation()
         revision = self.revision()[0]
@@ -696,7 +743,7 @@ class PrdRunTests(unittest.TestCase):
             "record-merge", "--run", str(self.run), "--pr", "PR-X", "--merged-sha", old_main,
             "--main-sha", old_main, "--evidence", "default-ref", ok=False,
         )
-        self.assertIn("not an ancestor", unrelated.stderr)
+        self.assertIn("neither verified-head ancestry nor the exact verified candidate tree", unrelated.stderr)
 
         subprocess.run(["git", "update-ref", "refs/heads/main", head], cwd=self.repo, check=True)
         valid = (
@@ -705,6 +752,28 @@ class PrdRunTests(unittest.TestCase):
         )
         self.command(*valid)
         self.command(*valid)
+
+    def test_record_merge_accepts_squash_tree_equivalence(self) -> None:
+        self.compile_and_start()
+        self.finish_implementation()
+        self.transition("epic_verified")
+        self.grant("merge-to-default")
+        verified = self.revision()[0]
+        tree = subprocess.run(
+            ["git", "rev-parse", f"{verified}^{{tree}}"], cwd=self.repo,
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        squashed = subprocess.run(
+            ["git", "commit-tree", tree, "-m", "squashed equivalent"], cwd=self.repo,
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        subprocess.run(["git", "update-ref", "refs/heads/main", squashed], cwd=self.repo, check=True)
+        self.command(
+            "record-merge", "--run", str(self.run), "--pr", "PR-SQUASH",
+            "--merged-sha", squashed, "--main-sha", squashed,
+            "--evidence", "merged PR head and exact candidate tree",
+        )
+        self.assertEqual("tree-equivalence", self.manifest()["release"]["merge"]["verification_method"])
 
     def test_graph_rejects_unknown_optional_cohort_and_cycles(self) -> None:
         self.transition("accepted")

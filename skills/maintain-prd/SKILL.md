@@ -14,7 +14,7 @@ Turn discussion into one navigable product source of truth. Do not implement, co
 3. Reconcile new discussion against existing decisions. Preserve stable Epic and Scope Area IDs; record contradictions and supersession rather than silently rewriting history.
 4. Structure each Epic using [the PRD contract](references/prd-contract.md). Keep separate concepts under separate headings.
 5. Make safe assumptions explicit. Ask only when a missing answer materially changes product behavior, acceptance, authority, risk, cost, or external effect.
-6. Set an Epic to `Accepted` only when its outcome and boundaries are agreed. Add it to `Implementation target` only when it is build-ready, ships independently, rolls back independently, and has explicit release stages. Leave proposed, deferred, or unresolved Epics in the same PRD but outside the target.
+6. Set an Epic to `Accepted` only when its outcome and boundaries are agreed. Add it to `Implementation target` only when it is build-ready, ships independently, rolls back independently, has explicit release stages, and declares the applicable closed high-consequence trigger IDs or `none`. Leave proposed, deferred, or unresolved Epics in the same PRD but outside the target.
 7. Update the index once per Epic. Keep it navigational; do not treat index status as proof.
 8. Return the document path, decisions captured, readiness state, and material open questions. When useful, invite the user to keep going and flesh out the rest of the product as Epics; explain that one later implementation request starts every dependency-ready target Epic in its own visible task. Stop there.
 

@@ -1616,7 +1616,7 @@ def write_fake_project_pr(repo, run_path, projection):
         "schemaVersion": "gauntlet.epic-launch.v1",
         "source": {"path": str(repo / "product.md"), "sha256": source_sha},
         "targetEpicIds": [epic_id],
-        "epics": {epic_id: {"title": epic_title, "dependencies": [], "releaseStages": ["merge"]}},
+        "epics": {epic_id: {"title": epic_title, "dependencies": [], "releaseStages": ["merge"], "consequenceTriggers": []}},
     }
     coverage_sha = hashlib.sha256(json.dumps(coverage, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
     launch = {
@@ -1625,7 +1625,7 @@ def write_fake_project_pr(repo, run_path, projection):
         "coverageSha256": coverage_sha,
         "epics": {epic_id: {
             **coverage["epics"][epic_id], "taskId": "task-fixture", "runPath": str(run_path.resolve()),
-            "status": "implementation-complete", "blocker": None, "stopDisposition": None, "emittedEvents": [],
+            "status": "implementation-complete", "blocker": None, "stopDisposition": None, "startReconciliation": None, "emittedEvents": [],
         }},
         "aggregateEmittedEvents": [],
     }

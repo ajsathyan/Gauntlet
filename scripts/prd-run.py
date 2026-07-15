@@ -94,6 +94,20 @@ def sha_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def canonical_consequence_triggers(raw: str | None, label: str) -> list[str]:
+    if raw is None:
+        raise RunError(f"{label} must declare High-consequence triggers")
+    if raw.strip().lower() in {"none", "n/a", "not applicable"}:
+        return []
+    triggers = sorted(string_list([item.strip().lower() for item in raw.split(",") if item.strip()], label))
+    unknown = set(triggers) - set(HIGH_CONSEQUENCE_TRIGGERS)
+    if unknown:
+        raise RunError(f"{label} uses unsupported high-consequence triggers: {sorted(unknown)}")
+    if len(triggers) != len(set(triggers)):
+        raise RunError(f"{label} must not repeat high-consequence triggers")
+    return triggers
+
+
 def sha_file(path: Path) -> str:
     return sha_bytes(path.read_bytes())
 
@@ -171,9 +185,17 @@ def source_contract(path: Path, requested_targets: list[str]) -> dict[str, Any]:
                 heading: section_items(section, heading)
                 for heading in ("Product Acceptance", "Design Acceptance", "Engineering Acceptance")
             }
+            consequence_match = re.search(
+                r"^High-consequence triggers:\s*(.*?)\s*$", section,
+                re.MULTILINE | re.IGNORECASE,
+            )
             epics[epic_id] = {
                 "acceptance": acceptance,
                 "cannot_verify": section_items(section, "Cannot Verify"),
+                "consequence_triggers": canonical_consequence_triggers(
+                    consequence_match.group(1) if consequence_match else None,
+                    f"Epic {epic_id}",
+                ),
                 "non_goals": section_items(section, "Non-goals"),
                 "scope_areas": dict(sorted(epic_scopes.items())),
                 "section_sha256": sha_bytes(section.encode("utf-8")),
@@ -222,6 +244,10 @@ def launch_coverage_projection(value: dict[str, Any]) -> dict[str, Any]:
         ):
             raise RunError(f"launch set Epic {epic_id}.releaseStages is invalid")
         coverage_epics[epic_id] = {
+            "consequenceTriggers": canonical_consequence_triggers(
+                ",".join(string_list(item.get("consequenceTriggers"), f"launch set Epic {epic_id}.consequenceTriggers")),
+                f"launch set Epic {epic_id}.consequenceTriggers",
+            ) if item.get("consequenceTriggers") else [],
             "dependencies": sorted(normalized_dependencies, key=lambda item: (item["epicId"], item["boundary"])),
             "releaseStages": release_stages,
             "title": require_string(item.get("title"), f"launch set Epic {epic_id}.title"),
@@ -268,8 +294,8 @@ def validate_launch_set(path: Path, source: Path, source_info: dict[str, Any], t
     if not isinstance(item, dict):
         raise RunError(f"launch set does not contain target Epic {target_epic_id}")
     expected_epic_keys = {
-        "title", "dependencies", "releaseStages", "taskId", "runPath", "status",
-        "blocker", "stopDisposition", "emittedEvents",
+        "title", "dependencies", "releaseStages", "consequenceTriggers", "taskId", "runPath", "status",
+        "blocker", "stopDisposition", "startReconciliation", "emittedEvents",
     }
     for epic_id, epic in raw["epics"].items():
         if not isinstance(epic, dict) or set(epic) != expected_epic_keys:
@@ -277,6 +303,8 @@ def validate_launch_set(path: Path, source: Path, source_info: dict[str, Any], t
     task_id = require_string(item.get("taskId"), f"launch set Epic {target_epic_id}.taskId")
     if coverage["epics"][target_epic_id]["title"] != source_info["epics"][target_epic_id]["title"]:
         raise RunError("launch set Epic title does not match the locked canonical Epic")
+    if coverage["epics"][target_epic_id]["consequenceTriggers"] != source_info["epics"][target_epic_id]["consequence_triggers"]:
+        raise RunError("launch set high-consequence triggers do not match the locked canonical Epic")
     return {
         "coverage_sha256": expected_coverage,
         "canonical_source_path": coverage["source"]["path"],
@@ -1637,7 +1665,7 @@ def release_gates(manifest: dict[str, Any], completion: dict[str, Any]) -> list[
 def cmd_project_pr(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
-    require_state(manifest, ("epic_verified",))
+    require_state(manifest, ("epic_verified", "merged", "deployed", "production_verified", "complete"))
     require_authority(manifest, "open-final-pr")
     pending = [key for key, item in manifest["tickets"].items() if item["status"] != "integrated"]
     failed_cohorts = [key for key, item in manifest["cohorts"].items() if item.get("result") != "pass"]
@@ -1656,17 +1684,19 @@ def cmd_project_pr(args: argparse.Namespace) -> None:
 
     cwd = Path.cwd().resolve()
     repo_root, repository = git_repository_identity(cwd)
-    if git_value(["status", "--porcelain"], "repository cleanliness", repo_root):
-        raise RunError("project-pr requires a clean repository")
-    branch = git_value(["branch", "--show-current"], "current branch", repo_root)
-    if branch != manifest["integration"]["branch"]:
-        raise RunError("current branch does not match the Execution Run integration branch")
-    head = require_sha(git_value(["rev-parse", "HEAD"], "HEAD", repo_root), "HEAD")
     verification = manifest["release"]["epic-verification"]
     if repository != lock.get("repository_identity") or repository != verification.get("repository_identity"):
         raise RunError("project-pr repository does not match the locked and verified repository")
-    if head != verification.get("integration_head_sha"):
-        raise RunError("project-pr HEAD does not match the exact revision verified by final Epic verification")
+    branch = manifest["integration"]["branch"]
+    head = require_sha(verification.get("integration_head_sha"), "final verified integration head")
+    canonical_git_object(repo_root, head, "final verified integration head", "commit")
+    if manifest["state"] == "epic_verified":
+        if git_value(["status", "--porcelain"], "repository cleanliness", repo_root):
+            raise RunError("project-pr requires a clean repository")
+        if git_value(["branch", "--show-current"], "current branch", repo_root) != branch:
+            raise RunError("current branch does not match the Execution Run integration branch")
+        if require_sha(git_value(["rev-parse", "HEAD"], "HEAD", repo_root), "HEAD") != head:
+            raise RunError("project-pr HEAD does not match the exact revision verified by final Epic verification")
     completion = completion_projection(manifest, observed_head=head)
     if not completion["implemented"]:
         raise RunError("project-pr cannot claim implementation while final Epic verification is failed or stale")
@@ -1855,6 +1885,10 @@ def cmd_compile(args: argparse.Namespace) -> None:
         raise RunError(f"ticket graph Epics {sorted(graph_epics)} do not match locked targets {lock['target_epic_ids']}")
     if set(graph["scope_areas"]) != set(lock["scope_hashes"]):
         raise RunError("ticket graph Scope Areas do not exactly match the locked PRD target")
+    epic_id = lock["target_epic_ids"][0]
+    locked_triggers = lock["epics"][epic_id]["consequence_triggers"]
+    if graph["review"]["triggers"] != locked_triggers:
+        raise RunError("Ticket Graph high-consequence triggers must exactly match the locked canonical Epic")
     referenced_scopes = {scope for item in graph["tickets"] for scope in item["scope_area_ids"]}
     if referenced_scopes != set(lock["scope_hashes"]):
         raise RunError("every locked Scope Area must be owned by at least one Ticket")
@@ -2593,9 +2627,14 @@ def cmd_record_merge(args: argparse.Namespace) -> None:
         text=True,
         capture_output=True,
     )
+    verification_method = "ancestry"
     if ancestry.returncode == 1:
-        raise RunError("final verified integration head is not an ancestor of the observed default branch")
-    if ancestry.returncode != 0:
+        verified_tree = git_value(["rev-parse", f"{verified_head}^{{tree}}"], "verified candidate tree", repo)
+        main_tree = git_value(["rev-parse", f"{main}^{{tree}}"], "observed default tree", repo)
+        if verified_tree != main_tree:
+            raise RunError("observed default branch preserves neither verified-head ancestry nor the exact verified candidate tree")
+        verification_method = "tree-equivalence"
+    elif ancestry.returncode != 0:
         raise RunError(f"cannot verify merge ancestry: {ancestry.stderr.strip() or ancestry.stdout.strip()}")
     require_safeguard(manifest, "dry-run-no-mutation", verified_head)
     integration = manifest.get("integration", {})
@@ -2607,6 +2646,7 @@ def cmd_record_merge(args: argparse.Namespace) -> None:
         "pr": require_string(args.pr, "PR reference"),
         "pr_strategy": integration.get("pr_strategy"),
         "result": "pass",
+        "verification_method": verification_method,
         "verified_head_sha": verified_head,
     }
     existing = manifest["release"].get("merge")
@@ -2614,7 +2654,7 @@ def cmd_record_merge(args: argparse.Namespace) -> None:
         raise RunError("recorded merge facts conflict with the observed merge")
     manifest["release"]["merge"] = record
     report = run / "release" / "merge.md"
-    atomic_text(report, f"# Merge\n\nResult: pass\n\nPR: {record['pr']}\n\nIntegration branch: {record['integration_branch'] or 'not recorded'}\n\nPR strategy: {record['pr_strategy'] or 'not recorded'}\n\nMerged SHA: {merged}\n\nVerified main SHA: {main}\n\nEvidence: {record['evidence']}\n")
+    atomic_text(report, f"# Merge\n\nResult: pass\n\nPR: {record['pr']}\n\nIntegration branch: {record['integration_branch'] or 'not recorded'}\n\nPR strategy: {record['pr_strategy'] or 'not recorded'}\n\nMerged SHA: {merged}\n\nVerified main SHA: {main}\n\nVerification method: {verification_method}\n\nEvidence: {record['evidence']}\n")
     pin_artifact(run, manifest, report)
     if not existing:
         event(run, manifest, "merge_recorded", {"main_sha": main, "pr": record["pr"]})

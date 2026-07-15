@@ -39,7 +39,7 @@ Private-document changes are local filesystem changes. They are not committed, m
 
 A canonical PRD may contain several Epics from one product conversation. Each Epic receives a stable ID and index row; each stable product responsibility within it receives a Scope Area ID. A numbered `epics/` directory is a document home and does not force a one-file/one-Epic split.
 
-Keep the PRD readable by separating user, objective, workflow, state, trust, acceptance, interface, proof, dependency, uncertainty, rollout, and rollback concerns under distinct headings. `Implementation target` names the complete launch membership and includes only accepted Epics that are build-ready, independently shippable, independently reversible, and explicit about release stages and dependency boundaries. Proposed, deferred, and unresolved Epics may remain in the document without entering execution.
+Keep the PRD readable by separating user, objective, workflow, state, trust, acceptance, interface, proof, dependency, uncertainty, rollout, and rollback concerns under distinct headings. `Implementation target` names the complete launch membership and includes only accepted Epics that are build-ready, independently shippable, independently reversible, and explicit about release stages, dependency boundaries, and closed high-consequence trigger IDs (or `none`). Proposed, deferred, and unresolved Epics may remain in the document without entering execution.
 
 Use the `maintain-prd` skill to create or revise this source. It never implements.
 

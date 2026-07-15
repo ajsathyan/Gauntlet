@@ -2,7 +2,7 @@
 
 ## Product Task And Launch Set
 
-One product task may shape many Epics in one canonical PRD. `Implementation target` lists the complete accepted launch membership. `gauntlet.py epic-tasks init` freezes that membership, the source snapshot, each Epic's title, release stages, and dependency boundaries. The product task executes only the controller's missing `create_thread` actions and records each proven native task ID.
+One product task may shape many Epics in one canonical PRD. `Implementation target` lists the complete accepted launch membership. `gauntlet.py epic-tasks init` freezes that membership, the source snapshot, each Epic's title, release stages, dependency boundaries, and closed high-consequence trigger IDs (or `none`). The product task executes only the controller's missing `create_thread` actions and records each proven native task ID.
 
 Each target Epic gets one visible implementation task and one Execution Run. An Epic task reads `source.snapshotPath` from the launch set and passes that immutable file to `prd-run.py init --source`; it never passes the mutable canonical PRD path and never creates another Epic task. A dependency blocks only the downstream Epic whose declared `merged`, `deployed`, or `productionProved` boundary is unsatisfied; unrelated Epics continue.
 
@@ -10,7 +10,7 @@ Each target Epic gets one visible implementation task and one Execution Run. An 
 
 Each run locks exactly one accepted Epic. Tickets remain current execution units and Scope Areas remain stable product responsibilities. A Ticket has one implementation owner. The parent verifies ordinary evidence directly; independent verification Tickets are reserved for a named consequential boundary.
 
-The normalized graph contains `version`, `scope_areas`, `shared_context`, `cohorts`, `tickets`, `checks`, `review`, and optional `review_units`. `cohorts` may be empty. A Ticket's `cohort_id` may be absent; assign one only when multiple Tickets share a material invariant. `checks` defines targeted Ticket checks, optional Cohort checks, and exactly one `final-epic` check. `review.required` is true only for billing or paid actions, credentials/auth/permissions, migrations or data loss, production authority, destructive actions, or equivalent material harm; triggered review names the three distinct lenses.
+The normalized graph contains `version`, `scope_areas`, `shared_context`, `cohorts`, `tickets`, `checks`, `review`, and optional `review_units`. `cohorts` may be empty. A Ticket's `cohort_id` may be absent; assign one only when multiple Tickets share a material invariant. `checks` defines targeted Ticket checks, optional Cohort checks, and exactly one `final-epic` check. `review.triggers` must exactly equal the canonical Epic's locked declaration. A non-empty trigger set requires exactly the authority/security, failure/recovery, and black-box lenses; `none` requires zero review lenses.
 
 ## Durable Run
 
