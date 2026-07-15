@@ -3156,8 +3156,8 @@ def command_merge_prepare(args):
             payload["findings"].extend(validate_merge_handoff(data))
     if data is not None:
         payload["title"] = data.get("title")
-        payload["changelogEntry"] = projection_changelog_entry(data)
         if not payload["findings"]:
+            payload["changelogEntry"] = projection_changelog_entry(data)
             body_path.parent.mkdir(parents=True, exist_ok=True)
             body_path.write_text(render_pr_body(data), encoding="utf-8")
             payload["changelogChanged"] = ensure_unreleased_changelog(changelog_path, projection_changelog_entry(data))
