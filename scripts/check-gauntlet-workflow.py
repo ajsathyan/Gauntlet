@@ -1616,6 +1616,12 @@ def write_fake_project_pr(repo, run_path, projection):
         "elif args[0:2] == ['authority-status', '--run'] and '--capability' in args:\n"
         "    run = pathlib.Path(args[2]); capability = args[args.index('--capability') + 1]\n"
         "    print(json.dumps({'schemaVersion':'1.0','runId':run.name,'capability':capability,'granted':(run / (capability + '.granted')).is_file(),'source':'test fixture'}))\n"
+        "elif args[0:2] == ['record-merge', '--run'] and '--merged-sha' in args and '--main-sha' in args:\n"
+        "    run = pathlib.Path(args[2]); (run / 'merge-recorded').write_text(args[args.index('--main-sha') + 1])\n"
+        "    print(json.dumps({'schemaVersion':'1.0','runId':run.name,'recorded':True}))\n"
+        "elif args[0:2] == ['transition', '--run'] and args[-2:] == ['--to', 'merged']:\n"
+        "    run = pathlib.Path(args[2]); (run / 'transitioned-merged').write_text('merged')\n"
+        "    print(json.dumps({'schemaVersion':'1.0','runId':run.name,'state':'merged'}))\n"
         "else:\n"
         "    print('unexpected prd-run invocation', file=sys.stderr); raise SystemExit(2)\n",
         encoding="utf-8",
