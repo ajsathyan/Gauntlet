@@ -380,6 +380,112 @@ def summary_payload(native, analytics_path, quarantine_path, output):
     }
 
 
+def read_run_facts(path):
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise RuntimeError("Cannot read Epic Run facts {}: {}".format(path, exc))
+    if not isinstance(value, dict) or value.get("schemaVersion") != "gauntlet/epic-run-facts/v1":
+        raise RuntimeError("Unsupported Epic Run facts schema")
+    owners = value.get("owners")
+    if not isinstance(owners, list) or not owners:
+        raise RuntimeError("Epic Run facts require a non-empty owners list")
+    normalized = []
+    seen_refs = set()
+    for index, owner in enumerate(owners, 1):
+        if not isinstance(owner, dict) or owner.get("ownerKind") not in {"parent", "delegated"}:
+            raise RuntimeError("Epic Run owner {} has an invalid ownerKind".format(index))
+        owner_ref = owner.get("ownerRef")
+        if not isinstance(owner_ref, str) or not owner_ref or owner_ref in seen_refs:
+            raise RuntimeError("Epic Run owner {} requires a unique ownerRef".format(index))
+        child_id = owner.get("nativeChildId")
+        if child_id is not None and (not isinstance(child_id, str) or not child_id):
+            raise RuntimeError("Epic Run owner {} has an invalid nativeChildId".format(index))
+        requested_profile = owner.get("requestedProfile")
+        if requested_profile is not None and (not isinstance(requested_profile, str) or not requested_profile):
+            raise RuntimeError("Epic Run owner {} has an invalid requestedProfile".format(index))
+        seen_refs.add(owner_ref)
+        normalized.append({
+            "ownerKind": owner["ownerKind"],
+            "ownerRef": owner_ref,
+            "nativeChildId": child_id,
+            "requestedProfile": requested_profile,
+        })
+    return normalized
+
+
+def run_summary_payload(owners, audit_path, analytics_path):
+    audit = existing_records(audit_path)
+    analytics = existing_analytics(analytics_path)
+    by_agent = {}
+    for row in analytics.values():
+        by_agent.setdefault(row.get("agentId"), []).append(row)
+    unavailable = []
+    observed = []
+    token_totals = {key: 0 for key in TOKEN_KEYS}
+    request_count = 0
+    profile_mismatches = []
+    counted_agents = set()
+    for owner in owners:
+        agent_id = owner["nativeChildId"]
+        if not agent_id:
+            unavailable.append({
+                "ownerKind": owner["ownerKind"], "ownerRef": owner["ownerRef"],
+                "reason": "native-id-unavailable",
+            })
+            continue
+        if agent_id not in audit:
+            unavailable.append({
+                "ownerKind": owner["ownerKind"], "ownerRef": owner["ownerRef"],
+                "reason": "native-record-unavailable",
+            })
+            continue
+        rows = by_agent.get(agent_id, [])
+        if not rows:
+            unavailable.append({
+                "ownerKind": owner["ownerKind"], "ownerRef": owner["ownerRef"],
+                "reason": "request-telemetry-unavailable",
+            })
+            continue
+        observed.append({"ownerKind": owner["ownerKind"], "ownerRef": owner["ownerRef"]})
+        actual_profile = audit[agent_id].get("profile")
+        if owner.get("requestedProfile") and owner["requestedProfile"] != actual_profile:
+            profile_mismatches.append({
+                "ownerRef": owner["ownerRef"], "requestedProfile": owner["requestedProfile"],
+                "actualProfile": actual_profile,
+            })
+        if agent_id in counted_agents:
+            continue
+        counted_agents.add(agent_id)
+        request_count += len(rows)
+        for row in rows:
+            for key in TOKEN_KEYS:
+                token_totals[key] += row["tokens"][key]
+    if not observed:
+        status = "unavailable"
+        model_requests = None
+        tokens = None
+        totals_scope = "unavailable"
+    else:
+        status = "partial" if unavailable else "complete"
+        model_requests = request_count
+        tokens = token_totals
+        totals_scope = "observed-only" if unavailable else "all-declared-owners"
+    return {
+        "schemaVersion": "gauntlet/run-telemetry-summary/v1",
+        "coverage": {
+            "status": status,
+            "declaredOwners": len(owners),
+            "observedOwners": len(observed),
+            "unavailableOwners": unavailable,
+            "totalsScope": totals_scope,
+        },
+        "modelRequests": model_requests,
+        "tokens": tokens,
+        "profileMismatches": profile_mismatches,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("sync", "list", "summary", "verify", "reconcile"), nargs="?", default="sync")
@@ -389,6 +495,7 @@ def main():
     parser.add_argument("--requested-risk", choices=("ordinary", "consequential"), default="ordinary")
     parser.add_argument("--require-read-only", action="store_true")
     parser.add_argument("--circuit-file", type=Path)
+    parser.add_argument("--run-facts", type=Path, help="JSON emitted by the Epic Run controller's run-facts --run projection")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     agent_home = args.agent_home.expanduser()
@@ -397,6 +504,14 @@ def main():
     analytics_path = agent_home / "gauntlet" / "logs" / "subagent-model-requests.jsonl"
     quarantine_path = agent_home / "gauntlet" / "logs" / "subagent-quarantine.jsonl"
     circuit_path = args.circuit_file or agent_home / "gauntlet" / "state" / "routing-circuit.json"
+    if args.action == "summary" and args.run_facts:
+        try:
+            owners = read_run_facts(args.run_facts)
+            payload = run_summary_payload(owners, output, analytics_path)
+        except RuntimeError as exc:
+            parser.error(str(exc))
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
     try:
         data = native_records(database)
     except (RuntimeError, sqlite3.Error) as exc:

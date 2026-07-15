@@ -75,6 +75,11 @@ def read_jsonl(path):
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
+def digest(label):
+    import hashlib
+    return "sha256:" + hashlib.sha256(label.encode("utf-8")).hexdigest()
+
+
 def route_args(home, version, **overrides):
     fields = {
         "work-class": "implementation",
@@ -159,6 +164,147 @@ def test_cumulative_analytics_are_idempotent_and_partial_safe():
         summary = json.loads(run(["python3", str(audit), "summary", "--agent-home", str(home), "--json"]).stdout)
         if summary["modelRequests"] != 3 or summary["tokens"] != third_total:
             raise AssertionError("summary must report request count and token classes without cumulative double counting")
+
+
+def test_epic_run_telemetry_join_reports_partial_and_unavailable_coverage():
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        rollout = home / "private-rollout.jsonl"
+        usage = tokens(120, 80, 30, 7)
+        write_lines(rollout, [
+            {"type": "event_msg", "payload": {"type": "user_message", "message": "RUN-SECRET"}},
+            token_event(usage, usage),
+        ])
+        connection = create_native_state(home)
+        connection.execute(
+            "INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "child-run", str(rollout), "gpt-5.6-sol", "medium", "gauntlet_standard_worker",
+                '{"type":"workspace-write","writable_roots":["/Users/private/run"]}', "never", "worker",
+                "subagent", 150, "/Users/private/run", "0.144.2", 10, 20,
+            ),
+        )
+        connection.execute("INSERT INTO thread_spawn_edges VALUES (?, ?, ?)", ("parent-run", "child-run", "completed"))
+        connection.commit()
+        connection.close()
+        audit = SCRIPTS / "subagent-audit.py"
+        run(["python3", str(audit), "sync", "--agent-home", str(home)])
+
+        facts = home / "run-facts.json"
+        facts.write_text(json.dumps({
+            "schemaVersion": "gauntlet/epic-run-facts/v1",
+            "owners": [
+                {"ownerKind": "delegated", "ownerRef": "T1", "nativeChildId": "child-run", "requestedProfile": "gauntlet_standard_worker"},
+                {"ownerKind": "parent", "ownerRef": "epic-parent", "nativeChildId": None, "requestedProfile": None},
+                {"ownerKind": "delegated", "ownerRef": "T2", "nativeChildId": "missing-child", "requestedProfile": "gauntlet_standard_worker"},
+            ],
+        }), encoding="utf-8")
+        joined = json.loads(run([
+            "python3", str(audit), "summary", "--agent-home", str(home),
+            "--run-facts", str(facts), "--json",
+        ]).stdout)
+        coverage = joined["coverage"]
+        if coverage["status"] != "partial" or coverage["observedOwners"] != 1 or coverage["totalsScope"] != "observed-only":
+            raise AssertionError("run telemetry must label observed totals as partial: {}".format(joined))
+        if joined["modelRequests"] != 1 or joined["tokens"] != usage:
+            raise AssertionError("run telemetry must sum only correlated native request rows")
+        reasons = {item["reason"] for item in coverage["unavailableOwners"]}
+        if reasons != {"native-id-unavailable", "native-record-unavailable"}:
+            raise AssertionError("missing parent and child coverage must remain explicit: {}".format(coverage))
+        rendered = json.dumps(joined, sort_keys=True)
+        for forbidden in ("RUN-SECRET", str(rollout), "/Users/private/run", "missing-child", "child-run"):
+            if forbidden in rendered:
+                raise AssertionError("run telemetry join leaked private or unnecessary identity data")
+
+        facts.write_text(json.dumps({
+            "schemaVersion": "gauntlet/epic-run-facts/v1",
+            "owners": [{"ownerKind": "parent", "ownerRef": "epic-parent", "nativeChildId": None}],
+        }), encoding="utf-8")
+        unavailable = json.loads(run([
+            "python3", str(audit), "summary", "--agent-home", str(home), "--run-facts", str(facts), "--json",
+        ]).stdout)
+        if unavailable["coverage"]["status"] != "unavailable" or unavailable["modelRequests"] is not None or unavailable["tokens"] is not None:
+            raise AssertionError("absent parent telemetry must not be represented by invented zeroes")
+
+
+def test_epic_run_test_plan_reuses_only_exact_receipts_and_review_pack_needs_no_plan():
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp)
+        identity = {
+            "commit": "a" * 40,
+            "tree": "b" * 40,
+            "toolchain": digest("toolchain"),
+            "fixtures": digest("fixtures"),
+            "environment": digest("environment"),
+        }
+        exact_argv = ["python3", "tests/test_target.py"]
+        facts_value = {
+            "schemaVersion": "gauntlet/epic-run-facts/v1",
+            "epicId": "E1",
+            "epicTitle": "Exact proof",
+            "exactRevision": "a" * 40,
+            "verificationIdentity": identity,
+            "plannedChecks": [
+                {"id": "target-exact", "tier": "ticket", "ticketIds": ["T1"], "argv": exact_argv, "reason": "Targeted behavior."},
+                {"id": "target-changed", "tier": "ticket", "ticketIds": ["T1"], "argv": ["python3", "tests/test_target.py", "--changed"], "reason": "Changed arguments."},
+                {"id": "final", "tier": "final-epic", "ticketIds": [], "argv": ["python3", "-m", "unittest", "discover"], "reason": "Final Epic matrix."},
+            ],
+            "verificationReceipts": [{
+                "id": "R1", "result": "pass", "identity": {**identity, "argv": exact_argv},
+            }],
+            "review": {
+                "required": True,
+                "triggers": ["billing"],
+                "lenses": [
+                    {"id": "authority-security", "charter": "Review authority and credential boundaries."},
+                    {"id": "failure-recovery", "charter": "Review failure, retry, and rollback behavior."},
+                    {"id": "black-box", "charter": "Review externally observable billing outcomes."},
+                ],
+            },
+        }
+        facts = project / "run-facts.json"
+        facts.write_text(json.dumps(facts_value), encoding="utf-8")
+        plan = json.loads(run([
+            "python3", str(SCRIPTS / "test-plan.py"), str(project), "--run-facts", str(facts),
+            "--tier", "ticket", "--ticket", "T1", "--output", str(project / "test-plan.json"),
+        ]).stdout)
+        if [item["command"] for item in plan["commands"]] != ["python3 tests/test_target.py --changed"]:
+            raise AssertionError("a similar command must not reuse an exact receipt: {}".format(plan))
+        if [item["receiptId"] for item in plan["reusedReceipts"]] != ["R1"]:
+            raise AssertionError("the exact command and identity should be suppressed once")
+        stale_value = dict(facts_value)
+        stale_value["verificationIdentity"] = {**identity, "environment": digest("changed-environment")}
+        facts.write_text(json.dumps(stale_value), encoding="utf-8")
+        stale_plan = json.loads(run([
+            "python3", str(SCRIPTS / "test-plan.py"), str(project), "--run-facts", str(facts),
+            "--tier", "ticket", "--ticket", "T1", "--output", str(project / "stale-plan.json"),
+        ]).stdout)
+        if len(stale_plan["commands"]) != 2 or stale_plan["reusedReceipts"]:
+            raise AssertionError("a changed environment identity must rerun the smallest relevant checks")
+        facts.write_text(json.dumps(facts_value), encoding="utf-8")
+        final_plan = json.loads(run([
+            "python3", str(SCRIPTS / "test-plan.py"), str(project), "--run-facts", str(facts),
+            "--tier", "final-epic", "--output", str(project / "final-plan.json"),
+        ]).stdout)
+        if [item["command"] for item in final_plan["commands"]] != ["python3 -m unittest discover"]:
+            raise AssertionError("final Epic planning must emit only the broader final matrix")
+
+        intel = project / "diff-intel.json"
+        intel.write_text(json.dumps({
+            "baseRef": "HEAD", "confidence": "high", "riskTriggers": ["billing"],
+            "changedFiles": [], "cannotVerify": [],
+        }), encoding="utf-8")
+        packet_path = project / "review-pack.md"
+        run([
+            "python3", str(SCRIPTS / "review-pack.py"), str(project), "--diff-intel", str(intel),
+            "--run-facts", str(facts), "--no-test-plan", "--output", str(packet_path),
+        ])
+        packet = packet_path.read_text(encoding="utf-8")
+        for marker in ("Locked Epic Run", "authority-security", "failure-recovery", "black-box", "no implementation-plan document"):
+            if marker not in packet:
+                raise AssertionError("run-backed review packet missing {}".format(marker))
+        if "## Canonical Plan" in packet:
+            raise AssertionError("run-backed triggered review must not require an implementation-plan document")
 
 
 def test_start_reconciliation_opens_a_version_scoped_circuit():
@@ -275,6 +421,8 @@ def test_security_authority_is_attested_and_runtime_enforced_per_version():
 def main():
     tests = [
         test_cumulative_analytics_are_idempotent_and_partial_safe,
+        test_epic_run_telemetry_join_reports_partial_and_unavailable_coverage,
+        test_epic_run_test_plan_reuses_only_exact_receipts_and_review_pack_needs_no_plan,
         test_start_reconciliation_opens_a_version_scoped_circuit,
         test_security_authority_is_attested_and_runtime_enforced_per_version,
     ]
