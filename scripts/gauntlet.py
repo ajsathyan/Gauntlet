@@ -13,14 +13,21 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from thread_titles import parse_thread_title
+from thread_titles import epic_task_title, parse_thread_title, product_task_title
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 CHECKER = SCRIPTS / "check-workflow-etiquette.py"
 LOCAL_DOC_TEMPLATES = ROOT / "templates" / "local-docs"
+EPIC_COPY_TEMPLATE = ROOT / "templates" / "epic-execution-copy.json"
 LOCAL_DOC_OPT_OUT = Path(".gauntlet") / "doc-org.disabled"
+EPIC_LAUNCH_SCHEMA = "gauntlet.epic-launch.v1"
+EPIC_STATES = {
+    "planned", "starting", "in-progress", "needs-decision",
+    "implementation-complete", "failed", "stopped",
+}
+DEPENDENCY_BOUNDARIES = {"merged", "deployed", "productionProved"}
 STATUS_ORDER = {"pass": 0, "warn": 1, "review": 2, "fail": 3}
 EXIT_CODES = {"pass": 0, "warn": 0, "review": 2, "fail": 1}
 DEFERRED_AGENT_ACTIONS = {
@@ -768,6 +775,865 @@ def command_docs_epic_create(args):
             shutil.rmtree(epic_root)
         raise
     return local_docs_payload(args, context, findings, epicId=epic_id, epicRoot=str(prd_path.parent), prdPath=str(prd_path), appended=bool(args.prd))
+
+
+def sha256_bytes(value):
+    return hashlib.sha256(value).hexdigest()
+
+
+def canonical_json(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def epic_source_sections(source_text):
+    matches = list(re.finditer(r"^## Epic ([A-Z][A-Z0-9]*-\d{3}):\s*(.+?)\s*$", source_text, re.MULTILINE))
+    sections = {}
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(source_text)
+        section = source_text[match.start():end].rstrip() + "\n"
+        sections[match.group(1)] = {
+            "id": match.group(1),
+            "title": match.group(2).strip(),
+            "text": section,
+        }
+    return sections
+
+
+def epic_metadata(section_text, name, default=None):
+    match = re.search(rf"^{re.escape(name)}:\s*(.*?)\s*$", section_text, re.MULTILINE | re.IGNORECASE)
+    return match.group(1).strip() if match else default
+
+
+def parse_dependency_list(raw):
+    if not raw or raw.strip().lower() in {"none", "n/a", "not applicable"}:
+        return []
+    dependencies = []
+    for item in raw.split(","):
+        value = item.strip().strip("`")
+        match = re.fullmatch(r"([A-Z][A-Z0-9]*-\d{3})(?:@(merged|deployed|productionProved))?", value)
+        if not match:
+            raise ValueError(f"Invalid Epic dependency: {item.strip()}")
+        dependencies.append({"epicId": match.group(1), "boundary": match.group(2) or "merged"})
+    return dependencies
+
+
+def parse_release_stages(raw):
+    requested = {"merge"}
+    if raw:
+        values = {item.strip().lower().replace("_", "-") for item in raw.split(",") if item.strip()}
+        aliases = {"production": "production-proof", "productionproved": "production-proof"}
+        requested = {aliases.get(value, value) for value in values}
+    unknown = requested - {"merge", "deployment", "production-proof"}
+    if unknown:
+        raise ValueError("Unknown release stage: " + ", ".join(sorted(unknown)))
+    return {
+        "merge": "required" if "merge" in requested else "not-applicable",
+        "deployment": "required" if "deployment" in requested else "not-applicable",
+        "productionProof": "required" if "production-proof" in requested else "not-applicable",
+    }
+
+
+def implementation_target_ids(source_text):
+    match = re.search(r"^Implementation target:\s*(.*?)\s*$", source_text, re.MULTILINE | re.IGNORECASE)
+    if not match:
+        raise ValueError("PRD is missing Implementation target")
+    ids = re.findall(r"[A-Z][A-Z0-9]*-\d{3}", match.group(1))
+    if not ids or len(ids) != len(set(ids)):
+        raise ValueError("Implementation target must contain unique stable Epic IDs")
+    return ids
+
+
+def validate_epic_dependency_graph(epics, target_ids):
+    target = set(target_ids)
+    for epic_id in target_ids:
+        for dependency in epics[epic_id]["dependencies"]:
+            dependency_id = dependency["epicId"]
+            if dependency_id not in epics:
+                raise ValueError(f"{epic_id} depends on unknown Epic {dependency_id}")
+            if dependency_id not in target:
+                status = epics[dependency_id]["sourceStatus"].lower()
+                if status not in {"complete", "implemented", "release-complete"}:
+                    raise ValueError(f"{epic_id} depends on {dependency_id}, which is outside the target and not complete")
+
+    visiting = set()
+    visited = set()
+
+    def visit(epic_id):
+        if epic_id in visiting:
+            raise ValueError(f"Epic dependency cycle includes {epic_id}")
+        if epic_id in visited:
+            return
+        visiting.add(epic_id)
+        for dependency in epics[epic_id]["dependencies"]:
+            if dependency["epicId"] in target:
+                visit(dependency["epicId"])
+        visiting.remove(epic_id)
+        visited.add(epic_id)
+
+    for epic_id in target_ids:
+        visit(epic_id)
+
+
+def build_epic_launch_set(source_path, target_ids, priority="p1"):
+    source_path = Path(source_path).resolve()
+    source_bytes = source_path.read_bytes()
+    source_text = source_bytes.decode("utf-8")
+    declared_target = implementation_target_ids(source_text)
+    if target_ids and list(target_ids) != declared_target:
+        raise ValueError("Requested target must exactly match the PRD Implementation target in canonical order")
+    target_ids = declared_target
+    sections = epic_source_sections(source_text)
+    parsed = {}
+    for epic_id, section in sections.items():
+        status = epic_metadata(section["text"], "Epic status", "")
+        dependencies = parse_dependency_list(epic_metadata(section["text"], "Depends on", "None"))
+        parsed[epic_id] = {
+            "title": section["title"],
+            "dependencies": dependencies,
+            "releaseStages": parse_release_stages(epic_metadata(section["text"], "Release stages", "merge")),
+            "sourceStatus": status,
+            "sectionSha256": sha256_bytes(section["text"].encode("utf-8")),
+        }
+    missing = [epic_id for epic_id in target_ids if epic_id not in parsed]
+    if missing:
+        raise ValueError("Implementation target is missing Epic sections: " + ", ".join(missing))
+    for epic_id in target_ids:
+        section_text = sections[epic_id]["text"]
+        epic = parsed[epic_id]
+        if epic["sourceStatus"].lower() != "accepted":
+            raise ValueError(f"{epic_id} must be Accepted before launch")
+        required = {
+            "Build ready": "yes",
+            "Ships independently": "yes",
+            "Rolls back independently": "yes",
+        }
+        for field, expected in required.items():
+            actual = (epic_metadata(section_text, field, "") or "").lower()
+            if actual != expected:
+                raise ValueError(f"{epic_id} must declare `{field}: {expected}`")
+    validate_epic_dependency_graph(parsed, target_ids)
+
+    source = {"path": str(source_path), "sha256": sha256_bytes(source_bytes)}
+    coverage = {
+        "schemaVersion": EPIC_LAUNCH_SCHEMA,
+        "source": source,
+        "targetEpicIds": target_ids,
+        "epics": {
+            epic_id: {
+                "title": parsed[epic_id]["title"],
+                "dependencies": parsed[epic_id]["dependencies"],
+                "releaseStages": parsed[epic_id]["releaseStages"],
+                "sectionSha256": parsed[epic_id]["sectionSha256"],
+            }
+            for epic_id in target_ids
+        },
+    }
+    coverage_sha = sha256_bytes(canonical_json(coverage).encode("utf-8"))
+    epics = {}
+    for epic_id in target_ids:
+        epics[epic_id] = {
+            **coverage["epics"][epic_id],
+            "priority": priority,
+            "taskId": None,
+            "taskKey": sha256_bytes(f"{coverage_sha}:{epic_id}".encode("utf-8"))[:24],
+            "runPath": None,
+            "status": "planned",
+            "blocker": None,
+            "stopDisposition": None,
+            "emittedEvents": [],
+        }
+    return {
+        "schemaVersion": EPIC_LAUNCH_SCHEMA,
+        "source": source,
+        "targetEpicIds": target_ids,
+        "coverageSha256": coverage_sha,
+        "epics": epics,
+        "aggregateEmittedEvents": [],
+    }, source_text
+
+
+def write_launch_set(path, data):
+    atomic_write_text(Path(path), json.dumps(data, indent=2, sort_keys=True) + "\n")
+
+
+def launch_coverage_projection(data):
+    return {
+        "schemaVersion": data["schemaVersion"],
+        "source": {key: data["source"][key] for key in ["path", "sha256"]},
+        "targetEpicIds": data["targetEpicIds"],
+        "epics": {
+            epic_id: {
+                "title": data["epics"][epic_id]["title"],
+                "dependencies": data["epics"][epic_id]["dependencies"],
+                "releaseStages": data["epics"][epic_id]["releaseStages"],
+                "sectionSha256": data["epics"][epic_id]["sectionSha256"],
+            }
+            for epic_id in data["targetEpicIds"]
+        },
+    }
+
+
+def load_launch_set(path):
+    path = Path(path).resolve()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if data.get("schemaVersion") != EPIC_LAUNCH_SCHEMA:
+        raise ValueError(f"Unsupported Epic launch schema: {data.get('schemaVersion')}")
+    required = {"schemaVersion", "source", "targetEpicIds", "coverageSha256", "epics", "aggregateEmittedEvents"}
+    if set(data) != required:
+        raise ValueError("Epic launch set has unexpected or missing top-level fields")
+    if len(data["targetEpicIds"]) != len(set(data["targetEpicIds"])) or set(data["epics"]) != set(data["targetEpicIds"]):
+        raise ValueError("Epic launch membership must exactly match targetEpicIds")
+    expected_coverage = sha256_bytes(canonical_json(launch_coverage_projection(data)).encode("utf-8"))
+    if data["coverageSha256"] != expected_coverage:
+        raise ValueError("Epic launch coverage no longer matches its immutable coverage digest")
+    for epic_id, epic in data["epics"].items():
+        if epic.get("status") not in EPIC_STATES:
+            raise ValueError(f"Invalid state for {epic_id}: {epic.get('status')}")
+    return path, data
+
+
+def launch_source_text(launch):
+    snapshot = launch["source"].get("snapshotPath")
+    if not snapshot:
+        raise ValueError("Epic launch set is missing its immutable source snapshot")
+    path = Path(snapshot)
+    content = path.read_bytes()
+    if sha256_bytes(content) != launch["source"]["sha256"]:
+        raise ValueError("Epic launch source snapshot does not match the locked source hash")
+    return content.decode("utf-8")
+
+
+def lifecycle_copy_contract():
+    data = json.loads(EPIC_COPY_TEMPLATE.read_text(encoding="utf-8"))
+    if data.get("schemaVersion") != "gauntlet.epic-copy.v1":
+        raise ValueError("Unsupported Epic lifecycle copy template")
+    return data
+
+
+def render_lifecycle_copy(event, facts, variant="default"):
+    contract = lifecycle_copy_contract()
+    event_contract = contract["events"].get(event)
+    if not event_contract:
+        raise ValueError(f"Unknown Epic lifecycle event: {event}")
+    required = event_contract.get("required", [])
+    missing = [key for key in required if key not in facts]
+    if missing:
+        raise ValueError(f"Lifecycle event {event} is missing facts: {', '.join(missing)}")
+    safe_facts = {key: str(value) for key, value in facts.items()}
+    if has_secret(canonical_json(safe_facts)):
+        raise ValueError("Lifecycle copy facts contain secret-like content")
+    template = event_contract.get("variants", {}).get(variant) or event_contract.get("template")
+    if not template:
+        raise ValueError(f"Lifecycle event {event} has no {variant} template")
+    return template.format_map(safe_facts).strip()
+
+
+def completion_projection_for_run(repo, run_path):
+    if not run_path:
+        return None
+    output, error = run_prd_controller(repo, ["completion", "--run", str(Path(run_path).resolve())])
+    if error:
+        return {"available": False, "error": error}
+    try:
+        data = json.loads(output)
+    except json.JSONDecodeError as exc:
+        return {"available": False, "error": f"completion did not emit JSON: {exc}"}
+    data["available"] = True
+    return data
+
+
+def dependency_satisfied(epic, dependency, projections):
+    projection = projections.get(dependency["epicId"])
+    if not projection or projection.get("available") is not True:
+        return False
+    field = {"merged": "merged", "deployed": "deployed", "productionProved": "productionProved"}[dependency["boundary"]]
+    return projection.get(field) is True
+
+
+def launch_projections(repo, launch):
+    return {
+        epic_id: completion_projection_for_run(repo, epic.get("runPath"))
+        for epic_id, epic in launch["epics"].items()
+    }
+
+
+def ready_launch_epics(launch, projections):
+    target = set(launch["targetEpicIds"])
+    ready = []
+    for epic_id in launch["targetEpicIds"]:
+        epic = launch["epics"][epic_id]
+        if epic["status"] != "planned":
+            continue
+        target_dependencies = [item for item in epic["dependencies"] if item["epicId"] in target]
+        if all(dependency_satisfied(epic, item, projections) for item in target_dependencies):
+            ready.append(epic_id)
+    return ready
+
+
+def epic_task_packet(launch_path, launch, epic_id, repo):
+    section = epic_source_sections(launch_source_text(launch))[epic_id]["text"]
+    epic = launch["epics"][epic_id]
+    dependency_outputs = []
+    projections = launch_projections(repo, launch)
+    for dependency in epic["dependencies"]:
+        if dependency["epicId"] in projections and projections[dependency["epicId"]]:
+            projection = projections[dependency["epicId"]]
+            dependency_outputs.append({
+                "epicId": dependency["epicId"],
+                "boundary": dependency["boundary"],
+                "exactRevision": projection.get("exactRevision"),
+            })
+    source_path = Path(launch["source"]["path"])
+    try:
+        source_reference = source_path.relative_to(Path(repo).resolve()).as_posix()
+    except ValueError:
+        source_reference = source_path.name
+    packet = {
+        "schemaVersion": "gauntlet.epic-task.v1",
+        "mode": "single-epic-non-recursive",
+        "epicId": epic_id,
+        "epicTitle": epic["title"],
+        "sourceReference": source_reference,
+        "sourceSha256": launch["source"]["sha256"],
+        "coverageSha256": launch["coverageSha256"],
+        "launchSet": str(Path(launch_path).resolve()),
+        "taskKey": epic["taskKey"],
+        "dependencyOutputs": dependency_outputs,
+    }
+    opening = render_lifecycle_copy("epic_start", {
+        "epic_id": epic_id,
+        "epic_title": epic["title"],
+        "dependency_note": "Its declared implementation dependencies are satisfied." if epic["dependencies"] else "It has no implementation dependencies.",
+    })
+    message = "\n".join([
+        opening,
+        "",
+        "<gauntlet_epic_task>",
+        canonical_json(packet),
+        "</gauntlet_epic_task>",
+        "",
+        section.rstrip(),
+    ])
+    if has_secret(message):
+        raise ValueError(f"Epic task packet for {epic_id} contains secret-like content")
+    return message
+
+
+def launch_state(launch, projections):
+    states = [epic["status"] for epic in launch["epics"].values()]
+    if any(state == "needs-decision" for state in states):
+        return "needs-decision"
+    if any(state == "failed" for state in states):
+        return "failed"
+    if all(state in {"implementation-complete", "stopped"} for state in states):
+        complete = True
+        for epic_id, epic in launch["epics"].items():
+            if epic["status"] == "stopped":
+                continue
+            projection = projections.get(epic_id) or {}
+            if projection.get("complete") is not True:
+                complete = False
+        return "release-complete" if complete else "implementation-complete"
+    if any(state in {"starting", "in-progress", "implementation-complete"} for state in states):
+        return "running"
+    return "planned"
+
+
+def epic_launch_payload(launch_path, launch, repo, **extra):
+    projections = launch_projections(repo, launch)
+    return {
+        "schemaVersion": EPIC_LAUNCH_SCHEMA,
+        "status": "pass",
+        "launchSet": str(Path(launch_path).resolve()),
+        "launchState": launch_state(launch, projections),
+        "targetCount": len(launch["targetEpicIds"]),
+        "epics": launch["epics"],
+        "projections": projections,
+        "findings": [],
+        **extra,
+    }
+
+
+def command_epic_tasks_init(args):
+    payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "pass", "findings": [], "actions": []}
+    try:
+        launch, source_text = build_epic_launch_set(args.source, args.target, priority=args.priority)
+        launch_path = Path(args.launch_set).resolve()
+        snapshot_path = launch_path.with_name(launch_path.stem + ".source.md")
+        if launch_path.exists() or snapshot_path.exists():
+            raise ValueError("Epic launch initialization refuses to overwrite an existing launch set or snapshot")
+        launch["source"]["snapshotPath"] = str(snapshot_path)
+        try:
+            atomic_write_text(snapshot_path, source_text)
+            write_launch_set(launch_path, launch)
+        except Exception:
+            if launch_path.exists():
+                launch_path.unlink()
+            if snapshot_path.exists():
+                snapshot_path.unlink()
+            raise
+        payload.update(epic_launch_payload(launch_path, launch, args.git_root))
+        payload["productTaskTitle"] = product_task_title(args.priority, launch["targetEpicIds"][0].split("-", 1)[0])
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        add_finding(payload, "epic_launch_init_failed", "fail", str(exc))
+        payload["status"] = status_for(payload)
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def command_epic_tasks_plan(args):
+    try:
+        launch_path, launch = load_launch_set(args.launch_set)
+        projections = launch_projections(args.git_root, launch)
+        ready = ready_launch_epics(launch, projections)
+        actions = []
+        for epic_id in ready:
+            epic = launch["epics"][epic_id]
+            epic["status"] = "starting"
+            actions.append({
+                "type": "create_thread",
+                "taskKey": epic["taskKey"],
+                "title": epic_task_title(epic["priority"], epic_id, epic["title"]),
+                "cwd": str(Path(args.git_root).resolve()),
+                "message": epic_task_packet(launch_path, launch, epic_id, args.git_root),
+            })
+        if ready:
+            write_launch_set(launch_path, launch)
+        reconcile = [
+            {"epicId": epic_id, "taskKey": epic["taskKey"]}
+            for epic_id, epic in launch["epics"].items()
+            if epic["status"] == "starting" and not epic["taskId"] and epic_id not in ready
+        ]
+        payload = epic_launch_payload(launch_path, launch, args.git_root, actions=actions, reconcileRequired=reconcile)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "fail", "findings": [{"code": "epic_launch_plan_failed", "severity": "fail", "message": str(exc)}], "actions": []}
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def maybe_aggregate_start_event(launch):
+    if "aggregate_start" in launch["aggregateEmittedEvents"]:
+        return None
+    started = sum(1 for epic in launch["epics"].values() if epic["taskId"])
+    if not started or any(epic["status"] == "starting" and not epic["taskId"] for epic in launch["epics"].values()):
+        return None
+    queued = sum(1 for epic in launch["epics"].values() if epic["status"] == "planned")
+    launch["aggregateEmittedEvents"].append("aggregate_start")
+    return {
+        "event": "aggregate_start",
+        "copy": render_lifecycle_copy("aggregate_start", {
+            "target_count": len(launch["targetEpicIds"]),
+            "started_count": started,
+            "queued_count": queued,
+        }, variant="break"),
+    }
+
+
+def command_epic_tasks_record_task(args):
+    try:
+        launch_path, launch = load_launch_set(args.launch_set)
+        epic = launch["epics"].get(args.epic)
+        if not epic:
+            raise ValueError(f"Epic is not in the launch set: {args.epic}")
+        if epic["taskId"] and epic["taskId"] != args.task_id:
+            raise ValueError(f"{args.epic} is already mapped to a different task ID")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{2,255}", args.task_id):
+            raise ValueError("Task ID has an invalid format")
+        events = []
+        if not epic["taskId"]:
+            epic["taskId"] = args.task_id
+            epic["status"] = "in-progress"
+            if "epic_start" not in epic["emittedEvents"]:
+                epic["emittedEvents"].append("epic_start")
+                events.append({"event": "epic_start", "epicId": args.epic, "copy": render_lifecycle_copy("epic_start", {
+                    "epic_id": args.epic,
+                    "epic_title": epic["title"],
+                    "dependency_note": "Its declared implementation dependencies are satisfied." if epic["dependencies"] else "It has no implementation dependencies.",
+                })})
+        aggregate = maybe_aggregate_start_event(launch)
+        if aggregate:
+            events.append(aggregate)
+        write_launch_set(launch_path, launch)
+        payload = epic_launch_payload(launch_path, launch, args.git_root, lifecycleEvents=events)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "fail", "findings": [{"code": "epic_task_record_failed", "severity": "fail", "message": str(exc)}], "lifecycleEvents": []}
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def command_epic_tasks_release_start(args):
+    try:
+        launch_path, launch = load_launch_set(args.launch_set)
+        epic = launch["epics"].get(args.epic)
+        if not epic or epic["taskKey"] != args.task_key:
+            raise ValueError("Epic task key does not match the launch set")
+        if epic["taskId"]:
+            raise ValueError("A recorded Epic task cannot be released for recreation")
+        if epic["status"] != "starting":
+            raise ValueError("Only an ambiguous starting action can be released")
+        epic["status"] = "planned"
+        write_launch_set(launch_path, launch)
+        payload = epic_launch_payload(launch_path, launch, args.git_root)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "fail", "findings": [{"code": "epic_task_release_failed", "severity": "fail", "message": str(exc)}]}
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def command_epic_tasks_record_run(args):
+    try:
+        launch_path, launch = load_launch_set(args.launch_set)
+        epic = launch["epics"].get(args.epic)
+        if not epic or not epic["taskId"]:
+            raise ValueError("Record the Epic task before its Execution Run")
+        run_path = Path(args.run).resolve()
+        source_lock_path = run_path / "source-lock.json"
+        if not source_lock_path.is_file():
+            raise ValueError(f"Execution Run lacks source-lock.json: {run_path}")
+        source_lock = json.loads(source_lock_path.read_text(encoding="utf-8"))
+        locked_epics = source_lock.get("epics") or source_lock.get("target_epics") or source_lock.get("targetEpicIds") or []
+        if isinstance(locked_epics, dict):
+            locked_epics = list(locked_epics)
+        if locked_epics and locked_epics != [args.epic]:
+            raise ValueError("Execution Run must lock exactly the recorded Epic")
+        if epic["runPath"] and Path(epic["runPath"]).resolve() != run_path:
+            raise ValueError("Epic is already mapped to a different Execution Run")
+        epic["runPath"] = str(run_path)
+        write_launch_set(launch_path, launch)
+        payload = epic_launch_payload(launch_path, launch, args.git_root)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "fail", "findings": [{"code": "epic_run_record_failed", "severity": "fail", "message": str(exc)}]}
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def command_epic_tasks_status(args):
+    try:
+        launch_path, launch = load_launch_set(args.launch_set)
+        payload = epic_launch_payload(launch_path, launch, args.git_root)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "fail", "findings": [{"code": "epic_launch_status_failed", "severity": "fail", "message": str(exc)}]}
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def command_epic_tasks_blocker(args):
+    try:
+        launch_path, launch = load_launch_set(args.launch_set)
+        epic = launch["epics"].get(args.epic)
+        if not epic:
+            raise ValueError(f"Epic is not in the launch set: {args.epic}")
+        blocker = json.loads(Path(args.blocker).read_text(encoding="utf-8"))
+        required = {"classification", "decision", "recommendation", "reason", "impact", "authorityNotGranted", "question"}
+        if set(blocker) != required:
+            raise ValueError("Blocker must contain exactly: " + ", ".join(sorted(required)))
+        if blocker["classification"] not in {"recoverable", "needs-parent", "requires-user", "terminal"}:
+            raise ValueError("Unknown blocker classification")
+        if has_secret(canonical_json(blocker)):
+            raise ValueError("Blocker contains secret-like content")
+        events = []
+        epic["blocker"] = blocker
+        if blocker["classification"] == "requires-user":
+            epic["status"] = "needs-decision"
+            digest = "material_blocker:" + sha256_bytes(canonical_json(blocker).encode("utf-8"))[:16]
+            if digest not in epic["emittedEvents"]:
+                epic["emittedEvents"].append(digest)
+                continuing = sum(
+                    1 for other_id, other in launch["epics"].items()
+                    if other_id != args.epic and other["status"] in {"starting", "in-progress", "implementation-complete"}
+                )
+                events.append({"event": "material_blocker", "epicId": args.epic, "copy": render_lifecycle_copy("material_blocker", {
+                    "epic_id": args.epic,
+                    "decision": blocker["decision"],
+                    "recommendation": blocker["recommendation"],
+                    "reason": blocker["reason"],
+                    "impact": blocker["impact"],
+                    "authority_not_granted": blocker["authorityNotGranted"],
+                    "other_epics_continuing": continuing,
+                    "question": blocker["question"],
+                })})
+        elif blocker["classification"] == "terminal":
+            epic["status"] = "failed"
+        write_launch_set(launch_path, launch)
+        payload = epic_launch_payload(launch_path, launch, args.git_root, lifecycleEvents=events)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "fail", "findings": [{"code": "epic_blocker_record_failed", "severity": "fail", "message": str(exc)}], "lifecycleEvents": []}
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def command_epic_tasks_resolve_blocker(args):
+    try:
+        launch_path, launch = load_launch_set(args.launch_set)
+        epic = launch["epics"].get(args.epic)
+        if not epic or epic["status"] != "needs-decision" or not epic["blocker"]:
+            raise ValueError("Epic has no user decision awaiting resolution")
+        if args.disposition == "continue":
+            epic["status"] = "in-progress"
+            epic["blocker"] = None
+        else:
+            if not args.reason:
+                raise ValueError("Stopping an Epic requires an accepted disposition reason")
+            if has_secret(args.reason):
+                raise ValueError("Stop disposition contains secret-like content")
+            epic["status"] = "stopped"
+            epic["stopDisposition"] = args.reason
+            epic["blocker"] = None
+        write_launch_set(launch_path, launch)
+        payload = epic_launch_payload(launch_path, launch, args.git_root)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "fail", "findings": [{"code": "epic_blocker_resolution_failed", "severity": "fail", "message": str(exc)}]}
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def pending_gate_text(projection):
+    gates = projection.get("pendingGates") or []
+    if not gates:
+        return "no applicable release gates"
+    labels = []
+    for gate in gates:
+        if isinstance(gate, dict):
+            labels.append(str(gate.get("stage") or gate.get("id") or "an unnamed gate"))
+        else:
+            labels.append(str(gate))
+    return ", ".join(labels)
+
+
+def maybe_finish_events(launch, projections):
+    events = []
+    for epic_id in launch["targetEpicIds"]:
+        epic = launch["epics"][epic_id]
+        projection = projections.get(epic_id) or {}
+        if projection.get("available") is True and projection.get("implemented") is True:
+            epic["status"] = "implementation-complete"
+            if "epic_finish" not in epic["emittedEvents"]:
+                epic["emittedEvents"].append("epic_finish")
+                remaining = sum(
+                    1 for other_id, other in launch["epics"].items()
+                    if other_id != epic_id and other["status"] not in {"implementation-complete", "stopped"}
+                )
+                events.append({"event": "epic_finish", "epicId": epic_id, "copy": render_lifecycle_copy("epic_finish", {
+                    "epic_id": epic_id,
+                    "epic_title": epic["title"],
+                    "exact_revision": projection.get("exactRevision") or "an unavailable revision",
+                    "verification_summary": projection.get("verificationSummary") or "final Epic verification passed",
+                    "pending_release_gates": pending_gate_text(projection),
+                    "remaining_count": remaining,
+                })})
+    finished = all(epic["status"] in {"implementation-complete", "stopped"} for epic in launch["epics"].values())
+    if finished and "aggregate_finish" not in launch["aggregateEmittedEvents"]:
+        launch["aggregateEmittedEvents"].append("aggregate_finish")
+        stopped = [f"{epic_id} ({epic['stopDisposition']})" for epic_id, epic in launch["epics"].items() if epic["status"] == "stopped"]
+        implemented = sum(1 for epic in launch["epics"].values() if epic["status"] == "implementation-complete")
+        release_states = []
+        pending = []
+        for epic_id, projection in projections.items():
+            if not projection or projection.get("available") is not True:
+                continue
+            release_states.append(
+                f"{epic_id}: implemented={str(bool(projection.get('implemented'))).lower()}, "
+                f"merged={str(bool(projection.get('merged'))).lower()}, deployed={str(bool(projection.get('deployed'))).lower()}, "
+                f"production-proved={str(bool(projection.get('productionProved'))).lower()}"
+            )
+            if projection.get("pendingGates"):
+                pending.append(f"{epic_id}: {pending_gate_text(projection)}")
+        if stopped:
+            copy = (
+                f"Implementation has reached its accepted stopping point for all {len(launch['targetEpicIds'])} targeted Epics. "
+                f"{implemented} are implementation-complete; stopped with an accepted disposition: {', '.join(stopped)}. "
+                f"Release state: {'; '.join(release_states) or 'unavailable'}. {'Pending gates: ' + '; '.join(pending) + '.' if pending else ''}"
+            ).strip()
+        else:
+            copy = render_lifecycle_copy("aggregate_finish", {
+                "implemented_count": implemented,
+                "exact_release_state": "; ".join(release_states) or "unavailable",
+                "pending_gates": ("Pending gates: " + "; ".join(pending) + ".") if pending else "No applicable gates remain.",
+            })
+        events.append({"event": "aggregate_finish", "copy": copy})
+    return events
+
+
+def command_epic_tasks_reconcile(args):
+    try:
+        launch_path, launch = load_launch_set(args.launch_set)
+        projections = launch_projections(args.git_root, launch)
+        events = maybe_finish_events(launch, projections)
+        ready = ready_launch_epics(launch, projections)
+        actions = []
+        for epic_id in ready:
+            epic = launch["epics"][epic_id]
+            epic["status"] = "starting"
+            actions.append({
+                "type": "create_thread",
+                "taskKey": epic["taskKey"],
+                "title": epic_task_title(epic["priority"], epic_id, epic["title"]),
+                "cwd": str(Path(args.git_root).resolve()),
+                "message": epic_task_packet(launch_path, launch, epic_id, args.git_root),
+            })
+        write_launch_set(launch_path, launch)
+        payload = epic_launch_payload(launch_path, launch, args.git_root, lifecycleEvents=events, actions=actions)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "fail", "findings": [{"code": "epic_launch_reconcile_failed", "severity": "fail", "message": str(exc)}], "lifecycleEvents": [], "actions": []}
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def replace_epic_metadata(source_text, epic_id, updates):
+    sections = epic_source_sections(source_text)
+    if epic_id not in sections:
+        raise ValueError(f"Canonical PRD no longer contains {epic_id}")
+    section = sections[epic_id]["text"]
+    updated = section
+    heading_end = updated.find("\n") + 1
+    for field, value in updates.items():
+        pattern = re.compile(rf"^{re.escape(field)}:\s*.*$", re.MULTILINE | re.IGNORECASE)
+        replacement = f"{field}: {value}"
+        if pattern.search(updated):
+            updated = pattern.sub(replacement, updated, count=1)
+        else:
+            updated = updated[:heading_end] + "\n" + replacement + updated[heading_end:]
+            heading_end += len(replacement) + 1
+    start = source_text.index(section)
+    return source_text[:start] + updated + source_text[start + len(section):]
+
+
+def update_epic_index(index_text, epic_id, status, implementation, verification):
+    lines = index_text.splitlines()
+    found = False
+    for index, line in enumerate(lines):
+        if not re.match(rf"^\|\s*`{re.escape(epic_id)}`\s*\|", line):
+            continue
+        cells = [cell.strip() for cell in line.split("|")]
+        if len(cells) < 11:
+            raise ValueError(f"Index row for {epic_id} has an unexpected shape")
+        cells[4] = status
+        cells[8] = implementation
+        cells[9] = verification
+        lines[index] = "| " + " | ".join(cells[1:-1]) + " |"
+        found = True
+        break
+    if not found:
+        raise ValueError(f"Local document index has no row for {epic_id}")
+    return "\n".join(lines) + ("\n" if index_text.endswith("\n") else "")
+
+
+def command_epic_tasks_reconcile_docs(args):
+    try:
+        launch_path, launch = load_launch_set(args.launch_set)
+        epic = launch["epics"].get(args.epic)
+        if not epic or not epic.get("runPath"):
+            raise ValueError("Epic has no recorded Execution Run")
+        projection = completion_projection_for_run(args.git_root, epic["runPath"])
+        if not projection or projection.get("available") is not True or projection.get("implemented") is not True:
+            raise ValueError("Canonical documents require an implemented completion projection")
+        if projection.get("sourceSha256") != launch["source"]["sha256"]:
+            raise ValueError("Completion projection does not match the launch-set source lock")
+        primary = primary_worktree(args.git_root)
+        source_path = Path(launch["source"]["path"]).resolve()
+        try:
+            source_path.relative_to(primary)
+        except ValueError as exc:
+            raise ValueError("Canonical PRD is not in the primary worktree") from exc
+        index_path = primary / "local-docs" / "INDEX.md"
+        exact_revision = projection.get("exactRevision") or "revision unavailable"
+        final_status = "Complete" if projection.get("complete") is True else "Implementation-complete"
+        source_before = source_path.read_text(encoding="utf-8")
+        index_before = index_path.read_text(encoding="utf-8")
+        source_after = replace_epic_metadata(source_before, args.epic, {
+            "Epic status": final_status,
+            "Implemented by": f"Execution Run {Path(epic['runPath']).name} at `{exact_revision}`",
+            "Verified by": f"Final Epic verification on `{exact_revision}`",
+        })
+        index_after = update_epic_index(
+            index_before, args.epic, final_status,
+            f"Execution Run `{Path(epic['runPath']).name}` at `{exact_revision}`",
+            f"Final Epic verification passed on `{exact_revision}`",
+        )
+        if source_after != source_before:
+            atomic_write_text(source_path, source_after)
+        if index_after != index_before:
+            atomic_write_text(index_path, index_after)
+        payload = epic_launch_payload(
+            launch_path, launch, args.git_root,
+            reconciled={"epicId": args.epic, "prd": str(source_path), "index": str(index_path), "changed": source_after != source_before or index_after != index_before},
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "fail", "findings": [{"code": "canonical_epic_reconcile_failed", "severity": "fail", "message": str(exc)}]}
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def launch_merge_lease_path(launch_path):
+    launch_path = Path(launch_path).resolve()
+    return launch_path.with_name(launch_path.stem + ".merge-lease.json")
+
+
+def current_default_head(repo):
+    symbolic = git(["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], repo)
+    remote_ref = symbolic.stdout.strip() if symbolic.returncode == 0 else "origin/main"
+    result = git(["rev-parse", remote_ref], repo)
+    if result.returncode != 0:
+        result = git(["rev-parse", "main"], repo)
+    if result.returncode != 0:
+        raise ValueError("Cannot resolve the current default-branch head")
+    return result.stdout.strip(), remote_ref
+
+
+def command_epic_tasks_merge_lease_acquire(args):
+    try:
+        launch_path, launch = load_launch_set(args.launch_set)
+        epic = launch["epics"].get(args.epic)
+        if not epic or not epic.get("runPath"):
+            raise ValueError("Epic has no recorded Execution Run")
+        projection = completion_projection_for_run(args.git_root, epic["runPath"])
+        if not projection or projection.get("available") is not True or projection.get("implemented") is not True:
+            raise ValueError("Merge lease requires an implemented completion projection")
+        if projection.get("exactRevision") != args.candidate_head:
+            raise ValueError("Candidate head differs from the final Epic verification revision")
+        default_head, default_ref = current_default_head(args.git_root)
+        if default_head != args.verified_base:
+            raise ValueError(f"Default branch advanced from {args.verified_base} to {default_head}; re-integrate and reverify before merging")
+        lease_path = launch_merge_lease_path(launch_path)
+        lease = {
+            "schemaVersion": "gauntlet.epic-merge-lease.v1",
+            "coverageSha256": launch["coverageSha256"],
+            "epicId": args.epic,
+            "candidateHead": args.candidate_head,
+            "baseHead": args.verified_base,
+            "baseRef": default_ref,
+        }
+        if lease_path.exists():
+            current = json.loads(lease_path.read_text(encoding="utf-8"))
+            if current != lease:
+                raise ValueError(f"Default-branch merge lease is held by {current.get('epicId', 'another Epic')}")
+        else:
+            write_new_file(lease_path, json.dumps(lease, indent=2, sort_keys=True) + "\n")
+        payload = epic_launch_payload(launch_path, launch, args.git_root, mergeLease=lease)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "fail", "findings": [{"code": "epic_merge_lease_failed", "severity": "fail", "message": str(exc)}]}
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
+
+
+def command_epic_tasks_merge_lease_release(args):
+    try:
+        launch_path, launch = load_launch_set(args.launch_set)
+        lease_path = launch_merge_lease_path(launch_path)
+        if not lease_path.is_file():
+            raise ValueError("No Epic merge lease exists")
+        lease = json.loads(lease_path.read_text(encoding="utf-8"))
+        if lease.get("epicId") != args.epic or lease.get("candidateHead") != args.candidate_head:
+            raise ValueError("Merge lease does not match the releasing Epic and candidate")
+        result = git(["merge-base", "--is-ancestor", args.candidate_head, args.merged_head], args.git_root)
+        if result.returncode != 0:
+            raise ValueError("Merged revision does not contain the leased candidate head")
+        lease_path.unlink()
+        payload = epic_launch_payload(launch_path, launch, args.git_root, releasedMergeLease={"epicId": args.epic, "mergedHead": args.merged_head})
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "fail", "findings": [{"code": "epic_merge_lease_release_failed", "severity": "fail", "message": str(exc)}]}
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
 
 
 def payload_key_is_sensitive(key):
@@ -4018,6 +4884,92 @@ def build_parser():
     install_verify.add_argument("--agent-home", required=True)
     install_verify.add_argument("--json", action="store_true")
     install_verify.set_defaults(func=command_install_verify)
+
+    epic_tasks = subcommands.add_parser("epic-tasks", help="Plan and reconcile one visible implementation task per build-ready Epic.")
+    epic_task_subcommands = epic_tasks.add_subparsers(dest="epic_tasks_command", required=True)
+    epic_init = epic_task_subcommands.add_parser("init", help="Freeze one complete PRD target into an Epic launch set.")
+    epic_init.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_init.add_argument("--source", type=Path, required=True)
+    epic_init.add_argument("--target", action="append", default=[])
+    epic_init.add_argument("--launch-set", type=Path, required=True)
+    epic_init.add_argument("--priority", choices=["p0", "p1", "p2", "p3", "p4"], default="p1")
+    epic_init.add_argument("--json", action="store_true")
+    epic_init.set_defaults(func=command_epic_tasks_init)
+    epic_plan = epic_task_subcommands.add_parser("plan", help="Emit only missing dependency-ready task actions.")
+    epic_plan.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_plan.add_argument("--launch-set", type=Path, required=True)
+    epic_plan.add_argument("--json", action="store_true")
+    epic_plan.set_defaults(func=command_epic_tasks_plan)
+    epic_record_task = epic_task_subcommands.add_parser("record-task", help="Persist a proven native task ID for an Epic.")
+    epic_record_task.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_record_task.add_argument("--launch-set", type=Path, required=True)
+    epic_record_task.add_argument("--epic", required=True)
+    epic_record_task.add_argument("--task-id", required=True)
+    epic_record_task.add_argument("--json", action="store_true")
+    epic_record_task.set_defaults(func=command_epic_tasks_record_task)
+    epic_release = epic_task_subcommands.add_parser("release-start", help="Release an ambiguous task action only after native reconciliation proves no task exists.")
+    epic_release.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_release.add_argument("--launch-set", type=Path, required=True)
+    epic_release.add_argument("--epic", required=True)
+    epic_release.add_argument("--task-key", required=True)
+    epic_release.add_argument("--json", action="store_true")
+    epic_release.set_defaults(func=command_epic_tasks_release_start)
+    epic_record_run = epic_task_subcommands.add_parser("record-run", help="Bind an Epic task to its single-Epic Execution Run.")
+    epic_record_run.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_record_run.add_argument("--launch-set", type=Path, required=True)
+    epic_record_run.add_argument("--epic", required=True)
+    epic_record_run.add_argument("--run", type=Path, required=True)
+    epic_record_run.add_argument("--json", action="store_true")
+    epic_record_run.set_defaults(func=command_epic_tasks_record_run)
+    epic_status = epic_task_subcommands.add_parser("status", help="Read current Epic task and completion projections without changing state.")
+    epic_status.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_status.add_argument("--launch-set", type=Path, required=True)
+    epic_status.add_argument("--json", action="store_true")
+    epic_status.set_defaults(func=command_epic_tasks_status)
+    epic_reconcile = epic_task_subcommands.add_parser("reconcile", help="Refresh completion facts, finish copy, and newly ready task actions.")
+    epic_reconcile.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_reconcile.add_argument("--launch-set", type=Path, required=True)
+    epic_reconcile.add_argument("--json", action="store_true")
+    epic_reconcile.set_defaults(func=command_epic_tasks_reconcile)
+    epic_blocker = epic_task_subcommands.add_parser("blocker", help="Record a structured Epic blocker and emit a user question only when required.")
+    epic_blocker.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_blocker.add_argument("--launch-set", type=Path, required=True)
+    epic_blocker.add_argument("--epic", required=True)
+    epic_blocker.add_argument("--blocker", type=Path, required=True)
+    epic_blocker.add_argument("--json", action="store_true")
+    epic_blocker.set_defaults(func=command_epic_tasks_blocker)
+    epic_resolve = epic_task_subcommands.add_parser("resolve-blocker", help="Apply the product task's accepted blocker disposition.")
+    epic_resolve.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_resolve.add_argument("--launch-set", type=Path, required=True)
+    epic_resolve.add_argument("--epic", required=True)
+    epic_resolve.add_argument("--disposition", choices=["continue", "stop"], required=True)
+    epic_resolve.add_argument("--reason", default=None)
+    epic_resolve.add_argument("--json", action="store_true")
+    epic_resolve.set_defaults(func=command_epic_tasks_resolve_blocker)
+    epic_docs = epic_task_subcommands.add_parser("reconcile-docs", help="Project one implemented Epic back into its canonical PRD and index.")
+    epic_docs.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_docs.add_argument("--launch-set", type=Path, required=True)
+    epic_docs.add_argument("--epic", required=True)
+    epic_docs.add_argument("--json", action="store_true")
+    epic_docs.set_defaults(func=command_epic_tasks_reconcile_docs)
+    epic_lease = epic_task_subcommands.add_parser("merge-lease", help="Serialize default-branch mutation across ready Epic PRs.")
+    epic_lease_subcommands = epic_lease.add_subparsers(dest="epic_merge_lease_command", required=True)
+    epic_lease_acquire = epic_lease_subcommands.add_parser("acquire")
+    epic_lease_acquire.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_lease_acquire.add_argument("--launch-set", type=Path, required=True)
+    epic_lease_acquire.add_argument("--epic", required=True)
+    epic_lease_acquire.add_argument("--candidate-head", required=True)
+    epic_lease_acquire.add_argument("--verified-base", required=True)
+    epic_lease_acquire.add_argument("--json", action="store_true")
+    epic_lease_acquire.set_defaults(func=command_epic_tasks_merge_lease_acquire)
+    epic_lease_release = epic_lease_subcommands.add_parser("release")
+    epic_lease_release.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_lease_release.add_argument("--launch-set", type=Path, required=True)
+    epic_lease_release.add_argument("--epic", required=True)
+    epic_lease_release.add_argument("--candidate-head", required=True)
+    epic_lease_release.add_argument("--merged-head", required=True)
+    epic_lease_release.add_argument("--json", action="store_true")
+    epic_lease_release.set_defaults(func=command_epic_tasks_merge_lease_release)
 
     docs = subcommands.add_parser("docs", help="Manage the default-on canonical local product-document profile.")
     docs_subcommands = docs.add_subparsers(dest="docs_command", required=True)
