@@ -615,10 +615,13 @@ def test_consequence_triggered_review_replaces_broad_panels():
         "run-log-builder": read(SKILLS / "run-log-builder" / "SKILL.md"),
     }
     for marker in [
-        "billing/paid actions",
-        "three parallel review lenses",
+        "consequence triggers exactly",
+        "omission never means `none`",
+        "three exact-revision lenses",
         "deterministic checks first",
-        "repository-owned dry run",
+        "repository-owned dry-run",
+        "bounded-canary",
+        "rollback evidence",
     ]:
         assert_contains(files["planner"], marker, "consequence-triggered planner")
     assert_contains(files["deep-code-reviewer"], "bounded `run-facts` packet", "bounded deep review")
