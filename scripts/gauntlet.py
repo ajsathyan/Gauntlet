@@ -821,16 +821,20 @@ def parse_release_stages(raw):
     requested = {"merge"}
     if raw:
         values = {item.strip().lower().replace("_", "-") for item in raw.split(",") if item.strip()}
-        aliases = {"production": "production-proof", "productionproved": "production-proof"}
+        aliases = {
+            "production": "production-verification",
+            "production-proof": "production-verification",
+            "productionproved": "production-verification",
+        }
         requested = {aliases.get(value, value) for value in values}
-    unknown = requested - {"merge", "deployment", "production-proof"}
+    unknown = requested - {"merge", "deployment", "production-verification"}
     if unknown:
         raise ValueError("Unknown release stage: " + ", ".join(sorted(unknown)))
-    return {
-        "merge": "required" if "merge" in requested else "not-applicable",
-        "deployment": "required" if "deployment" in requested else "not-applicable",
-        "productionProof": "required" if "production-proof" in requested else "not-applicable",
-    }
+    if "production-verification" in requested and "deployment" not in requested:
+        raise ValueError("Production verification requires deployment")
+    if "merge" not in requested:
+        raise ValueError("Every Epic release requires merge")
+    return sorted(requested)
 
 
 def implementation_target_ids(source_text):
@@ -881,7 +885,7 @@ def build_epic_launch_set(source_path, target_ids, priority="p1"):
     declared_target = implementation_target_ids(source_text)
     if target_ids and list(target_ids) != declared_target:
         raise ValueError("Requested target must exactly match the PRD Implementation target in canonical order")
-    target_ids = declared_target
+    target_ids = sorted(declared_target)
     sections = epic_source_sections(source_text)
     parsed = {}
     for epic_id, section in sections.items():
@@ -892,7 +896,6 @@ def build_epic_launch_set(source_path, target_ids, priority="p1"):
             "dependencies": dependencies,
             "releaseStages": parse_release_stages(epic_metadata(section["text"], "Release stages", "merge")),
             "sourceStatus": status,
-            "sectionSha256": sha256_bytes(section["text"].encode("utf-8")),
         }
     missing = [epic_id for epic_id in target_ids if epic_id not in parsed]
     if missing:
@@ -923,7 +926,6 @@ def build_epic_launch_set(source_path, target_ids, priority="p1"):
                 "title": parsed[epic_id]["title"],
                 "dependencies": parsed[epic_id]["dependencies"],
                 "releaseStages": parsed[epic_id]["releaseStages"],
-                "sectionSha256": parsed[epic_id]["sectionSha256"],
             }
             for epic_id in target_ids
         },
@@ -933,9 +935,7 @@ def build_epic_launch_set(source_path, target_ids, priority="p1"):
     for epic_id in target_ids:
         epics[epic_id] = {
             **coverage["epics"][epic_id],
-            "priority": priority,
             "taskId": None,
-            "taskKey": sha256_bytes(f"{coverage_sha}:{epic_id}".encode("utf-8"))[:24],
             "runPath": None,
             "status": "planned",
             "blocker": None,
@@ -966,11 +966,14 @@ def launch_coverage_projection(data):
                 "title": data["epics"][epic_id]["title"],
                 "dependencies": data["epics"][epic_id]["dependencies"],
                 "releaseStages": data["epics"][epic_id]["releaseStages"],
-                "sectionSha256": data["epics"][epic_id]["sectionSha256"],
             }
             for epic_id in data["targetEpicIds"]
         },
     }
+
+
+def launch_task_key(launch, epic_id):
+    return sha256_bytes(f"{launch['coverageSha256']}:{epic_id}".encode("utf-8"))[:24]
 
 
 def load_launch_set(path):
@@ -1101,7 +1104,7 @@ def epic_task_packet(launch_path, launch, epic_id, repo):
         "sourceSha256": launch["source"]["sha256"],
         "coverageSha256": launch["coverageSha256"],
         "launchSet": launch_reference,
-        "taskKey": epic["taskKey"],
+        "taskKey": launch_task_key(launch, epic_id),
         "dependencyOutputs": dependency_outputs,
     }
     opening = render_lifecycle_copy("epic_start", {
@@ -1196,15 +1199,15 @@ def command_epic_tasks_plan(args):
             epic["status"] = "starting"
             actions.append({
                 "type": "create_thread",
-                "taskKey": epic["taskKey"],
-                "title": epic_task_title(epic["priority"], epic_id, epic["title"]),
+                "taskKey": launch_task_key(launch, epic_id),
+                "title": epic_task_title("p1", epic_id, epic["title"]),
                 "cwd": str(Path(args.git_root).resolve()),
                 "message": epic_task_packet(launch_path, launch, epic_id, args.git_root),
             })
         if ready:
             write_launch_set(launch_path, launch)
         reconcile = [
-            {"epicId": epic_id, "taskKey": epic["taskKey"]}
+            {"epicId": epic_id, "taskKey": launch_task_key(launch, epic_id)}
             for epic_id, epic in launch["epics"].items()
             if epic["status"] == "starting" and not epic["taskId"] and epic_id not in ready
         ]
@@ -1269,7 +1272,7 @@ def command_epic_tasks_release_start(args):
     try:
         launch_path, launch = load_launch_set(args.launch_set)
         epic = launch["epics"].get(args.epic)
-        if not epic or epic["taskKey"] != args.task_key:
+        if not epic or launch_task_key(launch, args.epic) != args.task_key:
             raise ValueError("Epic task key does not match the launch set")
         if epic["taskId"]:
             raise ValueError("A recorded Epic task cannot be released for recreation")
@@ -1479,8 +1482,8 @@ def command_epic_tasks_reconcile(args):
             epic["status"] = "starting"
             actions.append({
                 "type": "create_thread",
-                "taskKey": epic["taskKey"],
-                "title": epic_task_title(epic["priority"], epic_id, epic["title"]),
+                "taskKey": launch_task_key(launch, epic_id),
+                "title": epic_task_title("p1", epic_id, epic["title"]),
                 "cwd": str(Path(args.git_root).resolve()),
                 "message": epic_task_packet(launch_path, launch, epic_id, args.git_root),
             })

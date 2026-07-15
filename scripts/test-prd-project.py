@@ -91,7 +91,7 @@ class EpicProjectTests(unittest.TestCase):
             _, current = gauntlet.load_launch_set(launch_path)
             release_args = argparse.Namespace(
                 git_root=root, launch_set=launch_path, epic="APP-001",
-                task_key=current["epics"]["APP-001"]["taskKey"], json=True,
+                task_key=gauntlet.launch_task_key(current, "APP-001"), json=True,
             )
             with mock.patch("gauntlet.print_payload"):
                 self.assertEqual(gauntlet.command_epic_tasks_release_start(release_args), 0)
