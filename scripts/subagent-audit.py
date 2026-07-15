@@ -6,6 +6,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import tempfile
 from contextlib import contextmanager
@@ -21,6 +22,15 @@ EXPECTED = {
     "gauntlet_deep_expert_researcher": ("gpt-5.6-sol", "xhigh"),
     "gauntlet_security_reviewer": ("gpt-5.6-sol", "high"),
 }
+OPAQUE_ID = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
+SECRET_LIKE = re.compile(
+    r"\A(?:sk-|gh[pousr]_|github_pat_|xox[a-z]-|akia|aiza|bearer-)",
+    re.IGNORECASE,
+)
+PROMPT_LIKE = re.compile(
+    r"\A(?:prompt(?:-|_)|system(?:-|_)prompt|user(?:-|_)prompt|assistant(?:-|_)prompt|ignore(?:-|_)previous)",
+    re.IGNORECASE,
+)
 AUTHORITY_CLASS = {
     "gauntlet_fast_reader": "read-only",
     "gauntlet_independent_verifier": "read-only",
@@ -380,6 +390,130 @@ def summary_payload(native, analytics_path, quarantine_path, output):
     }
 
 
+def opaque_id(value, label):
+    if not isinstance(value, str) or not value or len(value) > 128:
+        raise RuntimeError("{} must be a bounded opaque ID".format(label))
+    if SECRET_LIKE.match(value) or PROMPT_LIKE.match(value) or not OPAQUE_ID.fullmatch(value):
+        raise RuntimeError("{} must be a bounded opaque ID".format(label))
+    return value
+
+
+def validate_owners(owners):
+    if not isinstance(owners, list) or not owners:
+        raise RuntimeError("Epic Run facts require a non-empty owners list")
+    normalized = []
+    seen_refs = set()
+    for index, owner in enumerate(owners, 1):
+        if not isinstance(owner, dict) or owner.get("ownerKind") not in {"parent", "delegated"}:
+            raise RuntimeError("Epic Run owner {} has an invalid ownerKind".format(index))
+        owner_ref = opaque_id(owner.get("ownerRef"), "Epic Run owner {} ownerRef".format(index))
+        if owner_ref in seen_refs:
+            raise RuntimeError("Epic Run owner {} requires a unique ownerRef".format(index))
+        child_id = owner.get("nativeChildId")
+        if child_id is not None:
+            child_id = opaque_id(child_id, "Epic Run owner {} nativeChildId".format(index))
+        requested_profile = owner.get("requestedProfile")
+        if requested_profile is not None and (
+            not isinstance(requested_profile, str) or requested_profile not in EXPECTED
+        ):
+            raise RuntimeError("Epic Run owner {} requestedProfile is not canonical".format(index))
+        seen_refs.add(owner_ref)
+        normalized.append({
+            "ownerKind": owner["ownerKind"],
+            "ownerRef": owner_ref,
+            "nativeChildId": child_id,
+            "requestedProfile": requested_profile,
+        })
+    return normalized
+
+
+def read_run_facts(path):
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise RuntimeError("Cannot read Epic Run facts {}: {}".format(path, exc))
+    if not isinstance(value, dict) or value.get("schemaVersion") != "gauntlet/epic-run-facts/v1":
+        raise RuntimeError("Unsupported Epic Run facts schema")
+    return validate_owners(value.get("owners"))
+
+
+def run_summary_payload(owners, audit_path, analytics_path):
+    owners = validate_owners(owners)
+    audit = existing_records(audit_path)
+    analytics = existing_analytics(analytics_path)
+    by_agent = {}
+    for row in analytics.values():
+        by_agent.setdefault(row.get("agentId"), []).append(row)
+    unavailable = []
+    observed = []
+    token_totals = {key: 0 for key in TOKEN_KEYS}
+    request_count = 0
+    profile_mismatches = []
+    counted_agents = set()
+    for owner in owners:
+        agent_id = owner["nativeChildId"]
+        if not agent_id:
+            unavailable.append({
+                "ownerKind": owner["ownerKind"], "ownerRef": owner["ownerRef"],
+                "reason": "native-id-unavailable",
+            })
+            continue
+        if agent_id not in audit:
+            unavailable.append({
+                "ownerKind": owner["ownerKind"], "ownerRef": owner["ownerRef"],
+                "reason": "native-record-unavailable",
+            })
+            continue
+        rows = by_agent.get(agent_id, [])
+        if not rows:
+            unavailable.append({
+                "ownerKind": owner["ownerKind"], "ownerRef": owner["ownerRef"],
+                "reason": "request-telemetry-unavailable",
+            })
+            continue
+        observed.append({"ownerKind": owner["ownerKind"], "ownerRef": owner["ownerRef"]})
+        actual_profile = audit[agent_id].get("profile")
+        if owner.get("requestedProfile") and owner["requestedProfile"] != actual_profile:
+            profile_mismatches.append({
+                "ownerRef": owner["ownerRef"], "requestedProfile": owner["requestedProfile"],
+                "actualProfile": (
+                    actual_profile
+                    if isinstance(actual_profile, str) and actual_profile in EXPECTED
+                    else "unrecognized"
+                ),
+            })
+        if agent_id in counted_agents:
+            continue
+        counted_agents.add(agent_id)
+        request_count += len(rows)
+        for row in rows:
+            for key in TOKEN_KEYS:
+                token_totals[key] += row["tokens"][key]
+    if not observed:
+        status = "unavailable"
+        model_requests = None
+        tokens = None
+        totals_scope = "unavailable"
+    else:
+        status = "partial" if unavailable else "complete"
+        model_requests = request_count
+        tokens = token_totals
+        totals_scope = "observed-only" if unavailable else "all-declared-owners"
+    return {
+        "schemaVersion": "gauntlet/run-telemetry-summary/v1",
+        "coverage": {
+            "status": status,
+            "declaredOwners": len(owners),
+            "observedOwners": len(observed),
+            "unavailableOwners": unavailable,
+            "totalsScope": totals_scope,
+        },
+        "modelRequests": model_requests,
+        "tokens": tokens,
+        "profileMismatches": profile_mismatches,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("sync", "list", "summary", "verify", "reconcile"), nargs="?", default="sync")
@@ -389,6 +523,7 @@ def main():
     parser.add_argument("--requested-risk", choices=("ordinary", "consequential"), default="ordinary")
     parser.add_argument("--require-read-only", action="store_true")
     parser.add_argument("--circuit-file", type=Path)
+    parser.add_argument("--run-facts", type=Path, help="JSON emitted by the Epic Run controller's run-facts --run projection")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     agent_home = args.agent_home.expanduser()
@@ -397,6 +532,14 @@ def main():
     analytics_path = agent_home / "gauntlet" / "logs" / "subagent-model-requests.jsonl"
     quarantine_path = agent_home / "gauntlet" / "logs" / "subagent-quarantine.jsonl"
     circuit_path = args.circuit_file or agent_home / "gauntlet" / "state" / "routing-circuit.json"
+    if args.action == "summary" and args.run_facts:
+        try:
+            owners = read_run_facts(args.run_facts)
+            payload = run_summary_payload(owners, output, analytics_path)
+        except RuntimeError as exc:
+            parser.error(str(exc))
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
     try:
         data = native_records(database)
     except (RuntimeError, sqlite3.Error) as exc:

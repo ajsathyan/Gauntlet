@@ -1,6 +1,6 @@
 # Local Product Documentation
 
-Gauntlet projects use a default-on local-document profile for product documents, research, decisions, implementation plans, and run history that should remain local to one primary checkout. The profile is materialized lazily when a covered document task needs it, so ordinary work does not create files in every repository. A project can opt out explicitly.
+Gauntlet projects use a default-on local-document profile for product documents, research, decisions, deterministic Epic launch state, and run history that should remain local to one primary checkout. The profile is materialized lazily when a covered document task needs it, so ordinary work does not create files in every repository. A project can opt out explicitly.
 
 The profile scaffolds:
 
@@ -35,11 +35,11 @@ Canonical local documents live only in the primary worktree. Linked implementati
 
 Private-document changes are local filesystem changes. They are not committed, merged, or deployed.
 
-## Multi-Epic Product Source
+## Product Source And Epic Boundaries
 
 A canonical PRD may contain several Epics from one product conversation. Each Epic receives a stable ID and index row; each stable product responsibility within it receives a Scope Area ID. A numbered `epics/` directory is a document home and does not force a one-file/one-Epic split.
 
-Keep the PRD readable by separating user, objective, workflow, state, trust, acceptance, interface, proof, dependency, uncertainty, rollout, and rollback concerns under distinct headings. `Implementation target` names only accepted, build-ready Epics. Proposed, deferred, and unresolved Epics may remain in the document without entering execution.
+Keep the PRD readable by separating user, objective, workflow, state, trust, acceptance, interface, proof, dependency, uncertainty, rollout, and rollback concerns under distinct headings. `Implementation target` names the complete launch membership and includes only accepted Epics that are build-ready, independently shippable, independently reversible, and explicit about release stages, dependency boundaries, and closed high-consequence trigger IDs (or `none`). Proposed, deferred, and unresolved Epics may remain in the document without entering execution.
 
 Use the `maintain-prd` skill to create or revise this source. It never implements.
 
@@ -68,31 +68,31 @@ Acceptance criteria state what must be true. Test expectations identify the beha
 
 ## Compilation And Durable Execution
 
-An explicit `implement the PRD` request validates and freezes the accepted Implementation Target, then compiles it into a deterministic Ticket Graph. The graph uses stable H2 Epic, H3 Ticket, and H4 field headings. Tickets are current execution units and reference stable Scope Areas; no JSON packet or delimiter sentinels are required.
+An explicit `implement the PRD` request validates and freezes the complete target into one Epic launch set. The product task then creates one visible task and one Execution Run per target Epic, starting every dependency-ready Epic. Each Epic task compiles only its locked Epic into a deterministic Ticket Graph with stable H2 Epic, H3 Ticket, and H4 field headings.
 
 Runs live under `local-docs/executions/<run-id>/`. Source locks, manifests, compact resume state, materialized Tickets, receipts, evidence, cohort results, and release evidence make execution resilient to conversation compaction. Disk state is authoritative after a run starts. Children receive only bounded Ticket bundles and relevant versioned context; the whole PRD, manifest, event history, unrelated receipts, and raw logs stay out of child prompts.
 
-One active implementation Ticket per child is the default. Related sequential Tickets may reuse a child for context affinity. One implementation Ticket is never co-owned; independent checking uses a verifier Ticket. The parent integrates continuously and verifies Ticket, cohort, full-PRD, and release/production layers.
+One active implementation Ticket per child is the default. Related sequential Tickets may reuse a child for context affinity. One implementation Ticket is never co-owned. The Epic-task parent verifies ordinary evidence directly; independent checking is triggered only by a consequential boundary. Proof uses targeted Ticket checks, optional shared-invariant Cohorts, one final Epic verification on exact integration HEAD, and separate release states.
 
-At initialization, freeze `single-final-pr` for a small reviewable target or `review-prs-plus-final` for a large, tightly coupled target. The latter compiles exact Review Unit membership and dependencies, uses parent-owned unit PRs into the integration branch, and still ends in one complete Project PR to `main` covering every locked Epic and Scope Area. Independently shippable outcomes use separate Execution Runs.
+At each Epic Run's initialization, freeze `single-final-pr` for a small reviewable Epic or `review-prs-plus-final` for one large, tightly coupled Epic. The latter compiles exact Review Unit membership and dependencies, uses parent-owned unit PRs into the integration branch, and still ends in one Project PR to `main` covering that locked Epic and every Scope Area.
 
 ## Release Contract
 
-The generated `doc_org.md` contains one implementation and release contract. PRDs record product-level release constraints. Compiled Ticket Graphs resolve the worktree, branch, integration order, proof, rollout, rollback, and release source for that implementation and reference the current contract.
+The generated `doc_org.md` contains one execution and release contract. PRDs record product-level release constraints. The launch set resolves target membership and cross-Epic boundaries; each compiled Ticket Graph resolves one Epic's worktree, branch, integration order, proof, rollout, rollback, and release source.
 
 An explicit request to `implement the PRD` authorizes the accepted build-ready target's normal branch-through-production lifecycle, including a pull request, required-check merge, deployment of the exact verified `main` revision, and documented production changes named in the PRD. A narrower request controls. Missing credentials or permissions, a material unresolved decision, an unaccepted destructive effect, invalid rollout or rollback assumptions, preservation risk, or unavailable required production proof stops the affected transition.
 
 Do not copy the full release procedure into every PRD and graph. A material source or contract change selectively invalidates affected Tickets until their source locks and resolved release fields are refreshed.
 
-The phrase **implement the PRD** applies only to the explicit build-ready target. It carries the end-to-end authority described in `docs/prd-execution.md`; proposed, deferred, or materially unresolved Epics and Scope Areas stay out of the Execution Run.
+The phrase **implement the PRD** applies only to the explicit build-ready target. It carries the end-to-end authority described in `docs/prd-execution.md`; proposed, deferred, or materially unresolved Epics stay outside the launch set, and each run locks exactly one included Epic.
 
 ## Execution Runs
 
 Generated Ticket Graphs and live execution state belong below `local-docs/executions/<run-id>/`, not beside the PRD as another human-authored source. After a run starts, its source lock, manifest, and resume file are authoritative for execution progress. Conversation continues to own user decisions, while compaction recovery reads the durable artifacts.
 
-The Execution Run manifest carries run-specific integration metadata such as the parent branch, frozen PR strategy, Review Unit state, and merge authority; the compiled graph carries frozen Review Unit membership. `doc_org.md` remains the reusable contract; it is not a per-run status ledger, and this parent-owned topology is not copied into child prompts.
+The Epic launch set carries cross-Epic task IDs, run paths, dependencies, blockers, and aggregate status. Each Execution Run manifest carries its Epic's integration branch, frozen PR strategy, Review Unit state, completion projection, and merge authority. `doc_org.md` remains the reusable contract; it is not a status ledger.
 
-Children receive one materialized ticket context plus relevant shared context, named dependency outputs, and owned source paths. They do not need the full PRD or execution history. The parent owns state transitions, integration, oracle verification, cohort results, and release records. See `docs/prd-execution.md` for the artifact and scheduling contract.
+Children receive one materialized Ticket plus relevant shared context, named dependency outputs, and owned source paths. They do not need the full PRD or execution history. The Epic-task parent owns state transitions, integration, oracle verification, optional Cohort results, final Epic verification, and release records. See `docs/prd-execution.md`.
 
 ## Configuration Boundary
 
@@ -148,7 +148,7 @@ python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs epic create \
   --title "Message surfaces"
 ```
 
-Append the next stable Epic to an existing multi-Epic PRD:
+Append the next stable Epic to an existing product PRD:
 
 ```sh
 python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs epic create \

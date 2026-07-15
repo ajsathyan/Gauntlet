@@ -11,7 +11,7 @@ Complete one authorized closeout without widening scope. An explicit `/Archive` 
 
 1. Confirm completion and current proportional proof.
 2. Inspect status and diff. Build an explicit list of intended repository paths; never stage the whole worktree by default.
-3. Detect whether the branch belongs to an Execution Run. Run-backed work uses its path and controller-owned schema v2 Project PR projection. Non-run work uses a schema v1 handoff outside the repository. Record the exact test result.
+3. Detect whether the branch belongs to an Execution Run. Run-backed work uses its path and controller-owned schema 3.0 Project PR projection. Non-run work uses a schema v1 handoff outside the repository. Record the exact test result.
 4. Create an external Markdown file headed `## Archive Summary`.
 5. Supply a conforming `--suggested-title` only when the current title is invalid.
 

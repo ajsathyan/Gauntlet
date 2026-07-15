@@ -1,5 +1,7 @@
 # PRD Ticket execution run
 
+> Superseded runtime evidence. The active contract now launches one visible task and one Execution Run per independently shippable Epic, with optional Cohorts and one final Epic verification. See `docs/prd-execution.md`.
+
 Date: 2026-07-14
 Status: Verified for merge
 

@@ -117,12 +117,21 @@ class GeneratedContextTests(unittest.TestCase):
         manifest["padding"] = " " * 4096
         self.assert_error("padding-forbidden", manifest)
 
-    def test_missing_critical_context_is_rejected(self) -> None:
+    def test_cohort_context_is_optional_and_renders_an_explicit_absence(self) -> None:
         manifest = copy.deepcopy(self.manifest)
         manifest["stable_sources"] = [
             source for source in manifest["stable_sources"] if source["role"] != "cohort"
         ]
-        self.assert_error("missing-critical-context", manifest)
+        result = self.render(manifest)
+        self.assertIn(b"# Cohort context\n\nNone.\n", result.prompt)
+
+    def test_multiple_cohort_contexts_are_rejected(self) -> None:
+        self.write("cohort-two.md", "A second invariant.\n")
+        manifest = copy.deepcopy(self.manifest)
+        manifest["stable_sources"].append(
+            {"role": "cohort", "id": "context-v2", "path": "cohort-two.md"}
+        )
+        self.assert_error("duplicate-cohort-context", manifest)
 
     def test_untrusted_authenticated_provenance_claim_is_rejected(self) -> None:
         manifest = copy.deepcopy(self.manifest)

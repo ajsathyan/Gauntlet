@@ -49,6 +49,51 @@ def assert_not_contains(text, needle, label):
         raise AssertionError(f"{label} should not contain: {needle}")
 
 
+def active_policy_files(root, skills_root=None):
+    root = Path(root)
+    paths = [root / "AGENTS.md", root / "README.md", root / "router" / "AGENTS.md"]
+    paths.extend(sorted((root / "docs").glob("*.md")))
+    paths.extend(sorted((root / "templates" / "local-docs").glob("*")))
+    skill_base = Path(skills_root) if skills_root else root / "skills"
+    paths.extend(sorted(skill_base.glob("**/SKILL.md")))
+    paths.extend(sorted(skill_base.glob("**/openai.yaml")))
+    return [path for path in paths if path.is_file()]
+
+
+def single_epic_convergence_findings(root, skills_root=None):
+    """Return executable legacy guidance; explicit retirement prose is allowed."""
+    root = Path(root)
+    findings = []
+    retired_tokens = [
+        "prd-run.py " + "verify-prd",
+        "record-" + "project-summary",
+        "record-" + "epic-outcome",
+        "schema v" + "2 Project PR",
+        "schema 2" + ".0 Project PR",
+        "full-" + "PRD verification",
+    ]
+    retirement_context = (
+        "there are no",
+        "must not",
+        "without",
+        "retire",
+        "retired",
+        "replaces",
+        "supersed",
+        "historical",
+    )
+    for path in active_policy_files(root, skills_root):
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            lowered = line.lower()
+            for token in retired_tokens:
+                if token.lower() in lowered and not any(marker in lowered for marker in retirement_context):
+                    findings.append(f"{path}:{line_number}: retired active mechanic: {token}")
+    retired_template = root / "templates" / "local-docs" / "IMPLEMENTATION_PLAN.md.tmpl"
+    if retired_template.exists():
+        findings.append(f"{retired_template}: retired duplicate plan template is active")
+    return findings
+
+
 def test_plugin_manifests_bundle_shared_skills():
     if not (ROOT / ".codex-plugin" / "plugin.json").is_file():
         return
@@ -562,28 +607,30 @@ def test_skill_quality_bar_is_trigger_bounded():
         assert_contains(plan, marker, "skill quality analytics plan")
 
 
-def test_guarded_panel_contract_is_uniform():
+def test_consequence_triggered_review_replaces_broad_panels():
     files = {
         "planner": read(SKILLS / "planner" / "SKILL.md"),
         "issue-triager": read(SKILLS / "issue-triager" / "SKILL.md"),
         "deep-code-reviewer": read(SKILLS / "deep-code-reviewer" / "SKILL.md"),
         "run-log-builder": read(SKILLS / "run-log-builder" / "SKILL.md"),
     }
-    required = [
-        "| Concern | Decision | Why Not Defer | Proof | Plan Delta |",
-        "Ship blocker",
-        "Conditional blocker",
-        "Manual fallback",
-        "Private beta gate",
-        "Defer",
-        "Reject",
-        "launch cut line",
-        "panel delta",
-    ]
+    for marker in [
+        "consequence triggers exactly",
+        "omission never means `none`",
+        "three exact-revision lenses",
+        "deterministic checks first",
+        "repository-owned dry-run",
+        "bounded-canary",
+        "rollback evidence",
+    ]:
+        assert_contains(files["planner"], marker, "consequence-triggered planner")
+    assert_contains(files["deep-code-reviewer"], "bounded `run-facts` packet", "bounded deep review")
+    assert_contains(files["deep-code-reviewer"], "do not reconstruct a broad role panel", "bounded deep review")
+    assert_contains(files["issue-triager"], "Use `Block` only for concrete harm", "material blocker triage")
+    assert_contains(files["run-log-builder"], "do not reproduce reviewer narration", "compact run log")
     for name, text in files.items():
-        for marker in required:
-            assert_contains(text, marker, name)
-    assert_contains(files["planner"], "Do not union every idea", "planner")
+        for retired in ["| Concern | Decision | Why Not Defer | Proof | Plan Delta |", "panel delta"]:
+            assert_not_contains(text, retired, f"{name} retired panel ceremony")
 
 
 def test_ts_durability_classifier_behavior():
@@ -948,40 +995,55 @@ def test_workflow_speedup_helpers_are_documented_as_advisory():
         assert_contains("\n".join([agents, read(ROUTER_MD), readme, planner]), marker, "workflow speedup routing")
 
 
-def test_execution_run_freezes_parent_review_topology_without_child_prompt_duplication():
+def test_execution_run_is_one_epic_without_child_prompt_duplication():
     prd = read(ROOT / "docs" / "prd-execution.md")
     github = read(ROOT / "docs" / "github-discipline.md")
     local_docs = read(ROOT / "docs" / "local-documentation.md")
     template = read(ROOT / "templates" / "local-docs" / "doc_org.md.tmpl")
     router = read(ROUTER_MD)
     for marker in [
-        "Each Execution Run uses one parent-owned integration branch",
-        "Choose and freeze the PR strategy",
-        "`single-final-pr`",
-        "`review-prs-plus-final`",
-        "Project PR projection must cover every locked Epic and Scope Area deterministically",
-        "topology remains parent-owned and is absent from child bundles",
-        "merge prepare|plan|execute --run <run>",
-        "schema v1 handoff",
+        "one visible implementation task and one Execution Run per independently shippable Epic",
+        "Each Epic task reads `source.snapshotPath`",
+        "must not pass the mutable canonical PRD path",
+        "one fresh final Epic verification",
+        "schema 3.0 facts",
     ]:
-        assert_contains(prd, marker, "Ticket Graph integration topology")
+        assert_contains(prd, marker, "single-Epic execution contract")
     for marker in [
-        "parent integration branch",
+        "For one Epic Run, the parent branch is the integration boundary",
         "child branches do not target `main`",
-        "Review Unit PRs target only the integration branch",
-        "Independently shippable outcomes belong in separate Execution Runs",
+        "complete Project PR",
+        "schema 3.0 facts",
     ]:
-        assert_contains(github, marker, "GitHub integration topology")
+        assert_contains(github, marker, "GitHub single-Epic topology")
     for marker in [
-        "manifest carries run-specific integration metadata",
-        "frozen PR strategy",
-        "this parent-owned topology is not copied into child prompts",
+        "independently shippable",
+        "one final Epic verification",
+        "one Project PR to `main` covering that locked Epic",
     ]:
-        assert_contains(local_docs, marker, "local document run state")
-    for marker in ["dedicated parent integration branch", "complete Project PR", "every locked Epic and Scope Area"]:
+        assert_contains(local_docs, marker, "local document Epic run state")
+    for marker in ["dedicated parent integration branch for each Epic Run", "one Project PR to `main`", "locked Epic and every Scope Area"]:
         assert_contains(template, marker, "local document release contract")
-    for marker in ["For multi-Ticket runs, keep `main` clean", "Review Unit PRs", "complete Project PR"]:
-        assert_contains(router, marker, "global integration topology")
+    for marker in ["one visible task and one Execution Run per build-ready Epic", "independently shippable Epics never share a run or PR", "schema 3.0 Project PR"]:
+        assert_contains(router, marker, "global single-Epic topology")
+
+
+def test_single_epic_policy_convergence_rejects_retired_active_mechanics():
+    findings = single_epic_convergence_findings(ROOT, SKILLS)
+    if findings:
+        raise AssertionError("active single-Epic policy did not converge:\n" + "\n".join(findings))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        fixture = Path(tmp)
+        (fixture / "router").mkdir(parents=True)
+        (fixture / "docs").mkdir()
+        (fixture / "templates" / "local-docs").mkdir(parents=True)
+        (fixture / "skills" / "example").mkdir(parents=True)
+        (fixture / "AGENTS.md").write_text("Use one Epic per run.\n", encoding="utf-8")
+        (fixture / "README.md").write_text("Run prd-run.py verify-prd before merge.\n", encoding="utf-8")
+        injected = single_epic_convergence_findings(fixture)
+        if not any("verify-prd" in item for item in injected):
+            raise AssertionError(f"convergence scan accepted injected retired command: {injected}")
 
 
 def test_contextual_merge_contract_is_documented():
@@ -1491,60 +1553,44 @@ def merge_run_handoff_fixture(repo, run_path):
     repository = run(["git", "config", "--get", "remote.origin.url"], cwd=repo, check=False).stdout.strip() or str(repo.resolve())
     digest = "a" * 64
     return {
-        "schemaVersion": "2.0",
-        "title": "workflow: merge verified PRD outcomes",
-        "problem": {
-            "context": "Execution Run outcomes were previously flattened into caller-authored merge prose.",
-            "impact": "Reviewers could not trace canonical Epic and Scope Area outcomes to proof and release gates.",
+        "schemaVersion": "3.0",
+        "title": "GNT-101: Deterministic project review",
+        "epic": {
+            "id": "GNT-101",
+            "title": "Deterministic project review",
+            "scopeAreas": [{
+                "id": "GNT-101-S1",
+                "responsibility": "Merge projection",
+            }],
         },
-        "solution": {
-            "outcome": "Project the closed Execution Run into a bound review handoff.",
-            "invariants": ["The controller remains the only source of run-backed merge prose."],
-            "preserved": ["Unrelated non-run patches may still use schema v1."],
+        "acceptedCriteria": ["Run-backed merges preserve canonical review context."],
+        "changedPaths": ["feature.txt"],
+        "verificationReceipts": ["evidence/epic-verification.json"],
+        "completion": {
+            "implemented": True,
+            "merged": False,
+            "deployed": False,
+            "productionProved": False,
+            "complete": False,
+            "epicId": "GNT-101",
+            "exactRevision": head,
+            "exactState": "implementation-complete",
+            "pendingGates": ["merge", "deployment"],
+            "sourceSha256": digest,
+            "verificationSummary": "Final Epic verification passed on the exact revision.",
+        },
+        "deferrals": {
+            "cannotVerify": ["Deployment remains pending."],
             "nonGoals": ["No file-tour PR body."],
         },
-        "changelog": "Gauntlet now binds PRD Execution Run merges to canonical Epic and Scope Area outcomes, proof, and post-merge gates.",
-        "testing": [{
-            "command": "python3 scripts/check-gauntlet-workflow.py",
-            "result": "PASS",
-            "proves": "Run-backed merge projection, drift rejection, and action ordering pass.",
-        }],
-        "securityRisk": None,
-        "substantialChanges": [{
-            "epicId": "GNT-101",
-            "title": "Deterministic project review",
-            "outcome": "Run-backed merges preserve canonical review context.",
-            "scopeAreas": [{
-                "scopeAreaId": "GNT-101-S1",
-                "responsibility": "Merge projection",
-                "outcome": "Review prose is projected by the run controller.",
-                "claim": "Caller-authored hashes and prose cannot replace the controller projection.",
-                "proofLayer": "parent-integration",
-                "evidenceRefs": ["evidence/project-pr.md"],
-                "cannotVerify": [],
-            }],
-            "decisions": [{
-                "id": "D1",
-                "outcome": "Require schema v2 for run branches.",
-                "rationale": "The run owns durable intent and proof.",
-                "provenance": "project-summary.json",
-            }],
-            "risks": [{
-                "id": "R1",
-                "summary": "Deployment follows merge.",
-                "disposition": "Retain an explicit post-merge gate.",
-                "blocking": False,
-                "gateId": "deployment",
-                "evidenceRefs": ["release/deployment.md"],
-            }],
-        }],
         "releaseGates": [{
             "id": "deployment",
             "stage": "deployment",
             "summary": "Deploy the exact verified default-branch revision after merge.",
             "status": "pending",
-            "blocking": False,
             "evidenceRefs": [],
+            "blocksPr": False,
+            "blocksOverallCompletion": True,
         }],
         "binding": {
             "runId": run_path.name,
@@ -1554,7 +1600,7 @@ def merge_run_handoff_fixture(repo, run_path):
             "repository": repository,
             "branch": branch,
             "headSha": head,
-            "prdVerificationSha256": "c" * 64,
+            "epicVerificationSha256": "c" * 64,
         },
     }
 
@@ -1562,6 +1608,35 @@ def merge_run_handoff_fixture(repo, run_path):
 def write_fake_project_pr(repo, run_path, projection):
     run_path.mkdir(parents=True, exist_ok=True)
     (run_path / "project-pr.json").write_text(json.dumps(projection), encoding="utf-8")
+    launch_path = run_path.parent / "epic-launch.json"
+    snapshot_path = run_path.parent / "epic-launch.source.md"
+    existing_launch = json.loads(launch_path.read_text(encoding="utf-8")) if launch_path.is_file() else None
+    snapshot_path.write_text("# Locked Epic fixture\n", encoding="utf-8")
+    source_sha = hashlib.sha256(snapshot_path.read_bytes()).hexdigest()
+    epic_id = existing_launch["targetEpicIds"][0] if existing_launch else projection["epic"]["id"]
+    epic_title = existing_launch["epics"][epic_id]["title"] if existing_launch else projection["epic"]["title"]
+    coverage = {
+        "schemaVersion": "gauntlet.epic-launch.v1",
+        "source": {"path": str(repo / "product.md"), "sha256": source_sha},
+        "targetEpicIds": [epic_id],
+        "epics": {epic_id: {"title": epic_title, "dependencies": [], "releaseStages": ["merge"], "consequenceTriggers": []}},
+    }
+    coverage_sha = hashlib.sha256(json.dumps(coverage, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+    launch = {
+        **coverage,
+        "source": {**coverage["source"], "snapshotPath": str(snapshot_path)},
+        "coverageSha256": coverage_sha,
+        "epics": {epic_id: {
+            **coverage["epics"][epic_id], "taskId": "task-fixture", "runPath": str(run_path.resolve()),
+            "status": "implementation-complete", "blocker": None, "stopDisposition": None, "startReconciliation": None, "emittedEvents": [],
+        }},
+        "aggregateEmittedEvents": [],
+    }
+    launch_path.write_text(json.dumps(launch), encoding="utf-8")
+    (run_path / "source-lock.json").write_text(json.dumps({
+        "target_epic_ids": [epic_id],
+        "launch_set": {"path": str(launch_path), "coverage_sha256": coverage_sha, "task_id": "task-fixture"},
+    }), encoding="utf-8")
     controller = repo / "scripts" / "prd-run.py"
     controller.parent.mkdir(parents=True, exist_ok=True)
     controller.write_text(
@@ -1573,6 +1648,12 @@ def write_fake_project_pr(repo, run_path, projection):
         "elif args[0:2] == ['authority-status', '--run'] and '--capability' in args:\n"
         "    run = pathlib.Path(args[2]); capability = args[args.index('--capability') + 1]\n"
         "    print(json.dumps({'schemaVersion':'1.0','runId':run.name,'capability':capability,'granted':(run / (capability + '.granted')).is_file(),'source':'test fixture'}))\n"
+        "elif args[0:2] == ['record-merge', '--run'] and '--merged-sha' in args and '--main-sha' in args:\n"
+        "    run = pathlib.Path(args[2]); (run / 'merge-recorded').write_text(args[args.index('--main-sha') + 1])\n"
+        "    print(json.dumps({'schemaVersion':'1.0','runId':run.name,'recorded':True}))\n"
+        "elif args[0:2] == ['transition', '--run'] and args[-2:] == ['--to', 'merged']:\n"
+        "    run = pathlib.Path(args[2]); (run / 'transitioned-merged').write_text('merged')\n"
+        "    print(json.dumps({'schemaVersion':'1.0','runId':run.name,'state':'merged'}))\n"
         "else:\n"
         "    print('unexpected prd-run invocation', file=sys.stderr); raise SystemExit(2)\n",
         encoding="utf-8",
@@ -1672,7 +1753,7 @@ def test_gauntlet_cli_merge_prepare_renders_contextual_handoff():
             raise AssertionError(f"multiline changelog should fail: {invalid.stdout}")
 
 
-def test_gauntlet_cli_run_merge_uses_closed_v2_projection_and_rejects_drift():
+def test_gauntlet_cli_run_merge_uses_schema3_projection_and_rejects_drift():
     cli = SCRIPTS / "gauntlet.py"
     with tempfile.TemporaryDirectory() as tmp:
         repo = Path(tmp) / "repo"
@@ -1681,13 +1762,14 @@ def test_gauntlet_cli_run_merge_uses_closed_v2_projection_and_rejects_drift():
         git(["branch", "-M", "main"], cwd=repo)
         (repo / ".gitignore").write_text("/.gauntlet/\n", encoding="utf-8")
         (repo / "README.md").write_text("# Repo\n", encoding="utf-8")
-        changelog = "Gauntlet now binds PRD Execution Run merges to canonical Epic and Scope Area outcomes, proof, and post-merge gates."
-        (repo / "CHANGELOG.md").write_text(f"# Changelog\n\n## Unreleased\n\n- {changelog}\n", encoding="utf-8")
+        changelog = "Implement GNT-101: Deterministic project review."
+        (repo / "CHANGELOG.md").write_text("# Changelog\n\n## Unreleased\n", encoding="utf-8")
         commit_all(repo, "baseline")
         git(["checkout", "-b", "codex/run-v2"], cwd=repo)
         projection = merge_run_handoff_fixture(repo, run_path)
         write_fake_project_pr(repo, run_path, projection)
         (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
+        (repo / "CHANGELOG.md").write_text(f"# Changelog\n\n## Unreleased\n\n- {changelog}\n", encoding="utf-8")
         commit_all(repo, "run implementation")
         projection = merge_run_handoff_fixture(repo, run_path)
         write_fake_project_pr(repo, run_path, projection)
@@ -1714,20 +1796,20 @@ def test_gauntlet_cli_run_merge_uses_closed_v2_projection_and_rejects_drift():
             raise AssertionError(f"exact existing changelog line must remain unchanged: {prepared_data}")
         body = body_path.read_text(encoding="utf-8")
         for marker in [
-            "## Substantial Changes",
-            "### Epic GNT-101: Deterministic project review",
-            "#### Scope Area GNT-101-S1: Merge projection",
-            "Decisions:",
-            "Risks:",
-            "## Pending Post-Merge Gates",
+            "## Epic GNT-101: Deterministic project review",
+            "`GNT-101-S1` — Merge projection",
+            "## Accepted Criteria",
+            "## Verification",
+            "## Completion State",
+            "## Release Gates",
             "gauntlet-merge-binding:",
         ]:
             assert_contains(body, marker, "run-backed PR body")
-        for forbidden in ["Files changed", "Source Files", "ticket-graph.json", "Implementation target:"]:
+        for forbidden in ["Source Files", "ticket-graph.json", "Implementation target:", "## Changelog"]:
             assert_not_contains(body, forbidden, "run-backed PR body file tour or PRD dump")
-        bullet = f"- {projection['changelog']}"
-        if body.count(bullet) != 1 or (repo / "CHANGELOG.md").read_text(encoding="utf-8").count(bullet) != 1:
-            raise AssertionError("run-backed changelog must remain one exact line in both artifacts")
+        bullet = f"- {changelog}"
+        if (repo / "CHANGELOG.md").read_text(encoding="utf-8").count(bullet) != 1:
+            raise AssertionError("run-backed changelog must remain one deterministic line")
 
         gh_log = Path(tmp) / "gh.log"
         gh_state = Path(tmp) / "gh-state"
@@ -1826,12 +1908,12 @@ def test_gauntlet_cli_run_merge_rejects_downgrade_and_incomplete_projection():
             raise AssertionError(f"explicit run-to-v1 downgrade must fail: {explicit_downgrade.stdout}")
 
         handoff_path.write_text(json.dumps(projection), encoding="utf-8")
-        caller_v2 = run([
+        caller_schema3 = run([
             str(cli), "merge", "prepare", "--git-root", str(repo), "--handoff", str(handoff_path),
             "--body-output", str(body_path), "--json",
         ], cwd=repo, check=False)
-        if caller_v2.returncode != 1 or "run_projection_requires_run" not in {item["code"] for item in json.loads(caller_v2.stdout)["findings"]}:
-            raise AssertionError(f"caller-authored schema v2 must fail: {caller_v2.stdout}")
+        if caller_schema3.returncode != 1 or "run_projection_requires_run" not in {item["code"] for item in json.loads(caller_schema3.stdout)["findings"]}:
+            raise AssertionError(f"caller-authored schema 3.0 must fail: {caller_schema3.stdout}")
         handoff_path.write_text(json.dumps(merge_handoff_fixture()), encoding="utf-8")
 
         bound_run = repo / ".gauntlet" / "executions" / "RUN-V2"
@@ -1859,10 +1941,10 @@ def test_gauntlet_cli_run_merge_rejects_downgrade_and_incomplete_projection():
             raise AssertionError(f"custom-root run binding must reject schema-v1 downgrade: {custom_downgrade.stdout}")
 
         cases = [
-            ("missing Epic", lambda item: item.__setitem__("substantialChanges", []), "missing_substantial_changes"),
-            ("missing Scope Area", lambda item: item["substantialChanges"][0].__setitem__("scopeAreas", []), "missing_scope_area_outcome"),
+            ("missing Epic", lambda item: item.__setitem__("epic", {}), "invalid_epic_projection"),
+            ("missing Scope Area", lambda item: item["epic"].__setitem__("scopeAreas", []), "invalid_epic_projection"),
             ("missing gate", lambda item: item.__setitem__("releaseGates", []), "missing_release_gate"),
-            ("multiline changelog", lambda item: item.__setitem__("changelog", "invalid\nentry"), "multiline_changelog_entry"),
+            ("missing criterion", lambda item: item.__setitem__("acceptedCriteria", []), "invalid_accepted_criteria"),
         ]
         for label, mutate, expected_code in cases:
             candidate = json.loads(json.dumps(projection))
@@ -1889,14 +1971,15 @@ def test_gauntlet_cli_run_merge_execute_uses_bound_projection_and_safe_cleanup_o
         git(["remote", "add", "origin", str(remote)], cwd=repo)
         (repo / ".gitignore").write_text("/.gauntlet/\n", encoding="utf-8")
         (repo / "README.md").write_text("# Repo\n", encoding="utf-8")
-        changelog = "Gauntlet now binds PRD Execution Run merges to canonical Epic and Scope Area outcomes, proof, and post-merge gates."
-        (repo / "CHANGELOG.md").write_text(f"# Changelog\n\n## Unreleased\n\n- {changelog}\n", encoding="utf-8")
+        changelog = "Implement GNT-101: Deterministic project review."
+        (repo / "CHANGELOG.md").write_text("# Changelog\n\n## Unreleased\n", encoding="utf-8")
         commit_all(repo, "baseline")
         git(["push", "-u", "origin", "main"], cwd=repo)
         git(["checkout", "-b", "codex/run-v2"], cwd=repo)
         projection = merge_run_handoff_fixture(repo, run_path)
         write_fake_project_pr(repo, run_path, projection)
         (repo / "feature.txt").write_text("run feature\n", encoding="utf-8")
+        (repo / "CHANGELOG.md").write_text(f"# Changelog\n\n## Unreleased\n\n- {changelog}\n", encoding="utf-8")
         commit_all(repo, "run feature")
         projection = merge_run_handoff_fixture(repo, run_path)
         write_fake_project_pr(repo, run_path, projection)
@@ -1946,6 +2029,8 @@ def test_gauntlet_cli_run_merge_execute_uses_bound_projection_and_safe_cleanup_o
         expected = ["git_push", "gh_pr_edit", "gh_pr_checks_watch", "gh_pr_merge", "verify_default_branch", "delete_remote_branch"]
         if action_types != expected:
             raise AssertionError(f"run-backed execute action order mismatch: {action_types}")
+        if data.get("mergeLeaseReleased") is not True or (run_path.parent / "epic-launch.merge-lease.json").exists():
+            raise AssertionError(f"run-backed execute must hold and release the launch merge lease: {data}")
         merge_log = Path(tmp, "gh.log").read_text(encoding="utf-8")
         if f"--match-head-commit {projection['binding']['headSha']}" not in merge_log:
             raise AssertionError(f"final merge was not bound to the projected head: {merge_log}")
@@ -3739,6 +3824,11 @@ def assert_installed_gauntlet_layout(agent_home):
     ]:
         if not (agent_home / "skills" / skill / "SKILL.md").is_file():
             raise AssertionError(f"installed Gauntlet skill is missing: {skill}")
+    if (agent_home / "gauntlet" / "templates" / "local-docs" / "IMPLEMENTATION_PLAN.md.tmpl").exists():
+        raise AssertionError("installed payload retained the retired implementation-plan template")
+    findings = single_epic_convergence_findings(agent_home / "gauntlet", agent_home / "skills")
+    if findings:
+        raise AssertionError("installed single-Epic policy did not converge:\n" + "\n".join(findings))
     run([str(installed_check)])
 
 
@@ -4943,14 +5033,15 @@ def main():
         test_subagent_parallelism_is_context_efficient,
         test_direct_dispatch_and_quiet_execution_are_documented,
         test_workflow_guidance_keeps_routine_controls_silent,
-        test_guarded_panel_contract_is_uniform,
+        test_consequence_triggered_review_replaces_broad_panels,
         test_ts_durability_classifier_behavior,
         test_diff_intel_test_plan_and_review_pack_are_bounded,
         test_docs_only_diff_gets_no_runtime_test_commands,
         test_instruction_surfaces_are_not_classified_as_docs_only,
         test_workflow_helpers_filter_artifacts_and_find_python_tests,
         test_workflow_speedup_helpers_are_documented_as_advisory,
-        test_execution_run_freezes_parent_review_topology_without_child_prompt_duplication,
+        test_execution_run_is_one_epic_without_child_prompt_duplication,
+        test_single_epic_policy_convergence_rejects_retired_active_mechanics,
         test_contextual_merge_contract_is_documented,
         test_response_style_guidance_is_single_global_policy,
         test_version_changelog_preserves_release_history,
@@ -4959,7 +5050,7 @@ def main():
         test_workflow_etiquette_checker_pauses_archive_on_followups_and_git_state,
         test_workflow_etiquette_checker_builds_archive_action_plan,
         test_gauntlet_cli_merge_prepare_renders_contextual_handoff,
-        test_gauntlet_cli_run_merge_uses_closed_v2_projection_and_rejects_drift,
+        test_gauntlet_cli_run_merge_uses_schema3_projection_and_rejects_drift,
         test_gauntlet_cli_run_merge_rejects_downgrade_and_incomplete_projection,
         test_gauntlet_cli_run_merge_execute_uses_bound_projection_and_safe_cleanup_order,
         test_gauntlet_cli_review_unit_executes_checked_integration_merge_and_recovers_state,

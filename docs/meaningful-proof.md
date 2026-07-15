@@ -20,6 +20,7 @@ Use these fields proportionally. A direct, reversible outcome may need only a cl
 
 - Phrase presence, populated fields, schema validity, status labels, and self-reported results prove only structural coverage or scorer wiring. They do not prove behavior.
 - A child receipt is an evidence pointer. It does not become proof until the parent resolves the referenced command or artifact and checks that it supports the claim.
+- Reuse a verification receipt only when its commit and tree, command, toolchain, fixture or oracle digest, and relevant environment identity match exactly. Otherwise rerun the smallest check. Byte-different narration is not independent proof.
 - A passing test is meaningful only if the assertion would fail for a relevant wrong implementation. Prefer observing the regression fail for the intended reason before the fix when a credible harness exists.
 - Child-written tests may preserve regressions, but the same child must not silently weaken, replace, bypass, or tailor the oracle to its implementation. Hidden or independent proof belongs to the parent unless the ticket explicitly assigns ownership.
 - For consequential work, include a negative control, mutation check, black-box outcome, or independent review that is meaningfully separate from the implementation.
@@ -29,7 +30,7 @@ Use these fields proportionally. A direct, reversible outcome may need only a cl
 
 A **Gauntlet ticket** is an ephemeral child assignment from the canonical plan, not an issue-tracker record. It contains only the context the child needs. Depending on risk, it may include the proof fields above plus objective, ownership, dependencies, constraints, return contract, and ask-parent policy.
 
-Children work quietly and retry safe materially different recoveries. Implementation children return compact receipts; research and review children return the requested artifact or findings compactly. The parent owns the oracle, independently verifies evidence, integrates child commits through the frozen parent topology, and opens the complete Project PR. Review Unit PRs, when selected for a large tightly coupled run, target only the integration branch and do not satisfy full-PRD proof. Integrate and run targeted checks as results arrive so conflicts surface early; run combined proof after all required tickets reach the all-done barrier.
+Children work quietly and retry safe materially different recoveries. Implementation children return compact receipts; research and review children return the requested artifact or findings compactly. The Epic-task parent owns the oracle, verifies ordinary evidence directly, integrates child commits, and opens that Epic's Project PR. Review Unit PRs, when selected for one large tightly coupled Epic, target only the integration branch and do not satisfy final Epic proof. Run targeted checks as results arrive, optional Cohort checks only for shared invariants, and one fresh final Epic verification against canonical acceptance on exact integration HEAD.
 
 ## Proof Layers
 

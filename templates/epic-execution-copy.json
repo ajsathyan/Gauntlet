@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "gauntlet.epic-copy.v1",
+  "events": {
+    "continue_shaping": {
+      "required": [],
+      "template": "Keep going—I’m excited to build this with you. Tell me the rest of the product you have in mind, and I’ll shape each distinct outcome into an Epic while keeping the shared context together in one PRD. When the accepted, build-ready Epics feel right, we can start them together and let every dependency-ready Epic get to work."
+    },
+    "aggregate_start": {
+      "required": ["target_count", "started_count", "queued_count"],
+      "variants": {
+        "break": "We’re off! Your product is mapped into {target_count} accepted, build-ready Epics. {started_count} underway; {queued_count} waiting on named dependencies. Time for a break? I’ll keep things moving and bring you back only when a decision changes scope, cost, authority, or safety.",
+        "gated": "We’re off! Your product is mapped into {target_count} accepted, build-ready Epics. {started_count} underway; {queued_count} waiting on named dependencies. I’ll keep the autonomous work moving and bring the next required authority decision back here."
+      }
+    },
+    "epic_start": {
+      "required": ["epic_id", "epic_title", "dependency_note"],
+      "template": "Great—we’re underway on {epic_id}: {epic_title}. I’ll carry this Epic through its accepted outcome, then verify the integrated revision against the canonical acceptance before I call the implementation complete. {dependency_note}"
+    },
+    "material_blocker": {
+      "required": ["epic_id", "decision", "recommendation", "reason", "impact", "authority_not_granted", "other_epics_continuing", "question"],
+      "template": "One decision needs your call before {epic_id} can continue: {decision}. I recommend {recommendation} because {reason}. Choosing it changes {impact}; it does not authorize {authority_not_granted}. The good news: {other_epics_continuing} other Epics are still moving. {question}"
+    },
+    "epic_finish": {
+      "required": ["epic_id", "epic_title", "exact_revision", "verification_summary", "pending_release_gates", "remaining_count"],
+      "template": "Nice—implementation is complete for {epic_id}: {epic_title}. Final Epic verification passed against the canonical acceptance on {exact_revision}. Evidence: {verification_summary}. This does not yet prove {pending_release_gates}. {remaining_count} Epics remain."
+    },
+    "aggregate_finish": {
+      "required": ["implemented_count", "exact_release_state", "pending_gates"],
+      "template": "Great work—we’ve brought all {implemented_count} targeted Epics to implementation-complete, and each passed final Epic verification on its exact integrated revision. Release state: {exact_release_state}. {pending_gates} Everything is ready for your review."
+    },
+    "production_action_gate": {
+      "required": ["exact_revision", "production_action", "canary_cap", "rollback_summary", "approval_question"],
+      "template": "The deterministic checks and dry run passed on {exact_revision}. Before the real {production_action}, the bounded canary can affect at most {canary_cap} and has this rollback path: {rollback_summary}. Approving the canary does not authorize work beyond that bound. {approval_question}"
+    }
+  }
+}

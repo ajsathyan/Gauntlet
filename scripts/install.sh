@@ -702,6 +702,10 @@ if [ "$source_is_installed_payload" != "1" ]; then
   rm -f "$AGENT_HOME/gauntlet/scripts/validate-review-brief-data.py"
 fi
 
+# Retire payloads removed by the single-Epic cutover even when the installer is
+# running from the already-installed Gauntlet directory.
+rm -f "$AGENT_HOME/gauntlet/templates/local-docs/IMPLEMENTATION_PLAN.md.tmpl"
+
 cp "$rendered_router" "$AGENT_HOME/gauntlet/AGENTS.md"
 chmod 0644 "$AGENT_HOME/gauntlet/AGENTS.md"
 
@@ -724,7 +728,9 @@ for required_path in \
   "$AGENT_HOME/gauntlet/scripts/install-codex-agents.py" \
   "$AGENT_HOME/gauntlet/scripts/subagent-audit.py" \
   "$AGENT_HOME/gauntlet/scripts/route-codex-agent.py" \
+  "$AGENT_HOME/gauntlet/templates/epic-execution-copy.json" \
   "$AGENT_HOME/gauntlet/templates/local-docs/doc_org.md.tmpl" \
+  "$AGENT_HOME/gauntlet/templates/local-docs/EPIC_SECTION.md.tmpl" \
   "$AGENT_HOME/gauntlet/templates/generated-context/implementation-v1.md" \
   "$AGENT_HOME/gauntlet/templates/evaluation/core-slots.json" \
   "$AGENT_HOME/gauntlet/templates/evaluation/core-registry.json" \
@@ -743,6 +749,11 @@ do
     exit 1
   fi
 done
+
+if [ -e "$AGENT_HOME/gauntlet/templates/local-docs/IMPLEMENTATION_PLAN.md.tmpl" ]; then
+  echo "Gauntlet install retained retired implementation-plan template" >&2
+  exit 1
+fi
 
 if [ "$TARGET" = "codex" ]; then
   python3 "$ROOT/scripts/install-codex-agents.py" apply \

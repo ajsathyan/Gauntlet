@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic, disk-backed execution runs for multi-agent PRD delivery.
+"""Deterministic, disk-backed execution runs for one accepted Epic.
 
 The CLI is deliberately stdlib-only.  A parent agent is the sole writer; child
 agents receive materialized bundles and return receipts for the parent to record.
@@ -29,8 +29,7 @@ STATES = (
     "compiled",
     "executing",
     "integrating",
-    "cohort_verified",
-    "prd_verified",
+    "epic_verified",
     "merged",
     "deployed",
     "production_verified",
@@ -42,6 +41,8 @@ ID_RE = re.compile(r"^[A-Z][A-Z0-9_-]{0,63}$")
 BRANCH_RE = re.compile(r"^(?!/)(?!-)(?!.*(?:\.\.|//|@\{|[ ~^:?*\[\\]))[A-Za-z0-9._/@-]{1,255}(?<![/.])$")
 LANE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 PROTOCOL_VERSION = 1
+LAUNCH_SCHEMA = "gauntlet.epic-launch.v1"
+PROJECT_PR_SCHEMA = "3.0"
 INTEGRATION_MODE = "parent-branch"
 PR_STRATEGIES = ("single-final-pr", "review-prs-plus-final")
 DEFAULT_PR_STRATEGY = "single-final-pr"
@@ -51,7 +52,29 @@ AUTHORITY_CAPABILITIES = (
     "merge-to-integration",
     "open-final-pr",
     "merge-to-default",
+    "deploy-production",
+    "verify-production",
+    "perform-paid-action",
+    "perform-destructive-action",
+    "apply-migration",
+    "use-credentials",
+    "execute-rollback",
 )
+HIGH_CONSEQUENCE_TRIGGERS = (
+    "billing-paid-actions",
+    "credentials-auth-permissions",
+    "migrations-data-loss",
+    "production-authority",
+    "destructive-actions",
+)
+REQUIRED_REVIEW_LENSES = ("authority-security", "failure-recovery", "black-box")
+SAFEGUARD_KINDS = ("dry-run-no-mutation", "bounded-live", "rollback-readiness")
+TRIGGER_AUTHORITY = {
+    "billing-paid-actions": "perform-paid-action",
+    "credentials-auth-permissions": "use-credentials",
+    "migrations-data-loss": "apply-migration",
+    "destructive-actions": "perform-destructive-action",
+}
 REVIEW_UNIT_STATES = ("pending", "opened", "checked", "merge-locked", "merged", "verified", "cleanup-eligible", "cleaned")
 
 
@@ -71,6 +94,22 @@ def sha_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def canonical_consequence_triggers(raw: str | None, label: str) -> list[str]:
+    if raw is None:
+        raise RunError(f"{label} must declare High-consequence triggers")
+    if not raw.strip():
+        raise RunError(f"{label} must be literal `none` or a non-empty canonical trigger list")
+    if raw.strip().lower() == "none":
+        return []
+    triggers = sorted(string_list([item.strip().lower() for item in raw.split(",") if item.strip()], label))
+    unknown = set(triggers) - set(HIGH_CONSEQUENCE_TRIGGERS)
+    if unknown:
+        raise RunError(f"{label} uses unsupported high-consequence triggers: {sorted(unknown)}")
+    if len(triggers) != len(set(triggers)):
+        raise RunError(f"{label} must not repeat high-consequence triggers")
+    return triggers
+
+
 def sha_file(path: Path) -> str:
     return sha_bytes(path.read_bytes())
 
@@ -79,15 +118,32 @@ def object_hash(value: Any) -> str:
     return sha_bytes(canonical_json(value).encode())
 
 
+def markdown_section(section: str, heading: str) -> str:
+    match = re.search(rf"^### {re.escape(heading)}\s*$", section, re.MULTILINE | re.IGNORECASE)
+    if not match:
+        return ""
+    following = re.search(r"^### ", section[match.end():], re.MULTILINE)
+    end = match.end() + following.start() if following else len(section)
+    return section[match.end():end].strip()
+
+
+def section_items(section: str, heading: str) -> list[str]:
+    content = markdown_section(section, heading)
+    return [match.group(1).strip() for match in re.finditer(r"^\s*[-*]\s+(.+?)\s*$", content, re.MULTILINE)]
+
+
 def source_contract(path: Path, requested_targets: list[str]) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8")
     target_match = re.search(r"^Implementation target:\s*(.+?)\s*$", text, re.MULTILINE)
     if not target_match:
         raise RunError("PRD must declare Implementation target")
     declared = sorted(set(re.findall(r"\b[A-Z][A-Z0-9_-]{1,63}\b", target_match.group(1))))
-    requested = sorted({require_id(item, "target Epic ID") for item in requested_targets})
-    if not requested or declared != requested:
-        raise RunError(f"requested targets {requested} do not match PRD Implementation target {declared}")
+    requested_raw = [require_id(item, "target Epic ID") for item in requested_targets]
+    if len(requested_raw) != 1:
+        raise RunError("new Execution Runs require exactly one target Epic; multi-Epic run inputs are unsupported")
+    requested = requested_raw
+    if requested[0] not in declared:
+        raise RunError(f"target Epic {requested[0]} is not a member of PRD Implementation target {declared}")
     epic_matches = list(re.finditer(r"^## Epic ([A-Z][A-Z0-9_-]{0,63}):[ \t]*(.*?)[ \t]*$", text, re.MULTILINE))
     epic_sections: dict[str, str] = {}
     scope_hashes: dict[str, str] = {}
@@ -127,7 +183,26 @@ def source_contract(path: Path, requested_targets: list[str]) -> dict[str, Any]:
             for scope_id, _, _, scope_text in scope_chunks:
                 scope_hashes[scope_id] = object_hash({"epic_common": common, "scope": scope_text})
                 epic_scopes[scope_id]["sha256"] = scope_hashes[scope_id]
-            epics[epic_id] = {"scope_areas": dict(sorted(epic_scopes.items())), "title": epic_title}
+            acceptance = {
+                heading: section_items(section, heading)
+                for heading in ("Product Acceptance", "Design Acceptance", "Engineering Acceptance")
+            }
+            consequence_match = re.search(
+                r"^High-consequence triggers:[ \t]*([^\r\n]*)[ \t]*$", section,
+                re.MULTILINE | re.IGNORECASE,
+            )
+            epics[epic_id] = {
+                "acceptance": acceptance,
+                "cannot_verify": section_items(section, "Cannot Verify"),
+                "consequence_triggers": canonical_consequence_triggers(
+                    consequence_match.group(1) if consequence_match else None,
+                    f"Epic {epic_id}",
+                ),
+                "non_goals": section_items(section, "Non-goals"),
+                "scope_areas": dict(sorted(epic_scopes.items())),
+                "section_sha256": sha_bytes(section.encode("utf-8")),
+                "title": epic_title,
+            }
     missing = set(requested) - set(epic_sections)
     if missing:
         raise RunError(f"target Epics are missing from the PRD: {sorted(missing)}")
@@ -137,6 +212,107 @@ def source_contract(path: Path, requested_targets: list[str]) -> dict[str, Any]:
         "epic_ids": requested,
         "epics": {key: epics[key] for key in requested},
         "scope_hashes": dict(sorted(scope_hashes.items())),
+    }
+
+
+def launch_coverage_projection(value: dict[str, Any]) -> dict[str, Any]:
+    epics = value.get("epics")
+    if not isinstance(epics, dict):
+        raise RunError("launch set epics must be an object")
+    coverage_epics: dict[str, Any] = {}
+    for epic_id in sorted(epics):
+        require_id(epic_id, "launch set Epic ID")
+        item = epics[epic_id]
+        if not isinstance(item, dict):
+            raise RunError(f"launch set Epic {epic_id} must be an object")
+        dependencies = item.get("dependencies")
+        if not isinstance(dependencies, list):
+            raise RunError(f"launch set Epic {epic_id}.dependencies must be a list")
+        normalized_dependencies = []
+        for index, dependency in enumerate(dependencies):
+            if not isinstance(dependency, dict) or set(dependency) != {"epicId", "boundary"}:
+                raise RunError(f"launch set Epic {epic_id}.dependencies[{index}] must contain epicId and boundary")
+            boundary = dependency.get("boundary")
+            if boundary not in ("merged", "deployed", "productionProved"):
+                raise RunError(f"launch set Epic {epic_id} dependency boundary is unsupported: {boundary}")
+            normalized_dependencies.append({
+                "boundary": boundary,
+                "epicId": require_id(dependency.get("epicId"), f"launch set Epic {epic_id} dependency"),
+            })
+        release_stages = sorted(string_list(item.get("releaseStages"), f"launch set Epic {epic_id}.releaseStages", allow_empty=False))
+        unknown_stages = set(release_stages) - set(RELEASE_APPLICABILITY)
+        if unknown_stages or "merge" not in release_stages or (
+            "production-verification" in release_stages and "deployment" not in release_stages
+        ):
+            raise RunError(f"launch set Epic {epic_id}.releaseStages is invalid")
+        coverage_epics[epic_id] = {
+            "consequenceTriggers": canonical_consequence_triggers(
+                ",".join(string_list(item.get("consequenceTriggers"), f"launch set Epic {epic_id}.consequenceTriggers")),
+                f"launch set Epic {epic_id}.consequenceTriggers",
+            ) if item.get("consequenceTriggers") else [],
+            "dependencies": sorted(normalized_dependencies, key=lambda item: (item["epicId"], item["boundary"])),
+            "releaseStages": release_stages,
+            "title": require_string(item.get("title"), f"launch set Epic {epic_id}.title"),
+        }
+    source = value.get("source")
+    if not isinstance(source, dict) or set(source) != {"path", "sha256", "snapshotPath"}:
+        raise RunError("launch set source must contain exactly path, sha256, and snapshotPath")
+    return {
+        "epics": coverage_epics,
+        "schemaVersion": value.get("schemaVersion"),
+        "source": {
+            "path": require_string(source.get("path"), "launch set source.path"),
+            "sha256": require_sha(source.get("sha256"), "launch set source.sha256"),
+        },
+        "targetEpicIds": sorted(string_list(value.get("targetEpicIds"), "launch set targetEpicIds", allow_empty=False)),
+    }
+
+
+def validate_launch_set(path: Path, source: Path, source_info: dict[str, Any], target_epic_id: str) -> dict[str, Any]:
+    raw = read_json(path)
+    if not isinstance(raw, dict):
+        raise RunError("launch set must be an object")
+    required_top = {"schemaVersion", "source", "targetEpicIds", "coverageSha256", "epics", "aggregateEmittedEvents"}
+    if set(raw) != required_top:
+        raise RunError(f"launch set must contain exactly: {', '.join(sorted(required_top))}")
+    if raw.get("schemaVersion") != LAUNCH_SCHEMA:
+        raise RunError(f"unsupported launch set schema; expected {LAUNCH_SCHEMA}")
+    coverage = launch_coverage_projection(raw)
+    declared = sorted(set(re.findall(
+        r"\b[A-Z][A-Z0-9_-]{1,63}\b",
+        re.search(r"^Implementation target:\s*(.+?)\s*$", source.read_text(), re.MULTILINE).group(1),
+    )))
+    if coverage["targetEpicIds"] != declared or set(coverage["epics"]) != set(declared):
+        raise RunError("launch set must cover the complete PRD Implementation target exactly once")
+    snapshot = Path(require_string(raw["source"].get("snapshotPath"), "launch set source.snapshotPath")).resolve()
+    if not snapshot.is_file() or sha_file(snapshot) != coverage["source"]["sha256"]:
+        raise RunError("launch set snapshot is missing or does not match the locked source hash")
+    if source.resolve() != snapshot or sha_file(source) != coverage["source"]["sha256"]:
+        raise RunError("Execution Runs must initialize from the immutable launch-set snapshot")
+    expected_coverage = object_hash(coverage)
+    if raw.get("coverageSha256") != expected_coverage:
+        raise RunError("launch set coverageSha256 does not match its immutable coverage projection")
+    item = raw["epics"].get(target_epic_id)
+    if not isinstance(item, dict):
+        raise RunError(f"launch set does not contain target Epic {target_epic_id}")
+    expected_epic_keys = {
+        "title", "dependencies", "releaseStages", "consequenceTriggers", "taskId", "runPath", "status",
+        "blocker", "stopDisposition", "startReconciliation", "emittedEvents",
+    }
+    for epic_id, epic in raw["epics"].items():
+        if not isinstance(epic, dict) or set(epic) != expected_epic_keys:
+            raise RunError(f"launch set Epic {epic_id} has an unsupported shape")
+    task_id = require_string(item.get("taskId"), f"launch set Epic {target_epic_id}.taskId")
+    if coverage["epics"][target_epic_id]["title"] != source_info["epics"][target_epic_id]["title"]:
+        raise RunError("launch set Epic title does not match the locked canonical Epic")
+    if coverage["epics"][target_epic_id]["consequenceTriggers"] != source_info["epics"][target_epic_id]["consequence_triggers"]:
+        raise RunError("launch set high-consequence triggers do not match the locked canonical Epic")
+    return {
+        "coverage_sha256": expected_coverage,
+        "canonical_source_path": coverage["source"]["path"],
+        "path": str(path.resolve()),
+        "snapshot_path": str(snapshot),
+        "task_id": task_id,
     }
 
 
@@ -320,6 +496,12 @@ def string_list(value: Any, label: str, *, allow_empty: bool = True) -> list[str
     return result
 
 
+def require_fingerprint(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", value):
+        raise RunError(f"{label} must use sha256:<64 lowercase hex characters>")
+    return value
+
+
 def normalize_graph(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict) or raw.get("version") != 1:
         raise RunError("ticket graph version must be 1")
@@ -327,10 +509,13 @@ def normalize_graph(raw: Any) -> dict[str, Any]:
     cohorts = raw.get("cohorts")
     tickets = raw.get("tickets")
     shared = raw.get("shared_context", {})
+    planned_checks = raw.get("planned_checks")
+    verification_identity_raw = raw.get("verification_identity")
+    review_raw_facts = raw.get("review")
     if not isinstance(source_areas, list) or not source_areas:
         raise RunError("scope_areas must be a non-empty list of locked PRD IDs")
-    if not isinstance(cohorts, dict) or not cohorts:
-        raise RunError("cohorts must be a non-empty object")
+    if not isinstance(cohorts, dict):
+        raise RunError("cohorts must be an object")
     if not isinstance(tickets, list) or not tickets:
         raise RunError("tickets must be a non-empty list")
     if not isinstance(shared, dict):
@@ -367,8 +552,10 @@ def normalize_graph(raw: Any) -> dict[str, Any]:
         unknown_scopes = set(scopes) - set(scope_out)
         if unknown_scopes:
             raise RunError(f"ticket {ticket_id} has unknown scope areas: {sorted(unknown_scopes)}")
-        cohort_id = require_id(item.get("cohort_id"), f"ticket {ticket_id}.cohort_id")
-        if cohort_id not in cohort_out:
+        cohort_id = item.get("cohort_id")
+        if cohort_id is not None:
+            cohort_id = require_id(cohort_id, f"ticket {ticket_id}.cohort_id")
+        if cohort_id is not None and cohort_id not in cohort_out:
             raise RunError(f"ticket {ticket_id} has unknown cohort {cohort_id}")
         proof = item.get("proof")
         if not isinstance(proof, dict):
@@ -427,6 +614,93 @@ def normalize_graph(raw: Any) -> dict[str, Any]:
             raise RunError(f"cohort {cohort_id} ticket_ids do not match assigned tickets")
     detect_cycles(ticket_out)
 
+    if not isinstance(planned_checks, list) or not planned_checks:
+        raise RunError("planned_checks must be a non-empty list")
+    planned_out = []
+    seen_checks = set()
+    for index, check in enumerate(planned_checks):
+        if not isinstance(check, dict):
+            raise RunError(f"planned_checks[{index}] must be an object")
+        allowed = {"id", "tier", "ticket_ids", "argv", "reason", "confidence", "invariant_id"}
+        if set(check) - allowed or not {"id", "tier", "ticket_ids", "argv", "reason"}.issubset(check):
+            raise RunError(f"planned_checks[{index}] has an unsupported shape")
+        check_id = require_string(check["id"], f"planned_checks[{index}].id")
+        if check_id in seen_checks:
+            raise RunError(f"duplicate planned check ID: {check_id}")
+        seen_checks.add(check_id)
+        tier = check["tier"]
+        if tier not in ("ticket", "shared", "final-epic"):
+            raise RunError(f"planned check {check_id}.tier is unsupported")
+        check_tickets = sorted(string_list(check["ticket_ids"], f"planned check {check_id}.ticket_ids"))
+        unknown = set(check_tickets) - ticket_ids
+        if unknown:
+            raise RunError(f"planned check {check_id} references unknown Tickets: {sorted(unknown)}")
+        normalized = {
+            "argv": string_list(check["argv"], f"planned check {check_id}.argv", allow_empty=False),
+            "id": check_id,
+            "reason": require_string(check["reason"], f"planned check {check_id}.reason"),
+            "ticketIds": check_tickets,
+            "tier": tier,
+        }
+        if check.get("confidence") is not None:
+            normalized["confidence"] = require_string(check["confidence"], f"planned check {check_id}.confidence")
+        if check.get("invariant_id") is not None:
+            normalized["invariantId"] = require_string(check["invariant_id"], f"planned check {check_id}.invariant_id")
+        if tier == "shared" and "invariantId" not in normalized:
+            raise RunError(f"shared planned check {check_id} requires invariant_id")
+        planned_out.append(normalized)
+    if sum(item["tier"] == "final-epic" for item in planned_out) != 1:
+        raise RunError("planned_checks must contain exactly one final-epic check")
+
+    verification_identity_raw = require_closed_object(
+        verification_identity_raw,
+        {"toolchain", "fixtures", "environment"},
+        "verification_identity",
+    )
+    verification_identity_out = {
+        key: require_fingerprint(verification_identity_raw[key], f"verification_identity.{key}")
+        for key in ("toolchain", "fixtures", "environment")
+    }
+    review_raw_facts = require_closed_object(review_raw_facts, {"required", "triggers", "lenses"}, "review")
+    if not isinstance(review_raw_facts["required"], bool):
+        raise RunError("review.required must be boolean")
+    lenses = []
+    if not isinstance(review_raw_facts["lenses"], list):
+        raise RunError("review.lenses must be a list")
+    for index, lens in enumerate(review_raw_facts["lenses"]):
+        lens = require_closed_object(lens, {"id", "charter"}, f"review.lenses[{index}]")
+        lenses.append({
+            "charter": require_string(lens["charter"], f"review.lenses[{index}].charter"),
+            "id": require_string(lens["id"], f"review.lenses[{index}].id"),
+        })
+    triggers = sorted(string_list(review_raw_facts["triggers"], "review.triggers"))
+    if len(triggers) != len(set(triggers)):
+        raise RunError("review.triggers must not contain duplicates")
+    unknown_triggers = set(triggers) - set(HIGH_CONSEQUENCE_TRIGGERS)
+    if unknown_triggers:
+        raise RunError(
+            "review.triggers must use canonical high-consequence categories; "
+            f"unsupported={sorted(unknown_triggers)}"
+        )
+    lens_ids = [item["id"] for item in lenses]
+    if len(lens_ids) != len(set(lens_ids)):
+        raise RunError("review.lenses must use distinct lens IDs")
+    review_out_facts = {
+        "lenses": lenses,
+        "required": review_raw_facts["required"],
+        "triggers": triggers,
+    }
+    if triggers:
+        if not review_out_facts["required"]:
+            raise RunError("high-consequence triggers require review.required=true")
+        if len(lens_ids) != len(REQUIRED_REVIEW_LENSES) or set(lens_ids) != set(REQUIRED_REVIEW_LENSES):
+            raise RunError(
+                "high-consequence review requires exactly the authority-security, "
+                "failure-recovery, and black-box lenses"
+            )
+    elif review_out_facts["required"] or lenses:
+        raise RunError("ordinary work requires review.required=false and zero lenses")
+
     review_raw = raw.get("review_units")
     review_out: dict[str, Any] = {}
     if review_raw is not None:
@@ -477,6 +751,9 @@ def normalize_graph(raw: Any) -> dict[str, Any]:
     cohort_context = shared.get("cohorts", {})
     if not isinstance(cohort_context, dict):
         raise RunError("shared_context.cohorts must be an object")
+    unknown_contexts = set(cohort_context) - set(cohort_out)
+    if unknown_contexts:
+        raise RunError(f"shared_context.cohorts contains unknown Cohorts: {sorted(unknown_contexts)}")
     return {
         "cohorts": cohort_out,
         "scope_areas": scope_out,
@@ -485,7 +762,10 @@ def normalize_graph(raw: Any) -> dict[str, Any]:
             "global": require_string(shared.get("global"), "shared_context.global"),
         },
         "review_units": review_out,
+        "planned_checks": planned_out,
+        "review": review_out_facts,
         "tickets": ticket_out,
+        "verification_identity": verification_identity_out,
         "version": 1,
     }
 
@@ -529,6 +809,8 @@ def load_manifest(run: Path, *, verify_source: bool = True) -> dict[str, Any]:
         if not graph_path.is_file() or object_hash(read_json(graph_path)) != manifest["graph_sha256"]:
             raise RunError("normalized Ticket Graph changed or disappeared")
     lock = read_json(run / "source-lock.json")
+    if not isinstance(lock.get("launch_set"), dict) or len(lock.get("target_epic_ids", [])) != 1:
+        raise RunError("unsupported Execution Run schema; start one launch-authorized Epic Run")
     if sha_file(run / "source-lock.json") != manifest.get("source_lock_sha256"):
         raise RunError("source lock changed outside the controller")
     if lock.get("source_path") != manifest["source"]["path"] or lock.get("source_sha256") != manifest["source"]["sha256"]:
@@ -560,10 +842,258 @@ def event(run: Path, manifest: dict[str, Any], action: str, payload: dict[str, A
     manifest["event_sequence"] = sequence
 
 
+VERIFICATION_RECEIPT_SCHEMA = "gauntlet.verification-receipt.v1"
+VERIFICATION_IDENTITY_KEYS = {
+    "commitSha", "treeSha", "argv", "toolchainSha256", "fixturesSha256",
+    "oracleSha256", "environmentSha256",
+}
+
+
+def verification_identity(value: Any, label: str) -> dict[str, Any]:
+    identity = require_closed_object(value, VERIFICATION_IDENTITY_KEYS, label)
+    argv = string_list(identity["argv"], f"{label}.argv", allow_empty=False)
+    result = {
+        "argv": argv,
+        "commitSha": require_sha(identity["commitSha"], f"{label}.commitSha"),
+        "environmentSha256": require_sha(identity["environmentSha256"], f"{label}.environmentSha256"),
+        "fixturesSha256": require_sha(identity["fixturesSha256"], f"{label}.fixturesSha256"),
+        "oracleSha256": require_sha(identity["oracleSha256"], f"{label}.oracleSha256"),
+        "toolchainSha256": require_sha(identity["toolchainSha256"], f"{label}.toolchainSha256"),
+        "treeSha": require_sha(identity["treeSha"], f"{label}.treeSha"),
+    }
+    return result
+
+
+def validate_verification_receipt(
+    run: Path,
+    manifest: dict[str, Any],
+    raw: Any,
+    label: str,
+    *,
+    expected_commit: str,
+    expected_tree: str,
+) -> dict[str, Any]:
+    keys = {"schemaVersion", "result", "summary", "evidence", "identity"}
+    receipt = require_closed_object(raw, keys, label)
+    if receipt["schemaVersion"] != VERIFICATION_RECEIPT_SCHEMA:
+        raise RunError(f"{label}.schemaVersion must be {VERIFICATION_RECEIPT_SCHEMA}")
+    if receipt["result"] not in ("pass", "fail"):
+        raise RunError(f"{label}.result must be pass or fail")
+    identity = verification_identity(receipt["identity"], f"{label}.identity")
+    if identity["commitSha"] != expected_commit or identity["treeSha"] != expected_tree:
+        raise RunError(f"{label} does not match the exact integrated commit and tree")
+    evidence_refs = sorted(string_list(receipt["evidence"], f"{label}.evidence", allow_empty=False))
+    for reference in evidence_refs:
+        evidence, _ = proof_path(run, run / reference, f"{label} evidence")
+        pin_artifact(run, manifest, evidence)
+    return {
+        "evidence": evidence_refs,
+        "identity": identity,
+        "result": receipt["result"],
+        "schemaVersion": VERIFICATION_RECEIPT_SCHEMA,
+        "summary": require_string(receipt["summary"], f"{label}.summary"),
+    }
+
+
+def exact_integration_revision(manifest: dict[str, Any], lock: dict[str, Any]) -> tuple[str, str]:
+    repo, repository_identity = git_repository_identity(Path.cwd())
+    if repository_identity != lock.get("repository_identity"):
+        raise RunError("verification must run in the repository locked at initialization")
+    branch = git_value(["branch", "--show-current"], "current branch", repo)
+    if branch != manifest["integration"]["branch"]:
+        raise RunError("verification must run on the Execution Run integration branch")
+    commit = require_sha(git_value(["rev-parse", "HEAD"], "integration HEAD", repo), "integration HEAD")
+    tree = require_sha(git_value(["rev-parse", "HEAD^{tree}"], "integration tree", repo), "integration tree")
+    return commit, tree
+
+
+def record_verification_receipt(
+    run: Path,
+    manifest: dict[str, Any],
+    source_path: Path,
+    destination_name: str,
+    label: str,
+    *,
+    expected_oracle: str | None = None,
+) -> tuple[dict[str, Any], str]:
+    lock = read_json(run / "source-lock.json")
+    commit, tree = exact_integration_revision(manifest, lock)
+    receipt = validate_verification_receipt(
+        run,
+        manifest,
+        read_json(source_path),
+        label,
+        expected_commit=commit,
+        expected_tree=tree,
+    )
+    if expected_oracle is not None and receipt["identity"]["oracleSha256"] != expected_oracle:
+        raise RunError(f"{label} uses the wrong controller-owned oracle")
+    destination = run / "receipts" / destination_name
+    if destination.exists() and read_json(destination) != receipt:
+        destination = destination.with_name(f"{destination.stem}-{object_hash(receipt)[:12]}{destination.suffix}")
+    if destination.exists() and read_json(destination) != receipt:
+        raise RunError(f"{label} receipt identity collision")
+    atomic_json(destination, receipt)
+    relative = pin_artifact(run, manifest, destination)
+    return receipt, relative
+
+
+def consequence_oracle(manifest: dict[str, Any], *, lens: str | None = None, safeguard: str | None = None) -> str:
+    policy = manifest.get("consequence_review", {}).get("policy", {})
+    subject = {"lens": lens} if lens is not None else {"safeguard": safeguard}
+    return object_hash({
+        "schemaVersion": "gauntlet.consequence-proof.v1",
+        "triggers": policy.get("triggers", []),
+        **subject,
+    })
+
+
+def exact_record_status(record: dict[str, Any] | None, commit: str | None, tree: str | None = None) -> str:
+    if not record:
+        return "pending"
+    if record.get("result") != "pass":
+        return "fail"
+    identity = record.get("identity", {})
+    if not commit or identity.get("commitSha") != commit or (tree and identity.get("treeSha") != tree):
+        return "stale"
+    return "pass"
+
+
+def consequence_review_status(manifest: dict[str, Any], commit: str | None, tree: str | None = None) -> dict[str, Any]:
+    policy = manifest.get("consequence_review", {}).get("policy", {"required": False, "triggers": [], "lenses": []})
+    records = manifest.get("consequence_review", {}).get("results", {})
+    results = [
+        {
+            "id": lens["id"],
+            "status": exact_record_status(records.get(lens["id"]), commit, tree),
+            "evidence": records.get(lens["id"], {}).get("evidence", []),
+        }
+        for lens in policy.get("lenses", [])
+    ]
+    status = "not-required" if not policy.get("required") else (
+        "pass" if results and all(item["status"] == "pass" for item in results) else
+        "fail" if any(item["status"] == "fail" for item in results) else
+        "stale" if any(item["status"] == "stale" for item in results) else
+        "pending"
+    )
+    return {**policy, "results": results, "status": status}
+
+
+def safeguard_status(manifest: dict[str, Any], kind: str, commit: str | None, tree: str | None = None) -> dict[str, Any]:
+    policy = manifest.get("consequence_review", {}).get("policy", {})
+    triggered = bool(policy.get("triggers"))
+    required = triggered and (
+        kind == "dry-run-no-mutation"
+        or bool(manifest.get("release", {}).get("applicability", {}).get("production-verification"))
+    )
+    record = manifest.get("release", {}).get("safeguards", {}).get(kind)
+    return {
+        "evidence": record.get("evidence", []) if record else [],
+        "kind": kind,
+        "required": required,
+        "status": exact_record_status(record, commit, tree) if required else "not-required",
+    }
+
+
+def require_safeguard(manifest: dict[str, Any], kind: str, commit: str, tree: str | None = None) -> None:
+    status = safeguard_status(manifest, kind, commit, tree)
+    if status["required"] and status["status"] != "pass":
+        raise RunError(f"required {kind} safeguard is {status['status']} on the exact final revision")
+
+
+def trigger_authorities(manifest: dict[str, Any]) -> list[str]:
+    triggers = manifest.get("consequence_review", {}).get("policy", {}).get("triggers", [])
+    return sorted({TRIGGER_AUTHORITY[item] for item in triggers if item in TRIGGER_AUTHORITY})
+
+
+def observed_integration_head(manifest: dict[str, Any], lock: dict[str, Any]) -> str | None:
+    root = Path(lock.get("repository_root", ""))
+    branch = manifest.get("integration", {}).get("branch")
+    if not root.is_dir() or not branch:
+        return None
+    result = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--verify", f"refs/heads/{branch}"],
+        text=True,
+        capture_output=True,
+    )
+    return result.stdout.strip().lower() if result.returncode == 0 else None
+
+
+def completion_projection(manifest: dict[str, Any], *, observed_head: str | None = None) -> dict[str, Any]:
+    release = manifest.get("release", {})
+    final = release.get("epic-verification", {})
+    tickets_pass = bool(manifest.get("tickets")) and all(
+        item.get("status") == "integrated" for item in manifest.get("tickets", {}).values()
+    )
+    cohorts_pass = all(item.get("result") == "pass" for item in manifest.get("cohorts", {}).values())
+    exact_revision = final.get("integration_head_sha")
+    fresh = bool(exact_revision and (observed_head is None or observed_head == exact_revision))
+    implemented = bool(final.get("result") == "pass" and tickets_pass and cohorts_pass and fresh)
+    merge = release.get("merge", {})
+    merged = bool(implemented and merge.get("result") == "pass" and merge.get("verified_head_sha") == exact_revision)
+    deployment_applicable = bool(release.get("applicability", {}).get("deployment"))
+    deployment = release.get("deployment", {})
+    deployed = bool(
+        merged and deployment_applicable and deployment.get("result") == "pass"
+        and deployment.get("revision") == merge.get("main_sha")
+    )
+    production_applicable = bool(release.get("applicability", {}).get("production-verification"))
+    production = release.get("production-verification", {})
+    production_proved = bool(
+        deployed and production_applicable and production.get("result") == "pass"
+        and production.get("revision") == deployment.get("revision")
+    )
+    deployment_closed = deployed if deployment_applicable else deployment.get("result") == "skipped"
+    production_closed = production_proved if production_applicable else production.get("result") == "skipped"
+    pending: list[str] = []
+    if not implemented:
+        pending.append("final-epic-verification")
+    if not merged:
+        pending.append("merge")
+    if deployment_applicable and not deployed:
+        pending.append("deployment")
+    elif not deployment_applicable and not deployment_closed:
+        pending.append("deployment-not-applicable-record")
+    if production_applicable and not production_proved:
+        pending.append("production-proof")
+    elif not production_applicable and not production_closed:
+        pending.append("production-proof-not-applicable-record")
+    complete = bool(
+        implemented
+        and merged
+        and deployment_closed
+        and production_closed
+    )
+    epic_ids = manifest.get("source", {}).get("epic_ids", [])
+    exact_state = (
+        "complete" if complete else
+        "production-proved" if production_proved else
+        "deployed" if deployed else
+        "merged" if merged else
+        "implementation-complete" if implemented else
+        "in-progress"
+    )
+    return {
+        "complete": complete,
+        "deployed": deployed,
+        "epicId": epic_ids[0] if len(epic_ids) == 1 else None,
+        "exactRevision": exact_revision if implemented else None,
+        "exactState": exact_state,
+        "implemented": implemented,
+        "merged": merged,
+        "pendingGates": pending,
+        "productionProved": production_proved,
+        "sourceSha256": manifest.get("source", {}).get("sha256"),
+        "verificationSummary": final.get("summary"),
+    }
+
+
 def write_resume(run: Path, manifest: dict[str, Any]) -> None:
     active = [ticket_id for ticket_id, item in sorted(manifest.get("tickets", {}).items()) if item["status"] not in ("integrated", "invalidated")]
     blocked = [ticket_id for ticket_id in active if manifest["tickets"][ticket_id]["status"] in ("blocked", "waiting")]
     integration = manifest.get("integration", {})
+    lock = read_json(run / "source-lock.json")
+    completion = completion_projection(manifest, observed_head=observed_integration_head(manifest, lock))
     lines = [
         "# Execution resume",
         "",
@@ -572,6 +1102,8 @@ def write_resume(run: Path, manifest: dict[str, Any]) -> None:
         f"Graph SHA-256: {manifest.get('graph_sha256', 'not compiled')}",
         f"Integration branch: {integration.get('branch', 'not recorded')}",
         f"PR strategy: {integration.get('pr_strategy', 'not recorded')}",
+        f"Completion state: {completion['exactState']}",
+        f"Exact verified revision: {completion['exactRevision'] or 'none'}",
         "",
         "## Active tickets",
         "",
@@ -593,7 +1125,7 @@ def render_ticket(ticket: dict[str, Any], revision: int) -> str:
 
 Revision: {revision}
 Epic: {ticket['epic_id']}
-Cohort: {ticket['cohort_id']}
+Cohort: {ticket['cohort_id'] or 'None'}
 Scope areas: {', '.join(ticket['scope_area_ids'])}
 Kind: {ticket['kind']}
 Priority: {ticket['priority']}
@@ -692,8 +1224,11 @@ def require_sha(value: Any, label: str) -> str:
 
 def canonical_git_object(repo: Path, value: Any, label: str, expected_type: str) -> str:
     supplied = require_sha(value, label)
-    resolved = require_sha(git_value(["rev-parse", "--verify", supplied], label, repo), label)
-    object_type = git_value(["cat-file", "-t", resolved], f"{label} type", repo)
+    try:
+        resolved = require_sha(git_value(["rev-parse", "--verify", supplied], label, repo), label)
+        object_type = git_value(["cat-file", "-t", resolved], f"{label} type", repo)
+    except RunError as exc:
+        raise RunError(f"cannot resolve {label} as a Git {expected_type} object") from exc
     if object_type != expected_type:
         raise RunError(f"{label} must identify a Git {expected_type} object")
     return resolved
@@ -756,7 +1291,7 @@ def cmd_authority_status(args: argparse.Namespace) -> None:
 def cmd_review_unit(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
-    require_state(manifest, ("executing", "integrating", "cohort_verified", "prd_verified"))
+    require_state(manifest, ("executing", "integrating", "epic_verified"))
     if manifest.get("integration", {}).get("pr_strategy") != "review-prs-plus-final":
         raise RunError("review-unit operations require review-prs-plus-final")
     unit_id = require_id(args.unit, "review unit ID")
@@ -952,204 +1487,6 @@ def cmd_review_unit_status(args: argparse.Namespace) -> None:
     print(pretty_json(payload), end="")
 
 
-PROJECT_SUMMARY_KEYS = {"title", "problem", "solution", "changelog", "testing", "securityRisk"}
-EPIC_OUTCOME_KEYS = {"epicId", "title", "outcome", "scopeAreas", "decisions", "risks"}
-SCOPE_OUTCOME_KEYS = {"scopeAreaId", "responsibility", "outcome", "claim", "proofLayer", "evidenceRefs", "cannotVerify"}
-DECISION_KEYS = {"id", "outcome", "rationale", "provenance"}
-RISK_KEYS = {"id", "summary", "disposition", "blocking", "gateId", "evidenceRefs"}
-
-
-def bounded_string(value: Any, label: str, limit: int = 4000) -> str:
-    result = require_string(value, label)
-    if len(result) > limit:
-        raise RunError(f"{label} exceeds {limit} characters")
-    return result
-
-
-def cmd_record_project_summary(args: argparse.Namespace) -> None:
-    run = run_path(args.run)
-    manifest = load_manifest(run)
-    require_state(manifest, ("prd_verified",))
-    raw = require_closed_object(read_json(Path(args.artifact)), PROJECT_SUMMARY_KEYS, "project summary")
-    title = bounded_string(raw["title"], "project summary.title")
-    if not re.fullmatch(r"[^:\n]+: [^\n]+", title):
-        raise RunError("project summary.title must use '<area>: <behavioral outcome>'")
-    problem = require_closed_object(raw["problem"], {"context", "impact"}, "project summary.problem")
-    problem_out = {
-        "context": bounded_string(problem["context"], "project summary.problem.context"),
-        "impact": bounded_string(problem["impact"], "project summary.problem.impact"),
-    }
-    solution = require_closed_object(
-        raw["solution"], {"outcome", "invariants", "preserved", "nonGoals"}, "project summary.solution"
-    )
-    solution_out = {"outcome": bounded_string(solution["outcome"], "project summary.solution.outcome")}
-    for field in ("invariants", "preserved", "nonGoals"):
-        values = string_list(solution[field], f"project summary.solution.{field}")
-        solution_out[field] = [bounded_string(value, f"project summary.solution.{field}") for value in values]
-    testing = raw["testing"]
-    if not isinstance(testing, list) or not testing:
-        raise RunError("project summary.testing must be a non-empty list")
-    testing_out = []
-    for index, item in enumerate(testing):
-        item = require_closed_object(item, {"command", "result", "proves"}, f"project summary.testing[{index}]")
-        testing_out.append({
-            field: bounded_string(item[field], f"project summary.testing[{index}].{field}")
-            for field in ("command", "result", "proves")
-        })
-    security_risk = raw["securityRisk"]
-    if security_risk is not None:
-        security_risk = bounded_string(security_risk, "project summary.securityRisk")
-    summary = {
-        "changelog": bounded_string(raw["changelog"], "project summary.changelog"),
-        "problem": problem_out,
-        "securityRisk": security_risk,
-        "solution": solution_out,
-        "testing": testing_out,
-        "title": title,
-    }
-    if "\n" in summary["changelog"] or "\r" in summary["changelog"]:
-        raise RunError("project summary.changelog must be exactly one line")
-    destination = run / "release" / "project-summary.json"
-    if destination.is_file() and read_json(destination) != summary:
-        raise RunError("project summary is already recorded and immutable")
-    atomic_json(destination, summary)
-    relative = pin_artifact(run, manifest, destination)
-    manifest.setdefault("outcomes", {})["project_summary"] = relative
-    event(run, manifest, "project_summary_recorded", {})
-    save_manifest(run, manifest)
-
-
-def qualified_evidence(manifest: dict[str, Any]) -> dict[str, set[str]]:
-    integration = {
-        item["integration_verification"]["evidence"]
-        for item in manifest["tickets"].values()
-        if item.get("status") == "integrated" and item.get("integration_verification", {}).get("evidence")
-    }
-    cohorts = {item["evidence"] for item in manifest["cohorts"].values() if item.get("result") == "pass" and item.get("evidence")}
-    prd = manifest.get("release", {}).get("prd-verification", {})
-    return {"parent-integration": integration, "cohort": cohorts, "prd": {prd["evidence"]} if prd.get("result") == "pass" else set()}
-
-
-def validate_evidence_refs(run: Path, manifest: dict[str, Any], refs: Any, label: str, allowed: set[str]) -> list[str]:
-    result = sorted(string_list(refs, label, allow_empty=False))
-    if len(result) != len(set(result)):
-        raise RunError(f"{label} contains duplicates")
-    for relative in result:
-        if relative not in allowed:
-            raise RunError(f"{label} contains evidence outside its qualifying proof layer: {relative}")
-        path = run / relative
-        if not path.is_file() or manifest.get("artifact_hashes", {}).get(relative) != sha_file(path):
-            raise RunError(f"{label} must reference hash-pinned run evidence: {relative}")
-    return result
-
-
-def cmd_record_epic_outcome(args: argparse.Namespace) -> None:
-    run = run_path(args.run)
-    manifest = load_manifest(run)
-    require_state(manifest, ("prd_verified",))
-    lock = read_json(run / "source-lock.json")
-    raw = require_closed_object(read_json(Path(args.artifact)), EPIC_OUTCOME_KEYS, "Epic outcome")
-    epic_id = require_id(raw["epicId"], "Epic outcome.epicId")
-    canonical = lock.get("epics", {}).get(epic_id)
-    if not canonical or raw["title"] != canonical["title"]:
-        raise RunError("Epic outcome must use a locked Epic ID and canonical title")
-    if not isinstance(raw["scopeAreas"], list):
-        raise RunError("Epic outcome.scopeAreas must be a list")
-    evidence = qualified_evidence(manifest)
-    scopes = []
-    for item in raw["scopeAreas"]:
-        item = require_closed_object(item, SCOPE_OUTCOME_KEYS, "Scope Area outcome")
-        scope_id = require_id(item["scopeAreaId"], "Scope Area outcome.scopeAreaId")
-        expected = canonical["scope_areas"].get(scope_id)
-        if not expected or item["responsibility"] != expected["responsibility"]:
-            raise RunError(f"Scope Area outcome {scope_id} must use its canonical responsibility")
-        layer = item["proofLayer"]
-        if layer not in evidence:
-            raise RunError("Scope Area outcome.proofLayer must be parent-integration, cohort, or prd")
-        integrated = [
-            ticket_id for ticket_id, ticket in manifest["tickets"].items()
-            if scope_id in ticket["scope_area_ids"] and ticket["status"] == "integrated"
-        ]
-        if not integrated:
-            raise RunError(f"Scope Area {scope_id} has no integrated Ticket")
-        if layer == "parent-integration":
-            allowed = {
-                manifest["tickets"][ticket_id]["integration_verification"]["evidence"]
-                for ticket_id in integrated
-            }
-        elif layer == "cohort":
-            allowed = {
-                manifest["cohorts"][manifest["tickets"][ticket_id]["cohort_id"]]["evidence"]
-                for ticket_id in integrated
-                if manifest["cohorts"][manifest["tickets"][ticket_id]["cohort_id"]].get("result") == "pass"
-            }
-        else:
-            allowed = evidence[layer]
-        refs = validate_evidence_refs(run, manifest, item["evidenceRefs"], f"Scope Area {scope_id}.evidenceRefs", allowed)
-        scopes.append({
-            "cannotVerify": sorted(string_list(item["cannotVerify"], f"Scope Area {scope_id}.cannotVerify")),
-            "claim": bounded_string(item["claim"], f"Scope Area {scope_id}.claim"),
-            "evidenceRefs": refs,
-            "outcome": bounded_string(item["outcome"], f"Scope Area {scope_id}.outcome"),
-            "proofLayer": layer,
-            "responsibility": expected["responsibility"],
-            "scopeAreaId": scope_id,
-        })
-    scopes.sort(key=lambda item: item["scopeAreaId"])
-    if [item["scopeAreaId"] for item in scopes] != sorted(canonical["scope_areas"]):
-        raise RunError(f"Epic outcome {epic_id} must cover each locked Scope Area exactly once")
-
-    decisions = []
-    if not isinstance(raw["decisions"], list):
-        raise RunError("Epic outcome.decisions must be a list")
-    all_evidence = set().union(*evidence.values())
-    for item in raw["decisions"]:
-        item = require_closed_object(item, DECISION_KEYS, "decision")
-        provenance = require_string(item["provenance"], "decision.provenance")
-        validate_evidence_refs(run, manifest, [provenance], "decision.provenance", all_evidence)
-        decisions.append({
-            "id": require_id(item["id"], "decision.id"), "outcome": bounded_string(item["outcome"], "decision.outcome"),
-            "rationale": bounded_string(item["rationale"], "decision.rationale"), "provenance": provenance,
-        })
-    decisions.sort(key=lambda item: item["id"])
-    if len({item["id"] for item in decisions}) != len(decisions):
-        raise RunError("decision IDs must be unique")
-
-    risks = []
-    if not isinstance(raw["risks"], list):
-        raise RunError("Epic outcome.risks must be a list")
-    gate_ids = {"ticket-integration", "cohort-verification", "prd-verification", "review-units", "merge-to-default", "deployment", "production-verification"}
-    for item in raw["risks"]:
-        item = require_closed_object(item, RISK_KEYS, "risk")
-        if not isinstance(item["blocking"], bool):
-            raise RunError("risk.blocking must be boolean")
-        gate_id = item["gateId"]
-        if gate_id is not None and gate_id not in gate_ids:
-            raise RunError(f"unknown risk gateId {gate_id}")
-        refs = [] if not item["evidenceRefs"] else validate_evidence_refs(run, manifest, item["evidenceRefs"], "risk.evidenceRefs", all_evidence)
-        risks.append({
-            "blocking": item["blocking"], "disposition": bounded_string(item["disposition"], "risk.disposition"),
-            "evidenceRefs": refs, "gateId": gate_id, "id": require_id(item["id"], "risk.id"),
-            "summary": bounded_string(item["summary"], "risk.summary"),
-        })
-    risks.sort(key=lambda item: item["id"])
-    if len({item["id"] for item in risks}) != len(risks):
-        raise RunError("risk IDs must be unique")
-
-    outcome = {
-        "decisions": decisions, "epicId": epic_id, "outcome": bounded_string(raw["outcome"], "Epic outcome.outcome"),
-        "risks": risks, "scopeAreas": scopes, "title": canonical["title"],
-    }
-    destination = run / "outcomes" / f"{epic_id}.json"
-    if destination.is_file() and read_json(destination) != outcome:
-        raise RunError(f"Epic outcome {epic_id} is already recorded and immutable")
-    atomic_json(destination, outcome)
-    relative = pin_artifact(run, manifest, destination)
-    manifest.setdefault("outcomes", {}).setdefault("epics", {})[epic_id] = relative
-    event(run, manifest, "epic_outcome_recorded", {"epic": epic_id})
-    save_manifest(run, manifest)
-
-
 def git_value(args: list[str], label: str, cwd: Path) -> str:
     result = subprocess.run(["git", "-C", str(cwd), *args], text=True, capture_output=True)
     if result.returncode:
@@ -1180,6 +1517,32 @@ def integration_ref(repo: Path, branch: str) -> str:
     raise RunError(f"integration branch is not available locally or from origin: {branch}")
 
 
+def observed_default_branch_ref(repo: Path) -> tuple[str, str]:
+    symbolic = subprocess.run(
+        ["git", "-C", str(repo), "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
+        text=True,
+        capture_output=True,
+    )
+    if symbolic.returncode == 0:
+        ref = symbolic.stdout.strip()
+        sha = git_value(["rev-parse", "--verify", f"{ref}^{{commit}}"], "observed default branch", repo)
+        return ref, canonical_git_object(repo, sha, "observed default branch", "commit")
+    candidates = []
+    for ref in ("refs/heads/main", "refs/heads/master"):
+        result = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", ref],
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            candidates.append(ref)
+    if len(candidates) != 1:
+        raise RunError("cannot determine one currently observed default-branch ref")
+    ref = candidates[0]
+    sha = git_value(["rev-parse", "--verify", f"{ref}^{{commit}}"], "observed default branch", repo)
+    return ref, canonical_git_object(repo, sha, "observed default branch", "commit")
+
+
 def run_binding_registry(repo: Path) -> Path:
     raw = Path(git_value(["rev-parse", "--git-common-dir"], "Git common directory", repo))
     common = raw if raw.is_absolute() else (repo / raw).resolve()
@@ -1202,33 +1565,101 @@ def register_run_binding(repo: Path, branch: str, run: Path, repository_identity
         atomic_json(registry, records)
 
 
-def release_gates(manifest: dict[str, Any]) -> list[dict[str, Any]]:
-    integration_evidence = sorted(
-        item["integration_verification"]["evidence"] for item in manifest["tickets"].values()
-        if item.get("integration_verification", {}).get("evidence")
-    )
-    cohort_evidence = sorted(item["evidence"] for item in manifest["cohorts"].values() if item.get("evidence"))
-    prd = manifest["release"]["prd-verification"]
+def release_gates(manifest: dict[str, Any], completion: dict[str, Any]) -> list[dict[str, Any]]:
+    final = manifest["release"].get("epic-verification", {})
+    final_commit = final.get("integration_head_sha")
+    final_tree = final.get("identity", {}).get("treeSha")
     gates = [
-        {"id": "ticket-integration", "stage": "pre-merge", "summary": "Every compiled Ticket is integrated with parent verification.", "status": "pass", "blocking": True, "evidenceRefs": integration_evidence},
-        {"id": "cohort-verification", "stage": "pre-merge", "summary": "Every Cohort invariant passed.", "status": "pass", "blocking": True, "evidenceRefs": cohort_evidence},
-        {"id": "prd-verification", "stage": "pre-merge", "summary": "Independent verification covered the locked PRD target.", "status": "pass", "blocking": True, "evidenceRefs": [prd["evidence"]]},
+        {
+            "blocksOverallCompletion": True,
+            "blocksPr": True,
+            "evidenceRefs": sorted(
+                reference
+                for item in manifest["tickets"].values()
+                for reference in item.get("integration_verification", {}).get("evidence", [])
+            ),
+            "id": "ticket-integration",
+            "stage": "implementation",
+            "status": "pass" if all(item.get("status") == "integrated" for item in manifest["tickets"].values()) else "pending",
+            "summary": "Every compiled Ticket is integrated with an exact-identity parent verification receipt.",
+        },
     ]
-    if manifest.get("integration", {}).get("pr_strategy") == "review-prs-plus-final":
+    if manifest["cohorts"]:
         gates.append({
-            "id": "review-units", "stage": "pre-merge", "summary": "Every review unit was checked, merged, and verified.",
-            "status": "pass", "blocking": True,
-            "evidenceRefs": sorted(unit["verification"]["evidence"] for unit in manifest["review_units"].values()),
+            "blocksOverallCompletion": True,
+            "blocksPr": True,
+            "evidenceRefs": sorted(
+                reference for item in manifest["cohorts"].values() for reference in item.get("evidence", [])
+            ),
+            "id": "cohort-verification",
+            "stage": "implementation",
+            "status": "pass" if all(item.get("result") == "pass" for item in manifest["cohorts"].values()) else "pending",
+            "summary": "Every declared shared invariant passed once.",
         })
     gates.append({
-        "id": "merge-to-default", "stage": "merge", "summary": "Final PR merge requires the distinct merge-to-default authority capability.",
-        "status": "pending", "blocking": False, "evidenceRefs": [],
+        "blocksOverallCompletion": True,
+        "blocksPr": True,
+        "evidenceRefs": final.get("evidence", []),
+        "id": "final-epic-verification",
+        "stage": "implementation",
+        "status": "pass" if completion["implemented"] else final.get("result", "pending"),
+        "summary": "Final Epic verification covered canonical acceptance on the exact integrated revision.",
+    })
+    review = consequence_review_status(manifest, final_commit, final_tree)
+    if review["required"]:
+        gates.append({
+            "blocksOverallCompletion": True,
+            "blocksPr": True,
+            "evidenceRefs": sorted(reference for item in review["results"] for reference in item["evidence"]),
+            "id": "consequence-review",
+            "stage": "implementation",
+            "status": review["status"],
+            "summary": "The fixed authority/security, failure/recovery, and black-box lenses passed on the exact candidate revision.",
+        })
+        dry_run = safeguard_status(manifest, "dry-run-no-mutation", final_commit, final_tree)
+        gates.append({
+            "blocksOverallCompletion": True,
+            "blocksPr": False,
+            "evidenceRefs": dry_run["evidence"],
+            "id": "dry-run-no-mutation",
+            "stage": "merge",
+            "status": dry_run["status"],
+            "summary": "Repository-owned dry-run and no-mutation proof passed on the exact final revision.",
+        })
+        if manifest["release"]["applicability"]["production-verification"]:
+            for kind, summary in (
+                ("bounded-live", "Repository-owned bounded-live proof passed before production verification."),
+                ("rollback-readiness", "Repository-owned rollback readiness proof passed before production verification."),
+            ):
+                safeguard = safeguard_status(manifest, kind, final_commit, final_tree)
+                gates.append({
+                    "blocksOverallCompletion": True,
+                    "blocksPr": False,
+                    "evidenceRefs": safeguard["evidence"],
+                    "id": kind,
+                    "stage": "release",
+                    "status": safeguard["status"],
+                    "summary": summary,
+                })
+    if manifest.get("integration", {}).get("pr_strategy") == "review-prs-plus-final":
+        gates.append({
+            "blocksOverallCompletion": True, "blocksPr": True,
+            "evidenceRefs": sorted(unit["verification"]["evidence"] for unit in manifest["review_units"].values()),
+            "id": "review-units", "stage": "implementation", "status": "pass",
+            "summary": "Every review unit was checked, merged, and verified.",
+        })
+    gates.append({
+        "blocksOverallCompletion": True, "blocksPr": False, "evidenceRefs": [],
+        "id": "merge-to-default", "stage": "merge", "status": "pass" if completion["merged"] else "pending",
+        "summary": "Final PR merge requires the distinct merge-to-default authority capability.",
     })
     for stage in ("deployment", "production-verification"):
         applicable = manifest["release"]["applicability"][stage]
         gates.append({
-            "id": stage, "stage": "post-merge", "summary": f"{stage.replace('-', ' ').title()} is {'required after merge' if applicable else 'not applicable to this run'}.",
-            "status": "pending" if applicable else "skipped", "blocking": False, "evidenceRefs": [],
+            "blocksOverallCompletion": applicable, "blocksPr": False, "evidenceRefs": [],
+            "id": stage, "stage": "release",
+            "status": manifest["release"].get(stage, {}).get("result", "pending") if applicable else "not-applicable",
+            "summary": f"{stage.replace('-', ' ').title()} is {'required after merge' if applicable else 'not applicable to this run'}.",
         })
     return gates
 
@@ -1236,12 +1667,12 @@ def release_gates(manifest: dict[str, Any]) -> list[dict[str, Any]]:
 def cmd_project_pr(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
-    require_state(manifest, ("prd_verified",))
+    require_state(manifest, ("epic_verified", "merged", "deployed", "production_verified", "complete"))
     require_authority(manifest, "open-final-pr")
     pending = [key for key, item in manifest["tickets"].items() if item["status"] != "integrated"]
     failed_cohorts = [key for key, item in manifest["cohorts"].items() if item.get("result") != "pass"]
-    if pending or failed_cohorts or manifest["release"].get("prd-verification", {}).get("result") != "pass":
-        raise RunError("project-pr requires integrated Tickets, passing Cohorts, and passing PRD verification")
+    if pending or failed_cohorts or manifest["release"].get("epic-verification", {}).get("result") != "pass":
+        raise RunError("project-pr requires integrated Tickets, passing declared Cohorts, and passing final Epic verification")
     if manifest.get("integration", {}).get("pr_strategy") == "review-prs-plus-final":
         unverified = [
             key for key, unit in manifest.get("review_units", {}).items()
@@ -1249,44 +1680,66 @@ def cmd_project_pr(args: argparse.Namespace) -> None:
         ]
         if unverified:
             raise RunError(f"project-pr requires verified review units: {unverified}")
-    outcomes = manifest.get("outcomes", {})
-    summary_ref = outcomes.get("project_summary")
-    if not summary_ref:
-        raise RunError("project summary has not been recorded")
-    summary = read_json(run / summary_ref)
     lock = read_json(run / "source-lock.json")
-    epic_refs = outcomes.get("epics", {})
-    if set(epic_refs) != set(lock["target_epic_ids"]):
-        raise RunError("project-pr requires exactly one outcome artifact for every locked Epic")
-    substantial = [read_json(run / epic_refs[epic_id]) for epic_id in sorted(epic_refs)]
-    if any(scope["cannotVerify"] for epic in substantial for scope in epic["scopeAreas"]):
-        raise RunError("project-pr cannot claim completion while a Scope Area has cannotVerify entries")
-    if any(risk["blocking"] for epic in substantial for risk in epic["risks"]):
-        raise RunError("project-pr cannot proceed with unresolved blocking risks")
+    epic_id = lock["target_epic_ids"][0]
+    epic = lock["epics"][epic_id]
 
     cwd = Path.cwd().resolve()
     repo_root, repository = git_repository_identity(cwd)
-    if git_value(["status", "--porcelain"], "repository cleanliness", repo_root):
-        raise RunError("project-pr requires a clean repository")
-    branch = git_value(["branch", "--show-current"], "current branch", repo_root)
-    if branch != manifest["integration"]["branch"]:
-        raise RunError("current branch does not match the Execution Run integration branch")
-    head = require_sha(git_value(["rev-parse", "HEAD"], "HEAD", repo_root), "HEAD")
-    verification = manifest["release"]["prd-verification"]
+    verification = manifest["release"]["epic-verification"]
     if repository != lock.get("repository_identity") or repository != verification.get("repository_identity"):
         raise RunError("project-pr repository does not match the locked and verified repository")
-    if head != verification.get("integration_head_sha"):
-        raise RunError("project-pr HEAD does not match the exact integration revision verified by the PRD check")
-    prd_evidence = run / manifest["release"]["prd-verification"]["evidence"]
+    branch = manifest["integration"]["branch"]
+    head = require_sha(verification.get("integration_head_sha"), "final verified integration head")
+    canonical_git_object(repo_root, head, "final verified integration head", "commit")
+    if manifest["state"] == "epic_verified":
+        if git_value(["status", "--porcelain"], "repository cleanliness", repo_root):
+            raise RunError("project-pr requires a clean repository")
+        if git_value(["branch", "--show-current"], "current branch", repo_root) != branch:
+            raise RunError("current branch does not match the Execution Run integration branch")
+        if require_sha(git_value(["rev-parse", "HEAD"], "HEAD", repo_root), "HEAD") != head:
+            raise RunError("project-pr HEAD does not match the exact revision verified by final Epic verification")
+    completion = completion_projection(manifest, observed_head=head)
+    if not completion["implemented"]:
+        raise RunError("project-pr cannot claim implementation while final Epic verification is failed or stale")
+    changed_paths = sorted({
+        path
+        for item in manifest["tickets"].values()
+        for path in read_json(run / item["receipt_file"]).get("changed_paths", [])
+    })
+    verification_receipts = sorted({
+        item["integration_verification"]["receipt"] for item in manifest["tickets"].values()
+    } | {
+        item["receipt"] for item in manifest["cohorts"].values() if item.get("receipt")
+    } | {verification["receipt"]} | {
+        item["receipt"] for item in manifest.get("consequence_review", {}).get("results", {}).values()
+        if item.get("receipt")
+    } | {
+        item["receipt"] for item in manifest["release"].get("safeguards", {}).values()
+        if item.get("receipt")
+    })
     projection = {
         "binding": {
             "branch": branch, "generation": manifest["generation"], "graphSha256": manifest["graph_sha256"],
-            "headSha": head, "prdVerificationSha256": sha_file(prd_evidence), "repository": repository,
+            "headSha": head, "epicVerificationSha256": sha_file(run / verification["receipt"]), "repository": repository,
             "runId": manifest["run_id"], "sourceLockSha256": manifest["source_lock_sha256"],
         },
-        "changelog": summary["changelog"], "problem": summary["problem"], "releaseGates": release_gates(manifest),
-        "schemaVersion": "2.0", "securityRisk": summary["securityRisk"], "solution": summary["solution"],
-        "substantialChanges": substantial, "testing": summary["testing"], "title": summary["title"],
+        "acceptedCriteria": epic["acceptance"],
+        "changedPaths": changed_paths,
+        "completion": completion,
+        "deferrals": {"cannotVerify": epic["cannot_verify"], "nonGoals": epic["non_goals"]},
+        "epic": {
+            "id": epic_id,
+            "scopeAreas": [
+                {"id": scope_id, "responsibility": item["responsibility"]}
+                for scope_id, item in sorted(epic["scope_areas"].items())
+            ],
+            "title": epic["title"],
+        },
+        "releaseGates": release_gates(manifest, completion),
+        "schemaVersion": PROJECT_PR_SCHEMA,
+        "title": f"{epic_id}: implement {epic['title']}",
+        "verificationReceipts": verification_receipts,
     }
     print(pretty_json(projection), end="")
 
@@ -1302,6 +1755,8 @@ def cmd_init(args: argparse.Namespace) -> None:
     if final_run.exists():
         raise RunError(f"run already exists: {final_run}")
     source_info = source_contract(source, args.target)
+    target_epic_id = source_info["epic_ids"][0]
+    launch = validate_launch_set(Path(args.launch_set).resolve(), source, source_info, target_epic_id)
     repository_root, repository_identity = git_repository_identity(Path.cwd())
     pr_strategy = args.pr_strategy
     if pr_strategy not in PR_STRATEGIES:
@@ -1313,14 +1768,17 @@ def cmd_init(args: argparse.Namespace) -> None:
         raise RunError("release stages must include merge and production-verification requires deployment")
     run = Path(tempfile.mkdtemp(prefix=f".{args.run_id}.init-", dir=root))
     args._init_temporary = run
-    for directory in ("tickets", "receipts", "handoffs", "evidence", "cohorts", "release", "shared-context", "outcomes"):
+    for directory in ("tickets", "receipts", "handoffs", "evidence", "cohorts", "release", "shared-context"):
         (run / directory).mkdir(parents=True, exist_ok=False)
     source_hash = sha_file(source)
     lock = {
         "instruction_version": require_string(args.instruction_version, "instruction version"),
+        "launch_set": launch,
         "release_contract": require_string(args.release_contract, "release contract"),
         "release_stages": stages,
+        "repository_root": str(repository_root),
         "repository_identity": repository_identity,
+        "canonical_source_path": launch["canonical_source_path"],
         "source_path": str(source), "source_sha256": source_hash,
         "target_epic_ids": source_info["epic_ids"], "scope_hashes": source_info["scope_hashes"],
         "epics": source_info["epics"],
@@ -1329,7 +1787,7 @@ def cmd_init(args: argparse.Namespace) -> None:
         "artifact_hashes": {}, "cohorts": {}, "event_sequence": 0, "generation": 0, "graph_sha256": None,
         "ownership": {
             "children": ["assigned code worktree", "receipt input", "named evidence"],
-            "parent": ["source-lock.json", "manifest.json", "resume.md", "events.jsonl", "cohorts/", "release/", "review_units", "outcomes/"],
+            "parent": ["source-lock.json", "manifest.json", "resume.md", "events.jsonl", "cohorts/", "release/", "review_units"],
         },
         "protocol_version": PROTOCOL_VERSION,
         "authority": {key: {"granted": False, "source": None} for key in AUTHORITY_CAPABILITIES},
@@ -1340,8 +1798,9 @@ def cmd_init(args: argparse.Namespace) -> None:
             "pr_strategy": pr_strategy,
         },
         "release": {"applicability": {key: key in stages for key in RELEASE_APPLICABILITY}},
-        "run_id": args.run_id, "shared_context": {}, "lanes": {}, "review_units": {}, "outcomes": {},
-        "source": {"path": str(source), "sha256": source_hash}, "state": "discussing", "tickets": {},
+        "run_id": args.run_id, "shared_context": {}, "lanes": {}, "review_units": {},
+        "source": {"epic_ids": source_info["epic_ids"], "path": str(source), "sha256": source_hash},
+        "state": "discussing", "tickets": {},
     }
     atomic_json(run / "source-lock.json", lock)
     if os.environ.get("PRD_RUN_FAIL_INIT_AFTER") == "source-lock":
@@ -1349,7 +1808,7 @@ def cmd_init(args: argparse.Namespace) -> None:
     manifest["source_lock_sha256"] = sha_file(run / "source-lock.json")
     atomic_text(run / "events.jsonl", "")
     atomic_text(run / "shared-context" / "global-v1.md", "# Global context\n\nNot compiled.\n")
-    for stage in (*RELEASE_STAGES, "merge", "rollback", "prd-verification"):
+    for stage in (*RELEASE_STAGES, "merge", "rollback", "epic-verification"):
         atomic_text(run / "release" / f"{stage}.md", f"# {stage.replace('-', ' ').title()}\n\nNot recorded.\n")
     pin_artifact(run, manifest, run / "shared-context" / "global-v1.md")
     event(run, manifest, "run_initialized", {"source_sha256": source_hash})
@@ -1378,13 +1837,13 @@ def cmd_transition(args: argparse.Namespace) -> None:
     current_index = STATES.index(manifest["state"])
     if current_index + 1 >= len(STATES) or STATES[current_index + 1] != target:
         raise RunError(f"invalid transition {manifest['state']} -> {target}")
-    if target == "cohort_verified":
+    if target == "epic_verified":
         pending = [key for key, item in manifest["tickets"].items() if item["status"] != "integrated"]
         unverified = [key for key, item in manifest["cohorts"].items() if item.get("result") != "pass"]
         if pending or unverified:
-            raise RunError(f"cannot verify cohorts; pending tickets={pending}, unverified cohorts={unverified}")
-    if target == "prd_verified" and manifest["release"].get("prd-verification", {}).get("result") != "pass":
-        raise RunError("full PRD verification has not passed")
+            raise RunError(f"cannot complete Epic verification; pending tickets={pending}, unverified cohorts={unverified}")
+        if manifest["release"].get("epic-verification", {}).get("result") != "pass":
+            raise RunError("final Epic verification has not passed")
     if target == "merged" and manifest["release"].get("merge", {}).get("result") != "pass":
         raise RunError("exact-main merge verification has not passed")
     if target == "deployed":
@@ -1428,6 +1887,10 @@ def cmd_compile(args: argparse.Namespace) -> None:
         raise RunError(f"ticket graph Epics {sorted(graph_epics)} do not match locked targets {lock['target_epic_ids']}")
     if set(graph["scope_areas"]) != set(lock["scope_hashes"]):
         raise RunError("ticket graph Scope Areas do not exactly match the locked PRD target")
+    epic_id = lock["target_epic_ids"][0]
+    locked_triggers = lock["epics"][epic_id]["consequence_triggers"]
+    if graph["review"]["triggers"] != locked_triggers:
+        raise RunError("Ticket Graph high-consequence triggers must exactly match the locked canonical Epic")
     referenced_scopes = {scope for item in graph["tickets"] for scope in item["scope_area_ids"]}
     if referenced_scopes != set(lock["scope_hashes"]):
         raise RunError("every locked Scope Area must be owned by at least one Ticket")
@@ -1465,6 +1928,8 @@ def cmd_compile(args: argparse.Namespace) -> None:
         for unit_id, unit in graph["review_units"].items()
     }
     manifest["cohorts"] = {key: {"result": None, **graph["cohorts"][key]} for key in sorted(graph["cohorts"])}
+    manifest["consequence_review"] = {"policy": graph["review"], "results": {}}
+    manifest["release"]["safeguards"] = {}
     manifest["shared_context"] = {
         "cohorts": {key: f"shared-context/{key.lower()}-v1.md" for key in sorted(graph["cohorts"])},
         "global": "shared-context/global-v1.md",
@@ -1516,6 +1981,12 @@ def cmd_claim(args: argparse.Namespace) -> None:
     if retry and args.attempt <= item["lease"]["attempt"]:
         raise RunError("retry attempt must exceed the previous lease attempt")
     item["lease"] = {"agent": agent, "attempt": args.attempt}
+    item["owner"] = {
+        "nativeChildId": args.native_child_id,
+        "ownerKind": args.owner_kind,
+        "ownerRef": agent,
+        "requestedProfile": args.requested_profile,
+    }
     item["status"] = "dispatched"
     event(run, manifest, "ticket_claimed", {"agent": agent, "attempt": args.attempt, "revision": item["revision"], "ticket": args.ticket})
     save_manifest(run, manifest)
@@ -1567,6 +2038,12 @@ def cmd_claim_lane(args: argparse.Namespace) -> None:
     }
     for ticket_id, state, _ in items:
         state["lease"] = {"agent": agent, "attempt": args.attempt, "lane": lane_id}
+        state["owner"] = {
+            "nativeChildId": args.native_child_id,
+            "ownerKind": args.owner_kind,
+            "ownerRef": agent,
+            "requestedProfile": args.requested_profile,
+        }
         state["status"] = "dispatched"
         event(run, manifest, "ticket_claimed", {
             "agent": agent, "attempt": args.attempt, "lane": lane_id,
@@ -1616,6 +2093,96 @@ def cmd_resume(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     load_manifest(run)
     sys.stdout.write((run / "resume.md").read_text())
+
+
+def cmd_completion(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    lock = read_json(run / "source-lock.json")
+    print(pretty_json(completion_projection(
+        manifest,
+        observed_head=observed_integration_head(manifest, lock),
+    )), end="")
+
+
+def run_facts_projection(run: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    graph = read_json(run / "ticket-graph.json")
+    lock = read_json(run / "source-lock.json")
+    commit = observed_integration_head(manifest, lock)
+    tree = None
+    if commit:
+        result = subprocess.run(
+            ["git", "-C", lock["repository_root"], "rev-parse", f"{commit}^{{tree}}"],
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            tree = result.stdout.strip().lower()
+    identity = graph["verification_identity"]
+    receipts = []
+    receipt_records: list[tuple[str, dict[str, Any]]] = []
+    for ticket_id, item in sorted(manifest["tickets"].items()):
+        if item.get("integration_verification"):
+            receipt_records.append((f"ticket:{ticket_id}", item["integration_verification"]))
+    for cohort_id, item in sorted(manifest["cohorts"].items()):
+        if item.get("receipt"):
+            receipt_records.append((f"shared:{cohort_id}", read_json(run / item["receipt"])))
+    final = manifest.get("release", {}).get("epic-verification")
+    if final:
+        receipt_records.append(("final-epic", final))
+    for receipt_id, record in receipt_records:
+        receipt_identity = record.get("identity", {})
+        if record.get("result", "pass") != "pass" or not receipt_identity:
+            continue
+        receipts.append({
+            "id": receipt_id,
+            "identity": {
+                "argv": receipt_identity["argv"],
+                "commit": receipt_identity["commitSha"],
+                "environment": f"sha256:{receipt_identity['environmentSha256']}",
+                "fixtures": f"sha256:{receipt_identity['fixturesSha256']}",
+                "toolchain": f"sha256:{receipt_identity['toolchainSha256']}",
+                "tree": receipt_identity["treeSha"],
+            },
+            "result": "pass",
+        })
+    epic_id = lock["target_epic_ids"][0]
+    final_commit = final.get("integration_head_sha") if final else None
+    final_tree = final.get("identity", {}).get("treeSha") if final else None
+    review = consequence_review_status(manifest, final_commit or commit, final_tree or tree)
+    safeguards = {
+        kind: safeguard_status(manifest, kind, final_commit or commit, final_tree or tree)
+        for kind in SAFEGUARD_KINDS
+    }
+    return {
+        "epicId": epic_id,
+        "epicTitle": lock["epics"][epic_id]["title"],
+        "exactRevision": completion_projection(manifest, observed_head=commit)["exactRevision"],
+        "owners": [item["owner"] for _, item in sorted(manifest["tickets"].items()) if item.get("owner")],
+        "plannedChecks": graph["planned_checks"],
+        "review": review,
+        "release": {
+            "applicability": manifest["release"]["applicability"],
+            "safeguards": safeguards,
+        },
+        "schemaVersion": "gauntlet/epic-run-facts/v1",
+        "verificationIdentity": {
+            "commit": commit,
+            "environment": identity["environment"],
+            "fixtures": identity["fixtures"],
+            "toolchain": identity["toolchain"],
+            "tree": tree,
+        },
+        "verificationReceipts": receipts,
+    }
+
+
+def cmd_run_facts(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    if manifest.get("graph_sha256") is None:
+        raise RunError("run-facts requires a compiled single-Epic Ticket Graph")
+    print(pretty_json(run_facts_projection(run, manifest)), end="")
 
 
 def dependency_receipts(run: Path, manifest: dict[str, Any], item: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1692,7 +2259,10 @@ def materialize_bundle(run: Path, manifest: dict[str, Any], ticket_id: str) -> d
         "schema_version": 1,
         "stable_sources": [
             {"id": "global", "path": manifest["shared_context"]["global"], "role": "global"},
-            {"id": cohort_id, "path": manifest["shared_context"]["cohorts"][cohort_id], "role": "cohort"},
+            *(
+                [{"id": cohort_id, "path": manifest["shared_context"]["cohorts"][cohort_id], "role": "cohort"}]
+                if cohort_id else []
+            ),
             *dependency_sources,
         ],
         "template_version": 1,
@@ -1839,23 +2409,26 @@ def cmd_integrate(args: argparse.Namespace) -> None:
     item = get_ticket(manifest, args.ticket)
     if item["status"] != "completed":
         raise RunError(f"ticket {args.ticket} is not completed")
-    evidence, relative = proof_path(run, Path(args.evidence), "ticket integration evidence")
     receipt_path = run / item.get("receipt_file", "")
     if not item.get("receipt_file") or not receipt_path.is_file():
         raise RunError("ticket has no recorded receipt for the active attempt")
-    child_evidence = set(read_json(receipt_path).get("evidence", []))
-    child_hashes = {sha_file(run / ref) for ref in child_evidence}
-    if relative in child_evidence or sha_file(evidence) in child_hashes:
-        raise RunError("parent integration evidence must be distinct in path and content from child-reported evidence")
+    verification, relative = record_verification_receipt(
+        run,
+        manifest,
+        Path(args.verification_receipt),
+        f"{args.ticket}.integration.json",
+        "ticket integration verification receipt",
+    )
     item["integration_verification"] = {
-        "evidence": relative,
-        "summary": require_string(args.summary, "integration summary"),
+        "evidence": verification["evidence"],
+        "identity": verification["identity"],
+        "receipt": relative,
+        "summary": verification["summary"],
     }
-    pin_artifact(run, manifest, evidence)
     item["status"] = "integrated"
     item["lease"] = None
     refresh_readiness(manifest)
-    event(run, manifest, "ticket_integrated", {"evidence": relative, "revision": item["revision"], "ticket": args.ticket})
+    event(run, manifest, "ticket_integrated", {"receipt": relative, "revision": item["revision"], "ticket": args.ticket})
     save_manifest(run, manifest)
 
 
@@ -1869,14 +2442,72 @@ def cmd_verify_cohort(args: argparse.Namespace) -> None:
     pending = [ticket_id for ticket_id in cohort["ticket_ids"] if manifest["tickets"][ticket_id]["status"] != "integrated"]
     if pending:
         raise RunError(f"cohort has pending tickets: {pending}")
-    evidence, relative = proof_path(run, Path(args.evidence), "cohort evidence")
-    cohort["result"] = args.result
-    cohort["evidence"] = relative
+    verification, relative = record_verification_receipt(
+        run,
+        manifest,
+        Path(args.verification_receipt),
+        f"cohort-{args.cohort}.json",
+        "Cohort verification receipt",
+    )
+    cohort["result"] = verification["result"]
+    cohort["evidence"] = verification["evidence"]
+    cohort["receipt"] = relative
     cohort_report = run / "cohorts" / f"{args.cohort.lower()}.md"
-    atomic_text(cohort_report, evidence.read_text())
-    pin_artifact(run, manifest, evidence)
+    atomic_text(cohort_report, f"# Cohort {args.cohort}\n\nResult: {verification['result']}\n\nSummary: {verification['summary']}\n\nReceipt: {relative}\n")
     pin_artifact(run, manifest, cohort_report)
-    event(run, manifest, "cohort_verified", {"cohort": args.cohort, "result": args.result})
+    event(run, manifest, "cohort_verified", {"cohort": args.cohort, "result": verification["result"]})
+    save_manifest(run, manifest)
+
+
+def cmd_record_review(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    require_state(manifest, ("integrating",))
+    policy = manifest.get("consequence_review", {}).get("policy", {})
+    expected = {item["id"] for item in policy.get("lenses", [])}
+    if not policy.get("required") or args.lens not in expected:
+        raise RunError(f"review lens is not required by this run: {args.lens}")
+    verification, relative = record_verification_receipt(
+        run,
+        manifest,
+        Path(args.verification_receipt),
+        f"consequence-review-{args.lens}.json",
+        f"{args.lens} consequence review receipt",
+        expected_oracle=consequence_oracle(manifest, lens=args.lens),
+    )
+    manifest["consequence_review"]["results"][args.lens] = {**verification, "receipt": relative}
+    event(run, manifest, "consequence_review_recorded", {"lens": args.lens, "result": verification["result"]})
+    save_manifest(run, manifest)
+
+
+def cmd_record_safeguard(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    policy = manifest.get("consequence_review", {}).get("policy", {})
+    if not policy.get("triggers"):
+        raise RunError("ordinary runs do not require consequence safeguards")
+    if args.kind != "dry-run-no-mutation" and not manifest["release"]["applicability"]["production-verification"]:
+        raise RunError(f"{args.kind} is not required without an applicable production-verification stage")
+    if args.kind == "bounded-live":
+        require_state(manifest, ("deployed",))
+        require_authority(manifest, "deploy-production", "verify-production", *trigger_authorities(manifest))
+    else:
+        require_state(manifest, ("epic_verified", "merged", "deployed"))
+    final = manifest.get("release", {}).get("epic-verification", {})
+    if final.get("result") != "pass":
+        raise RunError("consequence safeguards require passing final Epic verification")
+    verification, relative = record_verification_receipt(
+        run,
+        manifest,
+        Path(args.verification_receipt),
+        f"safeguard-{args.kind}.json",
+        f"{args.kind} safeguard receipt",
+        expected_oracle=consequence_oracle(manifest, safeguard=args.kind),
+    )
+    if verification["identity"]["commitSha"] != final.get("integration_head_sha"):
+        raise RunError("safeguard receipt does not match the exact final verified revision")
+    manifest["release"].setdefault("safeguards", {})[args.kind] = {**verification, "receipt": relative}
+    event(run, manifest, "consequence_safeguard_recorded", {"kind": args.kind, "result": verification["result"]})
     save_manifest(run, manifest)
 
 
@@ -1893,6 +2524,16 @@ def cmd_record_release(args: argparse.Namespace) -> None:
         raise RunError(f"applicable release stage cannot be skipped: {stage}")
     if not applicable and args.result != "skipped":
         raise RunError(f"inapplicable release stage must be recorded as skipped: {stage}")
+    if applicable:
+        final = manifest.get("release", {}).get("epic-verification", {})
+        final_commit = require_sha(final.get("integration_head_sha"), "final verified revision")
+        require_safeguard(manifest, "dry-run-no-mutation", final_commit)
+        if stage == "deployment":
+            require_authority(manifest, "deploy-production", *trigger_authorities(manifest))
+        else:
+            require_authority(manifest, "verify-production")
+            require_safeguard(manifest, "bounded-live", final_commit)
+            require_safeguard(manifest, "rollback-readiness", final_commit)
     previous = manifest["release"].get(stage, {})
     if previous.get("result") == "fail" and args.result == "pass" and manifest["release"].get("rollback", {}).get("result") != "pass":
         raise RunError(f"failed {stage} cannot be replaced with pass until rollback evidence is recorded")
@@ -1900,11 +2541,20 @@ def cmd_record_release(args: argparse.Namespace) -> None:
         revision = require_string(args.revision, "deployed revision").lower()
         if revision != manifest["release"].get("merge", {}).get("main_sha"):
             raise RunError("deployment revision must equal the verified merged main SHA")
+    elif stage == "production-verification" and applicable and args.result == "pass":
+        revision = require_string(args.revision, "production-proved revision").lower()
+        if revision != manifest["release"].get("deployment", {}).get("revision"):
+            raise RunError("production proof revision must equal the exact deployed revision")
     else:
         revision = args.revision
-    manifest["release"][stage] = {"evidence": evidence, "result": args.result, "summary": summary}
+    record = {"evidence": evidence, "result": args.result, "summary": summary}
     if revision:
-        manifest["release"][stage]["revision"] = revision
+        record["revision"] = revision
+    previous_record = manifest["release"].get(stage)
+    if previous_record and previous_record != record:
+        if previous_record.get("result") != "fail" or args.result != "pass" or manifest["release"].get("rollback", {}).get("result") != "pass":
+            raise RunError(f"recorded {stage} facts conflict with the observed release state")
+    manifest["release"][stage] = record
     revision_line = f"\nRevision: {revision}\n" if revision else ""
     report = f"# {stage.replace('-', ' ').title()}\n\nResult: {args.result}\n\nSummary: {summary}\n{revision_line}\nEvidence: {evidence}\n"
     atomic_text(run / "release" / f"{stage}.md", report)
@@ -1913,58 +2563,82 @@ def cmd_record_release(args: argparse.Namespace) -> None:
     save_manifest(run, manifest)
 
 
-def cmd_verify_prd(args: argparse.Namespace) -> None:
+def cmd_verify_epic(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
-    require_state(manifest, ("cohort_verified",))
-    evidence, relative = proof_path(run, Path(args.evidence), "full PRD evidence")
-    prior_proof_hashes = set()
-    for ticket_id, item in manifest["tickets"].items():
-        receipt = run / item.get("receipt_file", "")
-        if receipt.is_file():
-            for ref in read_json(receipt).get("evidence", []):
-                prior_proof_hashes.add(sha_file(Path(ref) if Path(ref).is_absolute() else run / ref))
-        integration_ref = item.get("integration_verification", {}).get("evidence")
-        if integration_ref:
-            prior_proof_hashes.add(sha_file(run / integration_ref))
-    for cohort in manifest["cohorts"].values():
-        if cohort.get("evidence"):
-            prior_proof_hashes.add(sha_file(run / cohort["evidence"]))
-    if sha_file(evidence) in prior_proof_hashes:
-        raise RunError("full PRD evidence must be independently produced, not copied from earlier proof")
-    manifest["release"]["prd-verification"] = {
-        "evidence": relative, "result": args.result,
-        "summary": require_string(args.summary, "full PRD summary"),
+    require_state(manifest, ("integrating",))
+    pending = [ticket_id for ticket_id, item in manifest["tickets"].items() if item["status"] != "integrated"]
+    failed_cohorts = [cohort_id for cohort_id, item in manifest["cohorts"].items() if item.get("result") != "pass"]
+    if pending or failed_cohorts:
+        raise RunError(f"final Epic verification requires integrated Tickets and passing declared Cohorts; pending={pending}, cohorts={failed_cohorts}")
+    lock = read_json(run / "source-lock.json")
+    commit, tree = exact_integration_revision(manifest, lock)
+    review = consequence_review_status(manifest, commit, tree)
+    if review["required"] and review["status"] != "pass":
+        raise RunError(f"final Epic verification requires all consequence lenses to pass on the exact candidate revision; status={review['status']}")
+    verification, relative = record_verification_receipt(
+        run,
+        manifest,
+        Path(args.verification_receipt),
+        "final-epic-verification.json",
+        "final Epic verification receipt",
+    )
+    epic_id = lock["target_epic_ids"][0]
+    if verification["identity"]["oracleSha256"] != lock["epics"][epic_id]["section_sha256"]:
+        raise RunError("final Epic verification oracle must identify the locked canonical Epic section")
+    commit = verification["identity"]["commitSha"]
+    manifest["release"]["epic-verification"] = {
+        **verification,
+        "integration_head_sha": commit,
+        "receipt": relative,
+        "repository_identity": lock["repository_identity"],
     }
-    if manifest.get("integration", {}).get("pr_strategy") in PR_STRATEGIES:
-        repo, repository_identity = git_repository_identity(Path.cwd())
-        lock = read_json(run / "source-lock.json")
-        if repository_identity != lock.get("repository_identity"):
-            raise RunError("full PRD verification must run in the repository locked at initialization")
-        branch = git_value(["branch", "--show-current"], "current branch", repo)
-        if branch != manifest["integration"]["branch"]:
-            raise RunError("full PRD verification must run on the Execution Run integration branch")
-        manifest["release"]["prd-verification"].update({
-            "repository_identity": repository_identity,
-            "integration_head_sha": require_sha(git_value(["rev-parse", "HEAD"], "integration HEAD", repo), "integration HEAD"),
-        })
-    report = run / "release" / "prd-verification.md"
-    atomic_text(report, f"# PRD Verification\n\nResult: {args.result}\n\nSummary: {args.summary}\n\nEvidence: {relative}\n")
-    pin_artifact(run, manifest, evidence); pin_artifact(run, manifest, report)
-    event(run, manifest, "prd_verified", {"result": args.result})
+    report = run / "release" / "epic-verification.md"
+    atomic_text(report, f"# Final Epic Verification\n\nResult: {verification['result']}\n\nSummary: {verification['summary']}\n\nExact revision: {commit}\n\nReceipt: {relative}\n")
+    pin_artifact(run, manifest, report)
+    event(run, manifest, "epic_verified", {"result": verification["result"], "revision": commit})
     save_manifest(run, manifest)
 
 
 def cmd_record_merge(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
-    require_state(manifest, ("prd_verified",))
+    require_state(manifest, ("epic_verified", "merged"))
     if "authority" in manifest:
         require_authority(manifest, "merge-to-default")
-    merged = require_string(args.merged_sha, "merged SHA").lower()
-    main = require_string(args.main_sha, "main SHA").lower()
-    if not re.fullmatch(r"[0-9a-f]{7,64}", merged) or merged != main:
+    lock = read_json(run / "source-lock.json")
+    repository_root = Path(require_string(lock.get("repository_root"), "source-lock.repository_root")).resolve()
+    repo, repository_identity = git_repository_identity(repository_root)
+    if repo != repository_root or repository_identity != lock.get("repository_identity"):
+        raise RunError("source-lock.repository_root no longer resolves to the locked repository")
+    merged = canonical_git_object(repo, args.merged_sha, "merged SHA", "commit")
+    main = canonical_git_object(repo, args.main_sha, "main SHA", "commit")
+    if merged != main:
         raise RunError("merged SHA and verified main SHA must be the same Git object ID")
+    default_ref, observed_main = observed_default_branch_ref(repo)
+    if main != observed_main:
+        raise RunError(f"verified main SHA does not equal the currently observed default-branch ref {default_ref}")
+    verified_head = canonical_git_object(
+        repo,
+        manifest["release"]["epic-verification"].get("integration_head_sha"),
+        "final verified integration head",
+        "commit",
+    )
+    ancestry = subprocess.run(
+        ["git", "-C", str(repo), "merge-base", "--is-ancestor", verified_head, main],
+        text=True,
+        capture_output=True,
+    )
+    verification_method = "ancestry"
+    if ancestry.returncode == 1:
+        verified_tree = git_value(["rev-parse", f"{verified_head}^{{tree}}"], "verified candidate tree", repo)
+        main_tree = git_value(["rev-parse", f"{main}^{{tree}}"], "observed default tree", repo)
+        if verified_tree != main_tree:
+            raise RunError("observed default branch preserves neither verified-head ancestry nor the exact verified candidate tree")
+        verification_method = "tree-equivalence"
+    elif ancestry.returncode != 0:
+        raise RunError(f"cannot verify merge ancestry: {ancestry.stderr.strip() or ancestry.stdout.strip()}")
+    require_safeguard(manifest, "dry-run-no-mutation", verified_head)
     integration = manifest.get("integration", {})
     record = {
         "evidence": require_string(args.evidence, "merge evidence"),
@@ -1974,18 +2648,25 @@ def cmd_record_merge(args: argparse.Namespace) -> None:
         "pr": require_string(args.pr, "PR reference"),
         "pr_strategy": integration.get("pr_strategy"),
         "result": "pass",
+        "verification_method": verification_method,
+        "verified_head_sha": verified_head,
     }
+    existing = manifest["release"].get("merge")
+    if existing and existing != record:
+        raise RunError("recorded merge facts conflict with the observed merge")
     manifest["release"]["merge"] = record
     report = run / "release" / "merge.md"
-    atomic_text(report, f"# Merge\n\nResult: pass\n\nPR: {record['pr']}\n\nIntegration branch: {record['integration_branch'] or 'not recorded'}\n\nPR strategy: {record['pr_strategy'] or 'not recorded'}\n\nMerged SHA: {merged}\n\nVerified main SHA: {main}\n\nEvidence: {record['evidence']}\n")
+    atomic_text(report, f"# Merge\n\nResult: pass\n\nPR: {record['pr']}\n\nIntegration branch: {record['integration_branch'] or 'not recorded'}\n\nPR strategy: {record['pr_strategy'] or 'not recorded'}\n\nMerged SHA: {merged}\n\nVerified main SHA: {main}\n\nVerification method: {verification_method}\n\nEvidence: {record['evidence']}\n")
     pin_artifact(run, manifest, report)
-    event(run, manifest, "merge_recorded", {"main_sha": main, "pr": record["pr"]})
+    if not existing:
+        event(run, manifest, "merge_recorded", {"main_sha": main, "pr": record["pr"]})
     save_manifest(run, manifest)
 
 
 def cmd_record_rollback(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
+    require_authority(manifest, "execute-rollback")
     record = {
         "action": require_string(args.action, "rollback action"), "evidence": require_string(args.evidence, "rollback evidence"),
         "result": args.result, "trigger": require_string(args.trigger, "rollback trigger"),
@@ -2060,6 +2741,9 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
         ["source-lock.json", "ticket-graph.json", "ticket-graph.md", "manifest.json", "resume.md", "events.jsonl"],
         [],
     )
+    manifest["consequence_review"] = {"policy": graph["review"], "results": {}}
+    manifest["release"]["safeguards"] = {}
+    manifest["release"].pop("epic-verification", None)
     for ticket_id in sorted(impacted):
         item = manifest["tickets"][ticket_id]
         history = dict(item.get("revision_history", {}))
@@ -2100,7 +2784,7 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
         "target_epic_ids": source_info["epic_ids"], "scope_hashes": new_scope_hashes,
         "epics": source_info["epics"],
     }
-    manifest["source"] = {"path": str(source), "sha256": lock["source_sha256"]}
+    manifest["source"] = {"epic_ids": source_info["epic_ids"], "path": str(source), "sha256": lock["source_sha256"]}
     manifest["graph_sha256"] = object_hash(graph)
     previous_cohorts = manifest["cohorts"]
     manifest["cohorts"] = {}
@@ -2134,8 +2818,14 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     commands = root.add_subparsers(dest="command", required=True)
     init = commands.add_parser("init")
-    init.add_argument("--executions", required=True); init.add_argument("--run-id", required=True); init.add_argument("--source", required=True)
-    init.add_argument("--target", required=True, action="append"); init.add_argument("--instruction-version", default="prd-run/v1")
+    init.add_argument("--executions", required=True); init.add_argument("--run-id", required=True)
+    init.add_argument(
+        "--source",
+        required=True,
+        help="immutable launch-set.source.md / launch source snapshot (not the mutable canonical PRD)",
+    )
+    init.add_argument("--target", required=True, action="append"); init.add_argument("--launch-set", required=True)
+    init.add_argument("--instruction-version", default="prd-run/v1")
     init.add_argument("--release-contract", required=True); init.add_argument("--release-stages", default="merge")
     init.add_argument("--integration-branch")
     init.add_argument("--pr-strategy", choices=PR_STRATEGIES, default=DEFAULT_PR_STRATEGY)
@@ -2145,14 +2835,22 @@ def parser() -> argparse.ArgumentParser:
     compile_cmd = commands.add_parser("compile")
     compile_cmd.add_argument("--run", required=True); compile_cmd.add_argument("--graph", required=True); compile_cmd.set_defaults(func=cmd_compile)
     claim = commands.add_parser("claim")
-    claim.add_argument("--run", required=True); claim.add_argument("--ticket", required=True); claim.add_argument("--agent", required=True); claim.add_argument("--attempt", required=True, type=int); claim.set_defaults(func=cmd_claim)
+    claim.add_argument("--run", required=True); claim.add_argument("--ticket", required=True); claim.add_argument("--agent", required=True); claim.add_argument("--attempt", required=True, type=int)
+    claim.add_argument("--owner-kind", choices=("parent", "delegated"), default="delegated")
+    claim.add_argument("--native-child-id"); claim.add_argument("--requested-profile"); claim.set_defaults(func=cmd_claim)
     claim_lane = commands.add_parser("claim-lane")
     claim_lane.add_argument("--run", required=True); claim_lane.add_argument("--lane", required=True); claim_lane.add_argument("--agent", required=True)
-    claim_lane.add_argument("--attempt", required=True, type=int); claim_lane.add_argument("--affinity", required=True); claim_lane.add_argument("--ticket", required=True, action="append"); claim_lane.set_defaults(func=cmd_claim_lane)
+    claim_lane.add_argument("--attempt", required=True, type=int); claim_lane.add_argument("--affinity", required=True); claim_lane.add_argument("--ticket", required=True, action="append")
+    claim_lane.add_argument("--owner-kind", choices=("parent", "delegated"), default="delegated")
+    claim_lane.add_argument("--native-child-id"); claim_lane.add_argument("--requested-profile"); claim_lane.set_defaults(func=cmd_claim_lane)
     ready = commands.add_parser("ready")
     ready.add_argument("--run", required=True); ready.add_argument("--affinity"); ready.set_defaults(func=cmd_ready)
     resume = commands.add_parser("resume")
     resume.add_argument("--run", required=True); resume.set_defaults(func=cmd_resume)
+    completion = commands.add_parser("completion")
+    completion.add_argument("--run", required=True); completion.set_defaults(func=cmd_completion)
+    run_facts = commands.add_parser("run-facts")
+    run_facts.add_argument("--run", required=True); run_facts.set_defaults(func=cmd_run_facts)
     materialize = commands.add_parser("materialize-ticket")
     materialize.add_argument("--run", required=True); materialize.add_argument("--ticket", required=True); materialize.add_argument("--output"); materialize.set_defaults(func=cmd_materialize)
     materialize_lane = commands.add_parser("materialize-lane")
@@ -2160,11 +2858,20 @@ def parser() -> argparse.ArgumentParser:
     receipt = commands.add_parser("record-receipt")
     receipt.add_argument("--run", required=True); receipt.add_argument("--ticket", required=True); receipt.add_argument("--receipt", required=True); receipt.set_defaults(func=cmd_receipt)
     integrate = commands.add_parser("integrate")
-    integrate.add_argument("--run", required=True); integrate.add_argument("--ticket", required=True); integrate.add_argument("--evidence", required=True); integrate.add_argument("--summary", required=True); integrate.set_defaults(func=cmd_integrate)
+    integrate.add_argument("--run", required=True); integrate.add_argument("--ticket", required=True)
+    integrate.add_argument("--verification-receipt", required=True); integrate.set_defaults(func=cmd_integrate)
     cohort = commands.add_parser("verify-cohort")
-    cohort.add_argument("--run", required=True); cohort.add_argument("--cohort", required=True); cohort.add_argument("--result", required=True, choices=("pass", "fail")); cohort.add_argument("--evidence", required=True); cohort.set_defaults(func=cmd_verify_cohort)
-    verify_prd = commands.add_parser("verify-prd")
-    verify_prd.add_argument("--run", required=True); verify_prd.add_argument("--result", required=True, choices=("pass", "fail")); verify_prd.add_argument("--summary", required=True); verify_prd.add_argument("--evidence", required=True); verify_prd.set_defaults(func=cmd_verify_prd)
+    cohort.add_argument("--run", required=True); cohort.add_argument("--cohort", required=True)
+    cohort.add_argument("--verification-receipt", required=True); cohort.set_defaults(func=cmd_verify_cohort)
+    review = commands.add_parser("record-review")
+    review.add_argument("--run", required=True); review.add_argument("--lens", required=True, choices=REQUIRED_REVIEW_LENSES)
+    review.add_argument("--verification-receipt", required=True); review.set_defaults(func=cmd_record_review)
+    safeguard = commands.add_parser("record-safeguard")
+    safeguard.add_argument("--run", required=True); safeguard.add_argument("--kind", required=True, choices=SAFEGUARD_KINDS)
+    safeguard.add_argument("--verification-receipt", required=True); safeguard.set_defaults(func=cmd_record_safeguard)
+    verify_epic = commands.add_parser("verify-epic")
+    verify_epic.add_argument("--run", required=True); verify_epic.add_argument("--verification-receipt", required=True)
+    verify_epic.set_defaults(func=cmd_verify_epic)
     merge = commands.add_parser("record-merge")
     merge.add_argument("--run", required=True); merge.add_argument("--pr", required=True); merge.add_argument("--merged-sha", required=True); merge.add_argument("--main-sha", required=True); merge.add_argument("--evidence", required=True); merge.set_defaults(func=cmd_record_merge)
     release = commands.add_parser("record-release")
@@ -2184,10 +2891,6 @@ def parser() -> argparse.ArgumentParser:
     review_unit.add_argument("--evidence"); review_unit.add_argument("--summary"); review_unit.set_defaults(func=cmd_review_unit)
     review_status = commands.add_parser("review-unit-status")
     review_status.add_argument("--run", required=True); review_status.add_argument("--unit", required=True); review_status.set_defaults(func=cmd_review_unit_status)
-    project_summary = commands.add_parser("record-project-summary")
-    project_summary.add_argument("--run", required=True); project_summary.add_argument("--artifact", required=True); project_summary.set_defaults(func=cmd_record_project_summary)
-    epic_outcome = commands.add_parser("record-epic-outcome")
-    epic_outcome.add_argument("--run", required=True); epic_outcome.add_argument("--artifact", required=True); epic_outcome.set_defaults(func=cmd_record_epic_outcome)
     project_pr = commands.add_parser("project-pr")
     project_pr.add_argument("--run", required=True); project_pr.add_argument("--json", action="store_true"); project_pr.set_defaults(func=cmd_project_pr)
     return root

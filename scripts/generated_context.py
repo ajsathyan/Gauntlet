@@ -135,12 +135,17 @@ def _validate_sources(stable: Sequence[Source], volatile: Sequence[Source]) -> N
         seen_digests.add(source.sha256)
 
     counts = {role: sum(source.role == role for source in all_sources) for role in ROLE_ORDER}
-    for role in ("global", "cohort", "ticket", "handoff"):
+    for role in ("global", "ticket", "handoff"):
         if counts[role] != 1:
             raise ContextError(
                 "missing-critical-context",
                 f"Generated context requires exactly one {role} source; found {counts[role]}",
             )
+    if counts["cohort"] > 1:
+        raise ContextError(
+            "duplicate-cohort-context",
+            f"Generated context accepts at most one cohort source; found {counts['cohort']}",
+        )
 
 
 def load_template(template_root: Path, family: str, version: int) -> bytes:
@@ -224,7 +229,7 @@ def render_manifest(
     volatile_sources = _ordered(volatile_sources)
 
     global_source = next(source for source in stable_sources if source.role == "global")
-    cohort_source = next(source for source in stable_sources if source.role == "cohort")
+    cohort_source = next((source for source in stable_sources if source.role == "cohort"), None)
     dependencies = [source for source in stable_sources if source.role == "dependency"]
     ticket_source = next(source for source in volatile_sources if source.role == "ticket")
     handoff_source = next(source for source in volatile_sources if source.role == "handoff")
@@ -238,7 +243,7 @@ def render_manifest(
         template_bytes
         + b"\n"
         + _section("Global context", global_source.content)
-        + _section("Cohort context", cohort_source.content)
+        + _section("Cohort context", cohort_source.content if cohort_source else b"None.\n")
         + _section("Dependency contracts", dependency_content)
         + b"# Assigned ticket (variable context follows)\n\n"
     )

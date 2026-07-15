@@ -20,7 +20,7 @@ If a field is outside scope, write `Not relevant because...` instead of padding 
 - Decisions: only non-obvious choices or tradeoffs
 - Exceptions: checks skipped, things that went wrong, `Cannot verify`, user decisions needed, and follow-ups
 - Production Quality Bar: material launch assumptions, release proof, skipped proof, or `Not relevant because...`
-- Release proof: compact proof summary, launch cut line, and `| Concern | Decision | Why Not Defer | Proof | Plan Delta |` when present
+- Release proof: compact exact-revision proof, pending gates, rollback state, and material blockers
 - Coverage gap candidates added or updated
 - Not relevant because: sections omitted and why
 
@@ -31,7 +31,7 @@ If a field is outside scope, write `Not relevant because...` instead of padding 
 - For Release, include proof only when it materially changes launch risk or rollback confidence.
 - For Production Quality Bar work, record only material decisions, release proof, skipped proof, `Cannot verify`, launch cut-line impact, and gap candidates.
 - Record failed, skipped, partial, or unavailable proof with the next check.
-- Preserve guarded Release panel delta and allowed decisions: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, `Reject`.
+- Record only review findings that changed scope, proof, authority, rollback, or release state; do not reproduce reviewer narration.
 - Capture a `GAP-###` candidate in `docs/coverage-gaps.md` when missing reusable guidance caused an assumption, repeated finding, or `Cannot verify`.
 - If a reliable failure has a concrete fix but no existing rule, capture the candidate with suggested destination: lint, eval, guidance, reference, coverage gap, or no change.
 - Report new or updated gap IDs to the orchestrator for the end of the final response using `Added GAP-###: Short name - why it matters`.

@@ -1,37 +1,40 @@
 ---
 name: issue-triager
-description: Use to classify, reproduce, prioritize, deduplicate, and route planned work, review findings, test failures, bugs, and open questions into ready implementation tasks.
+description: Use when planned work, review findings, test failures, bugs, or open questions need classification, reproduction, prioritization, deduplication, or routing into ready items.
 ---
 
 # Issue Triager
 
-Triage is flow control. Prefer evidence over speculation, keep work-in-progress low, and make each item actionable or explicitly blocked.
+Triage is flow control. Convert messy inputs into ready work, deferred notes, duplicates, rejected items, or blocked questions.
 
-Output per issue:
+## Ready Item
 
-- Classification
-- Decision: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, or `Reject` when triaging Release-panel or launch-cut findings
-- Priority
-- Status
-- Minimal repro or missing repro data
+For each issue, output:
+
+If a field is outside accepted scope, write `Not relevant because...` instead of creating speculative work. Optional example: read `examples/ready-item.md` only when output shape is ambiguous.
+
+- Classification: bug, test failure, review finding, release concern, cleanup, open question, duplicate, or no-action
+- Decision: `Block`, `Ready`, `Defer`, `Reject`, `Duplicate`, or `No action`
+- Priority: P0/P1/P2/P3
+- Status: `Ready`, `Blocked`, `Deferred`, `Duplicate`, `Rejected`, or `No action`
+- Source handle or source text
 - Observed vs expected
 - Evidence
-- Suspected area
+- Repro state: exact repro, partial repro, missing repro, or not reproducible
+- Cannot verify: missing data and next proof
+- Done when
 - Next action
 - Owner/role
 - WIP guidance
 
-Rules:
+Independent findings may be triaged by parallel subagents when sources do not overlap. Merge only when cause or resolution is shared.
 
-- Mark work ready only when the next action is clear.
+## Rules
+
+- Mark work Ready only when the next action and Done when are clear.
 - Do not assign root cause without evidence.
-- Merge duplicates only when cause or resolution is shared.
 - Split broad findings into implementable tasks.
-- Prioritize items that unblock flow or protect users.
-- Preserve the Release panel decision taxonomy: `Ship blocker`, `Conditional blocker`, `Manual fallback`, `Private beta gate`, `Defer`, and `Reject`.
-- A `Ship blocker` must name concrete user, data, money, security, legal, or release-regression harm; explain why fallback/deferral/private beta/support recovery is not acceptable; include executable proof or a concrete manual proof script; and identify the plan delta.
-- Use the table shape `| Concern | Decision | Why Not Defer | Proof | Plan Delta |` when summarizing guarded-panel or launch-cut triage.
-- Preserve the launch cut line and panel delta so implementation agents know what ships now, what is deferred/rejected, and what changed because the panel ran.
-- For architecture hygiene findings, mark work ready only when evidence, scope, done criteria, and verification are clear; otherwise merge into one deferred cleanup note or close as no action.
-- Do not turn taste, broad cleanup, or speculative maintainability into a blocker.
-- Define done for each ready item.
+- For Production Quality Bar findings, keep automatable proof separate from Human judgment and downgrade speculative launch concerns with `Not relevant because...`, `Defer`, or `Reject`.
+- Use `Block` only for concrete harm or missing authority/proof that prevents the accepted next action. Name the decision, recommended resolution, impact, and unaffected work that may continue.
+- Cleanup becomes Ready only with evidence, scope, done criteria, and verification; otherwise Defer, Reject, or No action.
+- Make `Done when` an observable outcome or invariant with meaningful limits. For consequential behavior, include a plausible wrong case and required non-effects; a phrase, populated field, self-report, or green command alone is insufficient.
