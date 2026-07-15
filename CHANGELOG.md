@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now documents how existing local-document profiles are migrated without overwriting canonical documents or rewriting completed Execution Run evidence.
+
 - Gauntlet now freezes each PRD run's review topology, supports parent-owned Review Unit PRs for large tightly coupled targets, and generates one schema v2 Project PR with deterministic Epic and Scope Area coverage.
 
 - Gauntlet now includes version-pinned Codex CLI and Claude Code evaluation adapters, same-cell enforcement, trusted automatic scoring, and same-harness/model A/A equivalence checks while leaving the twelve core tasks undefined.
