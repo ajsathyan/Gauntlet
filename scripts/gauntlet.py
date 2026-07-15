@@ -1088,6 +1088,10 @@ def epic_task_packet(launch_path, launch, epic_id, repo):
         source_reference = source_path.relative_to(Path(repo).resolve()).as_posix()
     except ValueError:
         source_reference = source_path.name
+    try:
+        launch_reference = Path(launch_path).resolve().relative_to(Path(repo).resolve()).as_posix()
+    except ValueError:
+        launch_reference = Path(launch_path).name
     packet = {
         "schemaVersion": "gauntlet.epic-task.v1",
         "mode": "single-epic-non-recursive",
@@ -1096,7 +1100,7 @@ def epic_task_packet(launch_path, launch, epic_id, repo):
         "sourceReference": source_reference,
         "sourceSha256": launch["source"]["sha256"],
         "coverageSha256": launch["coverageSha256"],
-        "launchSet": str(Path(launch_path).resolve()),
+        "launchSet": launch_reference,
         "taskKey": epic["taskKey"],
         "dependencyOutputs": dependency_outputs,
     }
