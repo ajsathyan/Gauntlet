@@ -1328,11 +1328,20 @@ def command_epic_tasks_blocker(args):
         if not epic:
             raise ValueError(f"Epic is not in the launch set: {args.epic}")
         blocker = json.loads(Path(args.blocker).read_text(encoding="utf-8"))
-        required = {"classification", "decision", "recommendation", "reason", "impact", "authorityNotGranted", "question"}
-        if set(blocker) != required:
-            raise ValueError("Blocker must contain exactly: " + ", ".join(sorted(required)))
+        allowed = {"classification", "decision", "recommendation", "reason", "impact", "authorityNotGranted", "question"}
+        if set(blocker) - allowed or "classification" not in blocker:
+            raise ValueError("Blocker contains unknown fields or lacks classification")
         if blocker["classification"] not in {"recoverable", "needs-parent", "requires-user", "terminal"}:
             raise ValueError("Unknown blocker classification")
+        if blocker["classification"] == "requires-user":
+            required = allowed
+        elif blocker["classification"] == "terminal":
+            required = {"classification", "reason"}
+        else:
+            required = {"classification", "reason"}
+        missing = required - set(blocker)
+        if missing:
+            raise ValueError("Blocker is missing required fields: " + ", ".join(sorted(missing)))
         if has_secret(canonical_json(blocker)):
             raise ValueError("Blocker contains secret-like content")
         events = []
@@ -1409,7 +1418,7 @@ def maybe_finish_events(launch, projections):
     for epic_id in launch["targetEpicIds"]:
         epic = launch["epics"][epic_id]
         projection = projections.get(epic_id) or {}
-        if projection.get("available") is True and projection.get("implemented") is True:
+        if epic["status"] != "stopped" and projection.get("available") is True and projection.get("implemented") is True:
             epic["status"] = "implementation-complete"
             if "epic_finish" not in epic["emittedEvents"]:
                 epic["emittedEvents"].append("epic_finish")
