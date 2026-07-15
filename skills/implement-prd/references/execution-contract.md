@@ -2,7 +2,7 @@
 
 ## Product Task And Launch Set
 
-One product task may shape many Epics in one canonical PRD. `Implementation target` lists the complete accepted launch membership. `gauntlet.py epic-tasks init` freezes that membership, the source snapshot, each Epic's title, release stages, dependency boundaries, and closed high-consequence trigger IDs (or `none`). The product task executes only the controller's missing `create_thread` actions and records each proven native task ID.
+One product task may shape many Epics in one canonical PRD. `Implementation target` lists the complete accepted launch membership. `gauntlet.py epic-tasks init` freezes that membership, the source snapshot, each Epic's title, release stages, dependency boundaries, and closed high-consequence trigger IDs (or `none`). The product task executes only the controller's missing `create_thread` actions and records each proven native task ID. An ambiguous creation is retried only after an exact task-key native index proves absence on every available host.
 
 Each target Epic gets one visible implementation task and one Execution Run. An Epic task reads `source.snapshotPath` from the launch set and passes that immutable file to `prd-run.py init --source`; it never passes the mutable canonical PRD path and never creates another Epic task. A dependency blocks only the downstream Epic whose declared `merged`, `deployed`, or `productionProved` boundary is unsatisfied; unrelated Epics continue.
 
