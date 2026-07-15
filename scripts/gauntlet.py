@@ -3306,7 +3306,7 @@ def build_merge_plan(state):
         expected_body = render_pr_body(handoff)
         if state.get("body") != expected_body:
             add_finding(payload, "pr_body_out_of_date", "fail", "PR body does not match the current merge handoff; run merge prepare again.")
-        bullet = f"- {handoff.get('changelog', '').strip()}"
+        bullet = f"- {projection_changelog_entry(handoff).strip()}"
         changelog_path = Path(state["repo"]) / "CHANGELOG.md"
         changelog = changelog_path.read_text(encoding="utf-8") if changelog_path.is_file() else ""
         if not bullet.strip("- ") or sum(line.rstrip() == bullet for line in changelog.splitlines()) != 1:
