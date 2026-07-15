@@ -303,7 +303,8 @@ import tempfile
 target = Path(sys.argv[1])
 phase = sys.argv[2]
 choice = sys.argv[3]
-desired = {"model_verbosity": "low", "personality": "none"}
+desired_top = {"model_verbosity": "low", "personality": "none"}
+desired_max_threads = 24
 data = target.read_bytes() if target.exists() else b""
 try:
     text = data.decode("utf-8")
@@ -346,13 +347,56 @@ for index, line in enumerate(lines[:table_at]):
         raise SystemExit(1)
     found[key] = (index, value, match)
 
-conflicts = {key: value for key, (_, value, _) in found.items() if value != desired[key]}
+agents_header = re.compile(r"^[ \t]*\[agents\][ \t]*(?:#.*)?(?:\r?\n)?$")
+agent_headers = [index for index, line in enumerate(lines) if agents_header.match(line)]
+if len(agent_headers) > 1:
+    print(f"Cannot safely update duplicate [agents] tables in {target}", file=sys.stderr)
+    raise SystemExit(1)
+for index, line in enumerate(lines[:table_at]):
+    if re.match(r"^[ \t]*agents(?:[ \t]*=|\.)", line):
+        print(f"Cannot safely update unsupported top-level agents syntax at {target}:{index + 1}", file=sys.stderr)
+        raise SystemExit(1)
+
+agent_table = None
+agent_found = None
+agent_assignment = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<key>max_threads)(?P<separator>[ \t]*=[ \t]*)"
+    r"(?P<value>[+]?[0-9](?:_?[0-9])*)(?P<suffix>[ \t]*(?:#.*)?)(?P<newline>\r?\n)?$"
+)
+if agent_headers:
+    header_at = agent_headers[0]
+    table_end = len(lines)
+    for index in range(header_at + 1, len(lines)):
+        if lines[index].lstrip().startswith("["):
+            table_end = index
+            break
+    agent_table = (header_at, table_end)
+    for index in range(header_at + 1, table_end):
+        stripped = lines[index].lstrip()
+        if not re.match(r"^max_threads[ \t]*=", stripped):
+            continue
+        match = agent_assignment.match(lines[index])
+        if not match:
+            print(f"Cannot safely update unsupported agents.max_threads syntax at {target}:{index + 1}", file=sys.stderr)
+            raise SystemExit(1)
+        if agent_found is not None:
+            print(f"Cannot safely update duplicate agents.max_threads in {target}", file=sys.stderr)
+            raise SystemExit(1)
+        agent_found = (index, int(match.group("value").replace("_", "")), match)
+
+conflicts = {
+    key: value for key, (_, value, _) in found.items() if value != desired_top[key]
+}
+agent_conflict = agent_found is not None and agent_found[1] != desired_max_threads
 if phase == "check":
-    if conflicts and choice == "prompt":
+    if (conflicts or agent_conflict) and choice == "prompt":
         print("Codex preference conflict requires a user choice before Gauntlet can install.", file=sys.stderr)
         for key, current in conflicts.items():
             print(f'Existing: {key} = "{current}"', file=sys.stderr)
-            print(f'Gauntlet: {key} = "{desired[key]}"', file=sys.stderr)
+            print(f'Gauntlet: {key} = "{desired_top[key]}"', file=sys.stderr)
+        if agent_conflict:
+            print(f"Existing: agents.max_threads = {agent_found[1]}", file=sys.stderr)
+            print(f"Gauntlet: agents.max_threads = {desired_max_threads}", file=sys.stderr)
         print("Rerun with --codex-preferences gauntlet to use Gauntlet defaults,", file=sys.stderr)
         print("or --codex-preferences existing to preserve the existing values.", file=sys.stderr)
         print("Use --codex-preferences skip to leave config.toml entirely unchanged.", file=sys.stderr)
@@ -367,18 +411,44 @@ if phase != "apply":
 output = list(lines)
 if choice in {"prompt", "gauntlet"}:
     for key, (index, value, match) in found.items():
-        if value == desired[key]:
+        if value == desired_top[key]:
             continue
         newline = match.group("newline") or ""
         output[index] = (
-            f'{match.group("indent")}{key}{match.group("separator")}"{desired[key]}"'
+            f'{match.group("indent")}{key}{match.group("separator")}"{desired_top[key]}"'
+            f'{match.group("suffix")}{newline}'
+        )
+    if agent_found is not None and agent_found[1] != desired_max_threads:
+        index, _, match = agent_found
+        newline = match.group("newline") or ""
+        output[index] = (
+            f'{match.group("indent")}max_threads{match.group("separator")}{desired_max_threads}'
             f'{match.group("suffix")}{newline}'
         )
 
-missing = [key for key in desired if key not in found]
+newline_style = "\r\n" if any(line.endswith("\r\n") for line in lines) else "\n"
+if agent_found is None:
+    if agent_table is not None:
+        agent_header_at, agent_table_end = agent_table
+        agent_insert_at = agent_table_end
+        while agent_insert_at > agent_header_at + 1 and not output[agent_insert_at - 1].strip():
+            agent_insert_at -= 1
+        if agent_insert_at > 0 and output[agent_insert_at - 1] and not output[agent_insert_at - 1].endswith(("\n", "\r")):
+            output[agent_insert_at - 1] += newline_style
+        output[agent_insert_at:agent_insert_at] = [f"max_threads = {desired_max_threads}{newline_style}"]
+    else:
+        if output and output[-1] and not output[-1].endswith(("\n", "\r")):
+            output[-1] += newline_style
+        if output and output[-1].strip():
+            output.append(newline_style)
+        output.extend([
+            f"[agents]{newline_style}",
+            f"max_threads = {desired_max_threads}{newline_style}",
+        ])
+
+missing = [key for key in desired_top if key not in found]
 if missing:
-    newline_style = "\r\n" if any(line.endswith("\r\n") for line in lines) else "\n"
-    insertion = [f'{key} = "{desired[key]}"{newline_style}' for key in missing]
+    insertion = [f'{key} = "{desired_top[key]}"{newline_style}' for key in missing]
     if table_at > 0 and output[table_at - 1] and not output[table_at - 1].endswith(("\n", "\r")):
         output[table_at - 1] += newline_style
     if table_at < len(output) and table_at > 0 and output[table_at - 1].strip():
