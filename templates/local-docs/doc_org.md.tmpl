@@ -75,7 +75,7 @@ Use document status `Discussing` until the PRD is accepted. `Implementation targ
 - A PRD owns accepted user-facing behavior and acceptance.
 - Research preserves evidence, contradictions, uncertainty, and deferred investigation. Research does not authorize implementation.
 - A decision record preserves a durable choice whose reasoning would otherwise be lost.
-- A compiled Ticket Graph directs one accepted execution run. It does not own new product requirements.
+- A compiled Ticket Graph directs one locked Epic's Execution Run. It does not own new product requirements or cross-Epic launch state.
 - A run log preserves material decisions, exceptions, proof limits, and unresolved gaps.
 
 Keep these roles distinct and link them rather than copying their content.
@@ -102,7 +102,7 @@ An explicit request to `implement the PRD` freezes the current accepted source, 
 
 One active implementation Ticket per child is the default. A child may take sequential related Tickets when context affinity saves work. Never co-own one implementation Ticket across children. The parent verifies ordinary Ticket evidence directly; independent verification Tickets are reserved for a named consequential boundary. Prefer interface-first Tickets, a dependency-ready queue, critical-path priority, optional cohort barriers only for shared invariants, and incremental parent integration.
 
-Verify at four levels: each Ticket immediately after integration; each cohort that shares an interface or invariant; the full Implementation Target; and the release/production path. The parent owns combined oracles and final acceptance.
+Verify at four levels: each Ticket immediately after integration; each Cohort that shares a named interface or invariant; one fresh final check of the locked Epic on its exact integrated revision; and the applicable release or production path. Zero Cohorts is valid. The Epic-task parent owns combined oracles and final acceptance.
 
 ## Durable Execution Runs
 
@@ -117,7 +117,7 @@ Use the installed generated-context renderer and its versioned prompt-family tem
 This is the single reusable release contract for local documents. PRDs do not copy it. Compiled Ticket Graphs reference it and resolve their implementation-specific fields.
 
 1. Use a dedicated parent integration branch for each Epic Run, with isolated child branches or worktrees. Freeze `single-final-pr` at initialization for a small reviewable Epic, or `review-prs-plus-final` for a large tightly coupled Epic that needs parent-owned Review Unit PRs into the integration branch. Produce one Project PR to `main` with deterministic coverage of the locked Epic and every Scope Area.
-2. Compile the accepted Implementation Target into bounded Tickets and delegate only independent Tickets with separate ownership, state, and proof paths.
+2. Compile the locked Epic into bounded Tickets and delegate only independent Tickets with separate ownership, state, and proof paths. Cross-Epic coverage and dependencies remain in the launch set.
 3. Continue autonomously through reversible, in-scope, authorized work. Stop for a material decision, missing authority, unsafe side effect, preservation risk, or unavailable required proof.
 4. The main task owns Review Unit membership, integration, run-backed PR projections, and changed-surface proof. Keep this topology out of child contexts.
 5. An explicit `implement the PRD` request authorizes the build-ready target end to end: branch/worktree, Tickets, integration, commits, pull request, required-check merge, deployment of the exact verified `main` revision, and documented production changes and verification named by the accepted PRD. A narrower explicit request controls.
