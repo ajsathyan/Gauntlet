@@ -522,6 +522,13 @@ def epic_projection(
     freshness = source_freshness(facts, telemetry, current, stale_after)
     completion = facts.get("completion") if isinstance(facts.get("completion"), dict) else {}
     release_complete = completion.get("complete") is True
+    if release_complete and not units:
+        phases = [{
+            **phase,
+            "status": "complete",
+            "provedShare": 1.0,
+            "accessibleLabel": f"{phase['label']}: complete",
+        } for phase in phases]
     if time_facts["terminalAt"] or terminal_outcome or release_complete:
         # A terminal run no longer produces active-work heartbeats. Its final
         # controller facts remain authoritative instead of aging into recovery.

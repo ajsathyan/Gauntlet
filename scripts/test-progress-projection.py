@@ -197,6 +197,8 @@ class ProgressProjectionTests(unittest.TestCase):
         self.assertEqual("shipped", legacy_complete["presentation"]["state"])
         self.assertEqual("succeeded", legacy_complete["identity"]["terminalOutcome"])
         self.assertEqual("Complete", legacy_complete["eta"]["label"])
+        self.assertTrue(all(phase["status"] == "complete" for phase in legacy_complete["phases"]))
+        self.assertTrue(all(phase["provedShare"] == 1.0 for phase in legacy_complete["phases"]))
 
     def test_health_progress_freshness_and_eta_are_independent(self) -> None:
         value = source_fixture()
