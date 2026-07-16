@@ -225,9 +225,19 @@ For Codex, Gauntlet's defaults are:
 ```toml
 model_verbosity = "low"
 personality = "none"
+model_reasoning_summary = "concise"
 
 [agents]
 max_threads = 24
+
+[desktop]
+show-context-window-usage = true
+
+[plugins."browser@openai-bundled"]
+enabled = true
+
+[plugins."computer-use@openai-bundled"]
+enabled = true
 ```
 
 If any key already has a different value, show the existing and Gauntlet values and ask which to keep. For Claude Code, install the response-style guidance through the managed `CLAUDE.md` import; do not add Codex-only configuration keys.
@@ -278,7 +288,7 @@ Use `--check` to run the same marker, instruction-review, and Codex-preference p
 
 `./scripts/install.sh` defaults to `--target codex`, which installs Gauntlet into `$HOME/.codex` unless `AGENT_HOME` or `GAUNTLET_AGENT_HOME` is set. For Claude Code, use `./scripts/install.sh --target claude` or `GAUNTLET_INSTALL_TARGET=claude ./scripts/install.sh`; this installs into `$HOME/.claude` by default.
 
-The Codex target writes or replaces one Gauntlet managed block inside the agent-home `AGENTS.md`, preserving unrelated instructions outside the block. It also adds `model_verbosity = "low"` and `personality = "none"` as top-level settings plus `agents.max_threads = 24` in `config.toml`, and installs seven named profiles under `~/.codex/agents/`. The agent installer owns only files recorded in its hash manifest; it refuses unowned collisions and modified managed files, preserves unrelated profiles, and safely removes an unchanged profile only after Gauntlet retires it. Restart or reload Codex after installation so the profiles and thread limit are discovered.
+The Codex target writes or replaces one Gauntlet managed block inside the agent-home `AGENTS.md`, preserving unrelated instructions outside the block. It adds the communication, context-visibility, and 24-thread defaults shown above; installs and enables the bundled Browser and Computer Use plugins through the Codex plugin CLI; and installs seven named profiles under `~/.codex/agents/`. Set `GAUNTLET_CODEX_BIN` when the installer cannot discover a working Codex executable. The installer refuses unavailable required plugins before changing files, preserves unrelated configuration and profiles, and keeps explicit `--codex-preferences existing|skip` overrides. Computer Use still requires a supported desktop and any OS permissions prompted by Codex; Gauntlet does not grant them. Restart or reload Codex after installation so the defaults, plugins, profiles, and thread limit are discovered.
 
 Ticket routing is deterministic and documented in [docs/custom-agent-routing.md](docs/custom-agent-routing.md). It selects an explicit profile from the Ticket's work class, complexity, risk, authority, proof type, and context shape. The parent remains responsible for integration, pull requests, merges, deployment, production changes, and rollback decisions.
 
@@ -292,7 +302,7 @@ python3 ~/.codex/gauntlet/scripts/subagent-audit.py summary --json
 When Codex already has a different value, the installer stops before changing any files and prints both the existing and candidate values. After asking the user, rerun with one explicit choice:
 
 ```sh
-# Use Gauntlet's low-verbosity, no-personality, 24-thread defaults.
+# Use all Gauntlet Codex defaults, including Browser and Computer Use.
 ./scripts/install.sh --target codex --codex-preferences gauntlet
 
 # Keep existing values while adding only missing Gauntlet defaults.

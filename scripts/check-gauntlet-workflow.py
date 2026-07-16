@@ -3755,10 +3755,51 @@ def test_promotion_scanner_is_release_wrapup_not_patch_gate():
         raise AssertionError("promotion-scanner eval case is missing")
 
 
-def run_install(agent_home, target="codex", extra_args=None, check=True):
+def fake_codex_plugin_cli(agent_home, available=True):
+    suffix = "available" if available else "unavailable"
+    path = agent_home.parent / f".fake-codex-{agent_home.name}-{suffix}.py"
+    if path.exists():
+        return path
+    plugin_rows = [
+        {"pluginId": plugin, "installed": False, "enabled": False}
+        for plugin in ["browser@openai-bundled", "computer-use@openai-bundled"]
+    ] if available else []
+    path.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, os, sys\n"
+        f"PLUGINS = {plugin_rows!r}\n"
+        "args = sys.argv[1:]\n"
+        "if args[:2] == ['plugin', 'list']:\n"
+        "    print(json.dumps({'installed': [], 'available': PLUGINS}))\n"
+        "    raise SystemExit(0)\n"
+        "if args[:2] == ['plugin', 'add'] and '--help' in args:\n"
+        "    raise SystemExit(0)\n"
+        "if args[:2] == ['plugin', 'add'] and len(args) >= 3:\n"
+        "    plugin = args[2]\n"
+        "    if not any(row['pluginId'] == plugin for row in PLUGINS):\n"
+        "        print(f'plugin unavailable: {plugin}', file=sys.stderr)\n"
+        "        raise SystemExit(1)\n"
+        "    home = os.environ.get('CODEX_HOME')\n"
+        "    if not home:\n"
+        "        print('CODEX_HOME is required', file=sys.stderr)\n"
+        "        raise SystemExit(1)\n"
+        "    with open(os.path.join(home, 'plugin-add.log'), 'a', encoding='utf-8') as handle:\n"
+        "        handle.write(plugin + '\\n')\n"
+        "    print(json.dumps({'pluginId': plugin}))\n"
+        "    raise SystemExit(0)\n"
+        "print('unsupported fake Codex invocation', file=sys.stderr)\n"
+        "raise SystemExit(2)\n"
+    )
+    path.chmod(0o755)
+    return path
+
+
+def run_install(agent_home, target="codex", extra_args=None, check=True, plugins_available=True):
     env = os.environ.copy()
     env["AGENT_HOME"] = str(agent_home)
     env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
+    if target == "codex":
+        env["GAUNTLET_CODEX_BIN"] = str(fake_codex_plugin_cli(agent_home, plugins_available))
     args = [str(SCRIPTS / "install.sh"), "--target", target]
     args.extend(extra_args or [])
     result = subprocess.run(
@@ -3855,8 +3896,12 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         config = read(agent_home / "config.toml")
         assert_contains(config, 'model_verbosity = "low"', "Codex low-verbosity default")
         assert_contains(config, 'personality = "none"', "Codex no-personality default")
+        assert_contains(config, 'model_reasoning_summary = "concise"', "Codex concise-summary default")
         assert_contains(config, "[agents]", "Codex agents table")
         assert_contains(config, "max_threads = 24", "Gauntlet subagent concurrency default")
+        assert_contains(config, "show-context-window-usage = true", "Codex context-usage default")
+        assert_contains(config, '[plugins."browser@openai-bundled"]', "Codex Browser plugin default")
+        assert_contains(config, '[plugins."computer-use@openai-bundled"]', "Codex Computer Use plugin default")
         installed_agents = read(agent_home / "AGENTS.md")
         if not installed_agents.startswith(user_content):
             raise AssertionError("Codex install must preserve every pre-existing user byte before the managed block")
@@ -3940,6 +3985,7 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         installed_env = os.environ.copy()
         installed_env["AGENT_HOME"] = str(agent_home)
         installed_env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
+        installed_env["GAUNTLET_CODEX_BIN"] = str(fake_codex_plugin_cli(agent_home))
         installed_reinstall = subprocess.run(
             [str(agent_home / "gauntlet" / "scripts" / "install.sh"), "--target", "codex"],
             cwd=agent_home / "gauntlet",
@@ -4248,7 +4294,12 @@ def test_install_docs_explain_codex_and_claude_targets():
         "--codex-preferences existing",
         "model_verbosity = \"low\"",
         "personality = \"none\"",
+        "model_reasoning_summary = \"concise\"",
         "max_threads = 24",
+        "show-context-window-usage = true",
+        "browser@openai-bundled",
+        "computer-use@openai-bundled",
+        "GAUNTLET_CODEX_BIN",
         "show both conflicting passages",
         "never removes or rewrites user-owned instructions",
         "reject malformed managed markers",
@@ -4330,10 +4381,29 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
             raise AssertionError("Codex install --check should not create or modify agent-home files")
         run_install(clean_home)
         clean_config = read(clean_home / "config.toml")
-        if clean_config.count('model_verbosity = "low"') != 1 or clean_config.count('personality = "none"') != 1:
+        if (
+            clean_config.count('model_verbosity = "low"') != 1
+            or clean_config.count('personality = "none"') != 1
+            or clean_config.count('model_reasoning_summary = "concise"') != 1
+        ):
             raise AssertionError("new Codex config should contain each Gauntlet preference exactly once")
         if clean_config.count("[agents]") != 1 or clean_config.count("max_threads = 24") != 1:
             raise AssertionError("new Codex config should set the Gauntlet agent thread cap exactly once")
+        assert_contains(
+            clean_config,
+            "[desktop]\nshow-context-window-usage = true",
+            "Gauntlet context-window visibility default",
+        )
+        for plugin in ["browser@openai-bundled", "computer-use@openai-bundled"]:
+            assert_contains(
+                clean_config,
+                f'[plugins."{plugin}"]\nenabled = true',
+                f"Gauntlet {plugin} enablement default",
+            )
+        if sorted((clean_home / "plugin-add.log").read_text().splitlines()) != [
+            "browser@openai-bundled", "computer-use@openai-bundled",
+        ]:
+            raise AssertionError("Codex install should install both required bundled plugins")
         run_install(clean_home)
         if read(clean_home / "config.toml") != clean_config:
             raise AssertionError("Codex preference reinstall should be byte-idempotent")
@@ -4342,8 +4412,17 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         conflict_home.mkdir()
         conflict_config = conflict_home / "config.toml"
         original = (
-            'model = "custom"\nmodel_verbosity = "high" # keep comment\n\n'
-            '[agents]\nmax_threads = 8 # keep agent comment\n\n[features]\ngoals = true\n'
+            'model = "custom"\nmodel_verbosity = "high" # keep comment\n'
+            'model_reasoning_summary = "detailed" # keep summary comment\n\n'
+            'notify = ["custom-notifier", "turn-ended"]\n'
+            'approval_policy = "never"\nsandbox_mode = "danger-full-access"\n\n'
+            '[agents]\nmax_threads = 8 # keep agent comment\n\n'
+            '[desktop]\nshow-context-window-usage = false # keep desktop comment\n'
+            'notifications-turn-mode = "always"\ncomposerEnterBehavior = "cmdIfMultiline"\n\n'
+            '[plugins."browser@openai-bundled"]\nenabled = false # keep browser comment\n\n'
+            '[plugins."computer-use@openai-bundled"]\nenabled = false # keep computer comment\n\n'
+            '[plugins."unrelated@test"]\nenabled = false\n\n'
+            '[features]\ngoals = true\n'
         )
         conflict_config.write_text(original)
         conflict_config.chmod(0o600)
@@ -4355,8 +4434,16 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         for marker in [
             'model_verbosity = "high"',
             'model_verbosity = "low"',
+            'model_reasoning_summary = "detailed"',
+            'model_reasoning_summary = "concise"',
             "agents.max_threads = 8",
             "agents.max_threads = 24",
+            "desktop.show-context-window-usage = false",
+            "desktop.show-context-window-usage = true",
+            'plugins."browser@openai-bundled".enabled = false',
+            'plugins."browser@openai-bundled".enabled = true',
+            'plugins."computer-use@openai-bundled".enabled = false',
+            'plugins."computer-use@openai-bundled".enabled = true',
             "--codex-preferences gauntlet",
             "--codex-preferences existing",
         ]:
@@ -4367,9 +4454,26 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         assert_contains(resolved, 'model = "custom"', "Codex unrelated config preservation")
         assert_contains(resolved, 'model_verbosity = "low"', "Gauntlet verbosity choice")
         assert_contains(resolved, 'personality = "none"', "Gauntlet personality insertion")
+        assert_contains(resolved, 'model_reasoning_summary = "concise"', "Gauntlet reasoning summary choice")
         assert_contains(resolved, "max_threads = 24", "Gauntlet agent thread choice")
+        assert_contains(resolved, "show-context-window-usage = true", "Gauntlet context visibility choice")
+        if resolved.count("enabled = true") < 2:
+            raise AssertionError("Gauntlet plugin choice should enable both required plugins")
         assert_contains(resolved, "# keep comment", "Codex config trailing-comment preservation")
         assert_contains(resolved, "# keep agent comment", "Codex agent config trailing-comment preservation")
+        assert_contains(resolved, "# keep summary comment", "Codex summary trailing-comment preservation")
+        assert_contains(resolved, "# keep desktop comment", "Codex desktop trailing-comment preservation")
+        assert_contains(resolved, "# keep browser comment", "Codex Browser trailing-comment preservation")
+        assert_contains(resolved, "# keep computer comment", "Codex Computer Use trailing-comment preservation")
+        for preserved in [
+            'notify = ["custom-notifier", "turn-ended"]',
+            'approval_policy = "never"',
+            'sandbox_mode = "danger-full-access"',
+            'notifications-turn-mode = "always"',
+            'composerEnterBehavior = "cmdIfMultiline"',
+            '[plugins."unrelated@test"]\nenabled = false',
+        ]:
+            assert_contains(resolved, preserved, "unrelated Codex setting preservation")
         assert_contains(resolved, "[features]\ngoals = true", "Codex table preservation")
         if conflict_config.stat().st_mode & 0o777 != 0o600:
             raise AssertionError("Codex config update should preserve permissions")
@@ -4392,13 +4496,26 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         existing_home.mkdir()
         existing_config = existing_home / "config.toml"
         existing_original = (
-            'model_verbosity = "high"\npersonality = "friendly"\n\n'
-            '[agents]\nmax_threads = 8\n'
+            'model_verbosity = "high"\npersonality = "friendly"\nmodel_reasoning_summary = "detailed"\n\n'
+            '[agents]\nmax_threads = 8\n\n'
+            '[desktop]\nshow-context-window-usage = false\n\n'
+            '[plugins."browser@openai-bundled"]\nenabled = false\n\n'
+            '[plugins."computer-use@openai-bundled"]\nenabled = false\n'
         )
         existing_config.write_text(existing_original)
         run_install(existing_home, extra_args=["--codex-preferences", "existing"])
         if existing_config.read_text() != existing_original:
             raise AssertionError("existing Codex preference choice should preserve all values byte-for-byte")
+        if (existing_home / "plugin-add.log").exists():
+            raise AssertionError("existing Codex plugin choices should not install disabled plugins")
+
+        unavailable_home = root / "plugins-unavailable"
+        unavailable_home.mkdir()
+        unavailable = run_install(unavailable_home, check=False, plugins_available=False)
+        if unavailable.returncode == 0 or "required Codex plugin is unavailable" not in unavailable.stderr:
+            raise AssertionError("missing required bundled plugins should fail preflight")
+        if any(unavailable_home.iterdir()):
+            raise AssertionError("plugin availability preflight must stop before any agent-home mutation")
 
         unsupported_home = root / "unsupported-agents"
         unsupported_home.mkdir()
@@ -4428,12 +4545,17 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         run_install(skip_home, extra_args=["--codex-preferences", "skip"])
         if skip_config.read_text() != skip_original:
             raise AssertionError("skipped Codex preferences should not modify config.toml")
+        if (skip_home / "plugin-add.log").exists():
+            raise AssertionError("skipped Codex preferences should not install plugins")
 
         linked_home = root / "linked"
         linked_home.mkdir()
         linked_target = root / "shared-config.toml"
         linked_target.write_text(
-            'model_verbosity = "low"\npersonality = "none"\n\n[agents]\nmax_threads = 24\n'
+            'model_verbosity = "low"\npersonality = "none"\nmodel_reasoning_summary = "concise"\n\n'
+            '[agents]\nmax_threads = 24\n\n[desktop]\nshow-context-window-usage = true\n\n'
+            '[plugins."browser@openai-bundled"]\nenabled = true\n\n'
+            '[plugins."computer-use@openai-bundled"]\nenabled = true\n'
         )
         linked_target.chmod(0o600)
         (linked_home / "config.toml").symlink_to(linked_target)
@@ -4451,7 +4573,10 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         crlf_result = crlf_config.read_bytes()
         for marker in [
             b'personality_notes = "keep"', b'model_verbosity = "low"', b'personality = "none"',
-            b'[agents]', b'max_threads = 24',
+            b'model_reasoning_summary = "concise"', b'[agents]', b'max_threads = 24',
+            b'[desktop]', b'show-context-window-usage = true',
+            b'[plugins."browser@openai-bundled"]',
+            b'[plugins."computer-use@openai-bundled"]',
         ]:
             if marker not in crlf_result:
                 raise AssertionError(f"Codex CRLF config missing preserved or inserted value: {marker!r}")
