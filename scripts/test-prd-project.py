@@ -236,9 +236,13 @@ class EpicProjectTests(unittest.TestCase):
 
     def test_doc_execution_contract_migration_preserves_unmanaged_bytes(self):
         current = (Path(gauntlet.__file__).parents[1] / "templates" / "local-docs" / "doc_org.md.tmpl").read_text(encoding="utf-8")
-        prefix, managed = current.split(gauntlet.DOC_EXECUTION_BLOCK_BEGIN, 1)
-        body, suffix = managed.split(gauntlet.DOC_EXECUTION_BLOCK_END, 1)
-        legacy = prefix + body.lstrip("\n") + suffix.lstrip("\n")
+        prefix = "# Project-authored policy\n\n"
+        body = (
+            "## PRD Compilation And Ticket Graph\n\n"
+            "Use one fresh final check for the accepted work.\n\n"
+        )
+        suffix = "## Future Tasks\n\nKeep this project-authored ending.\n"
+        legacy = prefix + body + suffix
         start = legacy.index("## PRD Compilation And Ticket Graph\n")
         end = legacy.index("## Future Tasks\n", start)
         legacy_hash = gauntlet.sha256_bytes(legacy[start:end].encode("utf-8"))

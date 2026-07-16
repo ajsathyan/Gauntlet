@@ -132,11 +132,72 @@ def section_items(section: str, heading: str) -> list[str]:
     return [match.group(1).strip() for match in re.finditer(r"^\s*[-*]\s+(.+?)\s*$", content, re.MULTILINE)]
 
 
-def source_contract(path: Path, requested_targets: list[str]) -> dict[str, Any]:
+def flexible_section(text: str, headings: tuple[str, ...]) -> str:
+    for heading in headings:
+        match = re.search(rf"^(##|###) {re.escape(heading)}\s*$", text, re.MULTILINE | re.IGNORECASE)
+        if not match:
+            continue
+        level = len(match.group(1))
+        following = re.search(rf"^#{{1,{level}}} ", text[match.end():], re.MULTILINE)
+        end = match.end() + following.start() if following else len(text)
+        content = text[match.end():end].strip()
+        substantive = [
+            line for line in content.splitlines()
+            if line.strip() and not line.strip().lower().startswith(("*guidance:", "_guidance:"))
+        ]
+        if substantive:
+            return content
+    return ""
+
+
+def source_contract(path: Path, requested_targets: list[str], launch_set: Path | None = None) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8")
     target_match = re.search(r"^Implementation target:\s*(.+?)\s*$", text, re.MULTILINE)
     if not target_match:
-        raise RunError("PRD must declare Implementation target")
+        if launch_set is None:
+            raise RunError("Flexible product documents require their accepted launch set")
+        raw = read_json(launch_set)
+        targets = raw.get("targetEpicIds") if isinstance(raw, dict) else None
+        epics = raw.get("epics") if isinstance(raw, dict) else None
+        requested = [require_id(item, "target Epic ID") for item in requested_targets]
+        if not isinstance(targets, list) or not isinstance(epics, dict) or requested != targets or len(requested) != 1:
+            raise RunError("flexible product document target must match one accepted launch-set Epic")
+        epic_id = requested[0]
+        item = epics.get(epic_id)
+        if not isinstance(item, dict):
+            raise RunError(f"launch set does not contain target Epic {epic_id}")
+        title = require_string(item.get("title"), f"Epic {epic_id} title")
+        acceptance_text = flexible_section(text, ("Acceptance", "Done when", "Product Acceptance"))
+        if not acceptance_text:
+            raise RunError("accepted flexible product document has no answered Acceptance or Done when section")
+        acceptance_items = [
+            match.group(1).strip()
+            for match in re.finditer(r"^\s*[-*]\s+(.+?)\s*$", acceptance_text, re.MULTILINE)
+        ] or [acceptance_text]
+        scope_id = f"{epic_id}-S01"
+        section_hash = sha_bytes(text.encode("utf-8"))
+        return {
+            "epic_ids": requested,
+            "epics": {
+                epic_id: {
+                    "acceptance": {
+                        "Product Acceptance": acceptance_items,
+                        "Design Acceptance": [],
+                        "Engineering Acceptance": [],
+                    },
+                    "cannot_verify": section_items(text, "Cannot Verify"),
+                    "consequence_triggers": canonical_consequence_triggers(
+                        ",".join(item.get("consequenceTriggers", [])) if item.get("consequenceTriggers") else "none",
+                        f"Epic {epic_id}",
+                    ),
+                    "non_goals": section_items(text, "Non-goals"),
+                    "scope_areas": {scope_id: {"responsibility": title, "sha256": section_hash}},
+                    "section_sha256": section_hash,
+                    "title": title,
+                }
+            },
+            "scope_hashes": {scope_id: section_hash},
+        }
     declared = sorted(set(re.findall(r"\b[A-Z][A-Z0-9_-]{1,63}\b", target_match.group(1))))
     requested_raw = [require_id(item, "target Epic ID") for item in requested_targets]
     if len(requested_raw) != 1:
@@ -278,10 +339,7 @@ def validate_launch_set(path: Path, source: Path, source_info: dict[str, Any], t
     if raw.get("schemaVersion") != LAUNCH_SCHEMA:
         raise RunError(f"unsupported launch set schema; expected {LAUNCH_SCHEMA}")
     coverage = launch_coverage_projection(raw)
-    declared = sorted(set(re.findall(
-        r"\b[A-Z][A-Z0-9_-]{1,63}\b",
-        re.search(r"^Implementation target:\s*(.+?)\s*$", source.read_text(), re.MULTILINE).group(1),
-    )))
+    declared = source_info["epic_ids"]
     if coverage["targetEpicIds"] != declared or set(coverage["epics"]) != set(declared):
         raise RunError("launch set must cover the complete PRD Implementation target exactly once")
     snapshot = Path(require_string(raw["source"].get("snapshotPath"), "launch set source.snapshotPath")).resolve()
@@ -1754,7 +1812,7 @@ def cmd_init(args: argparse.Namespace) -> None:
     final_run = root / args.run_id
     if final_run.exists():
         raise RunError(f"run already exists: {final_run}")
-    source_info = source_contract(source, args.target)
+    source_info = source_contract(source, args.target, Path(args.launch_set).resolve())
     target_epic_id = source_info["epic_ids"][0]
     launch = validate_launch_set(Path(args.launch_set).resolve(), source, source_info, target_epic_id)
     repository_root, repository_identity = git_repository_identity(Path.cwd())
