@@ -766,6 +766,8 @@ def test_diff_intel_test_plan_and_review_pack_are_bounded():
         )
         canonical_plan = project / "docs" / "canonical-plan.md"
         canonical_plan.write_text("# Canonical Plan\n\n- Search: `rg session-token src/auth`\n", encoding="utf-8")
+        proof_context = project / "docs" / "focused-proof.md"
+        proof_context.write_text("# Focused Proof\n\nThe session regression check passed.\n", encoding="utf-8")
 
         run([
             str(review_pack),
@@ -776,6 +778,12 @@ def test_diff_intel_test_plan_and_review_pack_are_bounded():
             "docs/accepted-spec.md",
             "--plan",
             "docs/canonical-plan.md",
+            "--phase",
+            "pre-build",
+            "--maturity",
+            "early-internal",
+            "--proof-context",
+            "docs/focused-proof.md",
         ])
         packet = (project / ".gauntlet" / "review-pack.md").read_text()
         for marker in [
@@ -789,6 +797,14 @@ def test_diff_intel_test_plan_and_review_pack_are_bounded():
             "Canonical Plan",
             "docs/canonical-plan.md",
             "rg session-token src/auth",
+            "Epic Gap Review Pack",
+            "Phase: `pre-build`",
+            "Declared maturity: `early-internal`",
+            "Proof Context 1",
+            "focused-proof.md",
+            "at most three findings",
+            "`fixed`, `ask-user`, `deferred`, or `omitted`",
+            "external-practice or state-of-the-art review automatically",
             "Expected Return Format",
             "Cannot verify",
         ]:

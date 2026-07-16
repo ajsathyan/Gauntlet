@@ -69,6 +69,13 @@ HIGH_CONSEQUENCE_TRIGGERS = (
 )
 REQUIRED_REVIEW_LENSES = ("authority-security", "failure-recovery", "black-box")
 SAFEGUARD_KINDS = ("dry-run-no-mutation", "bounded-live", "rollback-readiness")
+GAP_REVIEW_SCHEMA = "gauntlet.epic-gap-review.v1"
+GAP_REVIEW_STATUS_SCHEMA = "gauntlet.epic-gap-review-status.v1"
+GAP_REVIEW_PHASES = ("pre-build", "integrated")
+GAP_REVIEW_DISPOSITIONS = ("fixed", "ask-user", "deferred", "omitted")
+MAX_GAP_REVIEW_FINDINGS = 3
+MAX_GAP_REVIEW_PASSES = 3
+MAX_GAP_CONTEXT_REFS = 12
 TRIGGER_AUTHORITY = {
     "billing-paid-actions": "perform-paid-action",
     "credentials-auth-permissions": "use-credentials",
@@ -1037,6 +1044,158 @@ def consequence_review_status(manifest: dict[str, Any], commit: str | None, tree
     return {**policy, "results": results, "status": status}
 
 
+def gap_review_status(manifest: dict[str, Any]) -> dict[str, Any]:
+    passes = manifest.get("gap_review", {}).get("passes", [])
+    latest: dict[str, dict[str, Any]] = {}
+    for review_pass in passes:
+        for finding in review_pass.get("findings", []):
+            latest[finding["id"]] = finding
+    dispositions = {
+        disposition: sorted(
+            finding_id for finding_id, finding in latest.items()
+            if finding["disposition"] == disposition
+        )
+        for disposition in GAP_REVIEW_DISPOSITIONS
+    }
+    blocked_work = sorted({
+        work_id
+        for finding in latest.values()
+        if finding["disposition"] == "ask-user"
+        for work_id in finding["affectedWork"]
+    })
+    return {
+        "blockedWork": blocked_work,
+        "dispositions": dispositions,
+        "maxFindingsPerPass": MAX_GAP_REVIEW_FINDINGS,
+        "maxPasses": MAX_GAP_REVIEW_PASSES,
+        "passes": passes,
+        "schemaVersion": GAP_REVIEW_STATUS_SCHEMA,
+        "status": "blocked" if blocked_work else "recorded" if passes else "not-started",
+    }
+
+
+def gap_review_blocked_tickets(manifest: dict[str, Any]) -> set[str]:
+    blocked_work = set(gap_review_status(manifest)["blockedWork"])
+    return {
+        ticket_id
+        for ticket_id, ticket in manifest.get("tickets", {}).items()
+        if ticket_id in blocked_work or blocked_work.intersection(ticket.get("scope_area_ids", []))
+    }
+
+
+def validate_gap_review(run: Path, manifest: dict[str, Any], raw: Any) -> dict[str, Any]:
+    review = require_closed_object(
+        raw,
+        {"schemaVersion", "phase", "pass", "maturity", "context", "findings"},
+        "Epic gap review",
+    )
+    if review["schemaVersion"] != GAP_REVIEW_SCHEMA:
+        raise RunError(f"Epic gap review.schemaVersion must be {GAP_REVIEW_SCHEMA}")
+    phase = review["phase"]
+    if phase not in GAP_REVIEW_PHASES:
+        raise RunError(f"Epic gap review.phase must be one of {', '.join(GAP_REVIEW_PHASES)}")
+    pass_number = review["pass"]
+    if not isinstance(pass_number, int) or isinstance(pass_number, bool):
+        raise RunError("Epic gap review.pass must be an integer")
+    previous_passes = manifest.get("gap_review", {}).get("passes", [])
+    if len(previous_passes) >= MAX_GAP_REVIEW_PASSES or pass_number > MAX_GAP_REVIEW_PASSES:
+        raise RunError(f"Epic gap review accepts at most {MAX_GAP_REVIEW_PASSES} passes; pass four fails")
+    expected_pass = len(previous_passes) + 1
+    if pass_number != expected_pass:
+        raise RunError(f"Epic gap review.pass must be the next sequential pass ({expected_pass})")
+    if phase == "pre-build":
+        require_state(manifest, ("compiled", "executing"))
+        if any(item["status"] not in ("ready", "waiting") for item in manifest.get("tickets", {}).values()):
+            raise RunError("pre-build Epic gap review must finish before Ticket work starts")
+        if any(item.get("phase") == "integrated" for item in previous_passes):
+            raise RunError("pre-build Epic gap review cannot follow an integrated pass")
+    else:
+        require_state(manifest, ("integrating",))
+        pending = [
+            ticket_id for ticket_id, item in manifest.get("tickets", {}).items()
+            if item["status"] != "integrated"
+        ]
+        if pending:
+            raise RunError(f"integrated Epic gap review requires integrated Tickets: {pending}")
+
+    maturity = require_string(review["maturity"], "Epic gap review.maturity")
+    if len(maturity) > 120:
+        raise RunError("Epic gap review.maturity must be at most 120 characters")
+    context = require_closed_object(review["context"], {"source", "plan", "diff", "proof"}, "Epic gap review.context")
+    context_out: dict[str, list[str]] = {}
+    context_ref_count = 0
+    for kind in ("source", "plan", "diff", "proof"):
+        refs = string_list(context[kind], f"Epic gap review.context.{kind}")
+        for ref in refs:
+            if len(ref) > 1024:
+                raise RunError(f"Epic gap review.context.{kind} references must be at most 1024 characters")
+        context_out[kind] = refs
+        context_ref_count += len(refs)
+    if context_ref_count == 0:
+        raise RunError("Epic gap review.context must name bounded source, plan, diff, or proof context")
+    if context_ref_count > MAX_GAP_CONTEXT_REFS:
+        raise RunError(f"Epic gap review.context accepts at most {MAX_GAP_CONTEXT_REFS} references")
+
+    findings_raw = review["findings"]
+    if not isinstance(findings_raw, list):
+        raise RunError("Epic gap review.findings must be a list")
+    if len(findings_raw) > MAX_GAP_REVIEW_FINDINGS:
+        raise RunError(f"Epic gap review accepts at most {MAX_GAP_REVIEW_FINDINGS} findings per pass")
+    graph = read_json(run / "ticket-graph.json")
+    accepted_work = set(manifest.get("tickets", {})) | set(graph.get("scope_areas", []))
+    findings: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for index, raw_finding in enumerate(findings_raw):
+        finding = require_closed_object(
+            raw_finding,
+            {"id", "missedBehavior", "practicalEffect", "smallestResponse", "disposition", "affectedWork"},
+            f"Epic gap review.findings[{index}]",
+        )
+        finding_id = require_id(finding["id"], f"Epic gap review.findings[{index}].id")
+        if finding_id in seen_ids:
+            raise RunError("Epic gap review finding IDs must be unique within a pass")
+        seen_ids.add(finding_id)
+        disposition = finding["disposition"]
+        if disposition not in GAP_REVIEW_DISPOSITIONS:
+            raise RunError(
+                "Epic gap review findings require terminal disposition "
+                "fixed, ask-user, deferred, or omitted"
+            )
+        affected_work = sorted(string_list(
+            finding["affectedWork"],
+            f"Epic gap review.findings[{index}].affectedWork",
+            allow_empty=False,
+        ))
+        unknown_work = set(affected_work) - accepted_work
+        if unknown_work:
+            raise RunError(
+                "ordinary Epic gap review cannot alter accepted scope; "
+                f"unknown affected work={sorted(unknown_work)}"
+            )
+        findings.append({
+            "affectedWork": affected_work,
+            "disposition": disposition,
+            "id": finding_id,
+            "missedBehavior": require_string(
+                finding["missedBehavior"], f"Epic gap review.findings[{index}].missedBehavior"
+            ),
+            "practicalEffect": require_string(
+                finding["practicalEffect"], f"Epic gap review.findings[{index}].practicalEffect"
+            ),
+            "smallestResponse": require_string(
+                finding["smallestResponse"], f"Epic gap review.findings[{index}].smallestResponse"
+            ),
+        })
+    return {
+        "context": context_out,
+        "findings": findings,
+        "maturity": maturity,
+        "pass": pass_number,
+        "phase": phase,
+        "schemaVersion": GAP_REVIEW_SCHEMA,
+    }
+
+
 def safeguard_status(manifest: dict[str, Any], kind: str, commit: str | None, tree: str | None = None) -> dict[str, Any]:
     policy = manifest.get("consequence_review", {}).get("policy", {})
     triggered = bool(policy.get("triggers"))
@@ -1148,7 +1307,11 @@ def completion_projection(manifest: dict[str, Any], *, observed_head: str | None
 
 def write_resume(run: Path, manifest: dict[str, Any]) -> None:
     active = [ticket_id for ticket_id, item in sorted(manifest.get("tickets", {}).items()) if item["status"] not in ("integrated", "invalidated")]
-    blocked = [ticket_id for ticket_id in active if manifest["tickets"][ticket_id]["status"] in ("blocked", "waiting")]
+    gap_blocked = gap_review_blocked_tickets(manifest)
+    blocked = [
+        ticket_id for ticket_id in active
+        if manifest["tickets"][ticket_id]["status"] in ("blocked", "waiting") or ticket_id in gap_blocked
+    ]
     integration = manifest.get("integration", {})
     lock = read_json(run / "source-lock.json")
     completion = completion_projection(manifest, observed_head=observed_integration_head(manifest, lock))
@@ -1663,6 +1826,21 @@ def release_gates(manifest: dict[str, Any], completion: dict[str, Any]) -> list[
         "status": "pass" if completion["implemented"] else final.get("result", "pending"),
         "summary": "Final Epic verification covered canonical acceptance on the exact integrated revision.",
     })
+    gap_review = gap_review_status(manifest)
+    if gap_review["passes"]:
+        gates.append({
+            "blocksOverallCompletion": True,
+            "blocksPr": True,
+            "evidenceRefs": [
+                item["receipt"] for item in gap_review["passes"] if item.get("receipt")
+            ],
+            "id": "epic-gap-review",
+            "stage": "implementation",
+            "status": "blocked" if gap_review["blockedWork"] else "pass",
+            "summary": (
+                "Bounded Epic gap review recorded terminal dispositions without altering accepted scope."
+            ),
+        })
     review = consequence_review_status(manifest, final_commit, final_tree)
     if review["required"]:
         gates.append({
@@ -1770,6 +1948,9 @@ def cmd_project_pr(args: argparse.Namespace) -> None:
     } | {
         item["receipt"] for item in manifest["cohorts"].values() if item.get("receipt")
     } | {verification["receipt"]} | {
+        item["receipt"] for item in manifest.get("gap_review", {}).get("passes", [])
+        if item.get("receipt")
+    } | {
         item["receipt"] for item in manifest.get("consequence_review", {}).get("results", {}).values()
         if item.get("receipt")
     } | {
@@ -1856,6 +2037,7 @@ def cmd_init(args: argparse.Namespace) -> None:
             "pr_strategy": pr_strategy,
         },
         "release": {"applicability": {key: key in stages for key in RELEASE_APPLICABILITY}},
+        "gap_review": {"passes": []},
         "run_id": args.run_id, "shared_context": {}, "lanes": {}, "review_units": {},
         "source": {"epic_ids": source_info["epic_ids"], "path": str(source), "sha256": source_hash},
         "state": "discussing", "tickets": {},
@@ -1986,6 +2168,7 @@ def cmd_compile(args: argparse.Namespace) -> None:
         for unit_id, unit in graph["review_units"].items()
     }
     manifest["cohorts"] = {key: {"result": None, **graph["cohorts"][key]} for key in sorted(graph["cohorts"])}
+    manifest["gap_review"] = {"passes": []}
     manifest["consequence_review"] = {"policy": graph["review"], "results": {}}
     manifest["release"]["safeguards"] = {}
     manifest["shared_context"] = {
@@ -2027,6 +2210,8 @@ def cmd_claim(args: argparse.Namespace) -> None:
     require_state(manifest, ("executing", "integrating"))
     refresh_readiness(manifest)
     item = get_ticket(manifest, args.ticket)
+    if args.ticket in gap_review_blocked_tickets(manifest):
+        raise RunError(f"ticket {args.ticket} is blocked by Epic gap review ask-user disposition")
     retry = item["status"] == "blocked" and item["lease"] is not None
     if item["status"] != "ready" and not retry:
         raise RunError(f"ticket {args.ticket} is {item['status']}, not ready")
@@ -2073,9 +2258,12 @@ def cmd_claim_lane(args: argparse.Namespace) -> None:
         raise RunError(f"agent {agent} already owns active ticket {active[0]}")
     graph = read_json(run / "ticket-graph.json")
     graph_by_id = {item["id"]: item for item in graph["tickets"]}
+    gap_blocked = gap_review_blocked_tickets(manifest)
     items = []
     for ticket_id in ticket_ids:
         state = get_ticket(manifest, ticket_id)
+        if ticket_id in gap_blocked:
+            raise RunError(f"ticket {ticket_id} is blocked by Epic gap review ask-user disposition")
         if state["status"] != "ready":
             raise RunError(f"ticket {ticket_id} is {state['status']}, not ready")
         ticket = graph_by_id[ticket_id]
@@ -2121,6 +2309,7 @@ def cmd_ready(args: argparse.Namespace) -> None:
     refresh_readiness(manifest)
     graph = read_json(run / "ticket-graph.json")
     graph_by_id = {item["id"]: item for item in graph["tickets"]}
+    gap_blocked = gap_review_blocked_tickets(manifest)
     dependents = {ticket_id: set() for ticket_id in graph_by_id}
     for ticket_id, item in graph_by_id.items():
         for dependency in item["dependencies"]:
@@ -2135,7 +2324,7 @@ def cmd_ready(args: argparse.Namespace) -> None:
         return len(seen)
     candidates = []
     for ticket_id, state in manifest["tickets"].items():
-        if state["status"] != "ready":
+        if state["status"] != "ready" or ticket_id in gap_blocked:
             continue
         ticket = graph_by_id[ticket_id]
         affinity_match = bool(args.affinity and args.affinity in ticket["affinity"])
@@ -2216,6 +2405,7 @@ def run_facts_projection(run: Path, manifest: dict[str, Any]) -> dict[str, Any]:
         "epicId": epic_id,
         "epicTitle": lock["epics"][epic_id]["title"],
         "exactRevision": completion_projection(manifest, observed_head=commit)["exactRevision"],
+        "gapReview": gap_review_status(manifest),
         "owners": [item["owner"] for _, item in sorted(manifest["tickets"].items()) if item.get("owner")],
         "plannedChecks": graph["planned_checks"],
         "review": review,
@@ -2517,6 +2707,35 @@ def cmd_verify_cohort(args: argparse.Namespace) -> None:
     save_manifest(run, manifest)
 
 
+def cmd_record_gap_review(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    review = validate_gap_review(run, manifest, read_json(Path(args.review)))
+    destination = run / "receipts" / f"epic-gap-review-pass-{review['pass']}.json"
+    if destination.exists():
+        raise RunError(f"Epic gap review pass {review['pass']} is already recorded")
+    atomic_json(destination, review)
+    review["receipt"] = pin_artifact(run, manifest, destination)
+    manifest.setdefault("gap_review", {"passes": []})["passes"].append(review)
+    status = gap_review_status(manifest)
+    event(run, manifest, "epic_gap_review_recorded", {
+        "blocked_work": status["blockedWork"],
+        "findings": len(review["findings"]),
+        "pass": review["pass"],
+        "phase": review["phase"],
+    })
+    save_manifest(run, manifest)
+    print(pretty_json(status), end="")
+
+
+def cmd_gap_review_status(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    if manifest.get("graph_sha256") is None:
+        raise RunError("gap-review-status requires a compiled single-Epic Ticket Graph")
+    print(pretty_json(gap_review_status(manifest)), end="")
+
+
 def cmd_record_review(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
@@ -2629,6 +2848,12 @@ def cmd_verify_epic(args: argparse.Namespace) -> None:
     failed_cohorts = [cohort_id for cohort_id, item in manifest["cohorts"].items() if item.get("result") != "pass"]
     if pending or failed_cohorts:
         raise RunError(f"final Epic verification requires integrated Tickets and passing declared Cohorts; pending={pending}, cohorts={failed_cohorts}")
+    gap_status = gap_review_status(manifest)
+    if gap_status["blockedWork"]:
+        raise RunError(
+            "final Epic verification is blocked by ask-user Epic gap review findings affecting "
+            f"{gap_status['blockedWork']}"
+        )
     lock = read_json(run / "source-lock.json")
     commit, tree = exact_integration_revision(manifest, lock)
     review = consequence_review_status(manifest, commit, tree)
@@ -2799,6 +3024,7 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
         ["source-lock.json", "ticket-graph.json", "ticket-graph.md", "manifest.json", "resume.md", "events.jsonl"],
         [],
     )
+    manifest["gap_review"] = {"passes": []}
     manifest["consequence_review"] = {"policy": graph["review"], "results": {}}
     manifest["release"]["safeguards"] = {}
     manifest["release"].pop("epic-verification", None)
@@ -2921,6 +3147,11 @@ def parser() -> argparse.ArgumentParser:
     cohort = commands.add_parser("verify-cohort")
     cohort.add_argument("--run", required=True); cohort.add_argument("--cohort", required=True)
     cohort.add_argument("--verification-receipt", required=True); cohort.set_defaults(func=cmd_verify_cohort)
+    gap_review = commands.add_parser("record-gap-review")
+    gap_review.add_argument("--run", required=True); gap_review.add_argument("--review", required=True)
+    gap_review.set_defaults(func=cmd_record_gap_review)
+    gap_status = commands.add_parser("gap-review-status")
+    gap_status.add_argument("--run", required=True); gap_status.set_defaults(func=cmd_gap_review_status)
     review = commands.add_parser("record-review")
     review.add_argument("--run", required=True); review.add_argument("--lens", required=True, choices=REQUIRED_REVIEW_LENSES)
     review.add_argument("--verification-receipt", required=True); review.set_defaults(func=cmd_record_review)

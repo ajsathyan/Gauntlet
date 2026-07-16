@@ -1,55 +1,64 @@
 ---
 name: adversarial-reviewer
-description: Use when completed code needs adversarial review for assumptions, edge cases, trust boundaries, resource handling, rollback, or regressions.
+description: Use when an accepted Epic needs bounded pre-build or integrated review for concrete missed behavior, regressions, or failure paths; consequential specialist lenses apply only to explicit locked high-consequence triggers.
 ---
 
 # Adversarial Reviewer
 
-Act as the break-it-before-users-do reviewer. Focus on concrete risk, not aesthetics.
+Run a bounded Epic gap review against accepted scope and declared maturity.
 
-## Input Packet
+## Input
 
-- Spec or Gauntlet Ticket
-- Review depth and launch posture
-- Changed surfaces and trust boundaries
-- Excluded areas
-- Known proof
-- Existing run log or coverage gap candidates, if any
+- Phase: `pre-build` or `integrated`
+- Declared maturity
+- Locked Epic source and accepted non-goals
+- Pre-build plan context or integrated diff context
+- Proof and `Cannot verify` limits
+- Locked high-consequence triggers, if any
 
-For broad Release work, independent risk lenses such as permissions, parsing, concurrency, and rollback may run as parallel subagents. Merge duplicate findings by shared cause or fix.
+Use bounded source, plan, diff, and proof slices. In `pre-build`, compare the Epic with the plan. In `integrated`, compare accepted behavior with the diff and proof.
 
 ## Output Contract
 
-If a field is outside accepted scope, write `Not relevant because...` instead of stretching the review. Optional example: read `examples/adversarial-report.md` only when output shape is ambiguous.
+Return at most three findings per pass. The controller permits three passes across the Epic; pass four fails.
 
-- Verdict: `Approved`, `Needs fixes`, or `Cannot verify`
-- Evidence reviewed
-- External-practice ledger when triggered: source and link, issuer, version or publication date, access date, mandatory requirement versus optional practice, affected surface, applicability, concrete risk, migration cost, expected benefit, and confidence or evidence limit
-- Findings by P0/P1/P2/P3
-- For each finding: location, broken assumption, repro/attack path, Impact, Recommended fix, Test idea
-- Cannot verify: risk, missing evidence, next proof
-- Residual risk
-- Agent next: one concrete follow-up
-- Coverage gap candidate: only when reusable guidance is missing
+Each finding must identify:
 
-## Current Standards And Practice
+- ID
+- Concrete missed behavior, regression, or failure path
+- Practical effect at the declared maturity
+- Smallest response within accepted scope
+- Affected accepted work
+- One terminal disposition: `fixed`, `ask-user`, `deferred`, or `omitted`
 
-Run an external-practice pass for Deep, consequential, hardened, audited, production-bound, or explicit best/latest reviews. For an ordinary Patch, run it only when the changed surface depends on an evolving standard, platform, security boundary, or public contract. Otherwise mark the ledger `Not relevant because...`.
+Use the dispositions precisely:
 
-Search for current applicable standards, specifications, and official platform guidance. For state-of-the-art practices, search primary research and official technical material. Use secondary sources only to locate or contextualize primary sources; do not use generic blogs or popularity as evidence that a practice is current or appropriate.
+- `fixed`: the concrete accepted gap was corrected and affected proof was rerun.
+- `ask-user`: a material decision is required; block only the affected work.
+- `deferred`: the gap is real but intentionally postponed within authority. This is not a fix.
+- `omitted`: the suggestion has no practical effect at the declared maturity or is outside accepted scope. This is not a fix.
 
-Verify each relied-on source's issuer, version or publication/update date, access date, and whether a newer or superseding source exists. Separate binding requirements under the accepted contract or regime from optional established practice and experimental frontier practice. Map every candidate to a concrete changed surface and risk, then assess applicability, migration or adoption cost, expected benefit, confidence, and evidence limits. Mark inapplicable items explicitly instead of recommending them by default. Return `Cannot verify` when source freshness, authority, or applicability cannot be established.
+Ordinary review cannot add behavior, acceptance criteria, hardening tiers, or other scope. `omitted` fits generic production hardening with no practical effect for an early internal tool. `fixed` fits a concrete accepted regression corrected with the smallest change and focused proof.
+
+Complete the pass when each finding has the required fields and one terminal disposition. Return no findings when no concrete gap survives maturity and scope checks.
+
+## Consequential Specialist Review
+
+Run the fixed authority/security, failure/recovery, and black-box lenses only when the canonical Epic locks a supported high-consequence trigger. Do not infer triggers from a broad diff or review depth.
+
+External-practice or state-of-the-art research is not automatic. Run it only by explicit user request or when the consequential contract requires a current external standard. Use primary sources and map requirements to accepted surfaces, practical risk, cost, and evidence limits.
+
+For a triggered specialist lens, return a Verdict, Evidence reviewed, Cannot verify limits, concrete Impact, Recommended fix, Test idea, and one Agent next action. Apply the Production Quality Bar only when the locked trigger or launch contract requires it; cover the relevant threat model, redaction, trust boundaries, destructive actions, and recovery. Mark an inapplicable field `Not relevant because...`.
+
+Optional example: read `examples/adversarial-report.md` only for a triggered consequential specialist report, not for the ordinary gap-review schema.
 
 ## Check
 
-- Invalid input, boundary values, and malformed state
-- Auth, permissions, privacy, and trust boundaries
-- Parsing, serialization, injection, and unsafe sinks
-- Race conditions, repeated actions, and resource exhaustion
-- Error paths, rollback, and data integrity
-- Production Quality Bar: threat model, redaction, trust boundaries, destructive actions, retries, and recovery, or `Not relevant because...`
-- Regressions against the spec and existing behavior
-- Proof sensitivity: plausible wrong implementations, weakened assertions, tailored fixtures, grader bypasses, test-only branches, and semantic behavior reduced to phrase or field presence
-- Required non-effects and negative controls that distinguish the intended fix from over-broad behavior
+- Invalid input, boundaries, and malformed state
+- Regressions against accepted behavior and required non-effects
+- Concrete error, retry, recovery, and data-integrity paths
+- Trust boundaries only where the accepted surface or locked trigger makes them relevant
+- Proof sensitivity: weakened assertions, tailored fixtures, test-only branches, and phrase-only evidence
+- Plausible wrong implementations and negative controls
 
-Do not provide exploit detail beyond what is needed to reproduce and fix.
+Do not provide exploit detail beyond what is needed to reproduce and fix the accepted gap.
