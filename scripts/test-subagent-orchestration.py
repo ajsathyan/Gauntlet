@@ -44,14 +44,17 @@ def create_native_state(home):
     return connection
 
 
-def token_event(total, last):
-    return {
+def token_event(total, last, timestamp=None):
+    event = {
         "type": "event_msg",
         "payload": {
             "type": "token_count",
             "info": {"total_token_usage": total, "last_token_usage": last},
         },
     }
+    if timestamp is not None:
+        event["timestamp"] = timestamp
+    return event
 
 
 def tokens(input_tokens, cached_input_tokens, output_tokens, reasoning_output_tokens):
@@ -110,9 +113,9 @@ def test_cumulative_analytics_are_idempotent_and_partial_safe():
         second_total = {key: first[key] + second_last[key] for key in TOKEN_KEYS}
         rows = [
             {"type": "event_msg", "payload": {"type": "user_message", "message": "PROMPT-SECRET"}},
+            token_event(first, first, "2026-07-16T10:00:00Z"),
             token_event(first, first),
-            token_event(first, first),
-            token_event(second_total, second_last),
+            token_event(second_total, second_last, "2026-07-16T10:01:00Z"),
         ]
         write_lines(rollout, rows, partial='{"type":"event_msg","payload":{"type":"token_count"')
         connection = create_native_state(home)
@@ -139,6 +142,12 @@ def test_cumulative_analytics_are_idempotent_and_partial_safe():
             raise AssertionError("duplicate cumulative snapshots must not become extra model requests: {}".format(requests))
         if [row["tokens"] for row in requests] != [first, second_last]:
             raise AssertionError("analytics must derive per-request deltas from cumulative totals")
+        if [row["observedAt"] for row in requests] != ["2026-07-16T10:00:00Z", "2026-07-16T10:01:00Z"]:
+            raise AssertionError("request analytics must retain bounded observation timestamps")
+        cursor_path = home / "gauntlet" / "state" / "subagent-request-cursors.json"
+        cursor = json.loads(cursor_path.read_text(encoding="utf-8"))["agents"]["child-analytics"]
+        if cursor["requestOrdinal"] != 2 or cursor["byteOffset"] <= 0:
+            raise AssertionError("incremental synchronization must persist the committed rollout cursor")
         quarantine = read_jsonl(quarantine_path)
         if [row["reason"] for row in quarantine] != ["unterminated-json-line"]:
             raise AssertionError("partial input must be quarantined without being ingested: {}".format(quarantine))
@@ -157,7 +166,7 @@ def test_cumulative_analytics_are_idempotent_and_partial_safe():
 
         third_last = tokens(25, 10, 5, 1)
         third_total = {key: second_total[key] + third_last[key] for key in TOKEN_KEYS}
-        write_lines(rollout, rows + [token_event(third_total, third_last)])
+        write_lines(rollout, rows + [token_event(third_total, third_last, "2026-07-16T10:02:00Z")])
         run(["python3", str(audit), "sync", "--agent-home", str(home)])
         if len(read_jsonl(analytics_path)) != 3 or read_jsonl(quarantine_path):
             raise AssertionError("completed input must leave quarantine and ingest exactly once")
@@ -171,9 +180,15 @@ def test_epic_run_telemetry_join_reports_partial_and_unavailable_coverage():
         home = Path(tmp)
         rollout = home / "private-rollout.jsonl"
         usage = tokens(120, 80, 30, 7)
+        before_usage = tokens(20, 0, 5, 1)
+        through_usage = {key: before_usage[key] + usage[key] for key in TOKEN_KEYS}
+        after_usage = tokens(15, 5, 4, 1)
+        through_after = {key: through_usage[key] + after_usage[key] for key in TOKEN_KEYS}
         write_lines(rollout, [
             {"type": "event_msg", "payload": {"type": "user_message", "message": "RUN-SECRET"}},
-            token_event(usage, usage),
+            token_event(before_usage, before_usage, "2026-07-16T11:00:00Z"),
+            token_event(through_usage, usage, "2026-07-16T11:00:00.500Z"),
+            token_event(through_after, after_usage, "2026-07-16T11:00:00.700Z"),
         ])
         connection = create_native_state(home)
         connection.execute(
@@ -194,7 +209,7 @@ def test_epic_run_telemetry_join_reports_partial_and_unavailable_coverage():
         facts.write_text(json.dumps({
             "schemaVersion": "gauntlet/epic-run-facts/v1",
             "owners": [
-                {"ownerKind": "delegated", "ownerRef": "T1", "nativeChildId": "child-run", "requestedProfile": "gauntlet_standard_worker"},
+                {"ownerId": "T1-attempt-1", "ownerKind": "delegated", "ownerRef": "T1", "nativeChildId": "child-run", "requestedProfile": "gauntlet_standard_worker", "requestWindow": {"startedAt": "2026-07-16T11:00:00Z", "endedAt": "2026-07-16T11:02:00Z", "startOrdinal": 1, "endOrdinal": 2}},
                 {"ownerKind": "parent", "ownerRef": "epic-parent", "nativeChildId": None, "requestedProfile": None},
                 {"ownerKind": "delegated", "ownerRef": "T2", "nativeChildId": "missing-child", "requestedProfile": "gauntlet_standard_worker"},
             ],
@@ -208,9 +223,27 @@ def test_epic_run_telemetry_join_reports_partial_and_unavailable_coverage():
             raise AssertionError("run telemetry must label observed totals as partial: {}".format(joined))
         if joined["modelRequests"] != 1 or joined["tokens"] != usage:
             raise AssertionError("run telemetry must sum only correlated native request rows")
+        pricing = joined["pricing"]
+        if pricing["status"] != "partial" or pricing["lowerBoundUsd"] != 0.00114 or pricing["estimatedUsd"] is not None:
+            raise AssertionError("cache-aware pricing must expose a monotonic lower bound without false precision: {}".format(pricing))
         reasons = {item["reason"] for item in coverage["unavailableOwners"]}
         if reasons != {"native-id-unavailable", "native-record-unavailable"}:
             raise AssertionError("missing parent and child coverage must remain explicit: {}".format(coverage))
+
+        facts.write_text(json.dumps({
+            "schemaVersion": "gauntlet/epic-run-facts/v1",
+            "owners": [{
+                "ownerId": "T1-time-window", "ownerKind": "delegated", "ownerRef": "T1",
+                "nativeChildId": "child-run", "requestedProfile": "gauntlet_standard_worker",
+                "requestWindow": {"startedAt": "2026-07-16T11:00:00.250Z", "endedAt": "2026-07-16T11:00:00.600Z", "startOrdinal": None, "endOrdinal": None},
+            }],
+        }), encoding="utf-8")
+        timestamp_bounded = json.loads(run([
+            "python3", str(audit), "summary", "--agent-home", str(home),
+            "--run-facts", str(facts), "--json",
+        ]).stdout)
+        if timestamp_bounded["modelRequests"] != 1 or timestamp_bounded["tokens"] != usage:
+            raise AssertionError("timestamp-closed windows must exclude requests before and after ownership")
         rendered = json.dumps(joined, sort_keys=True)
         for forbidden in ("RUN-SECRET", str(rollout), "/Users/private/run", "missing-child", "child-run"):
             if forbidden in rendered:
@@ -220,7 +253,7 @@ def test_epic_run_telemetry_join_reports_partial_and_unavailable_coverage():
             "schemaVersion": "gauntlet/epic-run-facts/v1",
             "owners": [{
                 "ownerKind": "delegated", "ownerRef": "T1", "nativeChildId": "child-run",
-                "requestedProfile": "gauntlet_deep_worker",
+                "requestedProfile": "gauntlet_deep_worker", "requestWindow": {"startedAt": "2026-07-16T11:00:00Z", "endedAt": "2026-07-16T11:02:00Z", "startOrdinal": 1, "endOrdinal": 2},
             }],
         }), encoding="utf-8")
         complete = json.loads(run([
@@ -236,9 +269,10 @@ def test_epic_run_telemetry_join_reports_partial_and_unavailable_coverage():
             raise AssertionError("known profile mismatches must remain explicit: {}".format(complete))
 
         audit_path = home / "gauntlet" / "logs" / "subagents.jsonl"
-        audit_rows = read_jsonl(audit_path)
-        audit_rows[0]["profile"] = "sk-live-audit-profile-secret"
-        write_lines(audit_path, audit_rows)
+        connection = sqlite3.connect(str(home / "state_5.sqlite"))
+        connection.execute("UPDATE threads SET agent_role = ? WHERE id = ?", ("sk-live-audit-profile-secret", "child-run"))
+        connection.commit()
+        connection.close()
         sanitized = json.loads(run([
             "python3", str(audit), "summary", "--agent-home", str(home), "--run-facts", str(facts), "--json",
         ]).stdout)
@@ -296,6 +330,72 @@ def test_epic_run_facts_reject_unbounded_owner_metadata():
                 raise AssertionError("{} accepted unsafe run-fact metadata".format(field))
             if isinstance(invalid, str) and invalid in result.stdout + result.stderr:
                 raise AssertionError("validation errors must not echo rejected {} metadata".format(field))
+
+
+def test_model_pricing_is_exact_per_known_model_and_partial_for_unknown_models():
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        connection = create_native_state(home)
+        model_profiles = (
+            ("luna", "gpt-5.6-luna", "gauntlet_fast_reader"),
+            ("sol", "gpt-5.6-sol", "gauntlet_standard_worker"),
+            ("terra", "gpt-5.6-terra", "gauntlet_release_integrator"),
+            ("unknown", "future-model", "gauntlet_standard_worker"),
+        )
+        request = tokens(100_000, 0, 100_000, 50_000)
+        for ordinal, (label, model, profile) in enumerate(model_profiles, 1):
+            agent_id = "pricing-{}".format(label)
+            rollout = home / "{}.jsonl".format(agent_id)
+            write_lines(rollout, [token_event(request, request, "2026-07-16T12:0{}:00Z".format(ordinal))])
+            connection.execute(
+                "INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (agent_id, str(rollout), model, "medium", profile, '{"type":"workspace-write"}',
+                 "never", label, "subagent", 0, "/private", "0.144.2", ordinal, ordinal),
+            )
+            connection.execute("INSERT INTO thread_spawn_edges VALUES (?, ?, ?)", ("parent", agent_id, "completed"))
+        connection.commit()
+        connection.close()
+        audit = SCRIPTS / "subagent-audit.py"
+        run(["python3", str(audit), "sync", "--agent-home", str(home)])
+        facts = home / "pricing-facts.json"
+
+        def owner(label):
+            return {
+                "ownerId": "pricing-{}-window".format(label), "ownerKind": "delegated",
+                "ownerRef": label, "nativeChildId": "pricing-{}".format(label),
+                "requestWindow": {
+                    "startedAt": "2026-07-16T12:00:00Z", "endedAt": "2026-07-16T12:10:00Z",
+                    "startOrdinal": 0, "endOrdinal": 1,
+                },
+            }
+
+        facts.write_text(json.dumps({
+            "schemaVersion": "gauntlet/epic-run-facts/v1",
+            "owners": [owner(label) for label in ("luna", "sol", "terra")],
+        }), encoding="utf-8")
+        complete = json.loads(run([
+            "python3", str(audit), "summary", "--agent-home", str(home),
+            "--run-facts", str(facts), "--json",
+        ]).stdout)["pricing"]
+        if complete["status"] != "partial" or complete["lowerBoundUsd"] != 5.95 or complete["estimatedUsd"] is not None:
+            raise AssertionError("known model rates must remain a lower bound while cache writes are unobservable: {}".format(complete))
+        if complete["limitations"] != ["cache-write-telemetry-unavailable"]:
+            raise AssertionError("unobservable cache writes must remain explicit even when cached reads are zero")
+        expected_models = {"gpt-5.6-luna": 0.7, "gpt-5.6-sol": 3.5, "gpt-5.6-terra": 1.75}
+        if {model: row["totalUsd"] for model, row in complete["byModel"].items()} != expected_models:
+            raise AssertionError("pricing must remain attributable by canonical model")
+        if any(row["totalTokens"] != 200_000 for row in complete["byModel"].values()):
+            raise AssertionError("canonical model subtotals must retain observed token usage")
+        facts.write_text(json.dumps({
+            "schemaVersion": "gauntlet/epic-run-facts/v1",
+            "owners": [owner(label) for label in ("luna", "sol", "terra", "unknown")],
+        }), encoding="utf-8")
+        partial = json.loads(run([
+            "python3", str(audit), "summary", "--agent-home", str(home),
+            "--run-facts", str(facts), "--json",
+        ]).stdout)["pricing"]
+        if partial["status"] != "partial" or partial["lowerBoundUsd"] != 5.95 or partial["estimatedUsd"] is not None:
+            raise AssertionError("unknown model pricing must preserve the known lower bound without an invented total")
 
 
 def test_epic_aggregate_start_copy_is_count_agnostic_and_single_event():
@@ -513,6 +613,7 @@ def main():
         test_cumulative_analytics_are_idempotent_and_partial_safe,
         test_epic_run_telemetry_join_reports_partial_and_unavailable_coverage,
         test_epic_run_facts_reject_unbounded_owner_metadata,
+        test_model_pricing_is_exact_per_known_model_and_partial_for_unknown_models,
         test_epic_aggregate_start_copy_is_count_agnostic_and_single_event,
         test_epic_run_test_plan_reuses_only_exact_receipts_and_review_pack_needs_no_plan,
         test_start_reconciliation_opens_a_version_scoped_circuit,

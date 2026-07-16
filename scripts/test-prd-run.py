@@ -7,6 +7,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import runpy
+import re
 import subprocess
 import tempfile
 import unittest
@@ -105,6 +107,7 @@ def graph(*, with_cohort: bool = False, review: dict | None = None) -> dict:
 
 class PrdRunTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.clock = "2026-07-16T12:00:00Z"
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.repo = self.root / "repo"
@@ -142,13 +145,22 @@ class PrdRunTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def command(self, *args: str, ok: bool = True, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    def command(
+        self,
+        *args: str,
+        ok: bool = True,
+        cwd: Path | None = None,
+        extra_env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        environment = os.environ.copy()
+        environment["PRD_RUN_NOW"] = self.clock
+        environment.update(extra_env or {})
         result = subprocess.run(
             ["python3", str(SCRIPT), *args],
             cwd=cwd or self.repo,
             text=True,
             capture_output=True,
-            env=os.environ.copy(),
+            env=environment,
         )
         if ok and result.returncode:
             self.fail(f"command failed: {args}\nstdout={result.stdout}\nstderr={result.stderr}")
@@ -210,14 +222,16 @@ class PrdRunTests(unittest.TestCase):
             "init", "--executions", str(self.root / "executions"), "--run-id", run_id,
             "--source", str(self.snapshot), "--target", "E1", "--launch-set", str(self.launch),
             "--release-contract", "doc_org.md:v2", "--release-stages", stages,
+            "--request-start-ordinal", "10",
             *(extra or []), ok=ok,
         )
 
     def manifest(self) -> dict:
         return json.loads((self.run / "manifest.json").read_text())
 
-    def transition(self, state: str, *, ok: bool = True) -> None:
-        self.command("transition", "--run", str(self.run), "--to", state, ok=ok)
+    def transition(self, state: str, *, ok: bool = True, request_end_ordinal: int | None = None) -> None:
+        extra = ["--request-end-ordinal", str(request_end_ordinal)] if request_end_ordinal is not None else []
+        self.command("transition", "--run", str(self.run), "--to", state, *extra, ok=ok)
 
     def compile_and_start(self, *, value: dict | None = None) -> None:
         if value is not None:
@@ -272,8 +286,11 @@ class PrdRunTests(unittest.TestCase):
         }))
         return path
 
-    def finish_ticket(self, ticket: str, agent: str) -> None:
-        self.command("claim", "--run", str(self.run), "--ticket", ticket, "--agent", agent, "--attempt", "1")
+    def complete_ticket(self, ticket: str, agent: str) -> None:
+        self.command(
+            "claim", "--run", str(self.run), "--ticket", ticket, "--agent", agent, "--attempt", "1",
+            "--native-child-id", f"child-{ticket.lower()}", "--request-start-ordinal", "20",
+        )
         evidence = self.run / "evidence" / f"{ticket}.r1.a1.md"
         evidence.write_text(f"# Child evidence {ticket}\n\nObserved public behavior.\n")
         receipt = self.root / f"{ticket}.child.json"
@@ -282,7 +299,13 @@ class PrdRunTests(unittest.TestCase):
             "evidence": [str(evidence.relative_to(self.run))], "outputs": [f"contract:{ticket}"],
             "revision": 1, "risks": [], "status": "complete", "summary": f"Completed {ticket}.", "ticket": ticket,
         }))
-        self.command("record-receipt", "--run", str(self.run), "--ticket", ticket, "--receipt", str(receipt))
+        self.command(
+            "record-receipt", "--run", str(self.run), "--ticket", ticket, "--receipt", str(receipt),
+            "--request-end-ordinal", "25",
+        )
+
+    def finish_ticket(self, ticket: str, agent: str) -> None:
+        self.complete_ticket(ticket, agent)
         parent = self.verification_receipt(f"{ticket}-parent")
         self.command(
             "integrate", "--run", str(self.run), "--ticket", ticket,
@@ -426,6 +449,193 @@ class PrdRunTests(unittest.TestCase):
         retired = self.command("verify-prd", "--run", str(self.run), ok=False)
         self.assertIn("invalid choice", retired.stderr)
 
+    def test_new_run_has_coherent_timestamped_events_and_fixed_progress_units(self) -> None:
+        initialized = self.manifest()
+        self.assertEqual("2026-07-16T12:00:00Z", initialized["time"]["created_at"])
+        self.assertIsNone(initialized["time"]["started_at"])
+        self.assertTrue(all(
+            item["timestamp"] == "2026-07-16T12:00:00Z"
+            for item in map(json.loads, (self.run / "events.jsonl").read_text().splitlines())
+        ))
+
+    def test_production_release_units_follow_executable_gate_order(self) -> None:
+        functions = runpy.run_path(str(SCRIPT))
+        value = graph(review=consequence_review("production-authority"))
+        manifest = {"release": {"applicability": {"deployment": True, "production-verification": True}}}
+        units = {item["id"]: item for item in functions["progress_unit_specs"](value, manifest)}
+        self.assertEqual(
+            ["verify:final-epic", "ship:safeguard:dry-run-no-mutation"],
+            units["ship:merge"]["dependencies"],
+        )
+        self.assertEqual(["ship:merge"], units["ship:deployment"]["dependencies"])
+        self.assertEqual(["ship:deployment"], units["ship:safeguard:bounded-live"]["dependencies"])
+        self.assertEqual(
+            ["ship:deployment", "ship:safeguard:bounded-live", "ship:safeguard:rollback-readiness"],
+            units["ship:production-verification"]["dependencies"],
+        )
+
+        self.clock = "2026-07-16T12:01:00Z"
+        self.transition("accepted")
+        self.clock = "2026-07-16T12:02:00Z"
+        self.command("compile", "--run", str(self.run), "--graph", str(self.graph))
+        compiled = self.manifest()
+        unit_ids = [item["id"] for item in compiled["progress"]["units"]]
+        units = {item["id"]: item for item in compiled["progress"]["units"]}
+        self.assertEqual(len(unit_ids), len(set(unit_ids)))
+        self.assertEqual(compiled["progress"]["denominator_sha256"], object_hash({
+            "policyVersion": "gauntlet.progress-policy.v1",
+            "schemaVersion": "gauntlet.progress-units.v1",
+            "unitIds": unit_ids,
+        }))
+        self.assertTrue(all(item["status"] == "queued" for item in compiled["operations"].values()))
+        self.assertTrue(all(item["queued_at"] == self.clock for item in compiled["operations"].values()))
+        self.assertEqual(["integrate:ticket:T1"], units["build:ticket:T2"]["dependencies"])
+        self.assertEqual(["build:ticket:T2"], units["integrate:ticket:T2"]["dependencies"])
+        self.assertIn("integrate:ticket:T2", units["verify:final-epic"]["dependencies"])
+        self.assertIn("verify:epic-gap-review", units["verify:final-epic"]["dependencies"])
+        self.assertEqual(
+            ["integrate:ticket:T1", "integrate:ticket:T2"],
+            units["verify:epic-gap-review"]["dependencies"],
+        )
+        self.assertEqual(["verify:final-epic"], units["ship:merge"]["dependencies"])
+
+        self.clock = "2026-07-16T12:03:00Z"
+        self.transition("executing")
+        facts = json.loads(self.command("run-facts", "--run", str(self.run)).stdout)
+        self.assertEqual("complete", facts["time"]["elapsedCoverage"])
+        self.assertEqual(self.clock, facts["time"]["startedAt"])
+        self.assertEqual(self.clock, facts["time"]["updatedAt"])
+        self.assertEqual(compiled["progress"]["denominator_sha256"], facts["progress"]["denominatorSha256"])
+        self.assertTrue(all(
+            re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z", item["timestamp"])
+            for item in map(json.loads, (self.run / "events.jsonl").read_text().splitlines())
+        ))
+
+    def test_timestamp_less_run_stays_elapsed_unavailable_when_new_events_arrive(self) -> None:
+        self.transition("accepted")
+        self.command("compile", "--run", str(self.run), "--graph", str(self.graph))
+        manifest = self.manifest()
+        manifest.pop("time")
+        manifest.pop("operations")
+        manifest.pop("progress")
+        manifest.pop("request_owners")
+        (self.run / "manifest.json").write_text(json.dumps(manifest))
+        old_events = []
+        for line in (self.run / "events.jsonl").read_text().splitlines():
+            record = json.loads(line)
+            record.pop("timestamp", None)
+            old_events.append(json.dumps(record, sort_keys=True, separators=(",", ":")))
+        (self.run / "events.jsonl").write_text("\n".join(old_events) + "\n")
+
+        self.clock = "2026-07-16T13:00:00Z"
+        self.transition("executing")
+        mixed = self.manifest()
+        self.assertIsNone(mixed["time"]["created_at"])
+        self.assertIsNone(mixed["time"]["protocol_version"])
+        self.assertIsNone(mixed["time"]["started_at"])
+        self.assertEqual(self.clock, mixed["time"]["updated_at"])
+        facts = json.loads(self.command("run-facts", "--run", str(self.run)).stdout)
+        self.assertEqual("unavailable", facts["time"]["elapsedCoverage"])
+        self.assertIsNone(facts["time"]["startedAt"])
+        self.assertIsNone(facts["progress"])
+        self.assertEqual([], facts["operations"])
+        events = [json.loads(line) for line in (self.run / "events.jsonl").read_text().splitlines()]
+        self.assertNotIn("timestamp", events[0])
+        self.assertEqual(self.clock, events[-1]["timestamp"])
+
+    def test_interrupted_integration_recovers_one_running_operation_attempt(self) -> None:
+        self.compile_and_start()
+        self.complete_ticket("T1", "agent-a")
+        verification = self.verification_receipt("T1-interrupted-parent")
+        self.clock = "2026-07-16T14:00:00Z"
+        interrupted = self.command(
+            "integrate", "--run", str(self.run), "--ticket", "T1",
+            "--verification-receipt", str(verification), ok=False,
+            extra_env={"PRD_RUN_FAIL_EVENT_AFTER": "ticket_integrated"},
+        )
+        self.assertIn("injected event interruption", interrupted.stderr)
+        running = self.manifest()["operations"]["integrate:ticket:T1"]
+        self.assertEqual("running", running["status"])
+        self.assertEqual(1, running["attempt"])
+        self.assertEqual(self.clock, running["started_at"])
+
+        self.clock = "2026-07-16T14:01:00Z"
+        self.command(
+            "integrate", "--run", str(self.run), "--ticket", "T1",
+            "--verification-receipt", str(verification),
+        )
+        recovered = self.manifest()["operations"]["integrate:ticket:T1"]
+        self.assertEqual("pass", recovered["status"])
+        self.assertEqual(1, recovered["attempt"])
+        self.assertEqual("2026-07-16T14:00:00Z", recovered["started_at"])
+        self.assertEqual(self.clock, recovered["finished_at"])
+        self.assertEqual(["pass"], [item["status"] for item in recovered["attempts"]])
+
+    def test_interrupted_final_verification_recovers_without_losing_running_fact(self) -> None:
+        self.compile_and_start()
+        self.finish_ticket("T1", "agent-a")
+        self.finish_ticket("T2", "agent-b")
+        self.transition("integrating")
+        lock = json.loads((self.run / "source-lock.json").read_text())
+        verification = self.verification_receipt(
+            "final-interrupted",
+            oracle=lock["epics"]["E1"]["section_sha256"],
+        )
+        self.clock = "2026-07-16T15:00:00Z"
+        self.command(
+            "verify-epic", "--run", str(self.run), "--verification-receipt", str(verification),
+            ok=False, extra_env={"PRD_RUN_FAIL_EVENT_AFTER": "epic_verified"},
+        )
+        running = self.manifest()["operations"]["verify:final-epic"]
+        self.assertEqual("running", running["status"])
+        self.assertEqual(self.clock, running["started_at"])
+
+        self.clock = "2026-07-16T15:02:00Z"
+        self.command("verify-epic", "--run", str(self.run), "--verification-receipt", str(verification))
+        recovered = self.manifest()["operations"]["verify:final-epic"]
+        self.assertEqual("pass", recovered["status"])
+        self.assertEqual(1, recovered["attempt"])
+        self.assertEqual("2026-07-16T15:00:00Z", recovered["started_at"])
+        self.assertEqual(self.clock, recovered["finished_at"])
+
+    def test_ticket_retry_preserves_denominator_and_both_owner_windows(self) -> None:
+        self.compile_and_start()
+        denominator = self.manifest()["progress"]["denominator_sha256"]
+        self.command(
+            "claim", "--run", str(self.run), "--ticket", "T1", "--agent", "agent-a", "--attempt", "1",
+            "--native-child-id", "child-one", "--request-start-ordinal", "30",
+        )
+        evidence = self.run / "evidence" / "T1.r1.a1-blocked.md"
+        evidence.write_text("# Blocked\n\nThe first owner returned a bounded blocker.\n")
+        receipt = self.root / "T1-blocked.json"
+        receipt.write_text(json.dumps({
+            "agent": "agent-a", "attempt": 1, "changed_paths": [],
+            "evidence": [str(evidence.relative_to(self.run))], "outputs": [],
+            "revision": 1, "risks": [], "status": "blocked", "summary": "Blocked.", "ticket": "T1",
+        }))
+        reversed_window = self.command(
+            "record-receipt", "--run", str(self.run), "--ticket", "T1", "--receipt", str(receipt),
+            "--request-end-ordinal", "29", ok=False,
+        )
+        self.assertIn("must not precede", reversed_window.stderr)
+        self.command(
+            "record-receipt", "--run", str(self.run), "--ticket", "T1", "--receipt", str(receipt),
+            "--request-end-ordinal", "31",
+        )
+        self.command(
+            "claim", "--run", str(self.run), "--ticket", "T1", "--agent", "agent-b", "--attempt", "2",
+            "--native-child-id", "child-two", "--request-start-ordinal", "32",
+        )
+        facts = json.loads(self.command("run-facts", "--run", str(self.run)).stdout)
+        self.assertEqual(denominator, facts["progress"]["denominatorSha256"])
+        first = next(item for item in facts["owners"] if item["ownerId"] == "ticket:T1:r1:a1")
+        second = next(item for item in facts["owners"] if item["ownerId"] == "ticket:T1:r1:a2")
+        self.assertEqual((30, 31), (
+            first["requestWindow"]["startOrdinal"], first["requestWindow"]["endOrdinal"],
+        ))
+        self.assertEqual(32, second["requestWindow"]["startOrdinal"])
+        self.assertIsNone(second["requestWindow"]["endOrdinal"])
+
     def test_zero_cohorts_materializes_bounded_context(self) -> None:
         self.compile_and_start()
         self.command("claim", "--run", str(self.run), "--ticket", "T1", "--agent", "agent-a", "--attempt", "1")
@@ -482,9 +692,28 @@ class PrdRunTests(unittest.TestCase):
         self.assertEqual(self.revision()[0], completion["exactRevision"])
         self.assertEqual("E1", completion["epicId"])
 
+        (self.repo / "tracked.txt").write_text("cohort refresh\n")
+        subprocess.run(["git", "add", "tracked.txt"], cwd=self.repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "refresh after cohort verification"], cwd=self.repo, check=True)
+        stale_final = self.verification_receipt("stale-cohort-final", oracle=lock["epics"]["E1"]["section_sha256"])
+        rejected = self.command(
+            "verify-epic", "--run", str(self.run), "--verification-receipt", str(stale_final), ok=False,
+        )
+        self.assertIn("exact-revision passing Cohorts", rejected.stderr)
+        refreshed_cohort = self.verification_receipt("cohort-C1-refreshed")
+        self.command("verify-cohort", "--run", str(self.run), "--cohort", "C1", "--verification-receipt", str(refreshed_cohort))
+        refreshed_final = self.verification_receipt("final-refreshed-cohort", oracle=lock["epics"]["E1"]["section_sha256"])
+        self.command("verify-epic", "--run", str(self.run), "--verification-receipt", str(refreshed_final))
+        refreshed_completion = json.loads(self.command("completion", "--run", str(self.run)).stdout)
+        self.assertEqual(self.revision()[0], refreshed_completion["exactRevision"])
+
     def test_failed_or_stale_final_verification_cannot_claim_implementation(self) -> None:
         self.compile_and_start()
+        denominator = self.manifest()["progress"]["denominator_sha256"]
         self.finish_implementation(final_result="fail")
+        failed_operation = self.manifest()["operations"]["verify:final-epic"]
+        self.assertEqual("fail", failed_operation["status"])
+        self.assertEqual(1, failed_operation["attempt"])
         failed = json.loads(self.command("completion", "--run", str(self.run)).stdout)
         self.assertFalse(failed["implemented"])
         self.assertIsNone(failed["exactRevision"])
@@ -494,6 +723,12 @@ class PrdRunTests(unittest.TestCase):
         lock = json.loads((self.run / "source-lock.json").read_text())
         passed = self.verification_receipt("final-pass", oracle=lock["epics"]["E1"]["section_sha256"])
         self.command("verify-epic", "--run", str(self.run), "--verification-receipt", str(passed))
+        retried = self.manifest()
+        self.assertEqual(denominator, retried["progress"]["denominator_sha256"])
+        self.assertEqual("pass", retried["operations"]["verify:final-epic"]["status"])
+        self.assertEqual(["fail", "pass"], [
+            item["status"] for item in retried["operations"]["verify:final-epic"]["attempts"]
+        ])
         self.transition("epic_verified")
         (self.repo / "tracked.txt").write_text("advanced\n")
         subprocess.run(["git", "add", "tracked.txt"], cwd=self.repo, check=True)
@@ -504,6 +739,13 @@ class PrdRunTests(unittest.TestCase):
         self.grant("open-final-pr")
         result = self.command("project-pr", "--run", str(self.run), ok=False)
         self.assertIn("exact revision", result.stderr)
+        refreshed = self.verification_receipt(
+            "final-refreshed", oracle=lock["epics"]["E1"]["section_sha256"],
+        )
+        self.command("verify-epic", "--run", str(self.run), "--verification-receipt", str(refreshed))
+        current = json.loads(self.command("completion", "--run", str(self.run)).stdout)
+        self.assertTrue(current["implemented"])
+        self.assertEqual(self.revision()[0], current["exactRevision"])
 
     def test_project_pr_is_deterministic_generated_facts_without_authored_outcomes(self) -> None:
         self.compile_and_start()
@@ -533,7 +775,18 @@ class PrdRunTests(unittest.TestCase):
         self.assertEqual("sha256:" + "c" * 64, run_facts["verificationIdentity"]["toolchain"])
         self.assertEqual("final-epic", run_facts["plannedChecks"][-1]["tier"])
         self.assertEqual(3, len(run_facts["verificationReceipts"]))
-        self.assertEqual({"delegated"}, {item["ownerKind"] for item in run_facts["owners"]})
+        self.assertEqual({"parent", "delegated"}, {item["ownerKind"] for item in run_facts["owners"]})
+        root_owner = next(item for item in run_facts["owners"] if item["ownerId"] == "root")
+        self.assertEqual("task-e1", root_owner["nativeChildId"])
+        self.assertEqual({
+            "endOrdinal": None,
+            "endedAt": None,
+            "startOrdinal": 10,
+            "startedAt": "2026-07-16T12:00:00Z",
+        }, root_owner["requestWindow"])
+        delegated = [item for item in run_facts["owners"] if item["ownerKind"] == "delegated"]
+        self.assertEqual({20}, {item["requestWindow"]["startOrdinal"] for item in delegated})
+        self.assertEqual({25}, {item["requestWindow"]["endOrdinal"] for item in delegated})
         self.assertEqual("not-required", run_facts["review"]["status"])
         self.assertEqual([], run_facts["review"]["results"])
         self.assertTrue(all(
@@ -590,12 +843,18 @@ class PrdRunTests(unittest.TestCase):
             "--summary", "Production oracle passed.", "--evidence", "production-1", "--revision", revision,
         )
         self.transition("production_verified")
-        self.transition("complete")
+        self.clock = "2026-07-16T16:00:00Z"
+        self.transition("complete", request_end_ordinal=99)
         complete = json.loads(self.command("completion", "--run", str(self.run)).stdout)
         self.assertTrue(complete["productionProved"])
         self.assertTrue(complete["complete"])
         self.assertEqual([], complete["pendingGates"])
         self.assertEqual(hashlib.sha256(self.snapshot.read_bytes()).hexdigest(), complete["sourceSha256"])
+        terminal_facts = json.loads(self.command("run-facts", "--run", str(self.run)).stdout)
+        self.assertEqual(self.clock, terminal_facts["time"]["terminalAt"])
+        root_owner = next(item for item in terminal_facts["owners"] if item["ownerId"] == "root")
+        self.assertEqual(self.clock, root_owner["requestWindow"]["endedAt"])
+        self.assertEqual(99, root_owner["requestWindow"]["endOrdinal"])
 
     def test_not_applicable_release_stages_must_close_explicitly(self) -> None:
         subprocess.run(["git", "checkout", "-qb", "run/NODEPLOY"], cwd=self.repo, check=True)
@@ -730,6 +989,7 @@ class PrdRunTests(unittest.TestCase):
 
         question = self.gap_finding("INTEGRATED", "ask-user", ["T2"])
         self.gap_review(1, [question], phase="integrated")
+        self.assertEqual("fail", self.manifest()["operations"]["verify:epic-gap-review"]["status"])
         lock = json.loads((self.run / "source-lock.json").read_text())
         final = self.verification_receipt("gap-final", oracle=lock["epics"]["E1"]["section_sha256"])
         result = self.command(
@@ -738,6 +998,7 @@ class PrdRunTests(unittest.TestCase):
         self.assertIn("ask-user", result.stderr)
 
         self.gap_review(2, [self.gap_finding("INTEGRATED", "fixed", ["T2"])], phase="integrated")
+        self.assertEqual("pass", self.manifest()["operations"]["verify:epic-gap-review"]["status"])
         self.command("verify-epic", "--run", str(self.run), "--verification-receipt", str(final))
 
     def test_reusable_gap_candidate_is_upserted_and_projected_without_a_model_handoff(self) -> None:
@@ -956,6 +1217,38 @@ class PrdRunTests(unittest.TestCase):
         self.graph.write_text(json.dumps(value))
         result = self.command("compile", "--run", str(self.run), "--graph", str(self.graph), ok=False)
         self.assertIn("cycle", result.stderr)
+
+    def test_reconcile_invalidates_without_changing_denominator_and_membership_requires_superseding_run(self) -> None:
+        self.compile_and_start()
+        self.finish_ticket("T1", "agent-a")
+        before = self.manifest()
+        denominator = before["progress"]["denominator_sha256"]
+        self.assertEqual("pass", before["operations"]["integrate:ticket:T1"]["status"])
+
+        changed = self.snapshot.read_text().replace(
+            "Initial balance requirements.",
+            "Changed balance requirements.",
+        )
+        self.snapshot.write_text(changed)
+        self.canonical.write_text(changed)
+        result = json.loads(self.command(
+            "reconcile", "--run", str(self.run), "--source", str(self.snapshot),
+            "--graph", str(self.graph),
+        ).stdout)
+        self.assertEqual(["T1", "T2"], result["invalidated_tickets"])
+        reconciled = self.manifest()
+        self.assertEqual(denominator, reconciled["progress"]["denominator_sha256"])
+        integration = reconciled["operations"]["integrate:ticket:T1"]
+        self.assertEqual("queued", integration["status"])
+        self.assertEqual(["pass"], [item["status"] for item in integration["attempts"]])
+        self.assertEqual(2, reconciled["tickets"]["T1"]["revision"])
+
+        self.graph.write_text(json.dumps(graph(with_cohort=True)))
+        rejected = self.command(
+            "reconcile", "--run", str(self.run), "--source", str(self.snapshot),
+            "--graph", str(self.graph), ok=False,
+        )
+        self.assertIn("start a superseding run", rejected.stderr)
 
 
 if __name__ == "__main__":

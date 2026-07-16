@@ -2,6 +2,7 @@
 """Export privacy-bounded Gauntlet subagent usage from Codex native state."""
 
 import argparse
+from datetime import datetime
 import fcntl
 import hashlib
 import json
@@ -47,6 +48,8 @@ TOKEN_KEYS = (
     "reasoning_output_tokens",
     "total_tokens",
 )
+REQUEST_WINDOW_KEYS = {"startedAt", "endedAt", "startOrdinal", "endOrdinal"}
+PRICING_SCHEMA = "gauntlet.model-api-pricing.v1"
 NATIVE_COLUMNS = (
     "id", "agent_role", "model", "reasoning_effort", "sandbox_policy", "approval_mode",
     "agent_nickname", "source", "tokens_used", "cwd", "created_at_ms", "updated_at_ms",
@@ -75,6 +78,18 @@ def fingerprint(value):
     return "sha256:" + hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
 
 
+def rfc3339(value):
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.endswith("Z"):
+        raise RuntimeError("timestamp must use RFC 3339 UTC with a Z suffix")
+    try:
+        datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError as exc:
+        raise RuntimeError("timestamp must use RFC 3339 UTC") from exc
+    return value
+
+
 def privacy_bounded_sandbox(value):
     """Retain the effective sandbox type without persisting private writable roots."""
     try:
@@ -86,7 +101,27 @@ def privacy_bounded_sandbox(value):
     return json.dumps({"type": policy["type"]}, separators=(",", ":"), sort_keys=True)
 
 
-def native_records(database):
+def native_record(row):
+    return {
+        "agentId": row["id"],
+        "parentAgentId": row["parent_thread_id"],
+        "profile": row["agent_role"],
+        "model": row["model"],
+        "reasoningEffort": row["reasoning_effort"],
+        "sandboxPolicy": row["sandbox_policy"],
+        "approvalMode": row["approval_mode"],
+        "nickname": row["agent_nickname"],
+        "source": row["source"],
+        "tokensUsed": row["tokens_used"],
+        "cwd": row["cwd"],
+        "createdAtMs": row["created_at_ms"],
+        "updatedAtMs": row["updated_at_ms"],
+        "rolloutPath": row["rollout_path"],
+        "cliVersion": row["cli_version"],
+    }
+
+
+def native_records(database, agent_ids=None):
     if not database.is_file():
         raise RuntimeError("Codex native state database is missing: {}".format(database))
     connection = sqlite3.connect("file:{}?mode=ro".format(database), uri=True)
@@ -97,36 +132,25 @@ def native_records(database):
         if missing:
             raise RuntimeError("Codex native state is missing required thread metadata: {}".format(", ".join(sorted(missing))))
         expressions = ["t.{} AS {}".format(name, name) if name in columns else "NULL AS {}".format(name) for name in NATIVE_COLUMNS]
+        where = "t.agent_role GLOB 'gauntlet_*'"
+        params = []
+        if agent_ids is not None:
+            bounded = sorted({opaque_id(value, "native agent ID") for value in agent_ids if value})
+            if not bounded:
+                return []
+            where = "t.id IN ({})".format(",".join("?" for _ in bounded))
+            params = bounded
         query = """
         SELECT {}, e.parent_thread_id
         FROM threads t
         LEFT JOIN thread_spawn_edges e ON e.child_thread_id = t.id
-        WHERE t.agent_role GLOB 'gauntlet_*'
+        WHERE {}
         ORDER BY COALESCE(t.created_at_ms, 0), t.id
-        """.format(", ".join(expressions))
-        rows = connection.execute(query).fetchall()
+        """.format(", ".join(expressions), where)
+        rows = connection.execute(query, params).fetchall()
     finally:
         connection.close()
-    return [
-        {
-            "agentId": row["id"],
-            "parentAgentId": row["parent_thread_id"],
-            "profile": row["agent_role"],
-            "model": row["model"],
-            "reasoningEffort": row["reasoning_effort"],
-            "sandboxPolicy": row["sandbox_policy"],
-            "approvalMode": row["approval_mode"],
-            "nickname": row["agent_nickname"],
-            "source": row["source"],
-            "tokensUsed": row["tokens_used"],
-            "cwd": row["cwd"],
-            "createdAtMs": row["created_at_ms"],
-            "updatedAtMs": row["updated_at_ms"],
-            "rolloutPath": row["rollout_path"],
-            "cliVersion": row["cli_version"],
-        }
-        for row in rows
-    ]
+    return [native_record(row) for row in rows]
 
 
 def audit_record(row):
@@ -182,61 +206,119 @@ def quarantine(agent_id, line_number, reason):
     return {"agentId": agent_id, "lineNumber": line_number, "reason": reason}
 
 
-def request_analytics(row):
+def read_cursor_state(path):
+    if not path.exists():
+        return {"schemaVersion": 1, "agents": {}}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise RuntimeError("Cannot read request cursor state {}: {}".format(path, exc))
+    if value.get("schemaVersion") != 1 or not isinstance(value.get("agents"), dict):
+        raise RuntimeError("Unsupported request cursor state: {}".format(path))
+    return value
+
+
+def request_analytics(row, cursor=None):
     path_value = row.get("rolloutPath")
     if not path_value:
-        return None, []
+        return None, [], cursor
     path = Path(path_value)
     if path.is_symlink() or not path.is_file():
-        return None, [quarantine(row["agentId"], 0, "rollout-unavailable")]
+        return None, [quarantine(row["agentId"], 0, "rollout-unavailable")], cursor
+    path_fingerprint = fingerprint(str(path.resolve()))
+    cursor = dict(cursor or {})
+    if cursor and cursor.get("pathFingerprint") != path_fingerprint:
+        return None, [quarantine(row["agentId"], cursor.get("lineNumber", 0), "rollout-rotated")], cursor
+    offset = cursor.get("byteOffset", 0)
+    line_number = cursor.get("lineNumber", 0)
+    ordinal = cursor.get("requestOrdinal", 0)
+    previous = cursor.get("lastTotals", {key: 0 for key in TOKEN_KEYS})
+    if (
+        not isinstance(offset, int) or offset < 0
+        or not isinstance(line_number, int) or line_number < 0
+        or not isinstance(ordinal, int) or ordinal < 0
+        or not valid_tokens(previous)
+    ):
+        raise RuntimeError("Invalid request cursor for {}".format(row["agentId"]))
     try:
-        raw_lines = path.read_bytes().splitlines(keepends=True)
+        size = path.stat().st_size
+        if size < offset:
+            return None, [quarantine(row["agentId"], line_number, "rollout-truncated")], cursor
+        with path.open("rb") as handle:
+            handle.seek(offset)
+            raw_lines = handle.read().splitlines(keepends=True)
     except OSError:
-        return None, [quarantine(row["agentId"], 0, "rollout-unreadable")]
+        return None, [quarantine(row["agentId"], line_number, "rollout-unreadable")], cursor
     requests = []
     quarantined = []
-    previous = {key: 0 for key in TOKEN_KEYS}
-    for line_number, raw in enumerate(raw_lines, 1):
+    committed_offset = offset
+    committed_line = line_number
+    for raw in raw_lines:
+        current_line = committed_line + 1
         if not raw.endswith((b"\n", b"\r")):
-            quarantined.append(quarantine(row["agentId"], line_number, "unterminated-json-line"))
-            continue
+            quarantined.append(quarantine(row["agentId"], current_line, "unterminated-json-line"))
+            break
         try:
             event = json.loads(raw)
         except (UnicodeError, ValueError):
-            quarantined.append(quarantine(row["agentId"], line_number, "invalid-json-line"))
-            continue
+            quarantined.append(quarantine(row["agentId"], current_line, "invalid-json-line"))
+            break
+        next_offset = committed_offset + len(raw)
+        committed_line = current_line
         if event.get("type") != "event_msg" or not isinstance(event.get("payload"), dict):
+            committed_offset = next_offset
             continue
         payload = event["payload"]
         if payload.get("type") != "token_count":
+            committed_offset = next_offset
             continue
         info = payload.get("info")
         total = info.get("total_token_usage") if isinstance(info, dict) else None
         last = info.get("last_token_usage") if isinstance(info, dict) else None
         if not valid_tokens(total) or not valid_tokens(last):
-            quarantined.append(quarantine(row["agentId"], line_number, "partial-token-count"))
-            continue
+            quarantined.append(quarantine(row["agentId"], current_line, "partial-token-count"))
+            committed_line -= 1
+            break
         if any(total[key] < previous[key] for key in TOKEN_KEYS):
-            quarantined.append(quarantine(row["agentId"], line_number, "nonmonotonic-cumulative-token-count"))
-            continue
+            quarantined.append(quarantine(row["agentId"], current_line, "nonmonotonic-cumulative-token-count"))
+            committed_line -= 1
+            break
         delta = {key: total[key] - previous[key] for key in TOKEN_KEYS}
         if not any(delta.values()):
+            committed_offset = next_offset
             continue
         if delta != last or not valid_tokens(delta):
-            quarantined.append(quarantine(row["agentId"], line_number, "inconsistent-token-delta"))
-            continue
+            quarantined.append(quarantine(row["agentId"], current_line, "inconsistent-token-delta"))
+            committed_line -= 1
+            break
         previous = total
-        ordinal = len(requests) + 1
+        ordinal += 1
+        observed_at = event.get("timestamp")
+        try:
+            observed_at = rfc3339(observed_at) if observed_at is not None else None
+        except RuntimeError:
+            observed_at = None
         requests.append({
             "agentId": row["agentId"],
             "codexVersion": row.get("cliVersion") or "unknown",
             "model": row.get("model"),
             "profile": row.get("profile"),
+            "reasoningEffort": row.get("reasoningEffort"),
             "requestId": "{}:{}".format(row["agentId"], ordinal),
             "requestOrdinal": ordinal,
+            "observedAt": observed_at,
+            "observedThrough": next_offset,
             "tokens": delta,
         })
-    return requests, quarantined
+        committed_offset = next_offset
+    next_cursor = {
+        "byteOffset": committed_offset,
+        "lastTotals": previous,
+        "lineNumber": committed_line,
+        "pathFingerprint": path_fingerprint,
+        "requestOrdinal": ordinal,
+    }
+    return requests, quarantined, next_cursor
 
 
 def existing_analytics(path):
@@ -259,24 +341,42 @@ def render_jsonl(rows):
     return "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows)
 
 
-def sync(native, output, analytics_path, quarantine_path):
+def read_jsonl_rows(path):
+    if not path.exists():
+        return []
+    try:
+        return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise RuntimeError("Cannot read JSONL {}: {}".format(path, exc))
+
+
+def sync(native, output, analytics_path, quarantine_path, cursor_path):
     merged = existing_records(output)
     merged.update({row["agentId"]: audit_record(row) for row in native})
     ordered = sorted(merged.values(), key=lambda row: (row.get("createdAtMs") or 0, row["agentId"]))
     analytics = existing_analytics(analytics_path)
-    quarantined = []
+    cursor_state = read_cursor_state(cursor_path)
+    native_ids = {row["agentId"] for row in native}
+    quarantined = [
+        row for row in read_jsonl_rows(quarantine_path)
+        if row.get("agentId") not in native_ids
+    ]
     for row in native:
-        current, current_quarantine = request_analytics(row)
+        agent_id = row["agentId"]
+        current, current_quarantine, next_cursor = request_analytics(
+            row, cursor_state["agents"].get(agent_id)
+        )
         quarantined.extend(current_quarantine)
-        if current is None:
-            continue
-        analytics = {key: value for key, value in analytics.items() if value.get("agentId") != row["agentId"]}
-        analytics.update({item["requestId"]: item for item in current})
+        if current is not None:
+            analytics.update({item["requestId"]: item for item in current})
+        if next_cursor is not None:
+            cursor_state["agents"][agent_id] = next_cursor
     analytics_rows = sorted(analytics.values(), key=lambda row: (row["agentId"], row["requestOrdinal"]))
     quarantine_rows = sorted(quarantined, key=lambda row: (row["agentId"], row["lineNumber"], row["reason"]))
     atomic_write(output, render_jsonl(ordered))
     atomic_write(analytics_path, render_jsonl(analytics_rows))
     atomic_write(quarantine_path, render_jsonl(quarantine_rows))
+    atomic_write(cursor_path, json.dumps(cursor_state, indent=2, sort_keys=True) + "\n")
 
 
 def sandbox_type(row):
@@ -402,13 +502,14 @@ def validate_owners(owners):
     if not isinstance(owners, list) or not owners:
         raise RuntimeError("Epic Run facts require a non-empty owners list")
     normalized = []
-    seen_refs = set()
+    seen_ids = set()
     for index, owner in enumerate(owners, 1):
         if not isinstance(owner, dict) or owner.get("ownerKind") not in {"parent", "delegated"}:
             raise RuntimeError("Epic Run owner {} has an invalid ownerKind".format(index))
         owner_ref = opaque_id(owner.get("ownerRef"), "Epic Run owner {} ownerRef".format(index))
-        if owner_ref in seen_refs:
-            raise RuntimeError("Epic Run owner {} requires a unique ownerRef".format(index))
+        owner_id = opaque_id(owner.get("ownerId", owner_ref), "Epic Run owner {} ownerId".format(index))
+        if owner_id in seen_ids:
+            raise RuntimeError("Epic Run owner {} requires a unique ownerId".format(index))
         child_id = owner.get("nativeChildId")
         if child_id is not None:
             child_id = opaque_id(child_id, "Epic Run owner {} nativeChildId".format(index))
@@ -417,12 +518,38 @@ def validate_owners(owners):
             not isinstance(requested_profile, str) or requested_profile not in EXPECTED
         ):
             raise RuntimeError("Epic Run owner {} requestedProfile is not canonical".format(index))
-        seen_refs.add(owner_ref)
+        request_window = owner.get("requestWindow")
+        normalized_window = None
+        if request_window is not None:
+            if not isinstance(request_window, dict) or set(request_window) != REQUEST_WINDOW_KEYS:
+                raise RuntimeError("Epic Run owner {} requestWindow is invalid".format(index))
+            started_at = rfc3339(request_window.get("startedAt"))
+            ended_at = rfc3339(request_window.get("endedAt"))
+            start_ordinal = request_window.get("startOrdinal")
+            end_ordinal = request_window.get("endOrdinal")
+            for label, ordinal in (("startOrdinal", start_ordinal), ("endOrdinal", end_ordinal)):
+                if ordinal is not None and (
+                    isinstance(ordinal, bool) or not isinstance(ordinal, int) or ordinal < 0
+                ):
+                    raise RuntimeError("Epic Run owner {} {} is invalid".format(index, label))
+            if start_ordinal is not None and end_ordinal is not None and start_ordinal > end_ordinal:
+                raise RuntimeError("Epic Run owner {} requestWindow ordinals are reversed".format(index))
+            if started_at and ended_at and started_at > ended_at:
+                raise RuntimeError("Epic Run owner {} requestWindow timestamps are reversed".format(index))
+            normalized_window = {
+                "startedAt": started_at,
+                "endedAt": ended_at,
+                "startOrdinal": start_ordinal,
+                "endOrdinal": end_ordinal,
+            }
+        seen_ids.add(owner_id)
         normalized.append({
+            "ownerId": owner_id,
             "ownerKind": owner["ownerKind"],
             "ownerRef": owner_ref,
             "nativeChildId": child_id,
             "requestedProfile": requested_profile,
+            "requestWindow": normalized_window,
         })
     return normalized
 
@@ -437,7 +564,119 @@ def read_run_facts(path):
     return validate_owners(value.get("owners"))
 
 
-def run_summary_payload(owners, audit_path, analytics_path):
+def read_pricing_registry(path):
+    try:
+        registry = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise RuntimeError("Cannot read model API pricing registry {}: {}".format(path, exc))
+    if registry.get("schemaVersion") != PRICING_SCHEMA or not isinstance(registry.get("models"), dict):
+        raise RuntimeError("Unsupported model API pricing registry")
+    rfc3339(registry.get("effectiveAt"))
+    return registry
+
+
+def price_requests(rows, registry):
+    components = {"cachedInputUsd": 0.0, "inputUsd": 0.0, "outputUsd": 0.0}
+    by_model = {}
+    reasons = set()
+    priced_requests = 0
+    for row in rows:
+        rates = registry["models"].get(row.get("model"))
+        if not rates:
+            reasons.add("model-price-unavailable")
+            continue
+        model_cost = by_model.setdefault(row["model"], {
+            "requests": 0, "cachedInputUsd": 0.0, "inputUsd": 0.0, "outputUsd": 0.0,
+            "inputTokens": 0, "cachedInputTokens": 0, "outputTokens": 0,
+            "reasoningOutputTokens": 0, "totalTokens": 0,
+        })
+        token_values = row["tokens"]
+        input_multiplier = 1.0
+        output_multiplier = 1.0
+        if token_values["input_tokens"] > rates.get("longContextThreshold", 272000):
+            input_multiplier = rates.get("longContextInputMultiplier", 2.0)
+            output_multiplier = rates.get("longContextOutputMultiplier", 1.5)
+        uncached = token_values["input_tokens"] - token_values["cached_input_tokens"]
+        input_cost = uncached * rates["inputPerMillion"] * input_multiplier / 1_000_000
+        cached_cost = token_values["cached_input_tokens"] * rates["cachedInputPerMillion"] * input_multiplier / 1_000_000
+        # Reasoning tokens are already included in output_tokens and must not be charged twice.
+        output_cost = token_values["output_tokens"] * rates["outputPerMillion"] * output_multiplier / 1_000_000
+        components["inputUsd"] += input_cost
+        components["cachedInputUsd"] += cached_cost
+        components["outputUsd"] += output_cost
+        model_cost["requests"] += 1
+        model_cost["inputUsd"] += input_cost
+        model_cost["cachedInputUsd"] += cached_cost
+        model_cost["outputUsd"] += output_cost
+        model_cost["inputTokens"] += token_values["input_tokens"]
+        model_cost["cachedInputTokens"] += token_values["cached_input_tokens"]
+        model_cost["outputTokens"] += token_values["output_tokens"]
+        model_cost["reasoningOutputTokens"] += token_values["reasoning_output_tokens"]
+        model_cost["totalTokens"] += token_values["total_tokens"]
+        priced_requests += 1
+        if not rates.get("cacheWriteObservable", False):
+            reasons.add("cache-write-telemetry-unavailable")
+    rounded = {key: round(value, 8) for key, value in components.items()}
+    rounded_models = {}
+    for model, values in sorted(by_model.items()):
+        rounded_values = {
+            key: (value if key == "requests" or key.endswith("Tokens") else round(value, 8))
+            for key, value in values.items()
+        }
+        rounded_values["totalUsd"] = round(sum(
+            rounded_values[key] for key in ("cachedInputUsd", "inputUsd", "outputUsd")
+        ), 8)
+        rounded_models[model] = rounded_values
+    lower_bound = round(sum(rounded.values()), 8)
+    complete = not reasons and priced_requests == len(rows)
+    return {
+        "status": "complete" if complete else ("partial" if priced_requests else "unavailable"),
+        "currency": registry.get("currency", "USD"),
+        "registryVersion": registry["schemaVersion"],
+        "effectiveAt": registry["effectiveAt"],
+        "source": registry.get("source"),
+        "pricedRequests": priced_requests,
+        "components": rounded if priced_requests else None,
+        "byModel": rounded_models,
+        "lowerBoundUsd": lower_bound if priced_requests else None,
+        "estimatedUsd": lower_bound if complete else None,
+        "limitations": sorted(reasons),
+    }
+
+
+def rows_for_window(rows, window):
+    if window is None:
+        return []
+    start = window.get("startOrdinal")
+    end = window.get("endOrdinal")
+    started_at = window.get("startedAt")
+    ended_at = window.get("endedAt")
+    started_time = datetime.fromisoformat(started_at[:-1] + "+00:00") if started_at else None
+    ended_time = datetime.fromisoformat(ended_at[:-1] + "+00:00") if ended_at else None
+    bounded = []
+    for row in rows:
+        ordinal = row.get("requestOrdinal")
+        observed_at = row.get("observedAt")
+        observed_time = (
+            datetime.fromisoformat(observed_at[:-1] + "+00:00")
+            if isinstance(observed_at, str) and observed_at.endswith("Z") else None
+        )
+        after_start = (
+            ordinal > start if start is not None and isinstance(ordinal, int)
+            else observed_time >= started_time if started_time and observed_time
+            else False
+        )
+        before_end = (
+            ordinal <= end if end is not None and isinstance(ordinal, int)
+            else observed_time <= ended_time if ended_time and observed_time
+            else ended_time is None
+        )
+        if after_start and before_end:
+            bounded.append(row)
+    return bounded
+
+
+def run_summary_payload(owners, audit_path, analytics_path, quarantine_path, pricing_path):
     owners = validate_owners(owners)
     audit = existing_records(audit_path)
     analytics = existing_analytics(analytics_path)
@@ -446,10 +685,13 @@ def run_summary_payload(owners, audit_path, analytics_path):
         by_agent.setdefault(row.get("agentId"), []).append(row)
     unavailable = []
     observed = []
+    coverage_limitations = set()
     token_totals = {key: 0 for key in TOKEN_KEYS}
     request_count = 0
     profile_mismatches = []
-    counted_agents = set()
+    counted_requests = set()
+    included_rows = []
+    owner_freshness = []
     for owner in owners:
         agent_id = owner["nativeChildId"]
         if not agent_id:
@@ -464,14 +706,26 @@ def run_summary_payload(owners, audit_path, analytics_path):
                 "reason": "native-record-unavailable",
             })
             continue
-        rows = by_agent.get(agent_id, [])
+        all_rows = by_agent.get(agent_id, [])
+        if owner["requestWindow"] is None:
+            coverage_limitations.add("owner-window-unavailable")
+        elif owner["requestWindow"].get("startOrdinal") is None or owner["requestWindow"].get("endOrdinal") is None:
+            coverage_limitations.add("owner-window-partial")
+        rows = rows_for_window(all_rows, owner["requestWindow"])
         if not rows:
             unavailable.append({
                 "ownerKind": owner["ownerKind"], "ownerRef": owner["ownerRef"],
                 "reason": "request-telemetry-unavailable",
             })
             continue
-        observed.append({"ownerKind": owner["ownerKind"], "ownerRef": owner["ownerRef"]})
+        observed_through = max((row.get("observedAt") for row in rows if row.get("observedAt")), default=None)
+        observed.append({
+            "ownerKind": owner["ownerKind"], "ownerRef": owner["ownerRef"],
+            "observedThrough": observed_through,
+        })
+        owner_freshness.append(observed_through)
+        if observed_through is None:
+            coverage_limitations.add("request-timestamps-unavailable")
         actual_profile = audit[agent_id].get("profile")
         if owner.get("requestedProfile") and owner["requestedProfile"] != actual_profile:
             profile_mismatches.append({
@@ -482,11 +736,12 @@ def run_summary_payload(owners, audit_path, analytics_path):
                     else "unrecognized"
                 ),
             })
-        if agent_id in counted_agents:
-            continue
-        counted_agents.add(agent_id)
-        request_count += len(rows)
         for row in rows:
+            if row["requestId"] in counted_requests:
+                continue
+            counted_requests.add(row["requestId"])
+            request_count += 1
+            included_rows.append(row)
             for key in TOKEN_KEYS:
                 token_totals[key] += row["tokens"][key]
     if not observed:
@@ -495,10 +750,25 @@ def run_summary_payload(owners, audit_path, analytics_path):
         tokens = None
         totals_scope = "unavailable"
     else:
-        status = "partial" if unavailable else "complete"
+        status = "partial" if unavailable or coverage_limitations else "complete"
         model_requests = request_count
         tokens = token_totals
-        totals_scope = "observed-only" if unavailable else "all-declared-owners"
+        totals_scope = "observed-only" if unavailable or coverage_limitations else "all-declared-owners"
+    quarantined_agents = set()
+    if quarantine_path.exists():
+        for row in read_jsonl_rows(quarantine_path):
+            quarantined_agents.add(row.get("agentId"))
+    if any(owner.get("nativeChildId") in quarantined_agents for owner in owners):
+        coverage_limitations.add("request-integrity-quarantine")
+        if status == "complete":
+            status = "partial"
+            totals_scope = "observed-only"
+    pricing = price_requests(included_rows, read_pricing_registry(pricing_path)) if included_rows else {
+        "status": "unavailable", "currency": "USD", "registryVersion": PRICING_SCHEMA,
+        "effectiveAt": None, "source": None, "pricedRequests": 0, "components": None,
+        "byModel": {}, "lowerBoundUsd": None, "estimatedUsd": None,
+        "limitations": ["request-telemetry-unavailable"],
+    }
     return {
         "schemaVersion": "gauntlet/run-telemetry-summary/v1",
         "coverage": {
@@ -507,9 +777,15 @@ def run_summary_payload(owners, audit_path, analytics_path):
             "observedOwners": len(observed),
             "unavailableOwners": unavailable,
             "totalsScope": totals_scope,
+            "limitations": sorted(coverage_limitations),
+            "freshness": {
+                "observedThrough": max((value for value in owner_freshness if value), default=None),
+                "status": "observed" if any(owner_freshness) else "unavailable",
+            },
         },
         "modelRequests": model_requests,
         "tokens": tokens,
+        "pricing": pricing,
         "profileMismatches": profile_mismatches,
     }
 
@@ -531,11 +807,20 @@ def main():
     output = agent_home / "gauntlet" / "logs" / "subagents.jsonl"
     analytics_path = agent_home / "gauntlet" / "logs" / "subagent-model-requests.jsonl"
     quarantine_path = agent_home / "gauntlet" / "logs" / "subagent-quarantine.jsonl"
+    cursor_path = agent_home / "gauntlet" / "state" / "subagent-request-cursors.json"
+    pricing_path = Path(__file__).resolve().parents[1] / "templates" / "model-api-pricing.json"
     circuit_path = args.circuit_file or agent_home / "gauntlet" / "state" / "routing-circuit.json"
     if args.action == "summary" and args.run_facts:
         try:
             owners = read_run_facts(args.run_facts)
-            payload = run_summary_payload(owners, output, analytics_path)
+            owner_agent_ids = [owner["nativeChildId"] for owner in owners if owner["nativeChildId"]]
+            if database.is_file() and owner_agent_ids:
+                scoped_native = native_records(database, owner_agent_ids)
+                if scoped_native:
+                    sync(scoped_native, output, analytics_path, quarantine_path, cursor_path)
+            payload = run_summary_payload(
+                owners, output, analytics_path, quarantine_path, pricing_path
+            )
         except RuntimeError as exc:
             parser.error(str(exc))
         print(json.dumps(payload, indent=2, sort_keys=True))
@@ -546,7 +831,7 @@ def main():
         parser.error(str(exc))
     if args.action == "sync":
         try:
-            sync(data, output, analytics_path, quarantine_path)
+            sync(data, output, analytics_path, quarantine_path, cursor_path)
         except RuntimeError as exc:
             parser.error(str(exc))
         payload = summary_payload(data, analytics_path, quarantine_path, output)

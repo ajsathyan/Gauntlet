@@ -6,6 +6,8 @@ The human product document owns accepted intent. The launch set binds its exact 
 
 After initialization, `source-lock.json`, `manifest.json`, and `resume.md` own execution state. Conversation history and task copy are advisory. The parent alone changes run state, integrates work, defines acceptance oracles, and controls merge, release, and rollback.
 
+After the first Epic task is recorded, the product controller starts or recovers one launch-scoped loopback progress supervisor with placeholder facts until its run is bound. It refreshes current `run-facts` and run-scoped telemetry on a bounded cadence, discovers later run bindings, and preserves last-valid projections when a source is temporarily unreadable. Execute the returned `open_browser` action immediately with the Codex in-app Browser when available; the action points to a private state file rather than exposing the bearer. Browser or server absence is a quiet fallback and never blocks execution. Stop the dashboard only after every launch Epic is run-complete, stopped, or failed; `progress-stop` is idempotent for archive cleanup.
+
 ## Launch and compilation
 
 Run `epic-tasks bootstrap` from the compact task envelope before `prd-run.py init`. Bootstrap verifies the launch and source digests and returns the complete relevant Epic once. Missing, stale, tampered, or unavailable sources stop before run creation.

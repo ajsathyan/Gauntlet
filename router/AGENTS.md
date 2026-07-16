@@ -59,6 +59,7 @@ For an accepted product launch:
 - compile bounded Tickets and start only dependency-ready work;
 - keep one integration branch and one Project PR per Epic;
 - resume from controller state after compaction or restart;
+- start or recover the read-only launch progress dashboard when the first Epic task is recorded, execute its Codex Browser action when available, and keep dashboard failure non-blocking;
 - preserve the existing progress dashboard as a read-only projection.
 
 Run one bounded pre-build Epic gap review when a material plan exists and one integrated pass before final verification. Allow at most three findings per pass and three passes. Every finding ends as `fixed`, `ask-user`, `deferred`, or `omitted`; `ask-user` blocks only affected work. Do not add external-practice, compliance, enterprise-hardening, or state-of-the-art review unless the user asks or an accepted external constraint requires it.

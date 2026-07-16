@@ -8,6 +8,7 @@ agents receive materialized bundles and return receipts for the parent to record
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import fcntl
 import hashlib
 import json
@@ -84,6 +85,9 @@ TRIGGER_AUTHORITY = {
     "destructive-actions": "perform-destructive-action",
 }
 REVIEW_UNIT_STATES = ("pending", "opened", "checked", "merge-locked", "merged", "verified", "cleanup-eligible", "cleaned")
+TIMESTAMP_PROTOCOL = "gauntlet.rfc3339-utc.v1"
+PROGRESS_SCHEMA = "gauntlet.progress-units.v1"
+PROGRESS_POLICY = "gauntlet.progress-policy.v1"
 
 
 class RunError(Exception):
@@ -124,6 +128,37 @@ def sha_file(path: Path) -> str:
 
 def object_hash(value: Any) -> str:
     return sha_bytes(canonical_json(value).encode())
+
+
+def utc_now() -> str:
+    """Return one canonical UTC instant, with an injectable deterministic clock for tests."""
+
+    supplied = os.environ.get("PRD_RUN_NOW")
+    if supplied is not None:
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z", supplied):
+            raise RunError("PRD_RUN_NOW must be an RFC 3339 UTC timestamp ending in Z")
+        try:
+            datetime.fromisoformat(supplied[:-1] + "+00:00")
+        except ValueError as exc:
+            raise RunError("PRD_RUN_NOW must be a valid RFC 3339 UTC timestamp") from exc
+        return supplied
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def optional_ordinal(value: Any, label: str) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise RunError(f"{label} must be a non-negative integer")
+    return value
+
+
+def close_request_window(owner: dict[str, Any], end_ordinal: int | None, timestamp: str) -> None:
+    window = owner["requestWindow"]
+    start_ordinal = window.get("startOrdinal")
+    if start_ordinal is not None and end_ordinal is not None and end_ordinal < start_ordinal:
+        raise RunError("request end ordinal must not precede its exclusive start baseline")
+    window.update({"endOrdinal": end_ordinal, "endedAt": timestamp})
 
 
 def markdown_section(section: str, heading: str) -> str:
@@ -893,9 +928,17 @@ def save_manifest(run: Path, manifest: dict[str, Any]) -> None:
     write_resume(run, manifest)
 
 
-def event(run: Path, manifest: dict[str, Any], action: str, payload: dict[str, Any]) -> None:
+def event(
+    run: Path,
+    manifest: dict[str, Any],
+    action: str,
+    payload: dict[str, Any],
+    *,
+    timestamp: str | None = None,
+) -> str:
+    timestamp = timestamp or utc_now()
     sequence = int(manifest.get("event_sequence", 0)) + 1
-    record = {"action": action, "payload": payload, "sequence": sequence}
+    record = {"action": action, "payload": payload, "sequence": sequence, "timestamp": timestamp}
     data = canonical_json(record) + "\n"
     fd = os.open(run / "events.jsonl", os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
     try:
@@ -906,6 +949,189 @@ def event(run: Path, manifest: dict[str, Any], action: str, payload: dict[str, A
     if os.environ.get("PRD_RUN_FAIL_EVENT_AFTER") == action:
         raise RunError(f"injected event interruption after {action}")
     manifest["event_sequence"] = sequence
+    time_facts = manifest.setdefault("time", {
+        "created_at": None,
+        "protocol_version": None,
+        "started_at": None,
+        "terminal_at": None,
+        "updated_at": None,
+    })
+    time_facts["updated_at"] = timestamp
+    return timestamp
+
+
+def progress_unit_specs(graph: dict[str, Any], manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    specs = [
+        {"id": "prepare:source-lock", "kind": "prepare", "phase": "prepare", "dependencies": []},
+        {"id": "prepare:ticket-graph", "kind": "prepare", "phase": "prepare", "dependencies": ["prepare:source-lock"]},
+    ]
+    for ticket in sorted(graph["tickets"], key=lambda item: item["id"]):
+        specs.extend((
+            {
+                "id": f"build:ticket:{ticket['id']}", "kind": "ticket-build", "phase": "build",
+                "dependencies": [f"integrate:ticket:{item}" for item in ticket["dependencies"]],
+            },
+            {
+                "id": f"integrate:ticket:{ticket['id']}", "kind": "ticket-integration", "phase": "integrate",
+                "dependencies": [f"build:ticket:{ticket['id']}"],
+            },
+        ))
+    specs.extend(
+        {
+            "id": f"integrate:cohort:{cohort_id}", "kind": "cohort-verification", "phase": "integrate",
+            "dependencies": [f"integrate:ticket:{ticket_id}" for ticket_id in graph["cohorts"][cohort_id]["ticket_ids"]],
+        } for cohort_id in sorted(graph["cohorts"])
+    )
+    integration_dependencies = [
+        item["id"] for item in specs if item["kind"] in {"ticket-integration", "cohort-verification"}
+    ]
+    specs.append({
+        "id": "verify:epic-gap-review", "kind": "epic-gap-review", "phase": "final-verify",
+        "dependencies": integration_dependencies,
+    })
+    if graph["review"]["required"]:
+        specs.extend(
+            {
+                "id": f"verify:review:{lens['id']}", "kind": "consequence-review", "phase": "final-verify",
+                "dependencies": integration_dependencies,
+            }
+            for lens in sorted(graph["review"]["lenses"], key=lambda item: item["id"])
+        )
+    final_dependencies = integration_dependencies + [
+        item["id"] for item in specs
+        if item["kind"] in {"epic-gap-review", "consequence-review"}
+    ]
+    specs.append({
+        "id": "verify:final-epic", "kind": "final-epic-verification", "phase": "final-verify",
+        "dependencies": final_dependencies,
+    })
+    if graph["review"]["triggers"]:
+        specs.append({
+            "id": "ship:safeguard:dry-run-no-mutation", "kind": "release-safeguard", "phase": "ship",
+            "dependencies": ["verify:final-epic"],
+        })
+        if manifest["release"]["applicability"]["production-verification"]:
+            specs.append({
+                "id": "ship:safeguard:rollback-readiness", "kind": "release-safeguard", "phase": "ship",
+                "dependencies": ["verify:final-epic"],
+            })
+            specs.append({
+                "id": "ship:safeguard:bounded-live", "kind": "release-safeguard", "phase": "ship",
+                "dependencies": ["ship:deployment"],
+            })
+    dry_run_dependencies = (
+        ["ship:safeguard:dry-run-no-mutation"] if graph["review"]["triggers"] else []
+    )
+    specs.append({
+        "id": "ship:merge", "kind": "release-gate", "phase": "ship",
+        "dependencies": ["verify:final-epic", *dry_run_dependencies],
+    })
+    for stage in RELEASE_STAGES:
+        if manifest["release"]["applicability"][stage]:
+            dependencies = ["ship:merge"] if stage == "deployment" else ["ship:deployment"]
+            if stage == "production-verification" and graph["review"]["triggers"]:
+                dependencies.extend([
+                    "ship:safeguard:bounded-live",
+                    "ship:safeguard:rollback-readiness",
+                ])
+            specs.append({
+                "id": f"ship:{stage}", "kind": "release-gate", "phase": "ship",
+                "dependencies": dependencies,
+            })
+    return sorted(specs, key=lambda item: item["id"])
+
+
+def progress_facts(graph: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
+    units = progress_unit_specs(graph, manifest)
+    denominator = {
+        "policyVersion": PROGRESS_POLICY,
+        "schemaVersion": PROGRESS_SCHEMA,
+        "unitIds": [item["id"] for item in units],
+    }
+    return {
+        "denominator_sha256": object_hash(denominator),
+        "policy_version": PROGRESS_POLICY,
+        "schema_version": PROGRESS_SCHEMA,
+        "units": units,
+    }
+
+
+def operation_entry(unit: dict[str, str], timestamp: str) -> dict[str, Any]:
+    return {
+        "attempt": 0,
+        "attempts": [],
+        "finished_at": None,
+        "id": unit["id"],
+        "kind": unit["kind"],
+        "phase": unit["phase"],
+        "queued_at": timestamp,
+        "started_at": None,
+        "status": "queued",
+    }
+
+
+def operation_units(progress: dict[str, Any]) -> list[dict[str, str]]:
+    return [
+        item for item in progress["units"]
+        if item["kind"] not in ("prepare", "ticket-build")
+    ]
+
+
+def begin_operation(run: Path, manifest: dict[str, Any], operation_id: str) -> None:
+    operation = manifest.get("operations", {}).get(operation_id)
+    if operation is None:  # Compatibility: old runs have no durable operation protocol.
+        return
+    if operation["status"] == "running":
+        return
+    if operation["status"] not in ("queued", "fail", "pass"):
+        raise RunError(f"operation {operation_id} is already {operation['status']}")
+    timestamp = utc_now()
+    attempt = int(operation.get("attempt", 0)) + 1
+    attempt_record = {
+        "attempt": attempt,
+        "finished_at": None,
+        "started_at": timestamp,
+        "status": "running",
+    }
+    operation.update({
+        "attempt": attempt,
+        "finished_at": None,
+        "started_at": timestamp,
+        "status": "running",
+    })
+    operation.setdefault("attempts", []).append(attempt_record)
+    event(
+        run,
+        manifest,
+        "operation_started",
+        {"attempt": attempt, "operation": operation_id},
+        timestamp=timestamp,
+    )
+    save_manifest(run, manifest)
+
+
+def finish_operation(manifest: dict[str, Any], operation_id: str, result: str, timestamp: str) -> None:
+    operation = manifest.get("operations", {}).get(operation_id)
+    if operation is None:
+        return
+    if result not in ("pass", "fail"):
+        raise RunError(f"operation {operation_id} result must be pass or fail")
+    if operation["status"] != "running" or not operation.get("attempts"):
+        raise RunError(f"operation {operation_id} is not running")
+    operation.update({"finished_at": timestamp, "status": result})
+    operation["attempts"][-1].update({"finished_at": timestamp, "status": result})
+
+
+def reset_operation(manifest: dict[str, Any], operation_id: str, timestamp: str) -> None:
+    operation = manifest.get("operations", {}).get(operation_id)
+    if operation is None:
+        return
+    operation.update({
+        "finished_at": None,
+        "queued_at": timestamp,
+        "started_at": None,
+        "status": "queued",
+    })
 
 
 VERIFICATION_RECEIPT_SCHEMA = "gauntlet.verification-receipt.v1"
@@ -1999,6 +2225,8 @@ def cmd_init(args: argparse.Namespace) -> None:
     source_info = source_contract(source, args.target, Path(args.launch_set).resolve())
     target_epic_id = source_info["epic_ids"][0]
     launch = validate_launch_set(Path(args.launch_set).resolve(), source, source_info, target_epic_id)
+    created_at = utc_now()
+    root_start_ordinal = optional_ordinal(args.request_start_ordinal, "Epic-root request start ordinal")
     repository_root, repository_identity = git_repository_identity(Path.cwd())
     pr_strategy = args.pr_strategy
     if pr_strategy not in PR_STRATEGIES:
@@ -2040,10 +2268,34 @@ def cmd_init(args: argparse.Namespace) -> None:
             "pr_strategy": pr_strategy,
         },
         "release": {"applicability": {key: key in stages for key in RELEASE_APPLICABILITY}},
+        "operations": {},
+        "progress": None,
+        "request_owners": {
+            "root": {
+                "nativeChildId": launch["task_id"],
+                "ownerId": "root",
+                "ownerKind": "parent",
+                "ownerRef": "epic-root",
+                "requestWindow": {
+                    "endOrdinal": None,
+                    "endedAt": None,
+                    "startOrdinal": root_start_ordinal,
+                    "startedAt": created_at,
+                },
+                "requestedProfile": None,
+            },
+        },
         "gap_review": {"passes": [], "candidates": []},
         "run_id": args.run_id, "shared_context": {}, "lanes": {}, "review_units": {},
         "source": {"epic_ids": source_info["epic_ids"], "path": str(source), "sha256": source_hash},
         "state": "discussing", "tickets": {},
+        "time": {
+            "created_at": created_at,
+            "protocol_version": TIMESTAMP_PROTOCOL,
+            "started_at": None,
+            "terminal_at": None,
+            "updated_at": created_at,
+        },
     }
     atomic_json(run / "source-lock.json", lock)
     if os.environ.get("PRD_RUN_FAIL_INIT_AFTER") == "source-lock":
@@ -2054,7 +2306,7 @@ def cmd_init(args: argparse.Namespace) -> None:
     for stage in (*RELEASE_STAGES, "merge", "rollback", "epic-verification"):
         atomic_text(run / "release" / f"{stage}.md", f"# {stage.replace('-', ' ').title()}\n\nNot recorded.\n")
     pin_artifact(run, manifest, run / "shared-context" / "global-v1.md")
-    event(run, manifest, "run_initialized", {"source_sha256": source_hash})
+    event(run, manifest, "run_initialized", {"source_sha256": source_hash}, timestamp=created_at)
     save_manifest(run, manifest)
     try:
         os.rename(run, final_run)
@@ -2077,6 +2329,9 @@ def cmd_transition(args: argparse.Namespace) -> None:
     target = args.to
     if target not in STATES:
         raise RunError(f"unknown state {target}")
+    request_end_ordinal = optional_ordinal(args.request_end_ordinal, "Epic-root request end ordinal")
+    if request_end_ordinal is not None and target != "complete":
+        raise RunError("Epic-root request end ordinal is only valid for the complete transition")
     current_index = STATES.index(manifest["state"])
     if current_index + 1 >= len(STATES) or STATES[current_index + 1] != target:
         raise RunError(f"invalid transition {manifest['state']} -> {target}")
@@ -2097,8 +2352,21 @@ def cmd_transition(args: argparse.Namespace) -> None:
         expected = "pass" if manifest["release"]["applicability"]["production-verification"] else "skipped"
         if manifest["release"].get("production-verification", {}).get("result") != expected:
             raise RunError(f"production verification stage must be {expected}")
+    timestamp = utc_now()
     manifest["state"] = target
-    event(run, manifest, "state_transitioned", {"to": target})
+    time_facts = manifest.get("time", {})
+    if (
+        target == "executing"
+        and time_facts.get("protocol_version") == TIMESTAMP_PROTOCOL
+        and time_facts.get("started_at") is None
+    ):
+        time_facts["started_at"] = timestamp
+    if target == "complete" and time_facts.get("started_at") is not None:
+        time_facts["terminal_at"] = timestamp
+        root_owner = manifest.get("request_owners", {}).get("root")
+        if root_owner:
+            close_request_window(root_owner, request_end_ordinal, timestamp)
+    event(run, manifest, "state_transitioned", {"to": target}, timestamp=timestamp)
     save_manifest(run, manifest)
 
 
@@ -2178,7 +2446,13 @@ def cmd_compile(args: argparse.Namespace) -> None:
         "cohorts": {key: f"shared-context/{key.lower()}-v1.md" for key in sorted(graph["cohorts"])},
         "global": "shared-context/global-v1.md",
     }
+    compiled_at = utc_now()
     manifest["graph_sha256"] = object_hash(graph)
+    manifest["progress"] = progress_facts(graph, manifest)
+    manifest["operations"] = {
+        unit["id"]: operation_entry(unit, compiled_at)
+        for unit in operation_units(manifest["progress"])
+    }
     manifest["state"] = "compiled"
     atomic_json(run / "ticket-graph.json", graph)
     atomic_text(run / "ticket-graph.md", render_ticket_graph(graph))
@@ -2187,7 +2461,13 @@ def cmd_compile(args: argparse.Namespace) -> None:
     pin_artifact(run, manifest, run / manifest["shared_context"]["global"])
     for relative in manifest["shared_context"]["cohorts"].values():
         pin_artifact(run, manifest, run / relative)
-    event(run, manifest, "graph_compiled", {"graph_sha256": manifest["graph_sha256"], "tickets": sorted(tickets)})
+    event(
+        run,
+        manifest,
+        "graph_compiled",
+        {"graph_sha256": manifest["graph_sha256"], "tickets": sorted(tickets)},
+        timestamp=compiled_at,
+    )
     manifest["generation"] = base_generation + 1
     save_manifest(run, manifest)
     if os.environ.get("PRD_RUN_FAIL_COMPILE_AFTER") == "manifest":
@@ -2226,15 +2506,40 @@ def cmd_claim(args: argparse.Namespace) -> None:
         raise RunError("attempt must be positive")
     if retry and args.attempt <= item["lease"]["attempt"]:
         raise RunError("retry attempt must exceed the previous lease attempt")
+    started_at = utc_now()
+    start_ordinal = optional_ordinal(args.request_start_ordinal, "owner request start ordinal")
+    request_owner_id = f"ticket:{args.ticket}:r{item['revision']}:a{args.attempt}"
+    if request_owner_id in manifest.get("request_owners", {}):
+        raise RunError(f"request owner window already exists: {request_owner_id}")
     item["lease"] = {"agent": agent, "attempt": args.attempt}
     item["owner"] = {
         "nativeChildId": args.native_child_id,
         "ownerKind": args.owner_kind,
         "ownerRef": agent,
+        "requestOwnerId": request_owner_id,
+        "requestedProfile": args.requested_profile,
+    }
+    manifest.setdefault("request_owners", {})[request_owner_id] = {
+        "nativeChildId": args.native_child_id,
+        "ownerId": request_owner_id,
+        "ownerKind": args.owner_kind,
+        "ownerRef": agent,
+        "requestWindow": {
+            "endOrdinal": None,
+            "endedAt": None,
+            "startOrdinal": start_ordinal,
+            "startedAt": started_at,
+        },
         "requestedProfile": args.requested_profile,
     }
     item["status"] = "dispatched"
-    event(run, manifest, "ticket_claimed", {"agent": agent, "attempt": args.attempt, "revision": item["revision"], "ticket": args.ticket})
+    event(
+        run,
+        manifest,
+        "ticket_claimed",
+        {"agent": agent, "attempt": args.attempt, "revision": item["revision"], "ticket": args.ticket},
+        timestamp=started_at,
+    )
     save_manifest(run, manifest)
 
 
@@ -2277,6 +2582,11 @@ def cmd_claim_lane(args: argparse.Namespace) -> None:
     dependencies = {tuple(ticket["dependencies"]) for _, _, ticket in items}
     if len(cohorts) != 1 or len(dependencies) != 1:
         raise RunError("lane tickets must share one cohort and identical dependency contracts")
+    started_at = utc_now()
+    start_ordinal = optional_ordinal(args.request_start_ordinal, "owner request start ordinal")
+    request_owner_id = f"lane:{lane_id}:a{args.attempt}"
+    if request_owner_id in manifest.get("request_owners", {}):
+        raise RunError(f"request owner window already exists: {request_owner_id}")
     lanes[lane_id] = {
         "affinity": args.affinity,
         "agent": agent,
@@ -2291,17 +2601,31 @@ def cmd_claim_lane(args: argparse.Namespace) -> None:
             "nativeChildId": args.native_child_id,
             "ownerKind": args.owner_kind,
             "ownerRef": agent,
+            "requestOwnerId": request_owner_id,
             "requestedProfile": args.requested_profile,
         }
         state["status"] = "dispatched"
         event(run, manifest, "ticket_claimed", {
             "agent": agent, "attempt": args.attempt, "lane": lane_id,
             "revision": state["revision"], "ticket": ticket_id,
-        })
+        }, timestamp=started_at)
+    manifest.setdefault("request_owners", {})[request_owner_id] = {
+        "nativeChildId": args.native_child_id,
+        "ownerId": request_owner_id,
+        "ownerKind": args.owner_kind,
+        "ownerRef": agent,
+        "requestWindow": {
+            "endOrdinal": None,
+            "endedAt": None,
+            "startOrdinal": start_ordinal,
+            "startedAt": started_at,
+        },
+        "requestedProfile": args.requested_profile,
+    }
     event(run, manifest, "lane_claimed", {
         "affinity": args.affinity, "agent": agent, "attempt": args.attempt,
         "lane": lane_id, "tickets": ticket_ids,
-    })
+    }, timestamp=started_at)
     save_manifest(run, manifest)
 
 
@@ -2355,6 +2679,74 @@ def cmd_completion(args: argparse.Namespace) -> None:
     )), end="")
 
 
+def progress_projection(manifest: dict[str, Any]) -> dict[str, Any] | None:
+    progress = manifest.get("progress")
+    if not isinstance(progress, dict):
+        return None
+    units = []
+    for unit in progress.get("units", []):
+        status = "pass"
+        if unit["kind"] == "ticket-build":
+            ticket_id = unit["id"].removeprefix("build:ticket:")
+            ticket_status = manifest.get("tickets", {}).get(ticket_id, {}).get("status")
+            status = {
+                "blocked": "fail",
+                "completed": "pass",
+                "dispatched": "running",
+                "integrated": "pass",
+                "ready": "queued",
+                "waiting": "queued",
+            }.get(ticket_status, "queued")
+        elif unit["kind"] != "prepare":
+            status = manifest.get("operations", {}).get(unit["id"], {}).get("status", "queued")
+        units.append({**unit, "status": status})
+    return {
+        "denominatorSha256": progress["denominator_sha256"],
+        "policyVersion": progress["policy_version"],
+        "schemaVersion": progress["schema_version"],
+        "units": units,
+    }
+
+
+def operations_projection(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    operations = []
+    for operation_id, item in sorted(manifest.get("operations", {}).items()):
+        operations.append({
+            "attempt": item.get("attempt", 0),
+            "attempts": [
+                {
+                    "attempt": attempt["attempt"],
+                    "finishedAt": attempt.get("finished_at"),
+                    "startedAt": attempt.get("started_at"),
+                    "status": attempt["status"],
+                }
+                for attempt in item.get("attempts", [])
+            ],
+            "finishedAt": item.get("finished_at"),
+            "id": operation_id,
+            "kind": item["kind"],
+            "phase": item["phase"],
+            "queuedAt": item.get("queued_at"),
+            "startedAt": item.get("started_at"),
+            "status": item["status"],
+        })
+    return operations
+
+
+def time_projection(manifest: dict[str, Any]) -> dict[str, Any]:
+    facts = manifest.get("time") if isinstance(manifest.get("time"), dict) else {}
+    started_at = facts.get("started_at")
+    protocol = facts.get("protocol_version")
+    return {
+        "createdAt": facts.get("created_at"),
+        "elapsedCoverage": "complete" if protocol == TIMESTAMP_PROTOCOL and started_at else "unavailable",
+        "protocolVersion": protocol,
+        "startedAt": started_at,
+        "terminalAt": facts.get("terminal_at") if started_at else None,
+        "updatedAt": facts.get("updated_at"),
+    }
+
+
 def run_facts_projection(run: Path, manifest: dict[str, Any]) -> dict[str, Any]:
     graph = read_json(run / "ticket-graph.json")
     lock = read_json(run / "source-lock.json")
@@ -2404,19 +2796,28 @@ def run_facts_projection(run: Path, manifest: dict[str, Any]) -> dict[str, Any]:
         kind: safeguard_status(manifest, kind, final_commit or commit, final_tree or tree)
         for kind in SAFEGUARD_KINDS
     }
+    request_owners = manifest.get("request_owners")
+    owners = (
+        [request_owners[key] for key in sorted(request_owners)]
+        if isinstance(request_owners, dict) and request_owners
+        else [item["owner"] for _, item in sorted(manifest["tickets"].items()) if item.get("owner")]
+    )
     return {
         "epicId": epic_id,
         "epicTitle": lock["epics"][epic_id]["title"],
         "exactRevision": completion_projection(manifest, observed_head=commit)["exactRevision"],
         "gapReview": gap_review_status(manifest),
-        "owners": [item["owner"] for _, item in sorted(manifest["tickets"].items()) if item.get("owner")],
+        "operations": operations_projection(manifest),
+        "owners": owners,
         "plannedChecks": graph["planned_checks"],
+        "progress": progress_projection(manifest),
         "review": review,
         "release": {
             "applicability": manifest["release"]["applicability"],
             "safeguards": safeguards,
         },
         "schemaVersion": "gauntlet/epic-run-facts/v1",
+        "time": time_projection(manifest),
         "verificationIdentity": {
             "commit": commit,
             "environment": identity["environment"],
@@ -2631,6 +3032,25 @@ def cmd_receipt(args: argparse.Namespace) -> None:
     if item["status"] != "dispatched" or not item["lease"]:
         raise RunError(f"ticket {args.ticket} has no active lease")
     lease = item["lease"]
+    end_ordinal = optional_ordinal(args.request_end_ordinal, "owner request end ordinal")
+    request_owner_id = (item.get("owner") or {}).get("requestOwnerId")
+    other_active = [
+        ticket_id for ticket_id, other in manifest["tickets"].items()
+        if ticket_id != args.ticket
+        and other.get("status") == "dispatched"
+        and (other.get("owner") or {}).get("requestOwnerId") == request_owner_id
+    ]
+    if end_ordinal is not None and other_active:
+        raise RunError(f"owner request end ordinal requires every lane ticket to be terminal; active={other_active}")
+    request_owner = manifest.get("request_owners", {}).get(request_owner_id) if request_owner_id else None
+    if (
+        request_owner
+        and not other_active
+        and end_ordinal is not None
+        and request_owner["requestWindow"].get("startOrdinal") is not None
+        and end_ordinal < request_owner["requestWindow"]["startOrdinal"]
+    ):
+        raise RunError("request end ordinal must not precede its exclusive start baseline")
     receipt = validate_receipt(read_json(Path(args.receipt)), item, args.ticket, lease["agent"], lease["attempt"])
     validated_evidence = []
     for ref in receipt["evidence"]:
@@ -2649,7 +3069,17 @@ def cmd_receipt(args: argparse.Namespace) -> None:
         pin_artifact(run, manifest, evidence_path)
     item["receipt_file"] = str(path.relative_to(run))
     item["status"] = "completed" if receipt["status"] == "complete" else "blocked"
-    event(run, manifest, "receipt_recorded", {"revision": item["revision"], "status": receipt["status"], "ticket": args.ticket})
+    timestamp = utc_now()
+    if request_owner_id and not other_active:
+        if request_owner:
+            close_request_window(request_owner, end_ordinal, timestamp)
+    event(
+        run,
+        manifest,
+        "receipt_recorded",
+        {"revision": item["revision"], "status": receipt["status"], "ticket": args.ticket},
+        timestamp=timestamp,
+    )
     save_manifest(run, manifest)
 
 
@@ -2663,6 +3093,8 @@ def cmd_integrate(args: argparse.Namespace) -> None:
     receipt_path = run / item.get("receipt_file", "")
     if not item.get("receipt_file") or not receipt_path.is_file():
         raise RunError("ticket has no recorded receipt for the active attempt")
+    operation_id = f"integrate:ticket:{args.ticket}"
+    begin_operation(run, manifest, operation_id)
     verification, relative = record_verification_receipt(
         run,
         manifest,
@@ -2679,20 +3111,32 @@ def cmd_integrate(args: argparse.Namespace) -> None:
     item["status"] = "integrated"
     item["lease"] = None
     refresh_readiness(manifest)
-    event(run, manifest, "ticket_integrated", {"receipt": relative, "revision": item["revision"], "ticket": args.ticket})
+    timestamp = utc_now()
+    finish_operation(manifest, operation_id, verification["result"], timestamp)
+    event(
+        run,
+        manifest,
+        "ticket_integrated",
+        {"receipt": relative, "revision": item["revision"], "ticket": args.ticket},
+        timestamp=timestamp,
+    )
     save_manifest(run, manifest)
 
 
 def cmd_verify_cohort(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
-    require_state(manifest, ("integrating",))
+    require_state(manifest, ("integrating", "epic_verified"))
+    if manifest["state"] == "epic_verified" and manifest.get("release", {}).get("merge"):
+        raise RunError("Cohort verification cannot change after merge is recorded")
     if args.cohort not in manifest["cohorts"]:
         raise RunError(f"unknown cohort {args.cohort}")
     cohort = manifest["cohorts"][args.cohort]
     pending = [ticket_id for ticket_id in cohort["ticket_ids"] if manifest["tickets"][ticket_id]["status"] != "integrated"]
     if pending:
         raise RunError(f"cohort has pending tickets: {pending}")
+    operation_id = f"integrate:cohort:{args.cohort}"
+    begin_operation(run, manifest, operation_id)
     verification, relative = record_verification_receipt(
         run,
         manifest,
@@ -2700,13 +3144,24 @@ def cmd_verify_cohort(args: argparse.Namespace) -> None:
         f"cohort-{args.cohort}.json",
         "Cohort verification receipt",
     )
+    if manifest["state"] == "epic_verified" and verification["result"] != "pass":
+        raise RunError("re-verification of an implementation-complete Cohort must pass")
     cohort["result"] = verification["result"]
     cohort["evidence"] = verification["evidence"]
+    cohort["identity"] = verification["identity"]
     cohort["receipt"] = relative
     cohort_report = run / "cohorts" / f"{args.cohort.lower()}.md"
     atomic_text(cohort_report, f"# Cohort {args.cohort}\n\nResult: {verification['result']}\n\nSummary: {verification['summary']}\n\nReceipt: {relative}\n")
     pin_artifact(run, manifest, cohort_report)
-    event(run, manifest, "cohort_verified", {"cohort": args.cohort, "result": verification["result"]})
+    timestamp = utc_now()
+    finish_operation(manifest, operation_id, verification["result"], timestamp)
+    event(
+        run,
+        manifest,
+        "cohort_verified",
+        {"cohort": args.cohort, "result": verification["result"]},
+        timestamp=timestamp,
+    )
     save_manifest(run, manifest)
 
 
@@ -2721,6 +3176,14 @@ def cmd_record_gap_review(args: argparse.Namespace) -> None:
     review["receipt"] = pin_artifact(run, manifest, destination)
     manifest.setdefault("gap_review", {"passes": []})["passes"].append(review)
     status = gap_review_status(manifest)
+    operation_id = "verify:epic-gap-review"
+    operation = manifest.get("operations", {}).get(operation_id)
+    if review["phase"] == "integrated" or status["blockedWork"]:
+        begin_operation(run, manifest, operation_id)
+        finished_at = utc_now()
+        finish_operation(manifest, operation_id, "fail" if status["blockedWork"] else "pass", finished_at)
+    elif operation and operation.get("status") == "fail":
+        reset_operation(manifest, operation_id, utc_now())
     event(run, manifest, "epic_gap_review_recorded", {
         "blocked_work": status["blockedWork"],
         "findings": len(review["findings"]),
@@ -2834,6 +3297,8 @@ def cmd_record_review(args: argparse.Namespace) -> None:
     expected = {item["id"] for item in policy.get("lenses", [])}
     if not policy.get("required") or args.lens not in expected:
         raise RunError(f"review lens is not required by this run: {args.lens}")
+    operation_id = f"verify:review:{args.lens}"
+    begin_operation(run, manifest, operation_id)
     verification, relative = record_verification_receipt(
         run,
         manifest,
@@ -2843,7 +3308,15 @@ def cmd_record_review(args: argparse.Namespace) -> None:
         expected_oracle=consequence_oracle(manifest, lens=args.lens),
     )
     manifest["consequence_review"]["results"][args.lens] = {**verification, "receipt": relative}
-    event(run, manifest, "consequence_review_recorded", {"lens": args.lens, "result": verification["result"]})
+    timestamp = utc_now()
+    finish_operation(manifest, operation_id, verification["result"], timestamp)
+    event(
+        run,
+        manifest,
+        "consequence_review_recorded",
+        {"lens": args.lens, "result": verification["result"]},
+        timestamp=timestamp,
+    )
     save_manifest(run, manifest)
 
 
@@ -2863,6 +3336,8 @@ def cmd_record_safeguard(args: argparse.Namespace) -> None:
     final = manifest.get("release", {}).get("epic-verification", {})
     if final.get("result") != "pass":
         raise RunError("consequence safeguards require passing final Epic verification")
+    operation_id = f"ship:safeguard:{args.kind}"
+    begin_operation(run, manifest, operation_id)
     verification, relative = record_verification_receipt(
         run,
         manifest,
@@ -2874,7 +3349,15 @@ def cmd_record_safeguard(args: argparse.Namespace) -> None:
     if verification["identity"]["commitSha"] != final.get("integration_head_sha"):
         raise RunError("safeguard receipt does not match the exact final verified revision")
     manifest["release"].setdefault("safeguards", {})[args.kind] = {**verification, "receipt": relative}
-    event(run, manifest, "consequence_safeguard_recorded", {"kind": args.kind, "result": verification["result"]})
+    timestamp = utc_now()
+    finish_operation(manifest, operation_id, verification["result"], timestamp)
+    event(
+        run,
+        manifest,
+        "consequence_safeguard_recorded",
+        {"kind": args.kind, "result": verification["result"]},
+        timestamp=timestamp,
+    )
     save_manifest(run, manifest)
 
 
@@ -2921,19 +3404,33 @@ def cmd_record_release(args: argparse.Namespace) -> None:
     if previous_record and previous_record != record:
         if previous_record.get("result") != "fail" or args.result != "pass" or manifest["release"].get("rollback", {}).get("result") != "pass":
             raise RunError(f"recorded {stage} facts conflict with the observed release state")
+    operation_id = f"ship:{stage}"
+    if applicable:
+        begin_operation(run, manifest, operation_id)
     manifest["release"][stage] = record
     revision_line = f"\nRevision: {revision}\n" if revision else ""
     report = f"# {stage.replace('-', ' ').title()}\n\nResult: {args.result}\n\nSummary: {summary}\n{revision_line}\nEvidence: {evidence}\n"
     atomic_text(run / "release" / f"{stage}.md", report)
     pin_artifact(run, manifest, run / "release" / f"{stage}.md")
-    event(run, manifest, "release_stage_recorded", {"result": args.result, "stage": stage})
+    timestamp = utc_now()
+    if applicable:
+        finish_operation(manifest, operation_id, args.result, timestamp)
+    event(
+        run,
+        manifest,
+        "release_stage_recorded",
+        {"result": args.result, "stage": stage},
+        timestamp=timestamp,
+    )
     save_manifest(run, manifest)
 
 
 def cmd_verify_epic(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
-    require_state(manifest, ("integrating",))
+    require_state(manifest, ("integrating", "epic_verified"))
+    if manifest["state"] == "epic_verified" and manifest.get("release", {}).get("merge"):
+        raise RunError("final Epic verification cannot change after merge is recorded")
     pending = [ticket_id for ticket_id, item in manifest["tickets"].items() if item["status"] != "integrated"]
     failed_cohorts = [cohort_id for cohort_id, item in manifest["cohorts"].items() if item.get("result") != "pass"]
     if pending or failed_cohorts:
@@ -2946,9 +3443,20 @@ def cmd_verify_epic(args: argparse.Namespace) -> None:
         )
     lock = read_json(run / "source-lock.json")
     commit, tree = exact_integration_revision(manifest, lock)
+    pending = [ticket_id for ticket_id, item in manifest["tickets"].items() if item["status"] != "integrated"]
+    failed_cohorts = [
+        cohort_id for cohort_id, item in manifest["cohorts"].items()
+        if item.get("result") != "pass"
+        or item.get("identity", {}).get("commitSha") != commit
+        or item.get("identity", {}).get("treeSha") != tree
+    ]
+    if pending or failed_cohorts:
+        raise RunError(f"final Epic verification requires integrated Tickets and exact-revision passing Cohorts; pending={pending}, cohorts={failed_cohorts}")
     review = consequence_review_status(manifest, commit, tree)
     if review["required"] and review["status"] != "pass":
         raise RunError(f"final Epic verification requires all consequence lenses to pass on the exact candidate revision; status={review['status']}")
+    operation_id = "verify:final-epic"
+    begin_operation(run, manifest, operation_id)
     verification, relative = record_verification_receipt(
         run,
         manifest,
@@ -2956,6 +3464,8 @@ def cmd_verify_epic(args: argparse.Namespace) -> None:
         "final-epic-verification.json",
         "final Epic verification receipt",
     )
+    if manifest["state"] == "epic_verified" and verification["result"] != "pass":
+        raise RunError("re-verification of an implementation-complete Epic must pass")
     epic_id = lock["target_epic_ids"][0]
     if verification["identity"]["oracleSha256"] != lock["epics"][epic_id]["section_sha256"]:
         raise RunError("final Epic verification oracle must identify the locked canonical Epic section")
@@ -2969,7 +3479,15 @@ def cmd_verify_epic(args: argparse.Namespace) -> None:
     report = run / "release" / "epic-verification.md"
     atomic_text(report, f"# Final Epic Verification\n\nResult: {verification['result']}\n\nSummary: {verification['summary']}\n\nExact revision: {commit}\n\nReceipt: {relative}\n")
     pin_artifact(run, manifest, report)
-    event(run, manifest, "epic_verified", {"result": verification["result"], "revision": commit})
+    timestamp = utc_now()
+    finish_operation(manifest, operation_id, verification["result"], timestamp)
+    event(
+        run,
+        manifest,
+        "epic_verified",
+        {"result": verification["result"], "revision": commit},
+        timestamp=timestamp,
+    )
     save_manifest(run, manifest)
 
 
@@ -3027,12 +3545,23 @@ def cmd_record_merge(args: argparse.Namespace) -> None:
     existing = manifest["release"].get("merge")
     if existing and existing != record:
         raise RunError("recorded merge facts conflict with the observed merge")
+    operation_id = "ship:merge"
+    if not existing:
+        begin_operation(run, manifest, operation_id)
     manifest["release"]["merge"] = record
     report = run / "release" / "merge.md"
     atomic_text(report, f"# Merge\n\nResult: pass\n\nPR: {record['pr']}\n\nIntegration branch: {record['integration_branch'] or 'not recorded'}\n\nPR strategy: {record['pr_strategy'] or 'not recorded'}\n\nMerged SHA: {merged}\n\nVerified main SHA: {main}\n\nVerification method: {verification_method}\n\nEvidence: {record['evidence']}\n")
     pin_artifact(run, manifest, report)
+    timestamp = utc_now()
     if not existing:
-        event(run, manifest, "merge_recorded", {"main_sha": main, "pr": record["pr"]})
+        finish_operation(manifest, operation_id, "pass", timestamp)
+        event(
+            run,
+            manifest,
+            "merge_recorded",
+            {"main_sha": main, "pr": record["pr"]},
+            timestamp=timestamp,
+        )
     save_manifest(run, manifest)
 
 
@@ -3067,6 +3596,13 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
     new_by_id = {item["id"]: item for item in graph["tickets"]}
     if set(old_by_id) != set(new_by_id):
         raise RunError("reconcile cannot add or remove tickets; compile a new run")
+    candidate_progress = progress_facts(graph, manifest)
+    current_progress = manifest.get("progress")
+    if (
+        isinstance(current_progress, dict)
+        and candidate_progress["denominator_sha256"] != current_progress.get("denominator_sha256")
+    ):
+        raise RunError("reconcile cannot change progress denominator membership; start a superseding run")
     lock = read_json(run / "source-lock.json")
     source_info = source_contract(source, lock["target_epic_ids"])
     if {item["epic_id"] for item in graph["tickets"]} != set(lock["target_epic_ids"]):
@@ -3109,6 +3645,7 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
         unit_id for unit_id, unit in graph.get("review_units", {}).items()
         if set(unit["ticket_ids"]) & impacted
     }
+    reconciled_at = utc_now()
     backup, base_generation = begin_transaction_backup(
         run, "reconcile",
         ["source-lock.json", "ticket-graph.json", "ticket-graph.md", "manifest.json", "resume.md", "events.jsonl"],
@@ -3132,6 +3669,7 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
         if review_unit_id:
             manifest["tickets"][ticket_id]["review_unit_id"] = review_unit_id
         manifest["tickets"][ticket_id]["revision_history"] = {**history, **manifest["tickets"][ticket_id]["revision_history"]}
+        reset_operation(manifest, f"integrate:ticket:{ticket_id}", reconciled_at)
     for unit_id in sorted(impacted_units):
         unit_graph = graph["review_units"][unit_id]
         manifest["review_units"][unit_id] = {
@@ -3168,6 +3706,11 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
         manifest["cohorts"][key] = {**graph["cohorts"][key], "result": preserved.get("result")}
         if preserved.get("evidence"):
             manifest["cohorts"][key]["evidence"] = preserved["evidence"]
+        if affected:
+            reset_operation(manifest, f"integrate:cohort:{key}", reconciled_at)
+    for operation_id in sorted(manifest.get("operations", {})):
+        if operation_id.startswith(("verify:", "ship:")):
+            reset_operation(manifest, operation_id, reconciled_at)
     atomic_json(run / "source-lock.json", lock)
     manifest["source_lock_sha256"] = sha_file(run / "source-lock.json")
     if os.environ.get("PRD_RUN_FAIL_RECONCILE_AFTER") == "source-lock":
@@ -3179,7 +3722,13 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
     pin_artifact(run, manifest, run / manifest["shared_context"]["global"])
     for relative in manifest["shared_context"]["cohorts"].values():
         pin_artifact(run, manifest, run / relative)
-    event(run, manifest, "source_reconciled", {"changed_scopes": sorted(changed_scopes), "invalidated_tickets": sorted(impacted)})
+    event(
+        run,
+        manifest,
+        "source_reconciled",
+        {"changed_scopes": sorted(changed_scopes), "invalidated_tickets": sorted(impacted)},
+        timestamp=reconciled_at,
+    )
     manifest["generation"] = base_generation + 1
     save_manifest(run, manifest)
     if os.environ.get("PRD_RUN_FAIL_RECONCILE_AFTER") == "manifest":
@@ -3201,22 +3750,26 @@ def parser() -> argparse.ArgumentParser:
     init.add_argument("--target", required=True, action="append"); init.add_argument("--launch-set", required=True)
     init.add_argument("--instruction-version", default="prd-run/v1")
     init.add_argument("--release-contract", required=True); init.add_argument("--release-stages", default="merge")
+    init.add_argument("--request-start-ordinal", type=int)
     init.add_argument("--integration-branch")
     init.add_argument("--pr-strategy", choices=PR_STRATEGIES, default=DEFAULT_PR_STRATEGY)
     init.set_defaults(func=cmd_init)
     transition = commands.add_parser("transition")
-    transition.add_argument("--run", required=True); transition.add_argument("--to", required=True); transition.set_defaults(func=cmd_transition)
+    transition.add_argument("--run", required=True); transition.add_argument("--to", required=True)
+    transition.add_argument("--request-end-ordinal", type=int); transition.set_defaults(func=cmd_transition)
     compile_cmd = commands.add_parser("compile")
     compile_cmd.add_argument("--run", required=True); compile_cmd.add_argument("--graph", required=True); compile_cmd.set_defaults(func=cmd_compile)
     claim = commands.add_parser("claim")
     claim.add_argument("--run", required=True); claim.add_argument("--ticket", required=True); claim.add_argument("--agent", required=True); claim.add_argument("--attempt", required=True, type=int)
     claim.add_argument("--owner-kind", choices=("parent", "delegated"), default="delegated")
-    claim.add_argument("--native-child-id"); claim.add_argument("--requested-profile"); claim.set_defaults(func=cmd_claim)
+    claim.add_argument("--native-child-id"); claim.add_argument("--requested-profile")
+    claim.add_argument("--request-start-ordinal", type=int); claim.set_defaults(func=cmd_claim)
     claim_lane = commands.add_parser("claim-lane")
     claim_lane.add_argument("--run", required=True); claim_lane.add_argument("--lane", required=True); claim_lane.add_argument("--agent", required=True)
     claim_lane.add_argument("--attempt", required=True, type=int); claim_lane.add_argument("--affinity", required=True); claim_lane.add_argument("--ticket", required=True, action="append")
     claim_lane.add_argument("--owner-kind", choices=("parent", "delegated"), default="delegated")
-    claim_lane.add_argument("--native-child-id"); claim_lane.add_argument("--requested-profile"); claim_lane.set_defaults(func=cmd_claim_lane)
+    claim_lane.add_argument("--native-child-id"); claim_lane.add_argument("--requested-profile")
+    claim_lane.add_argument("--request-start-ordinal", type=int); claim_lane.set_defaults(func=cmd_claim_lane)
     ready = commands.add_parser("ready")
     ready.add_argument("--run", required=True); ready.add_argument("--affinity"); ready.set_defaults(func=cmd_ready)
     resume = commands.add_parser("resume")
@@ -3230,7 +3783,8 @@ def parser() -> argparse.ArgumentParser:
     materialize_lane = commands.add_parser("materialize-lane")
     materialize_lane.add_argument("--run", required=True); materialize_lane.add_argument("--lane", required=True); materialize_lane.set_defaults(func=cmd_materialize_lane)
     receipt = commands.add_parser("record-receipt")
-    receipt.add_argument("--run", required=True); receipt.add_argument("--ticket", required=True); receipt.add_argument("--receipt", required=True); receipt.set_defaults(func=cmd_receipt)
+    receipt.add_argument("--run", required=True); receipt.add_argument("--ticket", required=True); receipt.add_argument("--receipt", required=True)
+    receipt.add_argument("--request-end-ordinal", type=int); receipt.set_defaults(func=cmd_receipt)
     integrate = commands.add_parser("integrate")
     integrate.add_argument("--run", required=True); integrate.add_argument("--ticket", required=True)
     integrate.add_argument("--verification-receipt", required=True); integrate.set_defaults(func=cmd_integrate)
