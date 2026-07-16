@@ -894,35 +894,77 @@ def event(
     return timestamp
 
 
-def progress_unit_specs(graph: dict[str, Any], manifest: dict[str, Any]) -> list[dict[str, str]]:
+def progress_unit_specs(graph: dict[str, Any], manifest: dict[str, Any]) -> list[dict[str, Any]]:
     specs = [
-        {"id": "prepare:source-lock", "kind": "prepare", "phase": "prepare"},
-        {"id": "prepare:ticket-graph", "kind": "prepare", "phase": "prepare"},
+        {"id": "prepare:source-lock", "kind": "prepare", "phase": "prepare", "dependencies": []},
+        {"id": "prepare:ticket-graph", "kind": "prepare", "phase": "prepare", "dependencies": ["prepare:source-lock"]},
     ]
     for ticket in sorted(graph["tickets"], key=lambda item: item["id"]):
         specs.extend((
-            {"id": f"build:ticket:{ticket['id']}", "kind": "ticket-build", "phase": "build"},
-            {"id": f"integrate:ticket:{ticket['id']}", "kind": "ticket-integration", "phase": "integrate"},
+            {
+                "id": f"build:ticket:{ticket['id']}", "kind": "ticket-build", "phase": "build",
+                "dependencies": [f"integrate:ticket:{item}" for item in ticket["dependencies"]],
+            },
+            {
+                "id": f"integrate:ticket:{ticket['id']}", "kind": "ticket-integration", "phase": "integrate",
+                "dependencies": [f"build:ticket:{ticket['id']}"],
+            },
         ))
     specs.extend(
-        {"id": f"integrate:cohort:{cohort_id}", "kind": "cohort-verification", "phase": "integrate"}
-        for cohort_id in sorted(graph["cohorts"])
+        {
+            "id": f"integrate:cohort:{cohort_id}", "kind": "cohort-verification", "phase": "integrate",
+            "dependencies": [f"integrate:ticket:{ticket_id}" for ticket_id in graph["cohorts"][cohort_id]["ticket_ids"]],
+        } for cohort_id in sorted(graph["cohorts"])
     )
+    integration_dependencies = [
+        item["id"] for item in specs if item["kind"] in {"ticket-integration", "cohort-verification"}
+    ]
     if graph["review"]["required"]:
         specs.extend(
-            {"id": f"verify:review:{lens['id']}", "kind": "consequence-review", "phase": "final-verify"}
+            {
+                "id": f"verify:review:{lens['id']}", "kind": "consequence-review", "phase": "final-verify",
+                "dependencies": integration_dependencies,
+            }
             for lens in sorted(graph["review"]["lenses"], key=lambda item: item["id"])
         )
-    specs.append({"id": "verify:final-epic", "kind": "final-epic-verification", "phase": "final-verify"})
+    final_dependencies = integration_dependencies + [item["id"] for item in specs if item["kind"] == "consequence-review"]
+    specs.append({
+        "id": "verify:final-epic", "kind": "final-epic-verification", "phase": "final-verify",
+        "dependencies": final_dependencies,
+    })
     if graph["review"]["triggers"]:
-        specs.append({"id": "ship:safeguard:dry-run-no-mutation", "kind": "release-safeguard", "phase": "ship"})
+        specs.append({
+            "id": "ship:safeguard:dry-run-no-mutation", "kind": "release-safeguard", "phase": "ship",
+            "dependencies": ["verify:final-epic"],
+        })
         if manifest["release"]["applicability"]["production-verification"]:
-            for kind in ("bounded-live", "rollback-readiness"):
-                specs.append({"id": f"ship:safeguard:{kind}", "kind": "release-safeguard", "phase": "ship"})
-    specs.append({"id": "ship:merge", "kind": "release-gate", "phase": "ship"})
+            specs.append({
+                "id": "ship:safeguard:rollback-readiness", "kind": "release-safeguard", "phase": "ship",
+                "dependencies": ["verify:final-epic"],
+            })
+            specs.append({
+                "id": "ship:safeguard:bounded-live", "kind": "release-safeguard", "phase": "ship",
+                "dependencies": ["ship:deployment"],
+            })
+    dry_run_dependencies = (
+        ["ship:safeguard:dry-run-no-mutation"] if graph["review"]["triggers"] else []
+    )
+    specs.append({
+        "id": "ship:merge", "kind": "release-gate", "phase": "ship",
+        "dependencies": ["verify:final-epic", *dry_run_dependencies],
+    })
     for stage in RELEASE_STAGES:
         if manifest["release"]["applicability"][stage]:
-            specs.append({"id": f"ship:{stage}", "kind": "release-gate", "phase": "ship"})
+            dependencies = ["ship:merge"] if stage == "deployment" else ["ship:deployment"]
+            if stage == "production-verification" and graph["review"]["triggers"]:
+                dependencies.extend([
+                    "ship:safeguard:bounded-live",
+                    "ship:safeguard:rollback-readiness",
+                ])
+            specs.append({
+                "id": f"ship:{stage}", "kind": "release-gate", "phase": "ship",
+                "dependencies": dependencies,
+            })
     return sorted(specs, key=lambda item: item["id"])
 
 

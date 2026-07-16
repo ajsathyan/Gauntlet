@@ -7,6 +7,7 @@ import "./index.css";
 
 const PROJECTION_ROUTE = "/api/progress";
 const POLL_INTERVAL_MS = 2_500;
+type TransportStatus = "loading" | "connected" | "reconnecting" | "unavailable";
 
 function takeCapability() {
   const fragment = window.location.hash.slice(1);
@@ -16,11 +17,31 @@ function takeCapability() {
   return capability;
 }
 
-function ProgressRoot({ capability }: { capability: string }) {
+function TransportNotice({ status }: { status: Exclude<TransportStatus, "connected"> }) {
+  const copy = {
+    loading: ["Connecting to live progress…", "Implementation continues in the main task."],
+    reconnecting: ["Reconnecting to live progress", "Showing the last confirmed update."],
+    unavailable: ["Live progress is unavailable", "Implementation continues in the main task."],
+  }[status];
+  return (
+    <div className={`transportNotice transport-${status}`} role="status" aria-live="polite">
+      <strong>{copy[0]}</strong>
+      <span>{copy[1]}</span>
+    </div>
+  );
+}
+
+export function ProgressRoot({ capability }: { capability: string | null }) {
   const [projection, setProjection] = useState<ProgressProjection | null>(null);
+  const [transport, setTransport] = useState<TransportStatus>(capability ? "loading" : "unavailable");
   const etag = useRef<string | null>(null);
+  const confirmed = useRef(false);
 
   useEffect(() => {
+    if (!capability) {
+      setTransport("unavailable");
+      return;
+    }
     let stopped = false;
     let timer: number | undefined;
 
@@ -41,10 +62,15 @@ function ProgressRoot({ capability }: { capability: string }) {
           const next: unknown = await response.json();
           if (!isProgressProjection(next)) throw new Error("Unsupported progress projection");
           etag.current = response.headers.get("etag");
-          if (!stopped) setProjection(next);
+          if (!stopped) {
+            confirmed.current = true;
+            setProjection(next);
+          }
         }
+        if (!stopped) setTransport("connected");
       } catch {
         // Keep the last valid projection. Dashboard transport never changes run state.
+        if (!stopped) setTransport(confirmed.current ? "reconnecting" : "unavailable");
       } finally {
         if (!stopped) timer = window.setTimeout(poll, POLL_INTERVAL_MS);
       }
@@ -58,16 +84,25 @@ function ProgressRoot({ capability }: { capability: string }) {
   }, [capability]);
 
   if (!projection) {
-    return <main aria-busy="true" aria-label="Epic progress" />;
+    return (
+      <main className="transportShell" aria-busy={transport === "loading"} aria-label="Epic progress">
+        <TransportNotice status={transport === "connected" ? "loading" : transport} />
+      </main>
+    );
   }
 
-  return <App projection={projection} />;
+  return (
+    <>
+      {transport === "reconnecting" && <TransportNotice status="reconnecting" />}
+      <App projection={projection} />
+    </>
+  );
 }
 
 const root = document.getElementById("root");
 const capability = takeCapability();
 
-if (root && capability) {
+if (root) {
   createRoot(root).render(
     <StrictMode>
       <MotionConfig reducedMotion="user">

@@ -186,9 +186,9 @@ def test_epic_run_telemetry_join_reports_partial_and_unavailable_coverage():
         through_after = {key: through_usage[key] + after_usage[key] for key in TOKEN_KEYS}
         write_lines(rollout, [
             {"type": "event_msg", "payload": {"type": "user_message", "message": "RUN-SECRET"}},
-            token_event(before_usage, before_usage, "2026-07-16T10:59:00Z"),
-            token_event(through_usage, usage, "2026-07-16T11:01:00Z"),
-            token_event(through_after, after_usage, "2026-07-16T11:03:00Z"),
+            token_event(before_usage, before_usage, "2026-07-16T11:00:00Z"),
+            token_event(through_usage, usage, "2026-07-16T11:00:00.500Z"),
+            token_event(through_after, after_usage, "2026-07-16T11:00:00.700Z"),
         ])
         connection = create_native_state(home)
         connection.execute(
@@ -229,6 +229,21 @@ def test_epic_run_telemetry_join_reports_partial_and_unavailable_coverage():
         reasons = {item["reason"] for item in coverage["unavailableOwners"]}
         if reasons != {"native-id-unavailable", "native-record-unavailable"}:
             raise AssertionError("missing parent and child coverage must remain explicit: {}".format(coverage))
+
+        facts.write_text(json.dumps({
+            "schemaVersion": "gauntlet/epic-run-facts/v1",
+            "owners": [{
+                "ownerId": "T1-time-window", "ownerKind": "delegated", "ownerRef": "T1",
+                "nativeChildId": "child-run", "requestedProfile": "gauntlet_standard_worker",
+                "requestWindow": {"startedAt": "2026-07-16T11:00:00.250Z", "endedAt": "2026-07-16T11:00:00.600Z", "startOrdinal": None, "endOrdinal": None},
+            }],
+        }), encoding="utf-8")
+        timestamp_bounded = json.loads(run([
+            "python3", str(audit), "summary", "--agent-home", str(home),
+            "--run-facts", str(facts), "--json",
+        ]).stdout)
+        if timestamp_bounded["modelRequests"] != 1 or timestamp_bounded["tokens"] != usage:
+            raise AssertionError("timestamp-closed windows must exclude requests before and after ownership")
         rendered = json.dumps(joined, sort_keys=True)
         for forbidden in ("RUN-SECRET", str(rollout), "/Users/private/run", "missing-child", "child-run"):
             if forbidden in rendered:
@@ -362,11 +377,15 @@ def test_model_pricing_is_exact_per_known_model_and_partial_for_unknown_models()
             "python3", str(audit), "summary", "--agent-home", str(home),
             "--run-facts", str(facts), "--json",
         ]).stdout)["pricing"]
-        if complete["status"] != "complete" or complete["estimatedUsd"] != 5.95:
-            raise AssertionError("known models must use the registry's exact hand-calculated rates: {}".format(complete))
+        if complete["status"] != "partial" or complete["lowerBoundUsd"] != 5.95 or complete["estimatedUsd"] is not None:
+            raise AssertionError("known model rates must remain a lower bound while cache writes are unobservable: {}".format(complete))
+        if complete["limitations"] != ["cache-write-telemetry-unavailable"]:
+            raise AssertionError("unobservable cache writes must remain explicit even when cached reads are zero")
         expected_models = {"gpt-5.6-luna": 0.7, "gpt-5.6-sol": 3.5, "gpt-5.6-terra": 1.75}
         if {model: row["totalUsd"] for model, row in complete["byModel"].items()} != expected_models:
             raise AssertionError("pricing must remain attributable by canonical model")
+        if any(row["totalTokens"] != 200_000 for row in complete["byModel"].values()):
+            raise AssertionError("canonical model subtotals must retain observed token usage")
         facts.write_text(json.dumps({
             "schemaVersion": "gauntlet/epic-run-facts/v1",
             "owners": [owner(label) for label in ("luna", "sol", "terra", "unknown")],

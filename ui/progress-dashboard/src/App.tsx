@@ -247,10 +247,11 @@ function PhaseRail({ epic }: { epic: EpicProgress }) {
     epic.health.status === "healthy" &&
     !epic.freshness.stale &&
     epic.freshness.coverage !== "unavailable";
+  const phaseColumns = epic.phases.map((phase) => `${phase.policyShare}fr`).join(" ");
 
   return (
     <section className={styles.phaseSection} aria-label="Planned execution progress">
-      <div className={styles.rail} aria-hidden="true">
+      <div className={styles.rail} style={{ gridTemplateColumns: phaseColumns }} aria-hidden="true">
         {epic.phases.map((phase) => (
           <div
             key={phase.key}
@@ -266,7 +267,7 @@ function PhaseRail({ epic }: { epic: EpicProgress }) {
           </div>
         ))}
       </div>
-      <ol className={styles.phaseLabels}>
+      <ol className={styles.phaseLabels} style={{ gridTemplateColumns: phaseColumns }}>
         {epic.phases.map((phase) => (
           <li key={phase.key} aria-label={phase.accessibleLabel}>
             <motion.span
@@ -418,7 +419,11 @@ export function ProgressCard({ epic }: { epic: EpicProgress }) {
   const currentTime = useCurrentTime(epic.time.current);
   const focusDelta = useFocusDelta(epic);
   const action = safeActionFor(epic);
-  const complete = epic.presentation.state === "shipped";
+  const complete = epic.identity.terminalOutcome === "succeeded";
+  const terminalLabel =
+    epic.identity.terminalOutcome === "failed" ? "Failed" :
+    epic.identity.terminalOutcome === "stopped" ? "Stopped" :
+    complete ? "Complete" : null;
   const milestone =
     epic.presentation.state === "ready_to_merge" ||
     epic.presentation.state === "ready_to_deploy";
@@ -464,7 +469,7 @@ export function ProgressCard({ epic }: { epic: EpicProgress }) {
           <div className={styles.statusCluster}>
             <div className={`${styles.health} ${styles[epic.health.status]}`} aria-live="polite">
               <span className={styles.healthDot} aria-hidden="true" />
-              {healthLabels[epic.health.status]}
+              {terminalLabel ?? healthLabels[epic.health.status]}
             </div>
             <span className={`${styles.freshness} ${epic.freshness.stale ? styles.freshnessStale : ""}`}>
               {epic.freshness.label}
@@ -568,8 +573,14 @@ export function ProgressCard({ epic }: { epic: EpicProgress }) {
         <div className={styles.metric}>
           <span className={styles.metricIcon}><Icon name="tokens" /></span>
           <strong>
-            <AnimatedNumber value={epic.usage.totalTokens} format={formatTokens} />
-            <span> tokens used</span>
+            {epic.usage.coverage === "unavailable" ? (
+              epic.usage.totalLabel
+            ) : (
+              <>
+                <AnimatedNumber value={epic.usage.totalTokens} format={formatTokens} />
+                <span> tokens used</span>
+              </>
+            )}
           </strong>
           <small>{epic.usage.coverage === "complete" ? epic.usage.freshness : `${epic.usage.coverage} coverage · ${epic.usage.freshness}`}</small>
         </div>

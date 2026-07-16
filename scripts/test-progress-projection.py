@@ -33,6 +33,17 @@ def source_fixture() -> dict:
         {"id": "ship:merge", "kind": "release-gate", "phase": "ship", "status": "queued"},
         {"id": "ship:deployment", "kind": "release-gate", "phase": "ship", "status": "queued"},
     ]
+    dependencies = {
+        "prepare:ticket-graph": ["prepare:source-lock"],
+        "integrate:ticket:T1": ["build:ticket:T1"],
+        "integrate:ticket:T2": ["build:ticket:T2"],
+        "verify:review:black-box": ["integrate:ticket:T1", "integrate:ticket:T2"],
+        "verify:final-epic": ["verify:review:black-box"],
+        "ship:merge": ["verify:final-epic"],
+        "ship:deployment": ["ship:merge"],
+    }
+    for unit in units:
+        unit["dependencies"] = dependencies.get(unit["id"], [])
     operations = []
     for unit in units:
         if unit["kind"] in {"prepare", "ticket-build"}:
@@ -249,6 +260,58 @@ class ProgressProjectionTests(unittest.TestCase):
         self.assertEqual("shipped", result["presentation"]["state"])
         self.assertEqual("healthy", result["health"]["status"])
         self.assertFalse(result["freshness"]["stale"])
+
+    def test_failed_and_stopped_runs_replace_active_work_copy(self) -> None:
+        for launch_status, expected_now in (
+            ("failed", "Implementation failed"),
+            ("stopped", "Implementation stopped"),
+        ):
+            value = source_fixture()
+            value["launch"]["epics"]["E1"]["status"] = launch_status
+            result = epic(value)
+            self.assertEqual(launch_status, result["identity"]["terminalOutcome"])
+            self.assertEqual(expected_now, result["now"]["label"])
+            self.assertEqual("unavailable", result["eta"]["status"])
+            self.assertEqual("recovering", result["health"]["status"])
+            self.assertEqual(0, result["agents"]["activeCount"])
+            self.assertFalse(any(phase["status"] == "active" for phase in result["phases"]))
+
+    def test_next_gate_and_available_eta_are_derived_from_live_units(self) -> None:
+        value = source_fixture()
+        first = epic(value)
+        first_next = first["next"]["label"]
+        build = next(item for item in value["runs"]["E1"]["facts"]["progress"]["units"] if item["id"] == "build:ticket:T1")
+        build["status"] = "pass"
+        second = epic(value)
+        self.assertEqual("parallel_work", first["presentation"]["state"])
+        self.assertEqual("parallel_work", second["presentation"]["state"])
+        self.assertNotEqual(first_next, second["next"]["label"])
+
+        operation = value["runs"]["E1"]["facts"]["operations"][0]
+        operation["attempts"] = [{
+            "attempt": 1, "startedAt": "2026-07-16T15:40:00Z",
+            "finishedAt": "2026-07-16T15:42:00Z", "status": "pass",
+        }]
+        result = epic(value)
+        self.assertEqual("available", result["eta"]["status"])
+        self.assertTrue(result["eta"]["label"].startswith("Likely done "))
+        self.assertIn("Low confidence", result["eta"]["detail"])
+
+    def test_next_never_selects_a_dependency_blocked_unit(self) -> None:
+        value = source_fixture()
+        facts = value["runs"]["E1"]["facts"]
+        build_one = next(item for item in facts["progress"]["units"] if item["id"] == "build:ticket:T1")
+        build_two = next(item for item in facts["progress"]["units"] if item["id"] == "build:ticket:T2")
+        build_one.update({"status": "queued", "dependencies": ["integrate:ticket:T2"]})
+        build_two.update({"status": "running", "dependencies": []})
+        result = epic(value)
+        self.assertIn("Build T2", result["next"]["label"])
+        self.assertNotIn("Build T1", result["next"]["label"])
+
+    def test_pricing_registry_timestamp_preserves_effective_date(self) -> None:
+        value = source_fixture()
+        value["telemetry"]["E1"]["pricing"]["effectiveAt"] = "2026-07-09T00:00:00Z"
+        self.assertEqual("2026-07-09", epic(value)["pricing"]["effectiveDate"])
 
 
 if __name__ == "__main__":

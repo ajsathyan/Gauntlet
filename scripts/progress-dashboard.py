@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import secrets
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -361,8 +362,18 @@ class Handler(BaseHTTPRequestHandler):
 def lock_state(path: Path):
     lock_path = path.with_name(path.name + ".lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    handle = lock_path.open("a+")
-    os.chmod(lock_path, 0o600)
+    if not hasattr(os, "O_NOFOLLOW") and lock_path.is_symlink():
+        raise DashboardError("dashboard state lock is unsafe")
+    flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(lock_path, flags, 0o600)
+    except OSError as exc:
+        raise DashboardError("dashboard state lock is unsafe") from exc
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise DashboardError("dashboard state lock must be a regular file")
+    os.fchmod(descriptor, 0o600)
+    handle = os.fdopen(descriptor, "a+")
     try:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError as exc:

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import runpy
 import re
 import subprocess
 import tempfile
@@ -409,12 +410,29 @@ class PrdRunTests(unittest.TestCase):
             for item in map(json.loads, (self.run / "events.jsonl").read_text().splitlines())
         ))
 
+    def test_production_release_units_follow_executable_gate_order(self) -> None:
+        functions = runpy.run_path(str(SCRIPT))
+        value = graph(review=consequence_review("production-authority"))
+        manifest = {"release": {"applicability": {"deployment": True, "production-verification": True}}}
+        units = {item["id"]: item for item in functions["progress_unit_specs"](value, manifest)}
+        self.assertEqual(
+            ["verify:final-epic", "ship:safeguard:dry-run-no-mutation"],
+            units["ship:merge"]["dependencies"],
+        )
+        self.assertEqual(["ship:merge"], units["ship:deployment"]["dependencies"])
+        self.assertEqual(["ship:deployment"], units["ship:safeguard:bounded-live"]["dependencies"])
+        self.assertEqual(
+            ["ship:deployment", "ship:safeguard:bounded-live", "ship:safeguard:rollback-readiness"],
+            units["ship:production-verification"]["dependencies"],
+        )
+
         self.clock = "2026-07-16T12:01:00Z"
         self.transition("accepted")
         self.clock = "2026-07-16T12:02:00Z"
         self.command("compile", "--run", str(self.run), "--graph", str(self.graph))
         compiled = self.manifest()
         unit_ids = [item["id"] for item in compiled["progress"]["units"]]
+        units = {item["id"]: item for item in compiled["progress"]["units"]}
         self.assertEqual(len(unit_ids), len(set(unit_ids)))
         self.assertEqual(compiled["progress"]["denominator_sha256"], object_hash({
             "policyVersion": "gauntlet.progress-policy.v1",
@@ -423,6 +441,10 @@ class PrdRunTests(unittest.TestCase):
         }))
         self.assertTrue(all(item["status"] == "queued" for item in compiled["operations"].values()))
         self.assertTrue(all(item["queued_at"] == self.clock for item in compiled["operations"].values()))
+        self.assertEqual(["integrate:ticket:T1"], units["build:ticket:T2"]["dependencies"])
+        self.assertEqual(["build:ticket:T2"], units["integrate:ticket:T2"]["dependencies"])
+        self.assertIn("integrate:ticket:T2", units["verify:final-epic"]["dependencies"])
+        self.assertEqual(["verify:final-epic"], units["ship:merge"]["dependencies"])
 
         self.clock = "2026-07-16T12:03:00Z"
         self.transition("executing")

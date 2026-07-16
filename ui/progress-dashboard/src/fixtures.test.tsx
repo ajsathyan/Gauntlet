@@ -1,7 +1,8 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App, { describeMaterialDelta } from "./App";
+import { ProgressRoot } from "./main";
 import {
   PROJECTION_SCHEMA,
   type EpicProgress,
@@ -164,6 +165,8 @@ describe("production progress experience", () => {
     await act(async () => root.unmount());
     container.remove();
     localStorage.clear();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   async function render(projection: ProgressProjection) {
@@ -210,6 +213,65 @@ describe("production progress experience", () => {
     }
     expect(container.querySelector("nav")).toBeNull();
     expect(container.querySelector("select")).toBeNull();
+  });
+
+  it("uses the locked phase policy for visual widths", async () => {
+    await render(makeProjection());
+    const rail = container.querySelector('[aria-label="Planned execution progress"] > div') as HTMLElement;
+    expect(rail.style.gridTemplateColumns).toBe("0.05fr 0.35fr 0.25fr 0.2fr 0.15fr");
+  });
+
+  it("does not turn unavailable usage into an observed zero", async () => {
+    const projection = makeProjection();
+    projection.epics[0].usage = {
+      ...projection.epics[0].usage,
+      totalTokens: 0,
+      totalLabel: "Unavailable",
+      coverage: "unavailable",
+      freshness: "Unavailable",
+    };
+    await render(projection);
+    expect(container.textContent).toContain("Unavailable");
+    expect(container.textContent).not.toContain("0 tokens used");
+  });
+
+  it.each(["failed", "stopped"] as const)("shows the exact %s terminal outcome without celebration", async (outcome) => {
+    const projection = makeProjection("recovering");
+    projection.epics[0].identity.terminalOutcome = outcome;
+    projection.epics[0].now.label = outcome === "failed" ? "Implementation failed" : "Implementation stopped";
+    projection.epics[0].eta = {
+      ...projection.epics[0].eta,
+      status: "unavailable",
+      label: "No completion estimate",
+      detail: "This implementation run is terminal.",
+    };
+    await render(projection);
+    expect(container.textContent).toContain(outcome === "failed" ? "Failed" : "Stopped");
+    expect(container.textContent).toContain(projection.epics[0].now.label);
+    expect(container.textContent).not.toContain("CompleteLive and verified");
+  });
+
+  it("shows a useful unavailable state when the capability is missing", async () => {
+    await act(async () => root.render(<ProgressRoot capability={null} />));
+    expect(container.textContent).toContain("Live progress is unavailable");
+    expect(container.textContent).toContain("Implementation continues in the main task");
+  });
+
+  it("shows a transport failure instead of an indefinitely blank loading surface", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    await act(async () => {
+      root.render(<ProgressRoot capability="test-capability" />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain("Live progress is unavailable");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_500);
+    });
+    expect(container.textContent).toContain("Live progress is unavailable");
+    expect(container.textContent).not.toContain("Showing the last confirmed update");
+    vi.useRealTimers();
   });
 
   it("derives return continuity only from a material transition", () => {

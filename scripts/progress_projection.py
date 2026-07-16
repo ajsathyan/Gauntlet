@@ -132,6 +132,11 @@ def current_units(facts: dict[str, Any]) -> list[dict[str, Any]]:
         phase = phase_key(str(raw.get("phase")))
         if phase not in PHASE_POLICY:
             raise ProjectionError("progress unit has an unsupported phase")
+        dependencies = raw.get("dependencies", [])
+        if not isinstance(dependencies, list) or any(
+            not isinstance(item, str) or not OPAQUE_ID_RE.fullmatch(item) for item in dependencies
+        ):
+            raise ProjectionError("progress unit dependencies must use stable IDs")
         operation = operations.get(raw["id"])
         status = operation.get("status") if operation else raw.get("status", "queued")
         attempts = operation.get("attempts", []) if operation else []
@@ -149,6 +154,7 @@ def current_units(facts: dict[str, Any]) -> list[dict[str, Any]]:
             "label": unit_label(raw),
             "phase": phase,
             "status": display_status,
+            "dependencies": dependencies,
         })
     return projected
 
@@ -254,7 +260,24 @@ def presentation_state(
     return "starting"
 
 
-def representative_copy(state: str, phases: list[dict[str, Any]]) -> tuple[dict[str, str], dict[str, str] | None]:
+def representative_copy(
+    state: str,
+    phases: list[dict[str, Any]],
+    units: list[dict[str, Any]],
+    terminal_outcome: str | None,
+) -> tuple[dict[str, str], dict[str, str] | None]:
+    if terminal_outcome == "failed":
+        return (
+            {"reason": "failed", "label": "Implementation failed", "actionId": None},
+            {"reason": "review-failure", "label": "Review the failure in the main task", "actionId": None},
+        )
+    if terminal_outcome == "stopped":
+        return (
+            {"reason": "stopped", "label": "Implementation stopped", "actionId": None},
+            {"reason": "resume-stopped", "label": "Resume from the main task when ready", "actionId": None},
+        )
+    if terminal_outcome == "succeeded":
+        return ({"reason": "shipped", "label": "Live and verified", "actionId": None}, None)
     copy_map = {
         "starting": ("Preparing the run", "Start the first ready build unit"),
         "healthy_build": ("Building", "Integrate the next completed unit"),
@@ -266,6 +289,27 @@ def representative_copy(state: str, phases: list[dict[str, Any]]) -> tuple[dict[
         "shipped": ("Live and verified", None),
     }
     now_label, next_label = copy_map.get(state, copy_map["starting"])
+    active_phases = [phase["label"] for phase in phases if phase["status"] in {"active", "invalidated"}]
+    if active_phases and state not in {"needs_user", "ready_to_merge", "ready_to_deploy"}:
+        now_label = " + ".join(active_phases) + " in progress"
+    phase_order = {key: index for index, key in enumerate(PHASE_POLICY)}
+    passed_ids = {unit["id"] for unit in units if unit["status"] == "passed"}
+    unfinished = [unit for unit in units if unit["status"] != "passed"]
+    dependency_ready = [
+        unit for unit in unfinished
+        if all(dependency in passed_ids for dependency in unit["dependencies"])
+    ]
+    queued_ready = [unit for unit in dependency_ready if unit["status"] != "running"]
+    candidates = sorted(
+        queued_ready or dependency_ready,
+        key=lambda unit: (phase_order[unit["phase"]], unit["id"]),
+    )
+    if candidates and state not in {"needs_user", "ready_to_merge", "ready_to_deploy"}:
+        candidate = candidates[0]
+        verb = "Retry" if candidate["status"] == "failed" else "Next gate"
+        next_label = f"{verb}: {PHASE_LABELS[candidate['phase']]} — {candidate['label']}"
+    elif unfinished and state not in {"needs_user", "ready_to_merge", "ready_to_deploy"}:
+        next_label = "Waiting for the current dependency chain"
     return (
         {"reason": state, "label": now_label, "actionId": None},
         {"reason": f"next-{state}", "label": next_label, "actionId": None} if next_label else None,
@@ -335,8 +379,9 @@ def eta_projection(
     finish = current.timestamp() + remaining
     likely = datetime.fromtimestamp(finish, timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     return {"status": "available", "likelyFinishAt": likely, "remainingSeconds": remaining,
-            "confidence": "low", "estimatorVersion": "gauntlet-eta/v1", "label": format_clock(likely),
-            "detail": f"About {format_duration(remaining)} remaining · experimental", "reason": None}
+            "confidence": "low", "estimatorVersion": "gauntlet-eta/v1",
+            "label": f"Likely done {format_clock(likely)}",
+            "detail": f"About {format_duration(remaining)} remaining · Low confidence", "reason": None}
 
 
 def usage_projection(telemetry: dict[str, Any] | None) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -354,6 +399,21 @@ def usage_projection(telemetry: dict[str, Any] | None) -> tuple[dict[str, Any], 
         "models": [],
     }
     raw_pricing = (telemetry or {}).get("pricing") if isinstance((telemetry or {}).get("pricing"), dict) else {}
+    for model, values in sorted((raw_pricing.get("byModel") or {}).items()):
+        if model not in {"gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra"} or not isinstance(values, dict):
+            continue
+        model_total = values.get("totalTokens")
+        if not isinstance(model_total, int) or model_total < 0:
+            continue
+        usage["models"].append({
+            "model": model,
+            "tokens": model_total,
+            "label": f"{model_total:,}",
+            "inputTokens": values.get("inputTokens"),
+            "cachedInputTokens": values.get("cachedInputTokens"),
+            "outputTokens": values.get("outputTokens"),
+            "reasoningOutputTokens": values.get("reasoningOutputTokens"),
+        })
     raw_status = raw_pricing.get("status")
     status = "complete" if raw_status == "complete" else "lower_bound" if raw_status == "partial" else "unavailable"
     amount = raw_pricing.get("estimatedUsd") if status == "complete" else raw_pricing.get("lowerBoundUsd") if status == "lower_bound" else None
@@ -362,6 +422,10 @@ def usage_projection(telemetry: dict[str, Any] | None) -> tuple[dict[str, Any], 
         value = (raw_pricing.get("components") or {}).get(key)
         if isinstance(value, (int, float)):
             components.append({"label": label, "value": f"${value:.4f}"})
+    for model, values in sorted((raw_pricing.get("byModel") or {}).items()):
+        total_usd = values.get("totalUsd") if isinstance(values, dict) else None
+        if model in {"gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra"} and isinstance(total_usd, (int, float)):
+            components.append({"label": f"{model} subtotal", "value": f"${total_usd:.4f}"})
     limitations = [
         item for item in raw_pricing.get("limitations", [])
         if isinstance(item, str) and REASON_RE.fullmatch(item)
@@ -372,6 +436,8 @@ def usage_projection(telemetry: dict[str, Any] | None) -> tuple[dict[str, Any], 
     if registry_version != "gauntlet.model-api-pricing.v1":
         registry_version = None
     effective_at = raw_pricing.get("effectiveAt")
+    if isinstance(effective_at, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}T.+Z", effective_at):
+        effective_at = effective_at[:10]
     if not isinstance(effective_at, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", effective_at):
         effective_at = None
     pricing = {
@@ -432,15 +498,38 @@ def epic_projection(
     units = current_units(facts)
     phases = phase_projection(units)
     time_facts = time_projection(facts, now, current)
+    launch_status = launch_epic.get("status")
+    terminal_outcome = (
+        "failed" if launch_status == "failed" else
+        "stopped" if launch_status == "stopped" else
+        None
+    )
+    if terminal_outcome:
+        for unit in units:
+            if unit["status"] == "running":
+                unit["status"] = "failed" if terminal_outcome == "failed" else "waiting"
+        phases = phase_projection(units)
+        for phase in phases:
+            if phase["status"] == "active":
+                phase["status"] = "invalidated" if terminal_outcome == "failed" else "waiting"
+                phase["accessibleLabel"] = f"{phase['label']}: {phase['status']}"
     freshness = source_freshness(facts, telemetry, current, stale_after)
-    if time_facts["terminalAt"]:
+    if time_facts["terminalAt"] or terminal_outcome:
         # A terminal run no longer produces active-work heartbeats. Its final
         # controller facts remain authoritative instead of aging into recovery.
         freshness["stale"] = False
         freshness["label"] = "Final"
     health = health_projection(launch_epic, units, freshness["stale"])
+    if terminal_outcome:
+        health = {
+            "status": "recovering",
+            "reason": f"implementation-{terminal_outcome}",
+            "actionRequired": False,
+        }
     state = presentation_state(health, phases, units, time_facts["terminalAt"])
-    now_copy, next_copy = representative_copy(state, phases)
+    if state == "shipped":
+        terminal_outcome = "succeeded"
+    now_copy, next_copy = representative_copy(state, phases, units, terminal_outcome)
     usage, pricing = usage_projection(telemetry)
     progress = facts.get("progress") if isinstance(facts.get("progress"), dict) else {}
     policy_version = progress.get("policyVersion")
@@ -457,12 +546,24 @@ def epic_projection(
     )
     transition = digest({
         "health": health["status"], "phases": [(item["key"], item["status"], item["provedShare"]) for item in phases],
-        "state": state, "terminal": time_facts["terminalAt"],
+        "state": state, "terminal": time_facts["terminalAt"], "terminalOutcome": terminal_outcome,
     })[:16]
-    terminal_outcome = (
-        "succeeded" if state == "shipped" else
-        "stopped" if launch_epic.get("status") == "stopped" else None
-    )
+    eta = eta_projection(facts, units, health, now, current)
+    if terminal_outcome in {"failed", "stopped"}:
+        eta = {
+            "status": "unavailable", "likelyFinishAt": None, "remainingSeconds": None,
+            "confidence": None, "estimatorVersion": "gauntlet-eta/v1",
+            "label": "No completion estimate", "detail": "This implementation run is terminal.",
+            "reason": terminal_outcome,
+        }
+    agents = agents_projection(facts, units)
+    if terminal_outcome in {"failed", "stopped"}:
+        agents = {
+            "activeCount": 0,
+            "summary": "No delegated agents active — run ended",
+            "byPhase": [],
+            "details": [],
+        }
     return {
         "identity": {
             "launchId": launch_id,
@@ -478,8 +579,8 @@ def epic_projection(
         "phases": phases,
         "now": now_copy,
         "next": next_copy,
-        "agents": agents_projection(facts, units),
-        "eta": eta_projection(facts, units, health, now, current),
+        "agents": agents,
+        "eta": eta,
         "usage": usage,
         "pricing": pricing,
         "details": {

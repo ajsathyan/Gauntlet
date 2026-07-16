@@ -166,5 +166,25 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual("shipped", payload["epics"][0]["presentation"]["state"])
 
 
+class DashboardLockTests(unittest.TestCase):
+    def test_state_lock_rejects_symlinks_without_chmodding_the_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source.json"
+            source.write_text(json.dumps(fixture_module.source_fixture()))
+            state = root / "state.json"
+            target = root / "unmanaged.txt"
+            target.write_text("keep")
+            target.chmod(0o644)
+            (root / "state.json.lock").symlink_to(target)
+            result = subprocess.run([
+                "python3", str(SCRIPT), "serve", "--source", str(source),
+                "--assets", str(ASSETS), "--state-file", str(state),
+                "--host", "127.0.0.1", "--port", "0",
+            ], text=True, capture_output=True, timeout=5)
+            self.assertNotEqual(0, result.returncode)
+            self.assertEqual(0o644, stat.S_IMODE(target.stat().st_mode))
+
+
 if __name__ == "__main__":
     unittest.main()

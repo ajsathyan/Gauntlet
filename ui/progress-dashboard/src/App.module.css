@@ -220,7 +220,7 @@
 .rail,
 .phaseLabels {
   display: grid;
-  grid-template-columns: 0.7fr 2.5fr 1.9fr 1.7fr 1fr;
+  grid-template-columns: 5fr 35fr 25fr 20fr 15fr;
   gap: clamp(3px, 0.7cqw, 7px);
 }
 

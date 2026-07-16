@@ -37,6 +37,30 @@ body,
 
 body { min-height: 100vh; }
 
+.transportShell {
+  display: grid;
+  min-height: 100vh;
+  padding: 24px;
+  place-items: center;
+}
+
+.transportNotice {
+  display: grid;
+  gap: 5px;
+  width: min(520px, 100%);
+  margin: 14px auto 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--muted);
+  box-shadow: 0 12px 34px oklch(25% 0.025 145 / 0.06);
+  font-size: 12px;
+}
+
+.transportNotice strong { color: var(--ink); font-size: 13px; }
+.transport-reconnecting { border-color: oklch(84% 0.08 82); }
+
 button,
 summary { font: inherit; }
 

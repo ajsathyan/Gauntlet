@@ -587,6 +587,8 @@ def price_requests(rows, registry):
             continue
         model_cost = by_model.setdefault(row["model"], {
             "requests": 0, "cachedInputUsd": 0.0, "inputUsd": 0.0, "outputUsd": 0.0,
+            "inputTokens": 0, "cachedInputTokens": 0, "outputTokens": 0,
+            "reasoningOutputTokens": 0, "totalTokens": 0,
         })
         token_values = row["tokens"]
         input_multiplier = 1.0
@@ -606,14 +608,19 @@ def price_requests(rows, registry):
         model_cost["inputUsd"] += input_cost
         model_cost["cachedInputUsd"] += cached_cost
         model_cost["outputUsd"] += output_cost
+        model_cost["inputTokens"] += token_values["input_tokens"]
+        model_cost["cachedInputTokens"] += token_values["cached_input_tokens"]
+        model_cost["outputTokens"] += token_values["output_tokens"]
+        model_cost["reasoningOutputTokens"] += token_values["reasoning_output_tokens"]
+        model_cost["totalTokens"] += token_values["total_tokens"]
         priced_requests += 1
-        if token_values["cached_input_tokens"] and not rates.get("cacheWriteObservable", False):
+        if not rates.get("cacheWriteObservable", False):
             reasons.add("cache-write-telemetry-unavailable")
     rounded = {key: round(value, 8) for key, value in components.items()}
     rounded_models = {}
     for model, values in sorted(by_model.items()):
         rounded_values = {
-            key: (value if key == "requests" else round(value, 8))
+            key: (value if key == "requests" or key.endswith("Tokens") else round(value, 8))
             for key, value in values.items()
         }
         rounded_values["totalUsd"] = round(sum(
@@ -639,14 +646,34 @@ def price_requests(rows, registry):
 
 def rows_for_window(rows, window):
     if window is None:
-        return rows
+        return []
     start = window.get("startOrdinal")
     end = window.get("endOrdinal")
-    return [
-        row for row in rows
-        if (start is None or row.get("requestOrdinal", -1) > start)
-        and (end is None or row.get("requestOrdinal", -1) <= end)
-    ]
+    started_at = window.get("startedAt")
+    ended_at = window.get("endedAt")
+    started_time = datetime.fromisoformat(started_at[:-1] + "+00:00") if started_at else None
+    ended_time = datetime.fromisoformat(ended_at[:-1] + "+00:00") if ended_at else None
+    bounded = []
+    for row in rows:
+        ordinal = row.get("requestOrdinal")
+        observed_at = row.get("observedAt")
+        observed_time = (
+            datetime.fromisoformat(observed_at[:-1] + "+00:00")
+            if isinstance(observed_at, str) and observed_at.endswith("Z") else None
+        )
+        after_start = (
+            ordinal > start if start is not None and isinstance(ordinal, int)
+            else observed_time >= started_time if started_time and observed_time
+            else False
+        )
+        before_end = (
+            ordinal <= end if end is not None and isinstance(ordinal, int)
+            else observed_time <= ended_time if ended_time and observed_time
+            else ended_time is None
+        )
+        if after_start and before_end:
+            bounded.append(row)
+    return bounded
 
 
 def run_summary_payload(owners, audit_path, analytics_path, quarantine_path, pricing_path):

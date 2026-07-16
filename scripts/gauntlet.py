@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -57,6 +58,7 @@ PROGRESS_SOURCE_SCHEMA = "gauntlet/live-progress-source/v1"
 PROGRESS_STATE_SCHEMA = "gauntlet.progress-dashboard-state/v1"
 PROGRESS_HEALTH_SCHEMA = "gauntlet.progress-dashboard-health/v1"
 PROGRESS_REFRESH_SECONDS = 2.5
+PROGRESS_TERMINAL_GRACE_SECONDS = 10.0
 PASSING_CHECK_CONCLUSIONS = {"SUCCESS", "SKIPPED", "NEUTRAL"}
 PASSING_STATUS_STATES = {"SUCCESS", "SKIPPED", "NEUTRAL"}
 REQUIRED_HANDOFF_FIELDS = {
@@ -1240,7 +1242,18 @@ def read_progress_state(launch_path):
     return state_path, state if isinstance(state, dict) else None
 
 
-def verified_progress_state(launch_path):
+def progress_assets_sha():
+    root = ROOT / "templates" / "progress-dashboard"
+    parts = []
+    for relative in ("assets/app.css", "assets/app.js", "index.html"):
+        path = root / relative
+        if not path.is_file():
+            return None
+        parts.append(relative.encode() + b"\0" + path.read_bytes())
+    return sha256_bytes(b"\0".join(parts))
+
+
+def authenticated_progress_state(launch_path):
     state_path, state = read_progress_state(launch_path)
     if not state or state.get("schemaVersion") != PROGRESS_STATE_SCHEMA:
         return state_path, None
@@ -1249,16 +1262,16 @@ def verified_progress_state(launch_path):
     if state.get("status") != "running" or not isinstance(state.get("pid"), int):
         return state_path, None
     capability = state.get("capability")
-    executable = SCRIPTS / "progress-dashboard.py"
+    origin = state.get("origin")
     if (
         not isinstance(capability, str)
-        or not executable.is_file()
-        or state.get("executableSha256") != sha256_bytes(executable.read_bytes())
+        or not isinstance(origin, str)
+        or not re.fullmatch(r"http://127\.0\.0\.1:\d{1,5}", origin)
         or state.get("processBirthSha256") != progress_process_birth_sha(state["pid"])
     ):
         return state_path, None
     request = urllib.request.Request(
-        state.get("origin", "") + "/healthz",
+        origin + "/healthz",
         headers={"Authorization": "Bearer " + capability},
         method="GET",
     )
@@ -1273,6 +1286,20 @@ def verified_progress_state(launch_path):
         or health.get("processNonce") != state.get("processNonce")
         or health.get("executableSha256") != state.get("executableSha256")
         or health.get("launchId") != state.get("launchId")
+    ):
+        return state_path, None
+    return state_path, state
+
+
+def verified_progress_state(launch_path):
+    state_path, state = authenticated_progress_state(launch_path)
+    if not state or state.get("status") != "running":
+        return state_path, state
+    executable = SCRIPTS / "progress-dashboard.py"
+    if (
+        not executable.is_file()
+        or state.get("executableSha256") != sha256_bytes(executable.read_bytes())
+        or state.get("assetsSha256") != progress_assets_sha()
     ):
         return state_path, None
     return state_path, state
@@ -1302,18 +1329,22 @@ def progress_launch_terminal(launch, projections):
 
 
 def stop_progress_dashboard(launch_path):
-    status = progress_dashboard_status(launch_path)
-    if status["status"] != "running":
-        return status
+    state_path, state = authenticated_progress_state(launch_path)
+    if not state or state.get("status") != "running":
+        return progress_dashboard_status(launch_path)
+    status = {
+        "status": "running", "stateFile": str(state_path), "pid": state["pid"],
+        "launchId": state.get("launchId"), "sourceStatus": state.get("sourceStatus"),
+    }
     try:
         os.kill(status["pid"], signal.SIGTERM)
     except (OSError, ProcessLookupError):
         return {**status, "status": "unavailable"}
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline:
-        current = progress_dashboard_status(launch_path)
-        if current["status"] == "stopped":
-            return current
+        _, current_state = read_progress_state(launch_path)
+        if current_state and current_state.get("status") == "stopped":
+            return {"status": "stopped", "stateFile": str(state_path), "launchId": current_state.get("launchId")}
         time.sleep(0.05)
     return {**status, "status": "unavailable"}
 
@@ -1342,10 +1373,10 @@ def start_progress_dashboard(launch_path, launch, repo):
 
 
 def ensure_progress_supervisor(launch_path, launch, repo):
+    _, owned = authenticated_progress_state(launch_path)
+    if owned and owned.get("status") == "running" and verified_progress_state(launch_path)[1] is None:
+        stop_progress_dashboard(launch_path)
     existing = progress_dashboard_status(launch_path)
-    projections = launch_projections(repo, launch)
-    if progress_launch_terminal(launch, projections):
-        return {**stop_progress_dashboard(launch_path), "started": False}
     command = [
         sys.executable, str(Path(__file__).resolve()), "epic-tasks", "progress-supervise",
         "--git-root", str(Path(repo).resolve()), "--launch-set", str(Path(launch_path).resolve()),
@@ -1368,6 +1399,35 @@ def ensure_progress_supervisor(launch_path, launch, repo):
     return {"status": "unavailable", "stateFile": str(progress_paths(launch_path)["state"]), "started": False}
 
 
+def unavailable_progress_dashboard(launch_path, *, started=False):
+    return {
+        "status": "unavailable",
+        "stateFile": str(progress_paths(launch_path)["state"]),
+        "started": started,
+    }
+
+
+def safely_ensure_progress_supervisor(launch_path, launch, repo):
+    try:
+        return ensure_progress_supervisor(launch_path, launch, repo)
+    except (OSError, ValueError, TypeError, subprocess.SubprocessError, json.JSONDecodeError, TimeoutError):
+        return unavailable_progress_dashboard(launch_path)
+
+
+def safely_stop_progress_dashboard(launch_path):
+    try:
+        return stop_progress_dashboard(launch_path)
+    except (OSError, ValueError, TypeError, subprocess.SubprocessError, json.JSONDecodeError, TimeoutError):
+        return unavailable_progress_dashboard(launch_path)
+
+
+def safely_progress_dashboard_status(launch_path):
+    try:
+        return progress_dashboard_status(launch_path)
+    except (OSError, ValueError, TypeError, subprocess.SubprocessError, json.JSONDecodeError, TimeoutError):
+        return unavailable_progress_dashboard(launch_path)
+
+
 def progress_browser_action(launch, epic_id, dashboard):
     if dashboard.get("status") != "running":
         return None
@@ -1387,14 +1447,25 @@ def progress_browser_action(launch, epic_id, dashboard):
 def command_epic_tasks_progress_supervise(args):
     paths = progress_paths(args.launch_set)
     paths["supervisorLock"].parent.mkdir(parents=True, exist_ok=True)
-    lock = paths["supervisorLock"].open("a+")
-    os.chmod(paths["supervisorLock"], 0o600)
+    if not hasattr(os, "O_NOFOLLOW") and paths["supervisorLock"].is_symlink():
+        return 0
+    flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(paths["supervisorLock"], flags, 0o600)
+    except OSError:
+        return 0
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        return 0
+    os.fchmod(descriptor, 0o600)
+    lock = os.fdopen(descriptor, "a+")
     try:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         lock.close()
         return 0
     stopped = False
+    terminal_since = None
 
     def stop(signum, frame):
         nonlocal stopped
@@ -1412,8 +1483,12 @@ def command_epic_tasks_progress_supervise(args):
                 refresh_progress_source(launch_path, launch, args.git_root)
                 projections = launch_projections(args.git_root, launch)
                 if progress_launch_terminal(launch, projections):
-                    stop_progress_dashboard(launch_path)
-                    break
+                    terminal_since = terminal_since or time.monotonic()
+                    if time.monotonic() - terminal_since >= PROGRESS_TERMINAL_GRACE_SECONDS:
+                        stop_progress_dashboard(launch_path)
+                        break
+                else:
+                    terminal_since = None
                 if progress_dashboard_status(launch_path)["status"] != "running":
                     start_progress_dashboard(launch_path, launch, args.git_root)
             except (OSError, ValueError, json.JSONDecodeError):
@@ -1430,7 +1505,7 @@ def command_epic_tasks_progress_supervise(args):
 
 
 def command_epic_tasks_progress_stop(args):
-    payload = {"schemaVersion": PROGRESS_STATE_SCHEMA, **stop_progress_dashboard(args.launch_set)}
+    payload = {"schemaVersion": PROGRESS_STATE_SCHEMA, **safely_stop_progress_dashboard(args.launch_set)}
     print_payload(payload, args.json)
     return 0
 
@@ -1777,7 +1852,7 @@ def command_epic_tasks_record_run(args):
             raise ValueError("Epic is already mapped to a different Execution Run")
         epic["runPath"] = str(run_path)
         write_launch_set(launch_path, launch)
-        dashboard = ensure_progress_supervisor(launch_path, launch, args.git_root)
+        dashboard = safely_ensure_progress_supervisor(launch_path, launch, args.git_root)
         action = progress_browser_action(launch, args.epic, dashboard)
         payload = epic_launch_payload(
             launch_path, launch, args.git_root,
@@ -1795,7 +1870,7 @@ def command_epic_tasks_status(args):
         launch_path, launch = load_launch_set(args.launch_set)
         payload = epic_launch_payload(
             launch_path, launch, args.git_root,
-            progressDashboard=progress_dashboard_status(launch_path),
+            progressDashboard=safely_progress_dashboard_status(launch_path),
         )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         payload = {"schemaVersion": EPIC_LAUNCH_SCHEMA, "status": "fail", "findings": [{"code": "epic_launch_status_failed", "severity": "fail", "message": str(exc)}]}
@@ -1970,16 +2045,14 @@ def command_epic_tasks_reconcile(args):
             })
         write_launch_set(launch_path, launch)
         projections = launch_projections(args.git_root, launch)
-        if progress_launch_terminal(launch, projections):
-            dashboard = stop_progress_dashboard(launch_path)
-        elif any(epic.get("runPath") for epic in launch["epics"].values()):
-            dashboard = ensure_progress_supervisor(launch_path, launch, args.git_root)
+        if any(epic.get("runPath") for epic in launch["epics"].values()):
+            dashboard = safely_ensure_progress_supervisor(launch_path, launch, args.git_root)
             if dashboard.get("started"):
                 action = progress_browser_action(launch, None, dashboard)
                 if action:
                     actions.append(action)
         else:
-            dashboard = progress_dashboard_status(launch_path)
+            dashboard = safely_progress_dashboard_status(launch_path)
         payload = epic_launch_payload(
             launch_path, launch, args.git_root,
             lifecycleEvents=events, actions=actions, progressDashboard=dashboard,

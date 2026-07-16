@@ -677,6 +677,13 @@ class EpicProjectTests(unittest.TestCase):
             self.assertEqual(dashboard["stateFile"], action["stateFile"])
             self.assertNotIn("capability", json.dumps(action).lower())
 
+            with mock.patch("gauntlet.ensure_progress_supervisor", side_effect=OSError("dashboard unavailable")), mock.patch("gauntlet.print_payload") as failed_dashboard:
+                self.assertEqual(gauntlet.command_epic_tasks_record_run(args), 0)
+            fallback = failed_dashboard.call_args.args[0]
+            self.assertEqual("pass", fallback["status"])
+            self.assertEqual([], fallback["actions"])
+            self.assertEqual(str(run.resolve()), fallback["epics"]["APP-001"]["runPath"])
+
     def test_progress_source_refresh_discovers_late_run_and_independent_telemetry(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -747,6 +754,57 @@ class EpicProjectTests(unittest.TestCase):
         spawn.assert_called_once()
         self.assertEqual("running", result["status"])
         self.assertFalse(result["started"])
+
+    def test_progress_supervisor_lock_rejects_symlink_without_touching_target(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            launch = root / "launch.json"
+            target = root / "unmanaged.txt"
+            target.write_text("keep", encoding="utf-8")
+            target.chmod(0o644)
+            gauntlet.progress_paths(launch)["supervisorLock"].symlink_to(target)
+            args = argparse.Namespace(git_root=root, launch_set=launch, interval=0.5)
+            self.assertEqual(0, gauntlet.command_epic_tasks_progress_supervise(args))
+            self.assertEqual(0o644, target.stat().st_mode & 0o777)
+
+    def test_runtime_hash_drift_stops_authenticated_owner_before_restart(self):
+        launch = {
+            "targetEpicIds": ["ONE"],
+            "coverageSha256": "a" * 64,
+            "epics": {"ONE": {"status": "in-progress", "runPath": "run"}},
+        }
+        owned = {"status": "running", "pid": 1234, "stateFile": "state"}
+        unavailable = {"status": "unavailable", "stateFile": "state"}
+        running = {"status": "running", "stateFile": "state", "pid": 5678}
+        with mock.patch("gauntlet.authenticated_progress_state", return_value=(Path("state"), owned)), mock.patch(
+            "gauntlet.verified_progress_state", return_value=(Path("state"), None),
+        ), mock.patch("gauntlet.stop_progress_dashboard") as stop, mock.patch(
+            "gauntlet.progress_dashboard_status", side_effect=[unavailable, running],
+        ), mock.patch("gauntlet.subprocess.Popen"):
+            result = gauntlet.ensure_progress_supervisor(Path("launch.json"), launch, Path.cwd())
+        stop.assert_called_once()
+        self.assertTrue(result["started"])
+
+    def test_optional_dashboard_status_failure_is_non_blocking(self):
+        with mock.patch("gauntlet.progress_dashboard_status", side_effect=OSError("optional dashboard unavailable")):
+            result = gauntlet.safely_progress_dashboard_status(Path("launch.json"))
+        self.assertEqual("unavailable", result["status"])
+        self.assertFalse(result["started"])
+
+    def test_malformed_dashboard_origin_is_rejected_before_transport(self):
+        state = {
+            "schemaVersion": gauntlet.PROGRESS_STATE_SCHEMA,
+            "status": "running",
+            "pid": 1234,
+            "capability": "opaque-capability",
+            "origin": ["http://127.0.0.1:8000"],
+        }
+        with mock.patch("gauntlet.read_progress_state", return_value=(Path("state"), state)), mock.patch(
+            "gauntlet.urllib.request.build_opener",
+        ) as opener:
+            _, result = gauntlet.authenticated_progress_state(Path("launch.json"))
+        self.assertIsNone(result)
+        opener.assert_not_called()
 
 
 if __name__ == "__main__":
