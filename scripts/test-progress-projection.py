@@ -170,6 +170,8 @@ class ProgressProjectionTests(unittest.TestCase):
         self.assertEqual("Unavailable", item["time"]["elapsed"])
         self.assertEqual("unavailable", item["eta"]["status"])
         self.assertIsNone(item["time"]["startedAt"])
+        self.assertTrue(all(phase["status"] == "waiting" for phase in item["phases"]))
+        self.assertTrue(all(phase["provedShare"] == 0 for phase in item["phases"]))
 
     def test_health_progress_freshness_and_eta_are_independent(self) -> None:
         value = source_fixture()

@@ -154,6 +154,15 @@ def current_units(facts: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def phase_projection(units: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not units:
+        return [{
+            "key": phase,
+            "label": PHASE_LABELS[phase],
+            "status": "waiting",
+            "policyShare": policy_share,
+            "provedShare": 0.0,
+            "accessibleLabel": f"{PHASE_LABELS[phase]}: waiting",
+        } for phase, policy_share in PHASE_POLICY.items()]
     phase_items: dict[str, list[dict[str, Any]]] = {key: [] for key in PHASE_POLICY}
     for unit in units:
         phase_items[unit["phase"]].append(unit)
