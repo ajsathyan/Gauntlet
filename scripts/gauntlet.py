@@ -326,6 +326,20 @@ def local_docs_path_findings(context):
             "severity": "fail",
             "message": f"Local-document opt-out marker is not a file: {context['optOutPath']}",
         })
+    for name in ["drafts", "epics", "research"]:
+        path = context["docsRoot"] / name
+        if path.is_symlink():
+            findings.append({
+                "code": "local_document_symlink",
+                "severity": "fail",
+                "message": f"Canonical local-document paths must not be symlinks: {path}",
+            })
+        elif path.exists() and not path.is_dir():
+            findings.append({
+                "code": "invalid_local_document_directory",
+                "severity": "fail",
+                "message": f"Local-document path is not a directory: {path}",
+            })
     return findings
 
 
@@ -552,7 +566,7 @@ def initialize_local_docs(args, context, prefix):
         created.append(str(path))
         if not dry_run:
             write_new_file(path, rendered[path])
-    for directory in [context["docsRoot"] / "epics", context["docsRoot"] / "research"]:
+    for directory in [context["docsRoot"] / "drafts", context["docsRoot"] / "epics", context["docsRoot"] / "research"]:
         if directory.exists():
             preserved.append(str(directory))
         else:
@@ -568,6 +582,58 @@ def initialize_local_docs(args, context, prefix):
             "patterns": missing_excludes,
         })
     return findings, created, preserved
+
+
+def local_product_document_paths(context):
+    paths = []
+    for root in [context["docsRoot"] / "drafts", context["docsRoot"] / "epics"]:
+        if not root.is_dir() or root.is_symlink():
+            continue
+        paths.extend(
+            path for path in root.rglob("*.md")
+            if path.is_file() and not path.is_symlink()
+        )
+    return sorted(paths)
+
+
+def guided_draft_destination(context, template):
+    templates = {
+        "founding-hypothesis": ("FOUNDING_HYPOTHESIS.md.tmpl", "FOUNDING_HYPOTHESIS.md"),
+        "peter-yang": ("PETER_YANG_PRD.md.tmpl", "PETER_YANG_PRD.md"),
+    }
+    template_name, filename = templates[template]
+    return template_name, context["docsRoot"] / "drafts" / filename
+
+
+def create_guided_draft(context, template, dry_run=False):
+    template_name, draft_path = guided_draft_destination(context, template)
+    drafts_root = context["docsRoot"] / "drafts"
+    findings = []
+    if drafts_root.is_symlink() or (drafts_root.exists() and not drafts_root.is_dir()):
+        findings.append({
+            "code": "invalid_drafts_directory",
+            "severity": "fail",
+            "message": f"Drafts path must be a real directory: {drafts_root}",
+        })
+        return findings, draft_path
+    if draft_path.exists() or draft_path.is_symlink():
+        findings.append({
+            "code": "draft_exists",
+            "severity": "fail",
+            "message": f"Refusing to overwrite an existing product draft: {draft_path}",
+        })
+        return findings, draft_path
+    date = datetime.now().astimezone().date().isoformat()
+    rendered = render_local_doc_template(template_name, {"DATE": date})
+    if not dry_run:
+        drafts_root.mkdir(parents=True, exist_ok=True)
+        write_new_file(draft_path, rendered)
+    findings.append({
+        "code": "guided_draft_planned" if dry_run else "guided_draft_created",
+        "severity": "pass",
+        "message": f"Gauntlet {'would create' if dry_run else 'created'} an unanswered {template} draft.",
+    })
+    return findings, draft_path
 
 
 def command_docs_init(args):
@@ -607,6 +673,15 @@ def command_docs_ensure(args):
 
     all_paths_exist = all(path.exists() for path in [context["policyPath"], context["docsRoot"], context["indexPath"]])
     if all_paths_exist:
+        drafts_root = context["docsRoot"] / "drafts"
+        created = []
+        preserved = []
+        if drafts_root.is_dir() and not drafts_root.is_symlink():
+            preserved.append(str(drafts_root))
+        else:
+            created.append(str(drafts_root))
+            if not args.dry_run:
+                drafts_root.mkdir(parents=False, exist_ok=False)
         migration_findings, migrated = ensure_doc_execution_contract(context, dry_run=args.dry_run)
         findings = migration_findings + local_docs_validation_findings(context, require_profile=True)
         return local_docs_payload(
@@ -615,13 +690,40 @@ def command_docs_ensure(args):
             findings,
             mode="default-on",
             materialized=True,
-            created=[],
-            preserved=[],
+            created=created,
+            preserved=preserved,
             migrated=migrated,
+            dryRun=args.dry_run,
         )
 
+    had_product_document = bool(local_product_document_paths(context))
+    _, founding_candidate = guided_draft_destination(context, "founding-hypothesis")
+    if not had_product_document and (founding_candidate.exists() or founding_candidate.is_symlink()):
+        return local_docs_payload(
+            args,
+            context,
+            [{
+                "code": "draft_exists",
+                "severity": "fail",
+                "message": f"Refusing to overwrite an existing product draft path: {founding_candidate}",
+            }],
+            mode="default-on",
+            materialized=False,
+            created=[],
+            preserved=[],
+            dryRun=args.dry_run,
+            foundingDraftPath=str(founding_candidate),
+        )
     prefix = args.epic_prefix or (local_epic_prefix(context["indexPath"]) if context["indexPath"].is_file() else inferred_epic_prefix(context))
     findings, created, preserved = initialize_local_docs(args, context, prefix)
+    founding_draft_path = None
+    if not had_product_document and not any(finding.get("severity") == "fail" for finding in findings):
+        draft_findings, founding_draft_path = create_guided_draft(
+            context, "founding-hypothesis", dry_run=args.dry_run,
+        )
+        findings.extend(draft_findings)
+        if not any(finding.get("severity") == "fail" for finding in draft_findings):
+            created.append(str(founding_draft_path))
     if not args.dry_run and not any(finding.get("severity") == "fail" for finding in findings):
         migration_findings, _ = ensure_doc_execution_contract(context, dry_run=False)
         findings.extend(migration_findings)
@@ -637,6 +739,7 @@ def command_docs_ensure(args):
         created=created,
         preserved=preserved,
         excludePath=str(context["excludePath"]),
+        foundingDraftPath=str(founding_draft_path) if founding_draft_path else None,
     )
 
 
@@ -854,6 +957,262 @@ def command_docs_epic_create(args):
     return local_docs_payload(args, context, findings, epicId=epic_id, epicRoot=str(prd_path.parent), prdPath=str(prd_path), appended=bool(args.prd))
 
 
+def command_docs_draft_create(args):
+    context = local_docs_context(args.project_root)
+    _, draft_candidate = guided_draft_destination(context, args.template)
+    if draft_candidate.exists() or draft_candidate.is_symlink():
+        return local_docs_payload(
+            args,
+            context,
+            [{
+                "code": "draft_exists",
+                "severity": "fail",
+                "message": f"Refusing to overwrite an existing product draft: {draft_candidate}",
+            }],
+            template=args.template,
+            draftPath=str(draft_candidate),
+            dryRun=args.dry_run,
+        )
+    if local_docs_opted_out(context):
+        findings = local_docs_path_findings(context) + [{
+            "code": "local_document_profile_opted_out",
+            "severity": "fail",
+            "message": f"Project opted out of default local documents through {context['optOutPath']}; run docs enable before creating a draft.",
+        }]
+    elif all(path.exists() for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]):
+        findings = local_docs_validation_findings(context, require_profile=True)
+    else:
+        findings, _, _ = initialize_local_docs(args, context, inferred_epic_prefix(context))
+        if not args.dry_run and not any(finding.get("severity") == "fail" for finding in findings):
+            findings.extend(local_docs_validation_findings(context, require_profile=True))
+    if any(finding.get("severity") == "fail" for finding in findings):
+        return local_docs_payload(args, context, findings, template=args.template, dryRun=args.dry_run)
+
+    draft_findings, draft_path = create_guided_draft(context, args.template, dry_run=args.dry_run)
+    findings.extend(draft_findings)
+    return local_docs_payload(
+        args,
+        context,
+        findings,
+        template=args.template,
+        draftPath=str(draft_path),
+        dryRun=args.dry_run,
+    )
+
+
+def local_draft_path(context, supplied):
+    drafts_root = context["docsRoot"] / "drafts"
+    candidate = Path(supplied).expanduser()
+    if not candidate.is_absolute():
+        candidate = drafts_root / candidate
+    candidate = candidate.absolute()
+    if candidate.is_symlink():
+        raise RuntimeError(f"A promoted draft must not be a symlink: {candidate}")
+    resolved_root = drafts_root.resolve()
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(resolved_root)
+    except ValueError as exc:
+        raise RuntimeError("A promoted draft must be inside local-docs/drafts.") from exc
+    current = candidate.parent
+    resolved_docs_root = context["docsRoot"].resolve()
+    while current.resolve() != resolved_docs_root:
+        if current.is_symlink():
+            raise RuntimeError(f"A promoted draft path must not use symlinks: {candidate}")
+        if current == current.parent:
+            raise RuntimeError("A promoted draft must be inside local-docs/drafts.")
+        current = current.parent
+    if candidate.parent.resolve() != resolved_root:
+        raise RuntimeError("A promoted draft must be directly inside local-docs/drafts.")
+    if not resolved.is_file():
+        raise RuntimeError(f"A promoted draft must already exist: {candidate}")
+    return resolved
+
+
+def command_docs_draft_promote(args):
+    context = local_docs_context(args.project_root)
+    if local_docs_opted_out(context):
+        findings = local_docs_path_findings(context) + [{
+            "code": "local_document_profile_opted_out",
+            "severity": "fail",
+            "message": f"Project opted out of default local documents through {context['optOutPath']}; run docs enable before promoting a draft.",
+        }]
+    elif all(path.exists() for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]):
+        findings = local_docs_validation_findings(context, require_profile=True)
+    else:
+        findings = local_docs_path_findings(context) + [{
+            "code": "local_document_profile_missing",
+            "severity": "fail",
+            "message": "Create a local product draft before promoting it.",
+        }]
+    if any(finding.get("severity") == "fail" for finding in findings):
+        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
+    if not valid_epic_title(args.title):
+        findings.append({
+            "code": "invalid_epic_title",
+            "severity": "fail",
+            "message": "Epic title must be one non-empty line, at most 120 characters, without Markdown link or control delimiters.",
+        })
+        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
+
+    draft_path = local_draft_path(context, args.draft)
+    prefix = local_epic_prefix(context["indexPath"])
+    if not re.fullmatch(r"[A-Z][A-Z0-9]{1,11}", prefix):
+        raise RuntimeError(f"Local document index has an invalid epic prefix: {prefix}")
+    existing = allocated_epic_numbers(context, prefix)
+    number = args.number if args.number is not None else ((max(existing) + 1) if existing else 1)
+    if number < 1 or number > 999:
+        findings.append({"code": "invalid_epic_number", "severity": "fail", "message": "Epic number must be between 001 and 999."})
+        return local_docs_payload(args, context, findings, draftPath=str(draft_path), dryRun=args.dry_run)
+    sequence = f"{number:03d}"
+    epic_id = f"{prefix}-{sequence}"
+    if number in existing:
+        findings.append({"code": "epic_id_exists", "severity": "fail", "message": f"Epic ID already exists: {epic_id}"})
+        return local_docs_payload(args, context, findings, draftPath=str(draft_path), dryRun=args.dry_run)
+
+    epics_root = context["docsRoot"] / "epics"
+    epic_root = epics_root / sequence
+    prd_path = epic_root / f"{sequence}_{epic_title_slug(args.title)}_PRD.md"
+    if epic_root.exists() or epic_root.is_symlink() or prd_path.exists():
+        findings.append({"code": "epic_exists", "severity": "fail", "message": f"Epic destination already exists: {epic_root}"})
+        return local_docs_payload(args, context, findings, draftPath=str(draft_path), dryRun=args.dry_run)
+
+    index_path = context["indexPath"]
+    index_text = index_path.read_text(encoding="utf-8")
+    marker = "<!-- EPICS -->"
+    if index_text.count(marker) != 1:
+        raise RuntimeError(f"Local document index must contain exactly one epic insertion marker: {index_path}")
+    date = datetime.now().astimezone().date().isoformat()
+    relative = prd_path.relative_to(context["docsRoot"])
+    row = f"| `{epic_id}` | [{args.title}]({relative.as_posix()}) | PRD | Proposed | {date} | None | None | Not implemented | Not verified |\n"
+    updated_index = index_text.replace(marker, row + marker, 1)
+    if args.dry_run:
+        return local_docs_payload(
+            args,
+            context,
+            findings,
+            epicId=epic_id,
+            epicRoot=str(epic_root),
+            prdPath=str(prd_path),
+            draftPath=str(draft_path),
+            dryRun=True,
+        )
+
+    moved = False
+    try:
+        epic_root.mkdir(parents=False, exist_ok=False)
+        for child in ["prompts", "research", "decisions", "runs"]:
+            (epic_root / child).mkdir()
+        os.replace(draft_path, prd_path)
+        moved = True
+        atomic_write_text(index_path, updated_index)
+    except Exception:
+        if moved and prd_path.is_file() and not draft_path.exists():
+            os.replace(prd_path, draft_path)
+        if epic_root.exists() and not epic_root.is_symlink():
+            shutil.rmtree(epic_root)
+        if index_path.is_file() and index_path.read_text(encoding="utf-8") != index_text:
+            atomic_write_text(index_path, index_text)
+        raise
+    return local_docs_payload(
+        args,
+        context,
+        findings,
+        epicId=epic_id,
+        epicRoot=str(epic_root),
+        prdPath=str(prd_path),
+        draftPath=str(draft_path),
+        dryRun=False,
+    )
+
+
+def markdown_answer(text, headings):
+    for heading in headings:
+        match = re.search(rf"^(##|###) {re.escape(heading)}\s*$", text, re.MULTILINE | re.IGNORECASE)
+        if not match:
+            continue
+        level = len(match.group(1))
+        following = re.search(rf"^#{{1,{level}}} ", text[match.end():], re.MULTILINE)
+        end = match.end() + following.start() if following else len(text)
+        content = text[match.end():end].strip()
+        substantive = [
+            line for line in content.splitlines()
+            if line.strip() and not line.strip().lower().startswith(("*guidance:", "_guidance:"))
+        ]
+        if substantive:
+            return content
+    return ""
+
+
+def accepted_record_path(prd_path):
+    return prd_path.with_suffix(".accepted.json")
+
+
+def command_docs_epic_accept(args):
+    context = local_docs_context(args.project_root)
+    findings = local_docs_validation_findings(context, require_profile=True)
+    if any(finding.get("severity") == "fail" for finding in findings):
+        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
+    epic_id = args.epic.upper()
+    if not re.fullmatch(r"[A-Z][A-Z0-9]*-\d{3}", epic_id):
+        findings.append({"code": "invalid_epic_id", "severity": "fail", "message": "Acceptance requires a stable Epic ID."})
+        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
+    prd_path = existing_prd_path(context, args.prd)
+    source_bytes = prd_path.read_bytes()
+    source_text = source_bytes.decode("utf-8")
+    if not markdown_answer(source_text, ("Acceptance", "Done when", "Product Acceptance")):
+        findings.append({
+            "code": "missing_observable_acceptance",
+            "severity": "fail",
+            "message": "Add an answered Acceptance or Done when section before accepting this Epic; Gauntlet will not invent it.",
+        })
+        return local_docs_payload(args, context, findings, epicId=epic_id, prdPath=str(prd_path), dryRun=args.dry_run)
+    index_path = context["indexPath"]
+    index_text = index_path.read_text(encoding="utf-8")
+    row_pattern = re.compile(rf"^\| `{re.escape(epic_id)}` \| \[([^\]]+)\]\(([^)]+)\) \| PRD \| ([^|]+) \|.*$", re.MULTILINE)
+    row_match = row_pattern.search(index_text)
+    if not row_match:
+        findings.append({"code": "epic_not_indexed", "severity": "fail", "message": f"Epic {epic_id} is not indexed."})
+        return local_docs_payload(args, context, findings, epicId=epic_id, prdPath=str(prd_path), dryRun=args.dry_run)
+    indexed_path = (context["docsRoot"] / row_match.group(2)).resolve()
+    if indexed_path != prd_path.resolve():
+        findings.append({"code": "epic_path_mismatch", "severity": "fail", "message": f"Epic {epic_id} does not point to {prd_path}."})
+        return local_docs_payload(args, context, findings, epicId=epic_id, prdPath=str(prd_path), dryRun=args.dry_run)
+    sidecar = accepted_record_path(prd_path)
+    if sidecar.exists() or sidecar.is_symlink():
+        findings.append({"code": "accepted_record_exists", "severity": "fail", "message": f"Acceptance already exists: {sidecar}"})
+        return local_docs_payload(args, context, findings, epicId=epic_id, prdPath=str(prd_path), acceptedRecord=str(sidecar), dryRun=args.dry_run)
+    record = {
+        "schemaVersion": "gauntlet.accepted-epic.v1",
+        "epicId": epic_id,
+        "title": row_match.group(1),
+        "sourcePath": str(prd_path.resolve()),
+        "sourceSha256": sha256_bytes(source_bytes),
+        "acceptedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "dependencies": parse_dependency_list(args.depends_on),
+        "releaseStages": parse_release_stages(args.release_stages),
+        "consequenceTriggers": parse_consequence_triggers(args.consequence_triggers),
+    }
+    updated_index = index_text[:row_match.start()] + row_match.group(0).replace("| Proposed |", "| Accepted |", 1) + index_text[row_match.end():]
+    if updated_index == index_text:
+        findings.append({"code": "epic_not_proposed", "severity": "fail", "message": f"Epic {epic_id} must be Proposed before acceptance."})
+        return local_docs_payload(args, context, findings, epicId=epic_id, prdPath=str(prd_path), dryRun=args.dry_run)
+    if not args.dry_run:
+        try:
+            write_new_file(sidecar, json.dumps(record, indent=2, sort_keys=True) + "\n")
+            atomic_write_text(index_path, updated_index)
+        except Exception:
+            if sidecar.is_file() and not sidecar.is_symlink():
+                sidecar.unlink()
+            if index_path.read_text(encoding="utf-8") != index_text:
+                atomic_write_text(index_path, index_text)
+            raise
+    return local_docs_payload(
+        args, context, findings, epicId=epic_id, prdPath=str(prd_path),
+        acceptedRecord=str(sidecar), sourceSha256=record["sourceSha256"], dryRun=args.dry_run,
+    )
+
+
 def sha256_bytes(value):
     return hashlib.sha256(value).hexdigest()
 
@@ -938,6 +1297,42 @@ def implementation_target_ids(source_text):
     return ids
 
 
+def load_accepted_epic_record(source_path, source_bytes):
+    path = accepted_record_path(source_path)
+    if not path.is_file() or path.is_symlink():
+        raise ValueError("Flexible product documents require an explicit accepted-Epic record")
+    record = json.loads(path.read_text(encoding="utf-8"))
+    required = {
+        "schemaVersion", "epicId", "title", "sourcePath", "sourceSha256", "acceptedAt",
+        "dependencies", "releaseStages", "consequenceTriggers",
+    }
+    if not isinstance(record, dict) or set(record) != required or record.get("schemaVersion") != "gauntlet.accepted-epic.v1":
+        raise ValueError("Accepted-Epic record has an unsupported shape")
+    if Path(record["sourcePath"]).resolve() != source_path.resolve():
+        raise ValueError("Accepted-Epic record points to a different product document")
+    if record["sourceSha256"] != sha256_bytes(source_bytes):
+        raise ValueError("Product document changed after acceptance; accept the revised version explicitly")
+    epic_id = record.get("epicId")
+    if not isinstance(epic_id, str) or not re.fullmatch(r"[A-Z][A-Z0-9]*-\d{3}", epic_id):
+        raise ValueError("Accepted-Epic record has an invalid Epic ID")
+    title = record.get("title")
+    if not isinstance(title, str) or not valid_epic_title(title):
+        raise ValueError("Accepted-Epic record has an invalid title")
+    dependencies = record.get("dependencies")
+    if not isinstance(dependencies, list):
+        raise ValueError("Accepted-Epic dependencies must be a list")
+    for item in dependencies:
+        if not isinstance(item, dict) or set(item) != {"epicId", "boundary"} or item["boundary"] not in DEPENDENCY_BOUNDARIES:
+            raise ValueError("Accepted-Epic dependencies have an unsupported shape")
+    release_stages = record.get("releaseStages")
+    if not isinstance(release_stages, list) or release_stages != parse_release_stages(",".join(release_stages)):
+        raise ValueError("Accepted-Epic release stages are invalid")
+    consequence_triggers = record.get("consequenceTriggers")
+    if not isinstance(consequence_triggers, list) or consequence_triggers != parse_consequence_triggers(",".join(consequence_triggers) if consequence_triggers else "none"):
+        raise ValueError("Accepted-Epic consequence triggers are invalid")
+    return record
+
+
 def validate_epic_dependency_graph(epics, target_ids):
     target = set(target_ids)
     for epic_id in target_ids:
@@ -973,42 +1368,50 @@ def build_epic_launch_set(source_path, target_ids, priority="p1"):
     source_path = Path(source_path).resolve()
     source_bytes = source_path.read_bytes()
     source_text = source_bytes.decode("utf-8")
-    declared_target = implementation_target_ids(source_text)
-    if target_ids and list(target_ids) != declared_target:
-        raise ValueError("Requested target must exactly match the PRD Implementation target in canonical order")
-    target_ids = sorted(declared_target)
     sections = epic_source_sections(source_text)
     parsed = {}
-    for epic_id, section in sections.items():
-        status = epic_metadata(section["text"], "Epic status", "")
-        dependencies = parse_dependency_list(epic_metadata(section["text"], "Depends on", "None"))
-        consequence_raw = epic_metadata(section["text"], "High-consequence triggers", None)
-        if consequence_raw is None and epic_id in target_ids:
-            raise ValueError(f"{epic_id} must declare `High-consequence triggers: none` or canonical trigger IDs")
-        parsed[epic_id] = {
-            "title": section["title"],
-            "dependencies": dependencies,
-            "releaseStages": parse_release_stages(epic_metadata(section["text"], "Release stages", "merge")),
-            "consequenceTriggers": parse_consequence_triggers(consequence_raw),
-            "sourceStatus": status,
+    if sections:
+        declared_target = implementation_target_ids(source_text)
+        if target_ids and list(target_ids) != declared_target:
+            raise ValueError("Requested target must exactly match the PRD Implementation target in canonical order")
+        target_ids = sorted(declared_target)
+        for epic_id, section in sections.items():
+            status = epic_metadata(section["text"], "Epic status", "")
+            dependencies = parse_dependency_list(epic_metadata(section["text"], "Depends on", "None"))
+            consequence_raw = epic_metadata(section["text"], "High-consequence triggers", None)
+            if consequence_raw is None and epic_id in target_ids:
+                raise ValueError(f"{epic_id} must declare `High-consequence triggers: none` or canonical trigger IDs")
+            parsed[epic_id] = {
+                "title": section["title"],
+                "dependencies": dependencies,
+                "releaseStages": parse_release_stages(epic_metadata(section["text"], "Release stages", "merge")),
+                "consequenceTriggers": parse_consequence_triggers(consequence_raw),
+                "sourceStatus": status,
+            }
+        missing = [epic_id for epic_id in target_ids if epic_id not in parsed]
+        if missing:
+            raise ValueError("Implementation target is missing Epic sections: " + ", ".join(missing))
+        for epic_id in target_ids:
+            section_text = sections[epic_id]["text"]
+            epic = parsed[epic_id]
+            if epic["sourceStatus"].lower() != "accepted":
+                raise ValueError(f"{epic_id} must be Accepted before launch")
+            for field in ("Build ready", "Ships independently", "Rolls back independently"):
+                if (epic_metadata(section_text, field, "") or "").lower() != "yes":
+                    raise ValueError(f"{epic_id} must declare `{field}: yes`")
+    else:
+        record = load_accepted_epic_record(source_path, source_bytes)
+        declared_target = [record["epicId"]]
+        if target_ids and list(target_ids) != declared_target:
+            raise ValueError("Requested target must exactly match the accepted product document")
+        target_ids = declared_target
+        parsed[record["epicId"]] = {
+            "title": record["title"],
+            "dependencies": record["dependencies"],
+            "releaseStages": record["releaseStages"],
+            "consequenceTriggers": record["consequenceTriggers"],
+            "sourceStatus": "Accepted",
         }
-    missing = [epic_id for epic_id in target_ids if epic_id not in parsed]
-    if missing:
-        raise ValueError("Implementation target is missing Epic sections: " + ", ".join(missing))
-    for epic_id in target_ids:
-        section_text = sections[epic_id]["text"]
-        epic = parsed[epic_id]
-        if epic["sourceStatus"].lower() != "accepted":
-            raise ValueError(f"{epic_id} must be Accepted before launch")
-        required = {
-            "Build ready": "yes",
-            "Ships independently": "yes",
-            "Rolls back independently": "yes",
-        }
-        for field, expected in required.items():
-            actual = (epic_metadata(section_text, field, "") or "").lower()
-            if actual != expected:
-                raise ValueError(f"{epic_id} must declare `{field}: {expected}`")
     validate_epic_dependency_graph(parsed, target_ids)
 
     source = {"path": str(source_path), "sha256": sha256_bytes(source_bytes)}
@@ -1175,8 +1578,15 @@ def ready_launch_epics(launch, projections):
     return ready
 
 
+def launch_path_reference(path, repo):
+    path = Path(path).resolve()
+    try:
+        return path.relative_to(Path(repo).resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def epic_task_packet(launch_path, launch, epic_id, repo):
-    section = epic_source_sections(launch_source_text(launch))[epic_id]["text"]
     epic = launch["epics"][epic_id]
     dependency_outputs = []
     projections = launch_projections(repo, launch)
@@ -1188,17 +1598,16 @@ def epic_task_packet(launch_path, launch, epic_id, repo):
                 "boundary": dependency["boundary"],
                 "exactRevision": projection.get("exactRevision"),
             })
-    source_path = Path(launch["source"]["snapshotPath"])
-    try:
-        source_reference = source_path.relative_to(Path(repo).resolve()).as_posix()
-    except ValueError:
-        source_reference = source_path.name
-    try:
-        launch_reference = Path(launch_path).resolve().relative_to(Path(repo).resolve()).as_posix()
-    except ValueError:
-        launch_reference = Path(launch_path).name
+    source_reference = launch_path_reference(launch["source"]["snapshotPath"], repo)
+    launch_reference = launch_path_reference(launch_path, repo)
+    task_key = launch_task_key(launch, epic_id)
+    bootstrap_argv = [
+        "python3", str(Path(__file__).resolve()), "epic-tasks", "bootstrap",
+        "-l", launch_reference, "-e", epic_id, "-t", task_key,
+        "--json",
+    ]
     packet = {
-        "schemaVersion": "gauntlet.epic-task.v1",
+        "schemaVersion": "gauntlet.epic-task.v2",
         "mode": "single-epic-non-recursive",
         "epicId": epic_id,
         "epicTitle": epic["title"],
@@ -1206,8 +1615,12 @@ def epic_task_packet(launch_path, launch, epic_id, repo):
         "sourceSha256": launch["source"]["sha256"],
         "coverageSha256": launch["coverageSha256"],
         "launchSet": launch_reference,
-        "taskKey": launch_task_key(launch, epic_id),
+        "taskKey": task_key,
         "dependencyOutputs": dependency_outputs,
+        "bootstrap": {
+            "instruction": "Run argv once in task cwd before run creation; use epicSection; stop on failure.",
+            "argv": bootstrap_argv,
+        },
     }
     opening = render_lifecycle_copy("epic_start", {
         "epic_id": epic_id,
@@ -1220,12 +1633,56 @@ def epic_task_packet(launch_path, launch, epic_id, repo):
         "<gauntlet_epic_task>",
         canonical_json(packet),
         "</gauntlet_epic_task>",
-        "",
-        section.rstrip(),
     ])
     if has_secret(message):
         raise ValueError(f"Epic task packet for {epic_id} contains secret-like content")
     return message
+
+
+def resolve_epic_bootstrap(launch_path, epic_id, task_key, source_sha256=None, coverage_sha256=None):
+    launch_path, launch = load_launch_set(launch_path)
+    if coverage_sha256 is not None and coverage_sha256 != launch["coverageSha256"]:
+        raise ValueError("Epic bootstrap coverage digest does not match the launch set")
+    if source_sha256 is not None and source_sha256 != launch["source"]["sha256"]:
+        raise ValueError("Epic bootstrap source digest does not match the launch set")
+    if epic_id not in launch["epics"] or task_key != launch_task_key(launch, epic_id):
+        raise ValueError("Epic bootstrap task key does not match the launch set")
+
+    source_text = launch_source_text(launch)
+    snapshot_path = Path(launch["source"]["snapshotPath"]).resolve()
+    sections = epic_source_sections(source_text)
+    section = sections[epic_id]["text"] if sections else source_text.rstrip() + "\n"
+    if has_secret(section):
+        raise ValueError(f"Epic bootstrap for {epic_id} contains secret-like content")
+    return {
+        "schemaVersion": "gauntlet.epic-bootstrap.v1",
+        "status": "pass",
+        "launchSet": str(launch_path),
+        "epicId": epic_id,
+        "taskKey": task_key,
+        "sourceSnapshot": str(snapshot_path),
+        "sourceSha256": launch["source"]["sha256"],
+        "coverageSha256": launch["coverageSha256"],
+        "epicSectionSha256": sha256_bytes(section.encode("utf-8")),
+        "epicSection": section,
+        "findings": [],
+    }
+
+
+def command_epic_tasks_bootstrap(args):
+    try:
+        payload = resolve_epic_bootstrap(
+            args.launch_set, args.epic, args.task_key,
+            args.source_sha256, args.coverage_sha256,
+        )
+    except (OSError, ValueError, KeyError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        payload = {
+            "schemaVersion": "gauntlet.epic-bootstrap.v1",
+            "status": "fail",
+            "findings": [{"code": "epic_bootstrap_failed", "severity": "fail", "message": str(exc)}],
+        }
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
 
 
 def launch_state(launch, projections):
@@ -1546,6 +2003,20 @@ def pending_gate_text(projection):
     return ", ".join(labels)
 
 
+def gap_review_text(projection):
+    review = projection.get("gapReview") or {}
+    dispositions = review.get("dispositions") or {}
+    parts = []
+    for label in ("ask-user", "deferred", "omitted"):
+        values = dispositions.get(label) or []
+        if values:
+            parts.append(f"{label}: {', '.join(values)}")
+    candidate_ids = [item.get("id") for item in review.get("candidates", []) if item.get("id")]
+    if candidate_ids:
+        parts.append("guidance gaps: " + ", ".join(candidate_ids))
+    return "; ".join(parts) if parts else "none"
+
+
 def maybe_finish_events(launch, projections):
     events = []
     for epic_id in launch["targetEpicIds"]:
@@ -1565,6 +2036,7 @@ def maybe_finish_events(launch, projections):
                     "exact_revision": projection.get("exactRevision") or "an unavailable revision",
                     "verification_summary": projection.get("verificationSummary") or "final Epic verification passed",
                     "pending_release_gates": pending_gate_text(projection),
+                    "gap_summary": gap_review_text(projection),
                     "remaining_count": remaining,
                 })})
     finished = all(epic["status"] in {"implementation-complete", "stopped"} for epic in launch["epics"].values())
@@ -1574,6 +2046,7 @@ def maybe_finish_events(launch, projections):
         implemented = sum(1 for epic in launch["epics"].values() if epic["status"] == "implementation-complete")
         release_states = []
         pending = []
+        gaps = []
         for epic_id, projection in projections.items():
             if not projection or projection.get("available") is not True:
                 continue
@@ -1584,6 +2057,9 @@ def maybe_finish_events(launch, projections):
             )
             if projection.get("pendingGates"):
                 pending.append(f"{epic_id}: {pending_gate_text(projection)}")
+            summary = gap_review_text(projection)
+            if summary != "none":
+                gaps.append(f"{epic_id}: {summary}")
         if stopped:
             copy = (
                 f"Implementation has reached its accepted stopping point for all {len(launch['targetEpicIds'])} targeted Epics. "
@@ -1595,6 +2071,7 @@ def maybe_finish_events(launch, projections):
                 "implemented_count": implemented,
                 "exact_release_state": "; ".join(release_states) or "unavailable",
                 "pending_gates": ("Pending gates: " + "; ".join(pending) + ".") if pending else "No applicable gates remain.",
+                "gap_summary": "; ".join(gaps) if gaps else "none",
             })
         events.append({"event": "aggregate_finish", "copy": copy})
     return events
@@ -2334,7 +2811,10 @@ def archive_summary_from_run(repo, run_path):
         f"Final Epic verification revision: {completion.get('exactRevision') or 'unavailable'}.",
     ]
     pending = completion.get("pendingGates") or []
-    bullets.append("Pending gates: " + (", ".join(pending) if pending else "none") + ".")
+    bullets.append(
+        "Pending gates: " + (", ".join(pending) if pending else "none")
+        + "; deferred, omitted, or guidance gaps: " + gap_review_text(completion) + "."
+    )
     return {"source": "completion-projection", "run": Path(run_path).resolve().name, "bullets": bullets}, []
 
 
@@ -2653,7 +3133,8 @@ def validate_run_merge_handoff(data):
 
     completion = data.get("completion")
     completion_fields = {"implemented", "merged", "deployed", "productionProved", "complete", "epicId", "exactRevision", "exactState", "pendingGates", "sourceSha256", "verificationSummary"}
-    if not isinstance(completion, dict) or set(completion) != completion_fields:
+    supported_completion_fields = (completion_fields, completion_fields | {"gapReview"})
+    if not isinstance(completion, dict) or set(completion) not in supported_completion_fields:
         findings.append(handoff_finding("invalid_completion_projection", "completion has an unsupported shape."))
     else:
         for field in ["implemented", "merged", "deployed", "productionProved", "complete"]:
@@ -2685,6 +3166,9 @@ def validate_run_merge_handoff(data):
         if completion.get("exactState") != expected_state:
             findings.append(handoff_finding("contradictory_completion_projection", f"completion.exactState must be {expected_state} for the declared stage facts."))
         validate_string_list(findings, completion.get("pendingGates"), "invalid_completion_projection", "completion.pendingGates")
+        gap_review = completion.get("gapReview")
+        if gap_review is not None and (not isinstance(gap_review, dict) or gap_review.get("schemaVersion") != "gauntlet.epic-gap-review-status.v1"):
+            findings.append(handoff_finding("invalid_completion_projection", "completion.gapReview must be a controller gap-review projection."))
 
     deferrals = data.get("deferrals")
     if not isinstance(deferrals, dict) or set(deferrals) != {"cannotVerify", "nonGoals"}:
@@ -5664,6 +6148,15 @@ def build_parser():
     epic_plan.add_argument("--launch-set", type=Path, required=True)
     epic_plan.add_argument("--json", action="store_true")
     epic_plan.set_defaults(func=command_epic_tasks_plan)
+    epic_bootstrap = epic_task_subcommands.add_parser("bootstrap", help="Verify and resolve one complete accepted Epic before run creation.")
+    epic_bootstrap.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_bootstrap.add_argument("-l", "--launch-set", type=Path, required=True)
+    epic_bootstrap.add_argument("-e", "--epic", required=True)
+    epic_bootstrap.add_argument("-t", "--task-key", required=True)
+    epic_bootstrap.add_argument("-s", "--source-sha256")
+    epic_bootstrap.add_argument("-c", "--coverage-sha256")
+    epic_bootstrap.add_argument("--json", action="store_true")
+    epic_bootstrap.set_defaults(func=command_epic_tasks_bootstrap)
     epic_record_task = epic_task_subcommands.add_parser("record-task", help="Persist a proven native task ID for an Epic.")
     epic_record_task.add_argument("--git-root", type=Path, default=Path.cwd())
     epic_record_task.add_argument("--launch-set", type=Path, required=True)
@@ -5772,6 +6265,32 @@ def build_parser():
     docs_epic_create.add_argument("--prd", default=None, help="Append the new Epic to an existing PRD under local-docs/epics.")
     docs_epic_create.add_argument("--json", action="store_true")
     docs_epic_create.set_defaults(func=command_docs_epic_create)
+    docs_epic_accept = docs_epic_subcommands.add_parser("accept", help="Bind the exact promoted document version for implementation without editing its product content.")
+    docs_epic_accept.add_argument("--project-root", type=Path, default=Path.cwd())
+    docs_epic_accept.add_argument("--epic", required=True)
+    docs_epic_accept.add_argument("--prd", required=True, help="Promoted PRD path below local-docs/epics.")
+    docs_epic_accept.add_argument("--depends-on", default="None")
+    docs_epic_accept.add_argument("--release-stages", default="merge")
+    docs_epic_accept.add_argument("--consequence-triggers", default="none")
+    docs_epic_accept.add_argument("--dry-run", action="store_true")
+    docs_epic_accept.add_argument("--json", action="store_true")
+    docs_epic_accept.set_defaults(func=command_docs_epic_accept)
+    docs_draft = docs_subcommands.add_parser("draft", help="Create and explicitly promote user-owned product drafts.")
+    docs_draft_subcommands = docs_draft.add_subparsers(dest="docs_draft_command", required=True)
+    docs_draft_create = docs_draft_subcommands.add_parser("create", help="Create one guided, unanswered product draft.")
+    docs_draft_create.add_argument("--project-root", type=Path, default=Path.cwd())
+    docs_draft_create.add_argument("--template", choices=["founding-hypothesis", "peter-yang"], required=True)
+    docs_draft_create.add_argument("--dry-run", action="store_true")
+    docs_draft_create.add_argument("--json", action="store_true")
+    docs_draft_create.set_defaults(func=command_docs_draft_create)
+    docs_draft_promote = docs_draft_subcommands.add_parser("promote", help="Allocate an Epic and atomically move an existing draft into its canonical path.")
+    docs_draft_promote.add_argument("--project-root", type=Path, default=Path.cwd())
+    docs_draft_promote.add_argument("--draft", required=True, help="Draft filename or path below local-docs/drafts.")
+    docs_draft_promote.add_argument("--title", required=True)
+    docs_draft_promote.add_argument("--number", type=int, default=None)
+    docs_draft_promote.add_argument("--dry-run", action="store_true")
+    docs_draft_promote.add_argument("--json", action="store_true")
+    docs_draft_promote.set_defaults(func=command_docs_draft_promote)
 
     followup = subcommands.add_parser("followup", help="Follow-up helpers.")
     followup_subcommands = followup.add_subparsers(dest="followup_command", required=True)

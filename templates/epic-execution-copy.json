@@ -14,19 +14,19 @@
     },
     "epic_start": {
       "required": ["epic_id", "epic_title", "dependency_note"],
-      "template": "Great—we’re underway on {epic_id}: {epic_title}. I’ll carry this Epic through its accepted outcome, then verify the integrated revision against the canonical acceptance before I call the implementation complete. {dependency_note}"
+      "template": "- Started: {epic_id} — {epic_title}.\n- Practical effect: the task will load the accepted artifact once and verify the integrated revision before completion. {dependency_note}"
     },
     "material_blocker": {
       "required": ["epic_id", "decision", "recommendation", "reason", "impact", "authority_not_granted", "other_epics_continuing", "question"],
       "template": "One decision needs your call before {epic_id} can continue: {decision}. I recommend {recommendation} because {reason}. Choosing it changes {impact}; it does not authorize {authority_not_granted}. The good news: {other_epics_continuing} other Epics are still moving. {question}"
     },
     "epic_finish": {
-      "required": ["epic_id", "epic_title", "exact_revision", "verification_summary", "pending_release_gates", "remaining_count"],
-      "template": "Nice—implementation is complete for {epic_id}: {epic_title}. Final Epic verification passed against the canonical acceptance on {exact_revision}. Evidence: {verification_summary}. This does not yet prove {pending_release_gates}. {remaining_count} Epics remain."
+      "required": ["epic_id", "epic_title", "exact_revision", "verification_summary", "pending_release_gates", "gap_summary", "remaining_count"],
+      "template": "- Changed: {epic_id} — {epic_title} is implementation-complete; {remaining_count} Epics remain.\n- Proof: final Epic verification passed on {exact_revision}. {verification_summary}.\n- Deferred or omitted: {gap_summary}. Pending release gates: {pending_release_gates}."
     },
     "aggregate_finish": {
-      "required": ["implemented_count", "exact_release_state", "pending_gates"],
-      "template": "Great work—we’ve brought all {implemented_count} targeted Epics to implementation-complete, and each passed final Epic verification on its exact integrated revision. Release state: {exact_release_state}. {pending_gates} Everything is ready for your review."
+      "required": ["implemented_count", "exact_release_state", "pending_gates", "gap_summary"],
+      "template": "- Changed: {implemented_count} targeted Epics reached implementation-complete.\n- Proof: each passed final verification on its exact integrated revision; release state is {exact_release_state}.\n- Deferred or omitted: {gap_summary}. {pending_gates}"
     },
     "production_action_gate": {
       "required": ["exact_revision", "production_action", "canary_cap", "rollback_summary", "approval_question"],

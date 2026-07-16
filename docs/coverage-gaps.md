@@ -74,6 +74,8 @@ When `promotion-scanner` finds high-value repeated work, add or update a `GAP-##
 
 Do not use this file as a backlog for local automation candidates. If the repeated loop has a concrete repo fix, route it to the repo; if it exposes missing reusable agent guidance, record the narrowest coverage gap.
 
+<!-- GAP CANDIDATES -->
+
 ## GAP-001: Stale Installed Workflow Copies
 
 Status: covered

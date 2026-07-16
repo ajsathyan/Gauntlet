@@ -15,6 +15,8 @@ import unittest
 SCRIPT = Path(__file__).with_name("prd-run.py")
 LAUNCH_SCHEMA = "gauntlet.epic-launch.v1"
 VERIFICATION_SCHEMA = "gauntlet.verification-receipt.v1"
+GAP_REVIEW_SCHEMA = "gauntlet.epic-gap-review.v1"
+GAP_CANDIDATE_SCHEMA = "gauntlet.coverage-gap-candidate.v1"
 
 
 def object_hash(value: object) -> str:
@@ -333,6 +335,52 @@ class PrdRunTests(unittest.TestCase):
             "--verification-receipt", str(receipt), ok=ok,
         )
 
+    def gap_review(
+        self,
+        pass_number: int,
+        findings: list[dict],
+        *,
+        phase: str = "pre-build",
+        maturity: str = "early-internal",
+        ok: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        review = self.root / f"gap-review-{pass_number}-{phase}.json"
+        review.write_text(json.dumps({
+            "schemaVersion": GAP_REVIEW_SCHEMA,
+            "phase": phase,
+            "pass": pass_number,
+            "maturity": maturity,
+            "context": {
+                "source": ["source-lock.json"],
+                "plan": ["ticket-graph.json"],
+                "diff": ["git diff --stat"] if phase == "integrated" else [],
+                "proof": ["focused test receipt"] if phase == "integrated" else [],
+            },
+            "findings": findings,
+        }))
+        return self.command(
+            "record-gap-review", "--run", str(self.run), "--review", str(review), ok=ok,
+        )
+
+    @staticmethod
+    def gap_finding(
+        finding_id: str,
+        disposition: str,
+        affected_work: list[str],
+        *,
+        missed: str = "The accepted balance regression is not covered.",
+        effect: str = "A user can see the wrong balance.",
+        response: str = "Add the focused regression and correct the calculator.",
+    ) -> dict:
+        return {
+            "id": finding_id,
+            "missedBehavior": missed,
+            "practicalEffect": effect,
+            "smallestResponse": response,
+            "disposition": disposition,
+            "affectedWork": affected_work,
+        }
+
     def finish_consequence_implementation(self) -> None:
         self.finish_ticket("T1", "agent-a")
         self.finish_ticket("T2", "agent-b")
@@ -610,6 +658,126 @@ class PrdRunTests(unittest.TestCase):
                 self.graph.write_text(json.dumps(graph(review=review)))
                 result = self.command("compile", "--run", str(self.run), "--graph", str(self.graph), ok=False)
                 self.assertIn(message, result.stderr)
+
+    def test_epic_gap_review_enforces_three_by_three_and_terminal_dispositions(self) -> None:
+        self.compile_and_start()
+
+        too_many = [self.gap_finding(f"GAP{index}", "fixed", ["T1"]) for index in range(1, 5)]
+        result = self.gap_review(1, too_many, ok=False)
+        self.assertIn("at most 3 findings", result.stderr)
+
+        invalid = self.gap_finding("GAP1", "recommended", ["T1"])
+        result = self.gap_review(1, [invalid], ok=False)
+        self.assertIn("terminal disposition", result.stderr)
+
+        expanded = self.gap_finding("GAP1", "ask-user", ["NEW-SCOPE"])
+        result = self.gap_review(1, [expanded], ok=False)
+        self.assertIn("cannot alter accepted scope", result.stderr)
+
+        fixed = self.gap_finding("REGRESSION", "fixed", ["T1"])
+        omitted = self.gap_finding(
+            "HARDENING", "omitted", ["T2"],
+            missed="Generic production hardening could be added.",
+            effect="No practical effect for this early internal tool.",
+            response="Omit the generic hardening at the declared maturity.",
+        )
+        deferred = self.gap_finding("LATER", "deferred", ["T2"])
+        self.gap_review(1, [fixed, omitted, deferred])
+        self.gap_review(2, [])
+        self.gap_review(3, [])
+
+        status = json.loads(self.command("gap-review-status", "--run", str(self.run)).stdout)
+        self.assertEqual(["REGRESSION"], status["dispositions"]["fixed"])
+        self.assertEqual(["HARDENING"], status["dispositions"]["omitted"])
+        self.assertEqual(["LATER"], status["dispositions"]["deferred"])
+        self.assertNotIn("HARDENING", status["dispositions"]["fixed"])
+        self.assertNotIn("LATER", status["dispositions"]["fixed"])
+
+        result = self.gap_review(4, [], ok=False)
+        self.assertIn("at most 3 passes", result.stderr)
+
+    def test_gap_review_ask_user_blocks_only_affected_work_and_can_be_resolved(self) -> None:
+        value = graph()
+        value["tickets"][1]["dependencies"] = []
+        self.compile_and_start(value=value)
+
+        question = self.gap_finding("QUESTION", "ask-user", ["T1"])
+        self.gap_review(1, [question])
+        ready = json.loads(self.command("ready", "--run", str(self.run)).stdout)
+        self.assertEqual(["T2"], [item["ticket"] for item in ready])
+        result = self.command(
+            "claim", "--run", str(self.run), "--ticket", "T1", "--agent", "agent-a", "--attempt", "1",
+            ok=False,
+        )
+        self.assertIn("blocked by Epic gap review", result.stderr)
+
+        resolved = self.gap_finding(
+            "QUESTION", "fixed", ["T1"],
+            response="Use the user's answer without changing the accepted scope.",
+        )
+        self.gap_review(2, [resolved])
+        ready = json.loads(self.command("ready", "--run", str(self.run)).stdout)
+        self.assertEqual(["T1", "T2"], sorted(item["ticket"] for item in ready))
+        status = json.loads(self.command("gap-review-status", "--run", str(self.run)).stdout)
+        self.assertEqual([], status["blockedWork"])
+        self.assertEqual(["QUESTION"], status["dispositions"]["fixed"])
+
+    def test_integrated_gap_review_accepts_bounded_context_and_blocks_affected_acceptance(self) -> None:
+        self.compile_and_start()
+        self.finish_ticket("T1", "agent-a")
+        self.finish_ticket("T2", "agent-b")
+        self.transition("integrating")
+
+        question = self.gap_finding("INTEGRATED", "ask-user", ["T2"])
+        self.gap_review(1, [question], phase="integrated")
+        lock = json.loads((self.run / "source-lock.json").read_text())
+        final = self.verification_receipt("gap-final", oracle=lock["epics"]["E1"]["section_sha256"])
+        result = self.command(
+            "verify-epic", "--run", str(self.run), "--verification-receipt", str(final), ok=False,
+        )
+        self.assertIn("ask-user", result.stderr)
+
+        self.gap_review(2, [self.gap_finding("INTEGRATED", "fixed", ["T2"])], phase="integrated")
+        self.command("verify-epic", "--run", str(self.run), "--verification-receipt", str(final))
+
+    def test_reusable_gap_candidate_is_upserted_and_projected_without_a_model_handoff(self) -> None:
+        self.compile_and_start()
+        coverage = self.root / "coverage-gaps.md"
+        coverage.write_text("# Coverage Gaps\n\n<!-- GAP CANDIDATES -->\n", encoding="utf-8")
+        candidate = self.root / "gap-candidate.json"
+        value = {
+            "schemaVersion": GAP_CANDIDATE_SCHEMA,
+            "id": "auto",
+            "title": "Missing private-dashboard distinction guidance",
+            "surface": "product shaping",
+            "seenIn": ["RUN1"],
+            "gap": "No reusable guidance tells shaping agents to preserve existing distinguishing signals.",
+            "why": "An inferred boundary can erase the only useful distinction in an internal tool.",
+            "suggestedDestination": "reference",
+            "needsHuman": "Decide whether repeated evidence warrants reusable guidance.",
+        }
+        candidate.write_text(json.dumps(value), encoding="utf-8")
+        added = json.loads(self.command(
+            "record-gap-candidate", "--run", str(self.run),
+            "--candidate", str(candidate), "--coverage-gaps", str(coverage),
+        ).stdout)
+        self.assertEqual(added["id"], "GAP-001")
+        self.assertEqual(added["action"], "added")
+        self.assertEqual(coverage.read_text().count("## GAP-001:"), 1)
+
+        value["why"] = "The same failure can silently lengthen or distort implementation."
+        candidate.write_text(json.dumps(value), encoding="utf-8")
+        updated = json.loads(self.command(
+            "record-gap-candidate", "--run", str(self.run),
+            "--candidate", str(candidate), "--coverage-gaps", str(coverage),
+        ).stdout)
+        self.assertEqual(updated["id"], "GAP-001")
+        self.assertEqual(updated["action"], "updated")
+        self.assertEqual(coverage.read_text().count("## GAP-001:"), 1)
+        status = json.loads(self.command("gap-review-status", "--run", str(self.run)).stdout)
+        self.assertEqual([item["id"] for item in status["candidates"]], ["GAP-001"])
+        completion = json.loads(self.command("completion", "--run", str(self.run)).stdout)
+        self.assertEqual(completion["gapReview"]["candidates"][0]["id"], "GAP-001")
 
     def test_final_verification_rejects_mismatched_and_stale_consequence_reviews(self) -> None:
         self.restart_with_consequence("credentials-auth-permissions")

@@ -1,55 +1,33 @@
 ---
 name: adversarial-reviewer
-description: Use when completed code needs adversarial review for assumptions, edge cases, trust boundaries, resource handling, rollback, or regressions.
+description: Use when an accepted Epic plan or integrated revision needs a bounded gap review for concrete misses, regressions, or failure paths.
 ---
 
 # Adversarial Reviewer
 
-Act as the break-it-before-users-do reviewer. Focus on concrete risk, not aesthetics.
-
-## Input Packet
-
-- Spec or Gauntlet Ticket
-- Review depth and launch posture
-- Changed surfaces and trust boundaries
-- Excluded areas
-- Known proof
-- Existing run log or coverage gap candidates, if any
-
-For broad Release work, independent risk lenses such as permissions, parsing, concurrency, and rollback may run as parallel subagents. Merge duplicate findings by shared cause or fix.
+Find obvious gaps in the accepted Epic without upgrading the product's scope or maturity.
 
 ## Output Contract
 
-If a field is outside accepted scope, write `Not relevant because...` instead of stretching the review. Optional example: read `examples/adversarial-report.md` only when output shape is ambiguous.
+Return no more than three findings. Each finding contains:
 
-- Verdict: `Approved`, `Needs fixes`, or `Cannot verify`
-- Evidence reviewed
-- External-practice ledger when triggered: source and link, issuer, version or publication date, access date, mandatory requirement versus optional practice, affected surface, applicability, concrete risk, migration cost, expected benefit, and confidence or evidence limit
-- Findings by P0/P1/P2/P3
-- For each finding: location, broken assumption, repro/attack path, Impact, Recommended fix, Test idea
-- Cannot verify: risk, missing evidence, next proof
-- Residual risk
-- Agent next: one concrete follow-up
-- Coverage gap candidate: only when reusable guidance is missing
+- missed behavior, regression, or failure path;
+- practical effect;
+- smallest proportionate response;
+- affected accepted work;
+- disposition: `fixed`, `ask-user`, `deferred`, or `omitted`.
 
-## Current Standards And Practice
+Return `Cannot verify` when the bounded source, plan, diff, or proof cannot establish a claim. Optional example: read `examples/adversarial-report.md` only when the output shape is ambiguous.
 
-Run an external-practice pass for Deep, consequential, hardened, audited, production-bound, or explicit best/latest reviews. For an ordinary Patch, run it only when the changed surface depends on an evolving standard, platform, security boundary, or public contract. Otherwise mark the ledger `Not relevant because...`.
+## Review
 
-Search for current applicable standards, specifications, and official platform guidance. For state-of-the-art practices, search primary research and official technical material. Use secondary sources only to locate or contextualize primary sources; do not use generic blogs or popularity as evidence that a practice is current or appropriate.
+- Review the accepted Epic and compiled plan before build, then the exact integrated revision and proof. Use a third pass only when review-driven fixes materially change the surface; never run a fourth.
+- Treat existing behavior and accepted scope as the boundary. A finding may expose a miss inside that boundary; it cannot add a plausible product requirement.
+- Use `ask-user` when the response changes product behavior, scope, authority, cost, or maturity. It blocks only affected work.
+- Use `deferred` for a real later-Epic or unavailable-proof item. Use `omitted` for irrelevant, speculative, or disproportionate advice. Neither is a fix.
+- Do not run external-practice, compliance, enterprise-hardening, or state-of-the-art research unless the user requests it or an accepted external constraint requires it.
+- Consequence-specific security, recovery, or black-box review remains separate and runs only for an explicitly locked trigger.
 
-Verify each relied-on source's issuer, version or publication/update date, access date, and whether a newer or superseding source exists. Separate binding requirements under the accepted contract or regime from optional established practice and experimental frontier practice. Map every candidate to a concrete changed surface and risk, then assess applicability, migration or adoption cost, expected benefit, confidence, and evidence limits. Mark inapplicable items explicitly instead of recommending them by default. Return `Cannot verify` when source freshness, authority, or applicability cannot be established.
+## Completion
 
-## Check
-
-- Invalid input, boundary values, and malformed state
-- Auth, permissions, privacy, and trust boundaries
-- Parsing, serialization, injection, and unsafe sinks
-- Race conditions, repeated actions, and resource exhaustion
-- Error paths, rollback, and data integrity
-- Production Quality Bar: threat model, redaction, trust boundaries, destructive actions, retries, and recovery, or `Not relevant because...`
-- Regressions against the spec and existing behavior
-- Proof sensitivity: plausible wrong implementations, weakened assertions, tailored fixtures, grader bypasses, test-only branches, and semantic behavior reduced to phrase or field presence
-- Required non-effects and negative controls that distinguish the intended fix from over-broad behavior
-
-Do not provide exploit detail beyond what is needed to reproduce and fix.
+Complete when every finding has a terminal disposition and the remaining `Cannot verify` limit is explicit.
