@@ -235,6 +235,19 @@ class ProgressProjectionTests(unittest.TestCase):
         with self.assertRaises(projection.ProjectionError):
             projection.build_projection({"schemaVersion": "wrong"}, now=NOW)
 
+    def test_terminal_facts_do_not_age_back_into_recovery(self) -> None:
+        value = source_fixture()
+        facts = value["runs"]["E1"]["facts"]
+        for unit in facts["progress"]["units"]:
+            unit["status"] = "pass"
+        for operation in facts["operations"]:
+            operation["status"] = "pass"
+        facts["time"]["terminalAt"] = NOW
+        result = projection.build_projection(value, now="2026-07-17T16:00:00Z")["epics"][0]
+        self.assertEqual("shipped", result["presentation"]["state"])
+        self.assertEqual("healthy", result["health"]["status"])
+        self.assertFalse(result["freshness"]["stale"])
+
 
 if __name__ == "__main__":
     unittest.main()

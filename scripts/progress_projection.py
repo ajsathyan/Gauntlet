@@ -422,9 +422,14 @@ def epic_projection(
         raise ProjectionError(f"Epic {epic_id} has invalid telemetry")
     units = current_units(facts)
     phases = phase_projection(units)
-    freshness = source_freshness(facts, telemetry, current, stale_after)
-    health = health_projection(launch_epic, units, freshness["stale"])
     time_facts = time_projection(facts, now, current)
+    freshness = source_freshness(facts, telemetry, current, stale_after)
+    if time_facts["terminalAt"]:
+        # A terminal run no longer produces active-work heartbeats. Its final
+        # controller facts remain authoritative instead of aging into recovery.
+        freshness["stale"] = False
+        freshness["label"] = "Final"
+    health = health_projection(launch_epic, units, freshness["stale"])
     state = presentation_state(health, phases, units, time_facts["terminalAt"])
     now_copy, next_copy = representative_copy(state, phases)
     usage, pricing = usage_projection(telemetry)
