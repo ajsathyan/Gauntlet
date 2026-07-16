@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now starts product work from guided Founding Hypothesis or Peter Yang drafts, requires explicit promotion and acceptance without inferred product boundaries, loads accepted Epics once through compact task envelopes, and uses bounded gap review with deterministic dispositions and reusable-gap capture. Always-loaded and invoked model guidance is 57.8% smaller across the measured surfaces while legacy PRDs and the existing Epic dashboard flow remain supported.
+
 - Gauntlet's Codex installer now defaults to no built-in personality, low response verbosity, concise reasoning summaries, visible context-window usage, and installed and enabled Browser and Computer Use plugins while preserving explicit conflict choices and unrelated configuration.
 
 - Gauntlet's Codex installer now configures `agents.max_threads = 24` through the existing conflict-aware preference flow while preserving unrelated configuration and idempotent reinstalls.

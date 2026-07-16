@@ -51,7 +51,9 @@ def trace_tokens(path):
 
 def build_report(root, fixtures_path, traces):
     fixtures = json.loads(fixtures_path.read_text(encoding="utf-8"))
-    surfaces = [path_measurement(root, relative) for relative in fixtures["baselineSurfacePaths"]]
+    surfaces = [path_measurement(root, relative) for relative in fixtures["modelVisibleSurfacePaths"]]
+    artifacts = [path_measurement(root, relative) for relative in fixtures["artifactPaths"]]
+    controllers = [path_measurement(root, relative) for relative in fixtures["controllerPaths"]]
     representative = []
     for epic_id, epic_bytes in fixtures["representativeEpicBytes"].items():
         envelope_bytes = 850
@@ -62,10 +64,17 @@ def build_report(root, fixtures_path, traces):
             "candidateTaskBytes": envelope_bytes,
             "duplicateEstimatedTokens": token_range(epic_bytes),
         })
+    surface_bytes = sum(item["bytes"] for item in surfaces)
+    baseline_bytes = fixtures["baselineModelVisibleBytes"]
     return {
         "schemaVersion": "gauntlet.context-audit.v1",
         "surfaces": surfaces,
-        "surfaceBytes": sum(item["bytes"] for item in surfaces),
+        "artifactSurfaces": artifacts,
+        "controllerSurfaces": controllers,
+        "baselineModelVisibleBytes": baseline_bytes,
+        "modelVisibleBytes": surface_bytes,
+        "modelVisibleDeltaBytes": surface_bytes - baseline_bytes,
+        "modelVisibleReductionPercent": round((baseline_bytes - surface_bytes) * 100 / baseline_bytes, 1),
         "representativeLaunches": representative,
         "traceTokens": [
             {"path": str(path), **trace_tokens(path)} for path in traces
@@ -84,7 +93,10 @@ def main():
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
         return
-    print(f"Measured {len(report['surfaces'])} surfaces: {report['surfaceBytes']} bytes")
+    print(
+        f"Measured {len(report['surfaces'])} model-visible surfaces: {report['modelVisibleBytes']} bytes "
+        f"({report['modelVisibleReductionPercent']}% below baseline)"
+    )
     for item in report["representativeLaunches"]:
         estimate = item["duplicateEstimatedTokens"]
         print(f"{item['epicId']}: duplicate Epic {item['epicBytes']} bytes (~{estimate['low']}-{estimate['high']} tokens)")

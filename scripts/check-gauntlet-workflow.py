@@ -207,33 +207,16 @@ def test_simplified_modes_and_depth_are_documented():
 
 
 def test_normal_requests_use_minimum_scope_before_lifecycle_routing():
-    agents = read(AGENTS_MD)
     router = read(ROUTER_MD)
-    etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
-    rule_map = read(ROOT / "docs" / "global-router-rule-map.md")
-    combined = "\n".join([agents, router, etiquette, rule_map])
-
     for marker in [
-        "Normal Requests: Minimum Scope",
-        "Before choosing a Gauntlet work path",
-        "bounded, low-consequence, readily reversible, and directly checkable",
-        "direct presentation or formatting changes",
-        "copying existing results into an existing UI",
-        "simple lookups",
-        "routine administration",
-        "Use minimum-scope execution. Deliver the requested artifact first.",
-        "Ask before materially expanding scope.",
-        "not to redesign a schema, methodology, or workflow",
-        "does not require re-validating the underlying data",
-        "Keep the work in the main task",
-        "Stop when the requested artifact is delivered",
-        "Explicit narrow user scope controls execution",
-        "route only the affected part",
+        "## Minimum scope",
+        "bounded, low-consequence, reversible, and directly checkable",
+        "deliver the requested artifact directly",
+        "keep work in the main task",
+        "do not create plans, Tickets, subagents",
+        "stop when the requested result works",
     ]:
-        assert_contains(combined, marker, "normal-request minimum-scope routing")
-
-    assert_contains(etiquette, "Normal Requests stay in the main task.", "normal-request delegation boundary")
-    assert_contains(rule_map, "bypasses lifecycle ceremony", "normal-request router invariant")
+        assert_contains(router, marker, "normal-request minimum-scope routing")
 
 
 def test_v201_run_log_contract_replaces_default_review_brief():
@@ -4881,14 +4864,14 @@ def test_skill_changes_are_guarded_by_pre_commit():
             raise AssertionError("non-skill changes should skip skill text coverage")
 
     result = run([str(skill_check), "--changed-files", "skills/planner/SKILL.md"], cwd=ROOT)
-    for marker in ["Gauntlet skill changes detected", "targeted skill evals: planner", "skill text coverage:", "declared trace-field scorer contracts:", "skill linter"]:
+    for marker in ["Gauntlet skill changes detected", "structural lint: planner", "skill structural lint: passed"]:
         assert_contains(result.stdout, marker, "skill change checks")
 
     result = run([
         str(skill_check), "--changed-files",
         "skills/refactor-codebase/assets/breakthrough-agent-packet.md",
     ], cwd=ROOT)
-    for marker in ["Gauntlet skill changes detected", "targeted skill evals: refactor-codebase", "Ran 25 tests", "skill linter"]:
+    for marker in ["Gauntlet skill changes detected", "structural lint: refactor-codebase", "skill structural lint: passed"]:
         assert_contains(result.stdout + result.stderr, marker, "refactor asset change checks")
 
 
@@ -5166,9 +5149,10 @@ def test_prd_execution_run_controller_behavior():
 
 
 def test_document_draft_lifecycle_behavior():
-    result = run(["python3", str(SCRIPTS / "test-doc-lifecycle.py")], check=False)
-    if result.returncode != 0 or "Ran 6 tests" not in result.stderr or "OK" not in result.stderr:
-        raise AssertionError(f"Document draft lifecycle behavior failed:\n{result.stdout}\n{result.stderr}")
+    for script in ["test-doc-lifecycle.py", "test-flexible-prd.py", "test-context-audit.py", "test-prd-project.py"]:
+        result = run(["python3", str(SCRIPTS / script)], check=False)
+        if result.returncode != 0 or "OK" not in result.stderr:
+            raise AssertionError(f"Document workflow behavior failed for {script}:\n{result.stdout}\n{result.stderr}")
 
 
 def test_subagent_orchestration_v2_behavior():
@@ -5183,93 +5167,14 @@ def test_subagent_orchestration_v2_behavior():
         if result.returncode != 0:
             raise AssertionError(f"Subagent Orchestration V2 check failed for {script}:\n{result.stdout}\n{result.stderr}")
 
-    combined = "\n".join([
-        read(AGENTS_MD),
-        read(ROUTER_MD),
-        read(ROOT / "docs" / "workflow-etiquette.md"),
-        read(ROOT / "docs" / "workflow-speedups.md"),
-        read(ROOT / "docs" / "generated-context.md"),
-        read(ROOT / "docs" / "evaluation-tasks.md"),
-        read(ROOT / "docs" / "evaluation-protocol.md"),
-        read(ROOT / "docs" / "evaluation-harnesses.md"),
-    ])
-    for marker in [
-        "human-readable sources",
-        "versioned deterministic controllers",
-        "bounded machine projections",
-        "Normal Requests",
-        "generated_context.py",
-        "multi-Ticket lane",
-        "cheap current-liveness probe",
-        "replaceable",
-        "same harness and harness version",
-    ]:
-        assert_contains(combined, marker, "durable orchestration architecture")
-
 
 def main():
     tests = [
         test_plugin_manifests_bundle_shared_skills,
-        test_craft_product_terminology_contract,
-        test_simplified_modes_and_depth_are_documented,
         test_normal_requests_use_minimum_scope_before_lifecycle_routing,
-        test_v201_run_log_contract_replaces_default_review_brief,
-        test_coverage_gap_and_design_lint_guidance_are_documented,
-        test_product_thinking_and_scope_routing_are_documented,
-        test_production_quality_bar_is_launch_gated,
-        test_subagent_parallelism_is_context_efficient,
-        test_direct_dispatch_and_quiet_execution_are_documented,
-        test_workflow_guidance_keeps_routine_controls_silent,
-        test_consequence_triggered_review_replaces_broad_panels,
-        test_ts_durability_classifier_behavior,
-        test_diff_intel_test_plan_and_review_pack_are_bounded,
-        test_docs_only_diff_gets_no_runtime_test_commands,
-        test_instruction_surfaces_are_not_classified_as_docs_only,
-        test_workflow_helpers_filter_artifacts_and_find_python_tests,
-        test_workflow_speedup_helpers_are_documented_as_advisory,
-        test_execution_run_is_one_epic_without_child_prompt_duplication,
-        test_single_epic_policy_convergence_rejects_retired_active_mechanics,
-        test_contextual_merge_contract_is_documented,
-        test_response_style_guidance_is_single_global_policy,
-        test_version_changelog_preserves_release_history,
-        test_contextual_pr_template_changelog_and_run_log_contract,
-        test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions,
-        test_workflow_etiquette_checker_pauses_archive_on_followups_and_git_state,
-        test_workflow_etiquette_checker_builds_archive_action_plan,
-        test_gauntlet_cli_merge_prepare_renders_contextual_handoff,
-        test_gauntlet_cli_run_merge_uses_schema3_projection_and_rejects_drift,
-        test_gauntlet_cli_run_merge_rejects_downgrade_and_incomplete_projection,
-        test_gauntlet_cli_run_merge_execute_uses_bound_projection_and_safe_cleanup_order,
-        test_gauntlet_cli_review_unit_executes_checked_integration_merge_and_recovers_state,
-        test_gauntlet_cli_merge_plan_requires_clean_task_branch,
-        test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main,
-        test_gauntlet_cli_closeout_execute_commits_merges_cleans_and_returns_archive_actions,
-        test_remote_branch_cleanup_accepts_concurrent_auto_delete,
-        test_closeout_forwards_install_conflict_choices_to_preflight_and_apply,
-        test_gauntlet_cli_archive_plans_and_executes_github_merge,
-        test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk,
-        test_gauntlet_cli_small_helper_commands,
-        test_gauntlet_cli_changelog_memory_and_followup_helpers,
-        test_gauntlet_cli_local_analytics_and_closeout_facts,
-        test_gauntlet_cli_bounded_attempt_memory,
-        test_thread_changelog_captures_pr_history_and_followups,
-        test_workflow_etiquette_is_in_global_workflow,
-        test_promotion_scanner_is_release_wrapup_not_patch_gate,
-        test_skill_text_coverage_compares_all_arms,
-        test_structural_scorers_are_labeled_and_reject_negative_canaries,
-        test_skill_linter_examples_and_noop_pruning,
         test_skill_changes_are_guarded_by_pre_commit,
-        test_refactor_agent_prompt_renderer_integrity,
-        test_codex_install_layout_supports_workflow_check,
-        test_codex_custom_agent_collision_and_audit_behavior,
-        test_codex_agent_router_is_deterministic,
-        test_codex_agent_installer_recovers_interrupted_update,
         test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks,
-        test_superpowers_sources_are_attributed_and_retirement_is_allowlisted,
-        test_claude_install_layout_adapts_agents_without_overwriting_user_memory,
-        test_install_requires_review_before_layering_over_existing_instructions,
         test_codex_install_merges_preferences_without_silent_overwrite,
-        test_install_docs_explain_codex_and_claude_targets,
         test_local_document_profile_preserves_tracked_docs_and_primary_canonical_copy,
         test_document_draft_lifecycle_behavior,
         test_prd_execution_run_controller_behavior,

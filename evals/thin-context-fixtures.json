@@ -15,16 +15,23 @@
     "GAUNTLET-005": 44449,
     "AGORARUNPOD-014": 61897
   },
-  "baselineSurfacePaths": [
+  "modelVisibleSurfacePaths": [
     "router/AGENTS.md",
     "templates/local-docs/doc_org.md.tmpl",
     "skills/maintain-prd/SKILL.md",
     "skills/maintain-prd/references/prd-contract.md",
     "skills/implement-prd/SKILL.md",
     "skills/implement-prd/references/execution-contract.md",
-    "skills/adversarial-reviewer/SKILL.md",
-    "scripts/review-pack.py",
+    "skills/adversarial-reviewer/SKILL.md"
+  ],
+  "artifactPaths": [
+    "templates/local-docs/FOUNDING_HYPOTHESIS.md.tmpl",
+    "templates/local-docs/PETER_YANG_PRD.md.tmpl",
     "templates/local-docs/EPIC_PRD.md.tmpl",
     "templates/local-docs/EPIC_SECTION.md.tmpl"
-  ]
+  ],
+  "controllerPaths": [
+    "scripts/review-pack.py"
+  ],
+  "baselineModelVisibleBytes": 57479
 }

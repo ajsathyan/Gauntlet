@@ -2003,6 +2003,20 @@ def pending_gate_text(projection):
     return ", ".join(labels)
 
 
+def gap_review_text(projection):
+    review = projection.get("gapReview") or {}
+    dispositions = review.get("dispositions") or {}
+    parts = []
+    for label in ("ask-user", "deferred", "omitted"):
+        values = dispositions.get(label) or []
+        if values:
+            parts.append(f"{label}: {', '.join(values)}")
+    candidate_ids = [item.get("id") for item in review.get("candidates", []) if item.get("id")]
+    if candidate_ids:
+        parts.append("guidance gaps: " + ", ".join(candidate_ids))
+    return "; ".join(parts) if parts else "none"
+
+
 def maybe_finish_events(launch, projections):
     events = []
     for epic_id in launch["targetEpicIds"]:
@@ -2022,6 +2036,7 @@ def maybe_finish_events(launch, projections):
                     "exact_revision": projection.get("exactRevision") or "an unavailable revision",
                     "verification_summary": projection.get("verificationSummary") or "final Epic verification passed",
                     "pending_release_gates": pending_gate_text(projection),
+                    "gap_summary": gap_review_text(projection),
                     "remaining_count": remaining,
                 })})
     finished = all(epic["status"] in {"implementation-complete", "stopped"} for epic in launch["epics"].values())
@@ -2031,6 +2046,7 @@ def maybe_finish_events(launch, projections):
         implemented = sum(1 for epic in launch["epics"].values() if epic["status"] == "implementation-complete")
         release_states = []
         pending = []
+        gaps = []
         for epic_id, projection in projections.items():
             if not projection or projection.get("available") is not True:
                 continue
@@ -2041,6 +2057,9 @@ def maybe_finish_events(launch, projections):
             )
             if projection.get("pendingGates"):
                 pending.append(f"{epic_id}: {pending_gate_text(projection)}")
+            summary = gap_review_text(projection)
+            if summary != "none":
+                gaps.append(f"{epic_id}: {summary}")
         if stopped:
             copy = (
                 f"Implementation has reached its accepted stopping point for all {len(launch['targetEpicIds'])} targeted Epics. "
@@ -2052,6 +2071,7 @@ def maybe_finish_events(launch, projections):
                 "implemented_count": implemented,
                 "exact_release_state": "; ".join(release_states) or "unavailable",
                 "pending_gates": ("Pending gates: " + "; ".join(pending) + ".") if pending else "No applicable gates remain.",
+                "gap_summary": "; ".join(gaps) if gaps else "none",
             })
         events.append({"event": "aggregate_finish", "copy": copy})
     return events
@@ -2791,7 +2811,10 @@ def archive_summary_from_run(repo, run_path):
         f"Final Epic verification revision: {completion.get('exactRevision') or 'unavailable'}.",
     ]
     pending = completion.get("pendingGates") or []
-    bullets.append("Pending gates: " + (", ".join(pending) if pending else "none") + ".")
+    bullets.append(
+        "Pending gates: " + (", ".join(pending) if pending else "none")
+        + "; deferred, omitted, or guidance gaps: " + gap_review_text(completion) + "."
+    )
     return {"source": "completion-projection", "run": Path(run_path).resolve().name, "bullets": bullets}, []
 
 
@@ -3110,7 +3133,8 @@ def validate_run_merge_handoff(data):
 
     completion = data.get("completion")
     completion_fields = {"implemented", "merged", "deployed", "productionProved", "complete", "epicId", "exactRevision", "exactState", "pendingGates", "sourceSha256", "verificationSummary"}
-    if not isinstance(completion, dict) or set(completion) != completion_fields:
+    supported_completion_fields = (completion_fields, completion_fields | {"gapReview"})
+    if not isinstance(completion, dict) or set(completion) not in supported_completion_fields:
         findings.append(handoff_finding("invalid_completion_projection", "completion has an unsupported shape."))
     else:
         for field in ["implemented", "merged", "deployed", "productionProved", "complete"]:
@@ -3142,6 +3166,9 @@ def validate_run_merge_handoff(data):
         if completion.get("exactState") != expected_state:
             findings.append(handoff_finding("contradictory_completion_projection", f"completion.exactState must be {expected_state} for the declared stage facts."))
         validate_string_list(findings, completion.get("pendingGates"), "invalid_completion_projection", "completion.pendingGates")
+        gap_review = completion.get("gapReview")
+        if gap_review is not None and (not isinstance(gap_review, dict) or gap_review.get("schemaVersion") != "gauntlet.epic-gap-review-status.v1"):
+            findings.append(handoff_finding("invalid_completion_projection", "completion.gapReview must be a controller gap-review projection."))
 
     deferrals = data.get("deferrals")
     if not isinstance(deferrals, dict) or set(deferrals) != {"cannotVerify", "nonGoals"}:

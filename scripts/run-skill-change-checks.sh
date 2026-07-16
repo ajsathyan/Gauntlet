@@ -23,14 +23,16 @@ elif git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 
 changed_skill_names=()
-for file in "${changed_files[@]}"; do
-  case "$file" in
-    skills/*/*)
-      skill_name="${file#skills/}"
-      changed_skill_names+=("${skill_name%%/*}")
-      ;;
-  esac
-done
+if [ "${#changed_files[@]}" -gt 0 ]; then
+  for file in "${changed_files[@]}"; do
+    case "$file" in
+      skills/*/*)
+        skill_name="${file#skills/}"
+        changed_skill_names+=("${skill_name%%/*}")
+        ;;
+    esac
+  done
+fi
 
 if [ "${#changed_skill_names[@]}" -eq 0 ]; then
   echo "No Gauntlet skill changes detected; skipping skill checks."

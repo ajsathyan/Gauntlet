@@ -1,64 +1,33 @@
 ---
 name: adversarial-reviewer
-description: Use when an accepted Epic needs bounded pre-build or integrated review for concrete missed behavior, regressions, or failure paths; consequential specialist lenses apply only to explicit locked high-consequence triggers.
+description: Use when an accepted Epic plan or integrated revision needs a bounded gap review for concrete misses, regressions, or failure paths.
 ---
 
 # Adversarial Reviewer
 
-Run a bounded Epic gap review against accepted scope and declared maturity.
-
-## Input
-
-- Phase: `pre-build` or `integrated`
-- Declared maturity
-- Locked Epic source and accepted non-goals
-- Pre-build plan context or integrated diff context
-- Proof and `Cannot verify` limits
-- Locked high-consequence triggers, if any
-
-Use bounded source, plan, diff, and proof slices. In `pre-build`, compare the Epic with the plan. In `integrated`, compare accepted behavior with the diff and proof.
+Find obvious gaps in the accepted Epic without upgrading the product's scope or maturity.
 
 ## Output Contract
 
-Return at most three findings per pass. The controller permits three passes across the Epic; pass four fails.
+Return no more than three findings. Each finding contains:
 
-Each finding must identify:
+- missed behavior, regression, or failure path;
+- practical effect;
+- smallest proportionate response;
+- affected accepted work;
+- disposition: `fixed`, `ask-user`, `deferred`, or `omitted`.
 
-- ID
-- Concrete missed behavior, regression, or failure path
-- Practical effect at the declared maturity
-- Smallest response within accepted scope
-- Affected accepted work
-- One terminal disposition: `fixed`, `ask-user`, `deferred`, or `omitted`
+Return `Cannot verify` when the bounded source, plan, diff, or proof cannot establish a claim. Optional example: read `examples/adversarial-report.md` only when the output shape is ambiguous.
 
-Use the dispositions precisely:
+## Review
 
-- `fixed`: the concrete accepted gap was corrected and affected proof was rerun.
-- `ask-user`: a material decision is required; block only the affected work.
-- `deferred`: the gap is real but intentionally postponed within authority. This is not a fix.
-- `omitted`: the suggestion has no practical effect at the declared maturity or is outside accepted scope. This is not a fix.
+- Review the accepted Epic and compiled plan before build, then the exact integrated revision and proof. Use a third pass only when review-driven fixes materially change the surface; never run a fourth.
+- Treat existing behavior and accepted scope as the boundary. A finding may expose a miss inside that boundary; it cannot add a plausible product requirement.
+- Use `ask-user` when the response changes product behavior, scope, authority, cost, or maturity. It blocks only affected work.
+- Use `deferred` for a real later-Epic or unavailable-proof item. Use `omitted` for irrelevant, speculative, or disproportionate advice. Neither is a fix.
+- Do not run external-practice, compliance, enterprise-hardening, or state-of-the-art research unless the user requests it or an accepted external constraint requires it.
+- Consequence-specific security, recovery, or black-box review remains separate and runs only for an explicitly locked trigger.
 
-Ordinary review cannot add behavior, acceptance criteria, hardening tiers, or other scope. `omitted` fits generic production hardening with no practical effect for an early internal tool. `fixed` fits a concrete accepted regression corrected with the smallest change and focused proof.
+## Completion
 
-Complete the pass when each finding has the required fields and one terminal disposition. Return no findings when no concrete gap survives maturity and scope checks.
-
-## Consequential Specialist Review
-
-Run the fixed authority/security, failure/recovery, and black-box lenses only when the canonical Epic locks a supported high-consequence trigger. Do not infer triggers from a broad diff or review depth.
-
-External-practice or state-of-the-art research is not automatic. Run it only by explicit user request or when the consequential contract requires a current external standard. Use primary sources and map requirements to accepted surfaces, practical risk, cost, and evidence limits.
-
-For a triggered specialist lens, return a Verdict, Evidence reviewed, Cannot verify limits, concrete Impact, Recommended fix, Test idea, and one Agent next action. Apply the Production Quality Bar only when the locked trigger or launch contract requires it; cover the relevant threat model, redaction, trust boundaries, destructive actions, and recovery. Mark an inapplicable field `Not relevant because...`.
-
-Optional example: read `examples/adversarial-report.md` only for a triggered consequential specialist report, not for the ordinary gap-review schema.
-
-## Check
-
-- Invalid input, boundaries, and malformed state
-- Regressions against accepted behavior and required non-effects
-- Concrete error, retry, recovery, and data-integrity paths
-- Trust boundaries only where the accepted surface or locked trigger makes them relevant
-- Proof sensitivity: weakened assertions, tailored fixtures, test-only branches, and phrase-only evidence
-- Plausible wrong implementations and negative controls
-
-Do not provide exploit detail beyond what is needed to reproduce and fix the accepted gap.
+Complete when every finding has a terminal disposition and the remaining `Cannot verify` limit is explicit.

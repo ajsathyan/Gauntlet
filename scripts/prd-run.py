@@ -71,6 +71,7 @@ REQUIRED_REVIEW_LENSES = ("authority-security", "failure-recovery", "black-box")
 SAFEGUARD_KINDS = ("dry-run-no-mutation", "bounded-live", "rollback-readiness")
 GAP_REVIEW_SCHEMA = "gauntlet.epic-gap-review.v1"
 GAP_REVIEW_STATUS_SCHEMA = "gauntlet.epic-gap-review-status.v1"
+GAP_CANDIDATE_SCHEMA = "gauntlet.coverage-gap-candidate.v1"
 GAP_REVIEW_PHASES = ("pre-build", "integrated")
 GAP_REVIEW_DISPOSITIONS = ("fixed", "ask-user", "deferred", "omitted")
 MAX_GAP_REVIEW_FINDINGS = 3
@@ -1065,6 +1066,7 @@ def gap_review_status(manifest: dict[str, Any]) -> dict[str, Any]:
     })
     return {
         "blockedWork": blocked_work,
+        "candidates": manifest.get("gap_review", {}).get("candidates", []),
         "dispositions": dispositions,
         "maxFindingsPerPass": MAX_GAP_REVIEW_FINDINGS,
         "maxPasses": MAX_GAP_REVIEW_PASSES,
@@ -1296,6 +1298,7 @@ def completion_projection(manifest: dict[str, Any], *, observed_head: str | None
         "epicId": epic_ids[0] if len(epic_ids) == 1 else None,
         "exactRevision": exact_revision if implemented else None,
         "exactState": exact_state,
+        "gapReview": gap_review_status(manifest),
         "implemented": implemented,
         "merged": merged,
         "pendingGates": pending,
@@ -2037,7 +2040,7 @@ def cmd_init(args: argparse.Namespace) -> None:
             "pr_strategy": pr_strategy,
         },
         "release": {"applicability": {key: key in stages for key in RELEASE_APPLICABILITY}},
-        "gap_review": {"passes": []},
+        "gap_review": {"passes": [], "candidates": []},
         "run_id": args.run_id, "shared_context": {}, "lanes": {}, "review_units": {},
         "source": {"epic_ids": source_info["epic_ids"], "path": str(source), "sha256": source_hash},
         "state": "discussing", "tickets": {},
@@ -2168,7 +2171,7 @@ def cmd_compile(args: argparse.Namespace) -> None:
         for unit_id, unit in graph["review_units"].items()
     }
     manifest["cohorts"] = {key: {"result": None, **graph["cohorts"][key]} for key in sorted(graph["cohorts"])}
-    manifest["gap_review"] = {"passes": []}
+    manifest["gap_review"] = {"passes": [], "candidates": []}
     manifest["consequence_review"] = {"policy": graph["review"], "results": {}}
     manifest["release"]["safeguards"] = {}
     manifest["shared_context"] = {
@@ -2736,6 +2739,93 @@ def cmd_gap_review_status(args: argparse.Namespace) -> None:
     print(pretty_json(gap_review_status(manifest)), end="")
 
 
+def validate_gap_candidate(raw: Any) -> dict[str, Any]:
+    candidate = require_closed_object(
+        raw,
+        {"schemaVersion", "id", "title", "surface", "seenIn", "gap", "why", "suggestedDestination", "needsHuman"},
+        "coverage gap candidate",
+    )
+    if candidate["schemaVersion"] != GAP_CANDIDATE_SCHEMA:
+        raise RunError(f"coverage gap candidate.schemaVersion must be {GAP_CANDIDATE_SCHEMA}")
+    gap_id = require_string(candidate["id"], "coverage gap candidate.id").upper()
+    if gap_id != "AUTO" and not re.fullmatch(r"GAP-\d{3}", gap_id):
+        raise RunError("coverage gap candidate.id must be auto or GAP-###")
+    return {
+        "schemaVersion": GAP_CANDIDATE_SCHEMA,
+        "id": gap_id,
+        "title": require_string(candidate["title"], "coverage gap candidate.title"),
+        "surface": require_string(candidate["surface"], "coverage gap candidate.surface"),
+        "seenIn": string_list(candidate["seenIn"], "coverage gap candidate.seenIn", allow_empty=False),
+        "gap": require_string(candidate["gap"], "coverage gap candidate.gap"),
+        "why": require_string(candidate["why"], "coverage gap candidate.why"),
+        "suggestedDestination": require_string(candidate["suggestedDestination"], "coverage gap candidate.suggestedDestination"),
+        "needsHuman": require_string(candidate["needsHuman"], "coverage gap candidate.needsHuman"),
+    }
+
+
+def render_gap_candidate(candidate: dict[str, Any]) -> str:
+    seen = "\n".join(f"- {item}" for item in candidate["seenIn"])
+    return (
+        f"## {candidate['id']}: {candidate['title']}\n\n"
+        f"Status: pending\nSurface: {candidate['surface']}\nSeen in:\n{seen}\n\n"
+        f"Gap:\n{candidate['gap']}\n\nWhy it matters:\n{candidate['why']}\n\n"
+        f"Suggested destination:\n{candidate['suggestedDestination']}\n\n"
+        f"Needs human:\n{candidate['needsHuman']}\n"
+    )
+
+
+def upsert_gap_candidate(path: Path, candidate: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    path = path.resolve()
+    if not path.is_file() or path.is_symlink():
+        raise RunError(f"coverage gaps path must be an existing regular file: {path}")
+    text = path.read_text(encoding="utf-8")
+    headings = list(re.finditer(r"^## (GAP-\d{3}): (.+?)\s*$", text, re.MULTILINE))
+    title_match = next((match for match in headings if match.group(2).strip().casefold() == candidate["title"].casefold()), None)
+    if candidate["id"] == "AUTO":
+        if title_match:
+            candidate["id"] = title_match.group(1)
+        else:
+            numbers = [int(match.group(1).split("-", 1)[1]) for match in headings]
+            candidate["id"] = f"GAP-{(max(numbers) + 1 if numbers else 1):03d}"
+    existing = next((match for match in headings if match.group(1) == candidate["id"]), None)
+    block = render_gap_candidate(candidate)
+    if existing:
+        index = headings.index(existing)
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+        updated = text[:existing.start()] + block + "\n" + text[end:].lstrip("\n")
+        action = "updated"
+    else:
+        marker = "<!-- GAP CANDIDATES -->"
+        insertion = text.index(marker) if marker in text else len(text)
+        prefix = text[:insertion].rstrip() + "\n\n"
+        suffix = text[insertion:]
+        updated = prefix + block + "\n" + suffix
+        action = "added"
+    atomic_text(path, updated)
+    return candidate, action
+
+
+def cmd_record_gap_candidate(args: argparse.Namespace) -> None:
+    run = run_path(args.run)
+    manifest = load_manifest(run)
+    if manifest.get("graph_sha256") is None:
+        raise RunError("record-gap-candidate requires a compiled Epic")
+    candidate = validate_gap_candidate(read_json(Path(args.candidate)))
+    candidate, action = upsert_gap_candidate(Path(args.coverage_gaps), candidate)
+    record = {
+        **candidate,
+        "action": action,
+        "coverageGapsPath": str(Path(args.coverage_gaps).resolve()),
+    }
+    candidates = manifest.setdefault("gap_review", {"passes": [], "candidates": []}).setdefault("candidates", [])
+    candidates[:] = [item for item in candidates if item.get("id") != candidate["id"]]
+    candidates.append(record)
+    candidates.sort(key=lambda item: item["id"])
+    event(run, manifest, "coverage_gap_candidate_recorded", {"action": action, "id": candidate["id"]})
+    save_manifest(run, manifest)
+    print(pretty_json(record), end="")
+
+
 def cmd_record_review(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
@@ -3024,7 +3114,7 @@ def cmd_reconcile(args: argparse.Namespace) -> None:
         ["source-lock.json", "ticket-graph.json", "ticket-graph.md", "manifest.json", "resume.md", "events.jsonl"],
         [],
     )
-    manifest["gap_review"] = {"passes": []}
+    manifest["gap_review"] = {"passes": [], "candidates": []}
     manifest["consequence_review"] = {"policy": graph["review"], "results": {}}
     manifest["release"]["safeguards"] = {}
     manifest["release"].pop("epic-verification", None)
@@ -3152,6 +3242,9 @@ def parser() -> argparse.ArgumentParser:
     gap_review.set_defaults(func=cmd_record_gap_review)
     gap_status = commands.add_parser("gap-review-status")
     gap_status.add_argument("--run", required=True); gap_status.set_defaults(func=cmd_gap_review_status)
+    gap_candidate = commands.add_parser("record-gap-candidate")
+    gap_candidate.add_argument("--run", required=True); gap_candidate.add_argument("--candidate", required=True)
+    gap_candidate.add_argument("--coverage-gaps", required=True); gap_candidate.set_defaults(func=cmd_record_gap_candidate)
     review = commands.add_parser("record-review")
     review.add_argument("--run", required=True); review.add_argument("--lens", required=True, choices=REQUIRED_REVIEW_LENSES)
     review.add_argument("--verification-receipt", required=True); review.set_defaults(func=cmd_record_review)

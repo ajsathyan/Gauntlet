@@ -1,8 +1,6 @@
 # Local Product Documentation
 
-Gauntlet projects use a default-on local-document profile for product documents, research, decisions, deterministic Epic launch state, and run history that should remain local to one primary checkout. The profile is materialized lazily when a covered document task needs it, so ordinary work does not create files in every repository. A project can opt out explicitly.
-
-The profile scaffolds:
+Gauntlet keeps private product working documents and execution state in the primary checkout. The profile is default-on but materializes only for an explicit covered document action.
 
 ```text
 doc_org.md
@@ -14,169 +12,79 @@ local-docs/
   executions/
 ```
 
-Both `doc_org.md` and `local-docs/` are ignored through the repository's local Git exclude file. Gauntlet does not add them to a tracked `.gitignore`, overwrite an existing document, or repurpose a tracked `docs/` directory.
+These paths are added to the repository's local Git exclude file. They are not a security boundary and must not contain credentials, secret values, personal data, or sensitive resource identifiers. Documentation required by another checkout, contributor, CI process, or operator remains tracked in the repository's normal documentation location.
 
-The project-local opt-out marker is `.gauntlet/doc-org.disabled` in the primary worktree. It is ignored by the normal Gauntlet project rule, persists across runs, and does not delete an existing local-document profile. Remove it with `docs enable` before creating or changing canonical local documents again.
+## User-owned workflow
 
-## Existing Profiles
+Discussion does not write a document. On an explicit create request:
 
-`docs ensure` is intentionally non-destructive. It creates missing profile paths but does not overwrite an existing `doc_org.md`, `local-docs/INDEX.md`, or canonical document. When the reusable contract changes, review the primary worktree's existing `doc_org.md` against the installed `templates/local-docs/doc_org.md.tmpl` and update only the reusable policy sections that changed. Do not rewrite completed Execution Run manifests, source locks, receipts, or release evidence; those artifacts preserve the contract and topology used by their historical run.
+- a new repository receives the guided Founding Hypothesis;
+- a follow-up feature receives the guided Peter Yang PRD without Meeting Notes.
 
-When `docs ensure` initializes a repository with no product document, it also creates `local-docs/drafts/FOUNDING_HYPOTHESIS.md`. The draft contains source guidance but no product-specific answers. Existing profiles and existing product documents are preserved.
+Both templates keep useful source guidance but no product-specific answer. Users may add, remove, or rename sections. Agents write only stated or explicitly requested product content and keep suggestions outside the document until accepted. Non-goals, security boundaries, rollout, quality gates, and other product limits are never inferred from empty fields.
 
-## Visibility Boundary
+Drafts live in `local-docs/drafts/`. Explicit promotion allocates the stable Epic ID, chooses the final filename, moves the exact draft bytes under `local-docs/epics/`, and updates the index atomically. Promotion does not imply acceptance.
 
-`local-docs/` is for local working history. It is not a security boundary and must not contain credentials, secret values, private destinations, or sensitive resource identifiers.
+Explicit acceptance requires an answered `Acceptance`, `Done when`, or legacy `Product Acceptance` section. The controller binds the document digest and compact mechanical launch facts in a sidecar without modifying product content. A later edit invalidates that acceptance until the user accepts the revised version.
 
-Documents required by another checkout, contributor, CI process, operator, auditor, or future maintainer belong in the repository's tracked documentation location. This includes public contracts, contributor guidance, durable architectural decisions, operational runbooks, release notes, compliance evidence, and other material required to understand or operate the repository.
+Legacy accepted PRDs with machine-readable Epic fields remain launchable. They are not rewritten merely to adopt the new templates.
 
-When an accepted requirement is necessary to maintain the product, make it durable through tracked code, tests, a pull request, or tracked documentation. The ignored product history cannot be its only home.
+## Artifact ownership
 
-## Canonical Location
+- Product documents own user-authorized intent and observable done behavior.
+- Research owns evidence and uncertainty; it does not authorize implementation.
+- The index is navigational, not proof.
+- Accepted-Epic records own the exact source digest and compact launch facts.
+- Launch sets and Execution Runs own task IDs, dependencies, review dispositions, proof, resume state, and dashboard projections.
 
-Canonical local documents live only in the primary worktree. Linked implementation worktrees read those documents and return durable decisions, exceptions, unresolved gaps, and proof to the main task. The main task updates the primary copies before removing a linked worktree.
+Canonical local documents exist only in the primary worktree. Linked implementation worktrees read them and return durable results to the parent task. Private-document changes are not committed or deployed.
 
-Private-document changes are local filesystem changes. They are not committed, merged, or deployed.
+## Implementation
 
-## Product Source And Epic Boundaries
+An explicit `implement the PRD` request freezes the accepted target and creates one visible task and one Execution Run per independently shippable Epic. The visible task receives a compact launch envelope. Its bootstrap command verifies the immutable source and returns the complete relevant Epic once before run creation; the task prompt does not contain a second copy.
 
-A canonical PRD may contain several Epics from one product conversation. Each Epic receives a stable ID and index row; each stable product responsibility within it receives a Scope Area ID. A numbered `epics/` directory is a document home and does not force a one-file/one-Epic split.
+Children receive bounded Tickets, accepted source slices, and dependency contracts. The complete product document, manifest, event history, unrelated receipts, and parent-owned pull-request state stay out of child context.
 
-Keep the PRD readable by separating user, objective, workflow, state, trust, acceptance, interface, proof, dependency, uncertainty, rollout, and rollback concerns under distinct headings. `Implementation target` names the complete launch membership and includes only accepted Epics that are build-ready, independently shippable, independently reversible, and explicit about release stages, dependency boundaries, and closed high-consequence trigger IDs (or `none`). Proposed, deferred, and unresolved Epics may remain in the document without entering execution.
+Proof uses focused changed-behavior checks and one final Epic verification on the exact integrated revision. A bounded Epic gap review may run before build and after integration, with at most three findings per pass and three passes. Every finding ends as `fixed`, `ask-user`, `deferred`, or `omitted`. Consequence-specific specialists run only for explicit accepted triggers.
 
-Use the `maintain-prd` skill to create or revise this source. It never implements.
-
-## One Gauntlet Lifecycle
-
-The profile organizes artifacts; it does not create another intake, planning, implementation, or release lifecycle. Existing Gauntlet roles continue to own research, product architecture, planning, implementation, review, and run logs. `implement-prd` coordinates those roles for an explicit end-to-end PRD request.
-
-The always-loaded Gauntlet question discipline applies to every document role. For documentation work, a question is consequential when its answer could change the document's purpose, audience, scope, authority, organization, or acceptance.
-
-## PRD Organization
-
-One PRD may cover multiple Epics and may be developed in one conversation. Keep it human-readable and searchable with stable identifiers:
-
-```text
-# <Product or initiative>
-## Epic <EPIC-ID>: <Outcome>
-### Objectives
-### Principles
-### Non-goals
-### Scope Area <SCOPE-ID>: <Responsibility>
-```
-
-An Epic is a stable product outcome. A Scope Area is a stable responsibility or surface inside that outcome; it is not an agent assignment. Separate objectives, principles, and non-goals rather than combining them under one heading. Likewise, keep user/job/first-value, states/recovery, trust/privacy/security/authority, acceptance/test expectations, dependencies/assumptions/open questions, and rollout/rollback distinct when each contains material information.
-
-Acceptance criteria state what must be true. Test expectations identify the behavior claim, observable oracle, plausible wrong case, and required non-effects. Verification strategy describes plan-level proof layers. Tickets and Cohort Verification are generated only after a build-ready implementation target is accepted; they do not belong in the PRD as a second hand-written plan.
-
-## Compilation And Durable Execution
-
-An explicit `implement the PRD` request validates and freezes the complete target into one Epic launch set. The product task then creates one visible task and one Execution Run per target Epic, starting every dependency-ready Epic. Each Epic task compiles only its locked Epic into a deterministic Ticket Graph with stable H2 Epic, H3 Ticket, and H4 field headings.
-
-Runs live under `local-docs/executions/<run-id>/`. Source locks, manifests, compact resume state, materialized Tickets, receipts, evidence, cohort results, and release evidence make execution resilient to conversation compaction. Disk state is authoritative after a run starts. Children receive only bounded Ticket bundles and relevant versioned context; the whole PRD, manifest, event history, unrelated receipts, and raw logs stay out of child prompts.
-
-One active implementation Ticket per child is the default. Related sequential Tickets may reuse a child for context affinity. One implementation Ticket is never co-owned. The Epic-task parent verifies ordinary evidence directly; independent checking is triggered only by a consequential boundary. Proof uses targeted Ticket checks, optional shared-invariant Cohorts, one final Epic verification on exact integration HEAD, and separate release states.
-
-At each Epic Run's initialization, freeze `single-final-pr` for a small reviewable Epic or `review-prs-plus-final` for one large, tightly coupled Epic. The latter compiles exact Review Unit membership and dependencies, uses parent-owned unit PRs into the integration branch, and still ends in one Project PR to `main` covering that locked Epic and every Scope Area.
-
-## Release Contract
-
-The generated `doc_org.md` contains one execution and release contract. PRDs record product-level release constraints. The launch set resolves target membership and cross-Epic boundaries; each compiled Ticket Graph resolves one Epic's worktree, branch, integration order, proof, rollout, rollback, and release source.
-
-An explicit request to `implement the PRD` authorizes the accepted build-ready target's normal branch-through-production lifecycle, including a pull request, required-check merge, deployment of the exact verified `main` revision, and documented production changes named in the PRD. A narrower request controls. Missing credentials or permissions, a material unresolved decision, an unaccepted destructive effect, invalid rollout or rollback assumptions, preservation risk, or unavailable required production proof stops the affected transition.
-
-Do not copy the full release procedure into every PRD and graph. A material source or contract change selectively invalidates affected Tickets until their source locks and resolved release fields are refreshed.
-
-The phrase **implement the PRD** applies only to the explicit build-ready target. It carries the end-to-end authority described in `docs/prd-execution.md`; proposed, deferred, or materially unresolved Epics stay outside the launch set, and each run locks exactly one included Epic.
-
-## Execution Runs
-
-Generated Ticket Graphs and live execution state belong below `local-docs/executions/<run-id>/`, not beside the PRD as another human-authored source. After a run starts, its source lock, manifest, and resume file are authoritative for execution progress. Conversation continues to own user decisions, while compaction recovery reads the durable artifacts.
-
-The Epic launch set carries cross-Epic task IDs, run paths, dependencies, blockers, and aggregate status. Each Execution Run manifest carries its Epic's integration branch, frozen PR strategy, Review Unit state, completion projection, and merge authority. `doc_org.md` remains the reusable contract; it is not a status ledger.
-
-Children receive one materialized Ticket plus relevant shared context, named dependency outputs, and owned source paths. They do not need the full PRD or execution history. The Epic-task parent owns state transitions, integration, oracle verification, optional Cohort results, final Epic verification, and release records. See `docs/prd-execution.md`.
-
-## Configuration Boundary
-
-PRDs describe which behavior must be configurable, who controls it, and which secret or private-data classes are involved. Compiled Ticket Graphs classify likely external values and give each one an approved destination.
-
-Never hardcode secrets, credentials, private resource identifiers, environment-specific endpoints, deployment identifiers, or values that legitimately vary by environment or operator. Stable product rules, protocol constants, enum values, state transitions, and safe code defaults may remain in code when they are typed, reviewed, and tested.
-
-Use the project's approved secret-management system for production secrets. An ignored local environment file may support development but is not a production secret store.
+See `docs/prd-execution.md` for controller commands and release behavior.
 
 ## Commands
 
-Check the default mode without changing the project. A repository with no local files reports `default-on`; this is intentional lazy activation.
+Check without writing:
 
 ```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs check \
-  --project-root "$PROJECT_ROOT"
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs check --project-root "$PROJECT_ROOT"
 ```
 
-Materialize the profile when a covered document task needs it. The prefix is inferred from the primary repository name unless supplied explicitly.
+Materialize the profile. A repository with no product document also receives the founding draft:
 
 ```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs ensure \
-  --project-root "$PROJECT_ROOT"
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs ensure --project-root "$PROJECT_ROOT"
 ```
 
-Create an unanswered follow-up feature draft with the Peter Yang template:
+Create a follow-up draft:
 
 ```sh
 python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs draft create \
-  --project-root "$PROJECT_ROOT" \
-  --template peter-yang
+  --project-root "$PROJECT_ROOT" --template peter-yang
 ```
 
-Discussion and read-only checks do not edit a draft. After the user explicitly accepts a title and asks to promote the work, allocate the Epic and atomically move the exact draft bytes into the canonical path:
+Promote exact draft bytes after the title is clear:
 
 ```sh
 python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs draft promote \
-  --project-root "$PROJECT_ROOT" \
-  --draft PETER_YANG_PRD.md \
-  --title "Message surfaces"
+  --project-root "$PROJECT_ROOT" --draft PETER_YANG_PRD.md --title "Message surfaces"
 ```
 
-Both draft commands support `--dry-run`. Promotion performs collision checks before mutation and rolls back the move if the index update fails.
-
-Initialize explicitly from either the primary checkout or a linked worktree:
+Accept the exact promoted version after the user reviews its semantics:
 
 ```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs init \
-  --project-root "$PROJECT_ROOT" \
-  --epic-prefix PROJECT
-```
-
-Opt out for one project:
-
-```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs disable \
-  --project-root "$PROJECT_ROOT"
-```
-
-Re-enable the default:
-
-```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs enable \
-  --project-root "$PROJECT_ROOT"
-```
-
-Create the next stable epic:
-
-```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs epic create \
-  --project-root "$PROJECT_ROOT" \
-  --title "Message surfaces"
-```
-
-Append the next stable Epic to an existing product PRD:
-
-```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs epic create \
-  --project-root "$PROJECT_ROOT" \
-  --title "Delivery controls" \
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs epic accept \
+  --project-root "$PROJECT_ROOT" --epic PROJECT-001 \
   --prd "epics/001/001_MESSAGE_SURFACES_PRD.md"
 ```
 
-Epic allocation scans both the index and canonical PRDs, so manually appended indexed Epics cannot silently reuse an ID. Initialization and epic creation refuse tracked-path collisions and preserve existing local documents.
+`docs draft create`, `docs draft promote`, and `docs epic accept` support `--dry-run`. Acceptance defaults mechanical release applicability to merge and consequence triggers to none; pass explicit command options when the user accepted different facts.
+
+Explicit initialization, project opt-out, and re-enable remain available through `docs init`, `docs disable`, and `docs enable`. The legacy `docs epic create` command remains available for existing comprehensive PRD workflows.

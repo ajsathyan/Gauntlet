@@ -437,7 +437,7 @@ class EpicProjectTests(unittest.TestCase):
                 self.assertEqual(gauntlet.command_epic_tasks_reconcile(args), 0)
             data = output.call_args.args[0]
             self.assertEqual(data["epics"]["APP-001"]["status"], "implementation-complete")
-            self.assertIn("This does not yet prove merge", data["lifecycleEvents"][0]["copy"])
+            self.assertIn("Pending release gates: merge", data["lifecycleEvents"][0]["copy"])
 
     def test_canonical_reconciliation_rejects_target_acceptance_drift(self):
         with tempfile.TemporaryDirectory() as temporary:

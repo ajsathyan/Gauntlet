@@ -17,6 +17,8 @@ class ContextAuditTests(unittest.TestCase):
         report = context_audit.build_report(context_audit.ROOT, context_audit.DEFAULT_FIXTURES, [])
         router = next(item for item in report["surfaces"] if item["path"] == "router/AGENTS.md")
         self.assertEqual(router["bytes"], (context_audit.ROOT / "router" / "AGENTS.md").stat().st_size)
+        self.assertLess(report["modelVisibleBytes"], report["baselineModelVisibleBytes"])
+        self.assertLess(report["modelVisibleDeltaBytes"], 0)
         agora = next(item for item in report["representativeLaunches"] if item["epicId"] == "AGORARUNPOD-014")
         self.assertEqual(agora["epicBytes"], 61897)
         self.assertEqual(agora["candidateTaskBytes"], 850)

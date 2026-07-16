@@ -16,6 +16,7 @@ SCRIPT = Path(__file__).with_name("prd-run.py")
 LAUNCH_SCHEMA = "gauntlet.epic-launch.v1"
 VERIFICATION_SCHEMA = "gauntlet.verification-receipt.v1"
 GAP_REVIEW_SCHEMA = "gauntlet.epic-gap-review.v1"
+GAP_CANDIDATE_SCHEMA = "gauntlet.coverage-gap-candidate.v1"
 
 
 def object_hash(value: object) -> str:
@@ -738,6 +739,45 @@ class PrdRunTests(unittest.TestCase):
 
         self.gap_review(2, [self.gap_finding("INTEGRATED", "fixed", ["T2"])], phase="integrated")
         self.command("verify-epic", "--run", str(self.run), "--verification-receipt", str(final))
+
+    def test_reusable_gap_candidate_is_upserted_and_projected_without_a_model_handoff(self) -> None:
+        self.compile_and_start()
+        coverage = self.root / "coverage-gaps.md"
+        coverage.write_text("# Coverage Gaps\n\n<!-- GAP CANDIDATES -->\n", encoding="utf-8")
+        candidate = self.root / "gap-candidate.json"
+        value = {
+            "schemaVersion": GAP_CANDIDATE_SCHEMA,
+            "id": "auto",
+            "title": "Missing private-dashboard distinction guidance",
+            "surface": "product shaping",
+            "seenIn": ["RUN1"],
+            "gap": "No reusable guidance tells shaping agents to preserve existing distinguishing signals.",
+            "why": "An inferred boundary can erase the only useful distinction in an internal tool.",
+            "suggestedDestination": "reference",
+            "needsHuman": "Decide whether repeated evidence warrants reusable guidance.",
+        }
+        candidate.write_text(json.dumps(value), encoding="utf-8")
+        added = json.loads(self.command(
+            "record-gap-candidate", "--run", str(self.run),
+            "--candidate", str(candidate), "--coverage-gaps", str(coverage),
+        ).stdout)
+        self.assertEqual(added["id"], "GAP-001")
+        self.assertEqual(added["action"], "added")
+        self.assertEqual(coverage.read_text().count("## GAP-001:"), 1)
+
+        value["why"] = "The same failure can silently lengthen or distort implementation."
+        candidate.write_text(json.dumps(value), encoding="utf-8")
+        updated = json.loads(self.command(
+            "record-gap-candidate", "--run", str(self.run),
+            "--candidate", str(candidate), "--coverage-gaps", str(coverage),
+        ).stdout)
+        self.assertEqual(updated["id"], "GAP-001")
+        self.assertEqual(updated["action"], "updated")
+        self.assertEqual(coverage.read_text().count("## GAP-001:"), 1)
+        status = json.loads(self.command("gap-review-status", "--run", str(self.run)).stdout)
+        self.assertEqual([item["id"] for item in status["candidates"]], ["GAP-001"])
+        completion = json.loads(self.command("completion", "--run", str(self.run)).stdout)
+        self.assertEqual(completion["gapReview"]["candidates"][0]["id"], "GAP-001")
 
     def test_final_verification_rejects_mismatched_and_stale_consequence_reviews(self) -> None:
         self.restart_with_consequence("credentials-auth-permissions")

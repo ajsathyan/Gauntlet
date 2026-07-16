@@ -23,15 +23,15 @@ One product task may develop a coherent product across many Epics. When the user
 
 ## Shape The Product, Then Launch Together
 
-During product discussion, keep related Epics in one canonical PRD when that preserves useful shared context. Invite the user to continue fleshing out implementation ideas as distinct Epics. A target Epic is launchable only when it is accepted, build-ready, independently shippable, independently reversible, explicit about release stages and closed high-consequence trigger IDs (or `none`), and either dependency-ready or linked to a named upstream `merged`, `deployed`, or `productionProved` boundary.
+Discussion does not write the product document. New products use the guided Founding Hypothesis and follow-up Epics use the guided Peter Yang PRD. Explicit promotion allocates identity; explicit acceptance binds the exact reviewed document and compact launch facts. An answered observable-acceptance section is required. Legacy comprehensive PRDs remain supported.
 
-`Implementation target` lists the complete launch membership. Proposed, deferred, unresolved, or non-independent outcomes remain outside it. The product task runs `gauntlet.py epic-tasks init`, then executes only the controller's missing dependency-ready `create_thread` actions. Native task IDs and one-Epic run paths are recorded back into the launch set. Ambiguous task creation is reconciled before any retry.
+Proposed, deferred, unresolved, or non-independent outcomes remain outside execution. The product task runs `gauntlet.py epic-tasks init`, then executes only the controller's missing dependency-ready `create_thread` actions. Native task IDs and one-Epic run paths are recorded back into the launch set. Ambiguous task creation is reconciled before any retry.
 
 The instruction **implement the PRD** authorizes this complete target through each Epic's normal end-to-end path: task creation, branch/worktree, Ticket execution, proof, Project PR, required-check merge, specified deployment and production stages, canonical-document reconciliation, and safe cleanup. It does not manufacture unavailable credentials, unsafe authority, or proof.
 
 ## One Epic Per Run
 
-Each Epic task reads `source.snapshotPath` from the launch set and initializes one run with that immutable snapshot, the frozen launch set, and exactly one target Epic. It must not pass the mutable canonical PRD path as `prd-run.py init --source`. Use `single-final-pr` for a small reviewable Epic. Use `review-prs-plus-final` only when one large, tightly coupled Epic needs parent-owned intermediate Review Unit PRs into its integration branch. Review Units are not release boundaries.
+Each Epic task executes the compact launch envelope's bootstrap command once. Bootstrap verifies the launch and source digests and returns the complete relevant Epic plus immutable snapshot before run creation. Missing, stale, tampered, or unavailable sources stop; the task prompt never supplies a fallback Epic copy. Use `single-final-pr` for a small reviewable Epic. Use `review-prs-plus-final` only when one large, tightly coupled Epic needs parent-owned intermediate Review Unit PRs into its integration branch. Review Units are not release boundaries.
 
 Compile Tickets by code ownership and dependency boundaries, not by the number of PRD headings. Keep tightly coupled implementation with one owner or reuse the same child sequentially when affinity saves reconstruction. Schedule the dependency-ready critical path, integrate continuously, and release downstream Tickets as their inputs land.
 
@@ -41,10 +41,12 @@ Cohorts are optional. Declare one only when multiple Tickets share a material in
 
 Use the smallest proof that distinguishes the intended behavior from a plausible wrong implementation:
 
-1. Run targeted checks for each integrated Ticket.
-2. Run each declared shared-invariant Cohort check once.
-3. Run one fresh final Epic verification against the canonical Epic acceptance on the exact integrated commit and tree.
+1. Review the locked Epic and material plan for at most three concrete gaps before build.
+2. Run targeted checks for each integrated Ticket and any declared shared-invariant Cohort check once.
+3. Review the exact integrated revision and proof, then run one fresh final Epic verification on that revision.
 4. Run applicable merge, deployment, production, and rollback proof without collapsing their states.
+
+Gap review allows at most three findings per pass and three passes. Every finding ends as `fixed`, `ask-user`, `deferred`, or `omitted`; it cannot expand accepted scope. External-practice review is opt-in. Reusable missing-guidance candidates are recorded deterministically as pending `GAP-###` items and appear with final deferrals or omissions.
 
 A verification receipt may be reused only when commit and tree, command, toolchain, fixture or oracle digest, and relevant environment identity match exactly. The final Epic check is always fresh. A failed final criterion keeps `implemented` false and prevents Project PR generation.
 
