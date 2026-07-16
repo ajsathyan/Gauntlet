@@ -791,6 +791,10 @@ for required_path in \
   "$AGENT_HOME/gauntlet/docs/evaluation-harnesses.md" \
   "$AGENT_HOME/gauntlet/scripts/gauntlet.py" \
   "$AGENT_HOME/gauntlet/scripts/prd-run.py" \
+  "$AGENT_HOME/gauntlet/scripts/progress-dashboard.py" \
+  "$AGENT_HOME/gauntlet/scripts/progress_projection.py" \
+  "$AGENT_HOME/gauntlet/scripts/test-progress-dashboard.py" \
+  "$AGENT_HOME/gauntlet/scripts/test-progress-projection.py" \
   "$AGENT_HOME/gauntlet/scripts/generated_context.py" \
   "$AGENT_HOME/gauntlet/scripts/eval-task.py" \
   "$AGENT_HOME/gauntlet/scripts/eval-run.py" \
@@ -799,6 +803,10 @@ for required_path in \
   "$AGENT_HOME/gauntlet/scripts/subagent-audit.py" \
   "$AGENT_HOME/gauntlet/scripts/route-codex-agent.py" \
   "$AGENT_HOME/gauntlet/templates/epic-execution-copy.json" \
+  "$AGENT_HOME/gauntlet/templates/model-api-pricing.json" \
+  "$AGENT_HOME/gauntlet/templates/progress-dashboard/index.html" \
+  "$AGENT_HOME/gauntlet/templates/progress-dashboard/assets/app.js" \
+  "$AGENT_HOME/gauntlet/templates/progress-dashboard/assets/app.css" \
   "$AGENT_HOME/gauntlet/templates/local-docs/doc_org.md.tmpl" \
   "$AGENT_HOME/gauntlet/templates/local-docs/EPIC_SECTION.md.tmpl" \
   "$AGENT_HOME/gauntlet/templates/generated-context/implementation-v1.md" \
@@ -819,6 +827,32 @@ do
     exit 1
   fi
 done
+
+python3 - "$ROOT" "$AGENT_HOME/gauntlet" <<'PY'
+import hashlib
+from pathlib import Path
+import sys
+
+source, installed = map(Path, sys.argv[1:])
+required = [
+    "scripts/progress-dashboard.py",
+    "scripts/progress_projection.py",
+    "templates/model-api-pricing.json",
+    "templates/progress-dashboard/index.html",
+    "templates/progress-dashboard/assets/app.js",
+    "templates/progress-dashboard/assets/app.css",
+]
+for relative in required:
+    expected = hashlib.sha256((source / relative).read_bytes()).hexdigest()
+    actual = hashlib.sha256((installed / relative).read_bytes()).hexdigest()
+    if actual != expected:
+        raise SystemExit("Gauntlet progress payload hash mismatch: " + relative)
+for forbidden in (installed / "ui", installed / "node_modules"):
+    if forbidden.exists():
+        raise SystemExit("Gauntlet install retained forbidden development UI payload: " + str(forbidden))
+if list(installed.rglob("node_modules")):
+    raise SystemExit("Gauntlet install retained a node_modules directory")
+PY
 
 if [ -e "$AGENT_HOME/gauntlet/templates/local-docs/IMPLEMENTATION_PLAN.md.tmpl" ]; then
   echo "Gauntlet install retained retired implementation-plan template" >&2

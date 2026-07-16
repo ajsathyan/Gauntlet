@@ -57,6 +57,7 @@ The workflow is built around Research, Patch, Feature, and Release paths; Standa
 | Run logs | Writes a tiny exceptions-first Markdown receipt for material Feature/Release work: assumptions, decisions, skipped checks, failures, `Cannot verify`, and follow-ups. |
 | Local product documents | Uses a default-on, lazily materialized ignored `local-docs/` profile in the primary worktree, with an explicit per-project opt-out, while preserving tracked repository documentation and Git/PR/release traceability. |
 | PRD execution | Lets one product task shape many independently shippable Epics, then launches one visible task and one durable Execution Run per build-ready Epic with bounded context, exact-revision proof, and end-to-end release authority. |
+| Live Epic progress | Automatically starts one private loopback dashboard per PRD launch, opens it in the Codex in-app Browser when available, and refreshes run, agent, token, cost, and release facts without blocking implementation. |
 | Subagent orchestration | Renders cache-oriented bounded context, audits model requests and routing, bundles compatible Tickets without head-of-line blocking, and preserves parent-only consequential authority. |
 | Comparative evaluation | Admits isolated automatic-oracle tasks and runs condition-blind paired Gauntlet-versus-baseline experiments with replay, ablations, sealed core slots, and replaceable harness adapters. |
 | Skill quality bar | Gives future skill and workflow edits a practical behavior-delta, trigger, completion, proof, and token-cost bar without making every Patch heavier. |
@@ -390,6 +391,8 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill text coverage, declared trace-field scorer contracts, and linting when staged Gauntlet skill files change. |
 | [scripts/install-git-hooks.sh](scripts/install-git-hooks.sh) | Installs the pre-commit hook that enforces skill-change checks. |
 | [scripts/prd-run.py](scripts/prd-run.py) | Creates, validates, resumes, and advances deterministic one-Epic Execution Runs; exposes `completion` and `run-facts`; verifies the exact Epic revision; and emits the schema 3.0 Project PR projection. |
+| [scripts/progress_projection.py](scripts/progress_projection.py) | Purely projects launch, run, and telemetry facts into the privacy-allowlisted live progress contract. |
+| [scripts/progress-dashboard.py](scripts/progress-dashboard.py) | Serves the read-only authenticated loopback progress UI with bounded recovery and no execution authority. |
 | [scripts/generated_context.py](scripts/generated_context.py) | Renders versioned bounded machine projections with stable-prefix metadata and adversarial validation. |
 | [scripts/eval-task.py](scripts/eval-task.py) | Admits development evaluation tasks with separate hidden verifiers, cached immutable checks, current liveness, and quarantine. |
 | [scripts/eval-run.py](scripts/eval-run.py) | Records paired executions, state-conditional replay, adapter equivalence, total-package and ablation estimands, and sealed core-study state. |

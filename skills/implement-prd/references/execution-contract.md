@@ -6,6 +6,8 @@ One product task may shape many Epics in one canonical PRD. `Implementation targ
 
 Each target Epic gets one visible implementation task and one Execution Run. An Epic task reads `source.snapshotPath` from the launch set and passes that immutable file to `prd-run.py init --source`; it never passes the mutable canonical PRD path and never creates another Epic task. A dependency blocks only the downstream Epic whose declared `merged`, `deployed`, or `productionProved` boundary is unsatisfied; unrelated Epics continue.
 
+After the first run is bound, the product controller starts or recovers one launch-scoped loopback progress supervisor. It refreshes current `run-facts` and run-scoped telemetry on a bounded cadence, discovers later run bindings, and preserves last-valid projections when a source is temporarily unreadable. Execute the returned `open_browser` action immediately with the Codex in-app Browser when available; the action points to a private state file rather than exposing the bearer. Browser or server absence is a quiet fallback and never blocks execution. Stop the dashboard only after every launch Epic is run-complete, stopped, or failed; `progress-stop` is idempotent for archive cleanup.
+
 ## Compiled Ticket Graph
 
 Each run locks exactly one accepted Epic. Tickets remain current execution units and Scope Areas remain stable product responsibilities. A Ticket has one implementation owner. The parent verifies ordinary evidence directly; independent verification Tickets are reserved for a named consequential boundary.

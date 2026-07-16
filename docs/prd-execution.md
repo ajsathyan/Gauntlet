@@ -27,6 +27,8 @@ During product discussion, keep related Epics in one canonical PRD when that pre
 
 `Implementation target` lists the complete launch membership. Proposed, deferred, unresolved, or non-independent outcomes remain outside it. The product task runs `gauntlet.py epic-tasks init`, then executes only the controller's missing dependency-ready `create_thread` actions. Native task IDs and one-Epic run paths are recorded back into the launch set. Ambiguous task creation is reconciled before any retry.
 
+Binding the first run also starts or recovers one launch-scoped progress supervisor. It atomically refreshes the pure projection from current run facts and request telemetry every few seconds, discovers later-bound sibling runs, and keeps last-valid data through malformed or interrupted refreshes. The controller returns a secret-free `open_browser` action referencing the private state file; the product task must execute it immediately with the Codex in-app Browser when available, not merely print a URL. A single-Epic launch therefore opens directly to its only card. Browser or server absence stays quiet and cannot stop implementation.
+
 The instruction **implement the PRD** authorizes this complete target through each Epic's normal end-to-end path: task creation, branch/worktree, Ticket execution, proof, Project PR, required-check merge, specified deployment and production stages, canonical-document reconciliation, and safe cleanup. It does not manufacture unavailable credentials, unsafe authority, or proof.
 
 ## One Epic Per Run
@@ -94,6 +96,8 @@ The product task surfaces only collaborative, useful state:
 - at aggregate finish: report exact implementation and release state without implying deployment or production proof.
 
 Routine Ticket generation, subagent progress, receipts, retries, and unchanged polls remain internal.
+
+The progress supervisor survives one failed sibling while other Epics continue. It stops only when every target Epic is run-complete, stopped, or failed. Reconcile/resume reuses the verified PID, process-birth, executable, nonce, and launch identity; archive cleanup invokes the idempotent `epic-tasks progress-stop` command.
 
 ## Bootstrap And Convergence
 

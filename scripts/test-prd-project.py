@@ -336,7 +336,10 @@ class EpicProjectTests(unittest.TestCase):
                 "pendingGates": [{"stage": "merge"}],
             }
             args = argparse.Namespace(git_root=root, launch_set=launch_path, json=True)
-            with mock.patch("gauntlet.completion_projection_for_run", return_value=projection), mock.patch("gauntlet.print_payload") as output:
+            with mock.patch("gauntlet.completion_projection_for_run", return_value=projection), mock.patch(
+                "gauntlet.ensure_progress_supervisor",
+                return_value={"status": "unavailable", "started": False, "stateFile": "state"},
+            ), mock.patch("gauntlet.print_payload") as output:
                 self.assertEqual(gauntlet.command_epic_tasks_reconcile(args), 0)
             data = output.call_args.args[0]
             self.assertEqual(data["epics"]["APP-001"]["status"], "implementation-complete")
@@ -637,9 +640,113 @@ class EpicProjectTests(unittest.TestCase):
                 git_root=root, launch_set=launch_path, epic="APP-001",
                 run=root / "executions" / "APP-001-RUN", json=True,
             )
-            with mock.patch("gauntlet.print_payload") as output:
+            with mock.patch("gauntlet.ensure_progress_supervisor", return_value={"status": "unavailable", "started": False, "stateFile": "state"}), mock.patch("gauntlet.print_payload") as output:
                 self.assertEqual(gauntlet.command_epic_tasks_record_run(record_args), 0)
             self.assertEqual(output.call_args.args[0]["epics"]["APP-001"]["runPath"], str((root / "executions" / "APP-001-RUN").resolve()))
+
+    def test_record_run_starts_one_dashboard_and_returns_browser_action_without_secret(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = self.write_prd(root, "APP-001", [epic("APP-001", "Account foundation")])
+            launch_path = root / "launch.json"
+            launch, source_text = gauntlet.build_epic_launch_set(source, [])
+            snapshot = root / "launch.source.md"
+            snapshot.write_text(source_text, encoding="utf-8")
+            launch["source"]["snapshotPath"] = str(snapshot)
+            launch["epics"]["APP-001"].update({"taskId": "task-123", "status": "in-progress"})
+            run = root / "run"
+            run.mkdir()
+            (run / "source-lock.json").write_text(json.dumps({
+                "target_epic_ids": ["APP-001"],
+                "epics": {"APP-001": {}},
+                "launch_set": {"path": str(launch_path.resolve()), "coverage_sha256": launch["coverageSha256"], "task_id": "task-123"},
+            }))
+            gauntlet.write_launch_set(launch_path, launch)
+            args = argparse.Namespace(git_root=root, launch_set=launch_path, epic="APP-001", run=run, json=True)
+            dashboard = {
+                "status": "running", "started": True,
+                "stateFile": str(root / "launch.progress-dashboard.json"),
+                "launchId": launch["coverageSha256"],
+            }
+            with mock.patch("gauntlet.ensure_progress_supervisor", return_value=dashboard) as ensure, mock.patch("gauntlet.print_payload") as output:
+                self.assertEqual(gauntlet.command_epic_tasks_record_run(args), 0)
+            ensure.assert_called_once()
+            action = output.call_args.args[0]["actions"][0]
+            self.assertEqual("open_browser", action["type"])
+            self.assertEqual("codex-in-app-browser", action["surface"])
+            self.assertEqual(dashboard["stateFile"], action["stateFile"])
+            self.assertNotIn("capability", json.dumps(action).lower())
+
+    def test_progress_source_refresh_discovers_late_run_and_independent_telemetry(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            launch_path = root / "launch.json"
+            launch = {
+                "schemaVersion": gauntlet.EPIC_LAUNCH_SCHEMA,
+                "source": {"path": str(root / "prd.md"), "sha256": "a" * 64, "snapshotPath": str(root / "snapshot.md")},
+                "targetEpicIds": ["APP-001", "APP-002"],
+                "coverageSha256": "b" * 64,
+                "aggregateEmittedEvents": [],
+                "epics": {
+                    "APP-001": {"title": "One", "dependencies": [], "releaseStages": ["merge"], "consequenceTriggers": [],
+                                "taskId": "task-1", "runPath": str(root / "run-1"), "status": "in-progress", "blocker": None,
+                                "stopDisposition": None, "startReconciliation": None, "emittedEvents": []},
+                    "APP-002": {"title": "Two", "dependencies": [], "releaseStages": ["merge"], "consequenceTriggers": [],
+                                "taskId": None, "runPath": None, "status": "planned", "blocker": None,
+                                "stopDisposition": None, "startReconciliation": None, "emittedEvents": []},
+                },
+            }
+            gauntlet.write_launch_set(launch_path, launch)
+            facts = {"schemaVersion": "gauntlet/epic-run-facts/v1", "epicId": "APP-001", "epicTitle": "One",
+                     "time": {"protocolVersion": None, "elapsedCoverage": "unavailable", "createdAt": None,
+                              "startedAt": None, "updatedAt": None, "terminalAt": None},
+                     "progress": None, "operations": [], "owners": [], "release": {"applicability": {"merge": True}}}
+            telemetry = {"schemaVersion": "gauntlet/run-telemetry-summary/v1", "coverage": {"status": "partial"},
+                         "tokens": {"total_tokens": 10}, "pricing": {"status": "unavailable"}}
+            with mock.patch("gauntlet.run_facts_for_progress", return_value=facts), mock.patch("gauntlet.telemetry_for_progress", return_value=telemetry):
+                source_path = gauntlet.refresh_progress_source(launch_path, launch, root)
+            first = json.loads(source_path.read_text())
+            self.assertEqual("APP-002", first["runs"]["APP-002"]["facts"]["epicId"])
+            self.assertEqual(10, first["telemetry"]["APP-001"]["tokens"]["total_tokens"])
+
+            launch["epics"]["APP-002"].update({"taskId": "task-2", "runPath": str(root / "run-2"), "status": "in-progress"})
+            changed = dict(facts, epicId="APP-002", epicTitle="Two")
+            telemetry["tokens"]["total_tokens"] = 25
+            with mock.patch("gauntlet.run_facts_for_progress", side_effect=[facts, changed]), mock.patch("gauntlet.telemetry_for_progress", return_value=telemetry):
+                gauntlet.refresh_progress_source(launch_path, launch, root)
+            second = json.loads(source_path.read_text())
+            self.assertEqual("run-2", second["runs"]["APP-002"]["runId"])
+            self.assertEqual(25, second["telemetry"]["APP-001"]["tokens"]["total_tokens"])
+
+    def test_dashboard_terminal_policy_waits_for_every_sibling_and_cleanup_is_idempotent(self):
+        launch = {
+            "targetEpicIds": ["ONE", "TWO"],
+            "epics": {
+                "ONE": {"status": "failed"},
+                "TWO": {"status": "in-progress"},
+            },
+        }
+        self.assertFalse(gauntlet.progress_launch_terminal(launch, {"ONE": {}, "TWO": {"complete": False}}))
+        launch["epics"]["TWO"]["status"] = "stopped"
+        self.assertTrue(gauntlet.progress_launch_terminal(launch, {"ONE": {}, "TWO": {}}))
+        with mock.patch("gauntlet.progress_dashboard_status", return_value={"status": "stopped"}):
+            self.assertEqual("stopped", gauntlet.stop_progress_dashboard(Path("launch.json"))["status"])
+            self.assertEqual("stopped", gauntlet.stop_progress_dashboard(Path("launch.json"))["status"])
+
+    def test_existing_dashboard_still_recovers_a_missing_supervisor(self):
+        launch = {
+            "targetEpicIds": ["ONE"],
+            "coverageSha256": "a" * 64,
+            "epics": {"ONE": {"status": "in-progress", "runPath": "run"}},
+        }
+        running = {"status": "running", "stateFile": "state", "pid": 1234}
+        with mock.patch("gauntlet.progress_dashboard_status", return_value=running), mock.patch(
+            "gauntlet.launch_projections", return_value={"ONE": {"complete": False}},
+        ), mock.patch("gauntlet.subprocess.Popen") as spawn:
+            result = gauntlet.ensure_progress_supervisor(Path("launch.json"), launch, Path.cwd())
+        spawn.assert_called_once()
+        self.assertEqual("running", result["status"])
+        self.assertFalse(result["started"])
 
 
 if __name__ == "__main__":

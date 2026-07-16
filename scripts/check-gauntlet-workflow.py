@@ -3715,6 +3715,8 @@ def test_workflow_etiquette_is_in_global_workflow():
         "confirm-git-risk",
         "Archive Summary",
         "compact machine receipts",
+        "open_browser",
+        "printing a URL is not execution",
         "native `spawn_agent` tool",
         "successful spawn returns a child ID",
         "final outcome and proof",
@@ -3826,6 +3828,23 @@ def assert_installed_gauntlet_layout(agent_home):
             raise AssertionError(f"installed Gauntlet skill is missing: {skill}")
     if (agent_home / "gauntlet" / "templates" / "local-docs" / "IMPLEMENTATION_PLAN.md.tmpl").exists():
         raise AssertionError("installed payload retained the retired implementation-plan template")
+    progress_runtime = [
+        "scripts/progress-dashboard.py",
+        "scripts/progress_projection.py",
+        "templates/model-api-pricing.json",
+        "templates/progress-dashboard/index.html",
+        "templates/progress-dashboard/assets/app.js",
+        "templates/progress-dashboard/assets/app.css",
+    ]
+    for relative in progress_runtime:
+        installed = agent_home / "gauntlet" / relative
+        source = ROOT / relative
+        if not installed.is_file():
+            raise AssertionError(f"installed live progress runtime is missing: {relative}")
+        if hashlib.sha256(installed.read_bytes()).hexdigest() != hashlib.sha256(source.read_bytes()).hexdigest():
+            raise AssertionError(f"installed live progress runtime hash drifted: {relative}")
+    if (agent_home / "gauntlet" / "ui").exists() or list((agent_home / "gauntlet").rglob("node_modules")):
+        raise AssertionError("installed runtime must exclude ui/ and node_modules/")
     findings = single_epic_convergence_findings(agent_home / "gauntlet", agent_home / "skills")
     if findings:
         raise AssertionError("installed single-Epic policy did not converge:\n" + "\n".join(findings))
@@ -5024,6 +5043,19 @@ def test_prd_execution_run_controller_behavior():
         raise AssertionError(f"PRD execution-run controller behavior failed:\n{result.stdout}\n{result.stderr}")
 
 
+def test_live_progress_projection_dashboard_and_production_assets():
+    for script in ["test-progress-projection.py", "test-progress-dashboard.py", "test-prd-project.py"]:
+        result = run(["python3", str(SCRIPTS / script)], check=False)
+        if result.returncode != 0 or "OK" not in result.stderr:
+            raise AssertionError(f"Live progress behavior failed for {script}:\n{result.stdout}\n{result.stderr}")
+    production = "\n".join(read(ROOT / relative) for relative in [
+        "templates/progress-dashboard/index.html",
+        "templates/progress-dashboard/assets/app.js",
+    ])
+    for forbidden in ["data-fixture", "fixture caption", "state switcher", "sample values"]:
+        assert_not_contains(production.lower(), forbidden, "production progress dashboard demo controls")
+
+
 def test_subagent_orchestration_v2_behavior():
     for script in [
         "test-generated-context.py",
@@ -5125,6 +5157,7 @@ def main():
         test_install_docs_explain_codex_and_claude_targets,
         test_local_document_profile_preserves_tracked_docs_and_primary_canonical_copy,
         test_prd_execution_run_controller_behavior,
+        test_live_progress_projection_dashboard_and_production_assets,
         test_subagent_orchestration_v2_behavior,
     ]
     for test in tests:

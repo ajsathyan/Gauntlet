@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now automatically starts or recovers one launch-scoped live Epic progress dashboard, opens it through a secret-free Codex Browser action when available, refreshes run and usage facts continuously, and cleans it up only after every sibling reaches a terminal state.
+
 - Gauntlet's Codex installer now configures `agents.max_threads = 24` through the existing conflict-aware preference flow while preserving unrelated configuration and idempotent reinstalls.
 
 - Gauntlet now lets one product task shape and launch many independently shippable Epics while giving each Epic its own visible task, Execution Run, exact-revision verification, schema 3.0 Project PR, dependency-aware lifecycle copy, and release state. The cutover retires duplicate implementation-plan and model-authored completion-summary mechanics, makes Cohorts optional, and preserves stronger consequence-triggered review and production dry-run gates.

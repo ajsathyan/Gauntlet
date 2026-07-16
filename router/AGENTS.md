@@ -122,6 +122,8 @@ Archive behavior is authority-sensitive: use the installed archive planner and e
 
 “Implement the PRD” authorizes one frozen launch set. The product task creates one visible task per independently shippable Epic, reconciles dependency-ready starts, and uses the canonical lifecycle copy at launch, material blockers, Epic completion, and aggregate completion. Each Epic task owns its branch/worktree, Ticket Graph, proof, one Project PR, merge, specified deployment and production changes, verification, rollback, durable updates, and cleanup. Exclude proposed, deferred, and materially unresolved work. Stop for missing authority or credentials, unsafe or destructive effects absent from the PRD, invalid rollout or rollback, or required production proof that cannot be obtained.
 
+After the first Epic Run is bound, start or recover the singleton launch progress supervisor and immediately execute its secret-free `open_browser` action with the Codex in-app Browser when available; printing a URL is not execution. Browser/server absence is quiet and non-blocking. Reconcile reuses it, discovers late runs, and refreshes run facts plus telemetry automatically. Stop it only after all launch Epics are complete, stopped, or failed; cleanup is idempotent.
+
 When the user asks to apply Gauntlet locally, merge it through a new PR, and then archive the task, use `{{GAUNTLET_ROOT}}/scripts/gauntlet.py closeout execute` with explicit `--stage` paths. Execute its returned Codex app actions in order; the CLI plans those app actions but cannot archive the task by itself.
 
 ## Delegation And Quiet Execution
