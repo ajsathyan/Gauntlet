@@ -671,6 +671,13 @@ class PrdRunTests(unittest.TestCase):
         self.grant("open-final-pr")
         result = self.command("project-pr", "--run", str(self.run), ok=False)
         self.assertIn("exact revision", result.stderr)
+        refreshed = self.verification_receipt(
+            "final-refreshed", oracle=lock["epics"]["E1"]["section_sha256"],
+        )
+        self.command("verify-epic", "--run", str(self.run), "--verification-receipt", str(refreshed))
+        current = json.loads(self.command("completion", "--run", str(self.run)).stdout)
+        self.assertTrue(current["implemented"])
+        self.assertEqual(self.revision()[0], current["exactRevision"])
 
     def test_project_pr_is_deterministic_generated_facts_without_authored_outcomes(self) -> None:
         self.compile_and_start()

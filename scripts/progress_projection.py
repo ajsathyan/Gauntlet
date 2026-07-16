@@ -526,7 +526,16 @@ def epic_projection(
             "reason": f"implementation-{terminal_outcome}",
             "actionRequired": False,
         }
-    state = presentation_state(health, phases, units, time_facts["terminalAt"])
+    elif launch_status == "implementation-complete":
+        health = {
+            "status": "healthy",
+            "reason": "implementation-verified",
+            "actionRequired": False,
+        }
+    state = (
+        "ready_to_merge" if launch_status == "implementation-complete"
+        else presentation_state(health, phases, units, time_facts["terminalAt"])
+    )
     if state == "shipped":
         terminal_outcome = "succeeded"
     now_copy, next_copy = representative_copy(state, phases, units, terminal_outcome)
@@ -549,6 +558,12 @@ def epic_projection(
         "state": state, "terminal": time_facts["terminalAt"], "terminalOutcome": terminal_outcome,
     })[:16]
     eta = eta_projection(facts, units, health, now, current)
+    if state == "ready_to_merge":
+        eta = {
+            "status": "available", "likelyFinishAt": now, "remainingSeconds": 0,
+            "confidence": "high", "estimatorVersion": "gauntlet-eta/v1",
+            "label": "Implementation complete", "detail": "Merge remains.", "reason": None,
+        }
     if terminal_outcome in {"failed", "stopped"}:
         eta = {
             "status": "unavailable", "likelyFinishAt": None, "remainingSeconds": None,

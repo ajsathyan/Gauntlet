@@ -184,6 +184,11 @@ class ProgressProjectionTests(unittest.TestCase):
         self.assertTrue(all(phase["status"] == "waiting" for phase in item["phases"]))
         self.assertTrue(all(phase["provedShare"] == 0 for phase in item["phases"]))
 
+        value["launch"]["epics"]["E1"]["status"] = "implementation-complete"
+        verified = epic(value)
+        self.assertEqual("ready_to_merge", verified["presentation"]["state"])
+        self.assertEqual("Implementation complete", verified["eta"]["label"])
+
     def test_health_progress_freshness_and_eta_are_independent(self) -> None:
         value = source_fixture()
         item = epic(value)

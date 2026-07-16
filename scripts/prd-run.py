@@ -3041,7 +3041,9 @@ def cmd_record_release(args: argparse.Namespace) -> None:
 def cmd_verify_epic(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
-    require_state(manifest, ("integrating",))
+    require_state(manifest, ("integrating", "epic_verified"))
+    if manifest["state"] == "epic_verified" and manifest.get("release", {}).get("merge"):
+        raise RunError("final Epic verification cannot change after merge is recorded")
     pending = [ticket_id for ticket_id, item in manifest["tickets"].items() if item["status"] != "integrated"]
     failed_cohorts = [cohort_id for cohort_id, item in manifest["cohorts"].items() if item.get("result") != "pass"]
     if pending or failed_cohorts:
@@ -3060,6 +3062,8 @@ def cmd_verify_epic(args: argparse.Namespace) -> None:
         "final-epic-verification.json",
         "final Epic verification receipt",
     )
+    if manifest["state"] == "epic_verified" and verification["result"] != "pass":
+        raise RunError("re-verification of an implementation-complete Epic must pass")
     epic_id = lock["target_epic_ids"][0]
     if verification["identity"]["oracleSha256"] != lock["epics"][epic_id]["section_sha256"]:
         raise RunError("final Epic verification oracle must identify the locked canonical Epic section")
