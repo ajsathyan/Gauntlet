@@ -502,6 +502,7 @@ class PrdRunTests(unittest.TestCase):
         self.clock = "2026-07-16T12:03:00Z"
         self.transition("executing")
         facts = json.loads(self.command("run-facts", "--run", str(self.run)).stdout)
+        self.assertEqual("in-progress", facts["completion"]["exactState"])
         self.assertEqual("complete", facts["time"]["elapsedCoverage"])
         self.assertEqual(self.clock, facts["time"]["startedAt"])
         self.assertEqual(self.clock, facts["time"]["updatedAt"])

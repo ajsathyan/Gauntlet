@@ -520,12 +520,16 @@ def epic_projection(
                 phase["status"] = "invalidated" if terminal_outcome == "failed" else "waiting"
                 phase["accessibleLabel"] = f"{phase['label']}: {phase['status']}"
     freshness = source_freshness(facts, telemetry, current, stale_after)
-    if time_facts["terminalAt"] or terminal_outcome:
+    completion = facts.get("completion") if isinstance(facts.get("completion"), dict) else {}
+    release_complete = completion.get("complete") is True
+    if time_facts["terminalAt"] or terminal_outcome or release_complete:
         # A terminal run no longer produces active-work heartbeats. Its final
         # controller facts remain authoritative instead of aging into recovery.
         freshness["stale"] = False
         freshness["label"] = "Final"
     health = health_projection(launch_epic, facts, units, freshness["stale"])
+    if release_complete:
+        health = {"status": "healthy", "reason": "release-complete", "actionRequired": False}
     if terminal_outcome:
         health = {
             "status": "recovering",
@@ -542,7 +546,8 @@ def epic_projection(
     # compatibility signal. Instrumented runs carry the more precise merge,
     # release, and terminal facts and must not be pinned at ready-to-merge.
     state = (
-        "ready_to_merge" if launch_status == "implementation-complete" and not units
+        "shipped" if release_complete
+        else "ready_to_merge" if launch_status == "implementation-complete" and not units
         else presentation_state(health, phases, units, time_facts["terminalAt"])
     )
     if state == "shipped":
@@ -572,6 +577,12 @@ def epic_projection(
             "status": "available", "likelyFinishAt": now, "remainingSeconds": 0,
             "confidence": "high", "estimatorVersion": "gauntlet-eta/v1",
             "label": "Implementation complete", "detail": "Merge remains.", "reason": None,
+        }
+    elif state == "shipped":
+        eta = {
+            "status": "available", "likelyFinishAt": now, "remainingSeconds": 0,
+            "confidence": "high", "estimatorVersion": "gauntlet-eta/v1",
+            "label": "Complete", "detail": "The accepted release path is complete.", "reason": None,
         }
     if terminal_outcome in {"failed", "stopped"}:
         eta = {
