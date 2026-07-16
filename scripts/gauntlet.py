@@ -326,6 +326,20 @@ def local_docs_path_findings(context):
             "severity": "fail",
             "message": f"Local-document opt-out marker is not a file: {context['optOutPath']}",
         })
+    for name in ["drafts", "epics", "research"]:
+        path = context["docsRoot"] / name
+        if path.is_symlink():
+            findings.append({
+                "code": "local_document_symlink",
+                "severity": "fail",
+                "message": f"Canonical local-document paths must not be symlinks: {path}",
+            })
+        elif path.exists() and not path.is_dir():
+            findings.append({
+                "code": "invalid_local_document_directory",
+                "severity": "fail",
+                "message": f"Local-document path is not a directory: {path}",
+            })
     return findings
 
 
@@ -552,7 +566,7 @@ def initialize_local_docs(args, context, prefix):
         created.append(str(path))
         if not dry_run:
             write_new_file(path, rendered[path])
-    for directory in [context["docsRoot"] / "epics", context["docsRoot"] / "research"]:
+    for directory in [context["docsRoot"] / "drafts", context["docsRoot"] / "epics", context["docsRoot"] / "research"]:
         if directory.exists():
             preserved.append(str(directory))
         else:
@@ -568,6 +582,58 @@ def initialize_local_docs(args, context, prefix):
             "patterns": missing_excludes,
         })
     return findings, created, preserved
+
+
+def local_product_document_paths(context):
+    paths = []
+    for root in [context["docsRoot"] / "drafts", context["docsRoot"] / "epics"]:
+        if not root.is_dir() or root.is_symlink():
+            continue
+        paths.extend(
+            path for path in root.rglob("*.md")
+            if path.is_file() and not path.is_symlink()
+        )
+    return sorted(paths)
+
+
+def guided_draft_destination(context, template):
+    templates = {
+        "founding-hypothesis": ("FOUNDING_HYPOTHESIS.md.tmpl", "FOUNDING_HYPOTHESIS.md"),
+        "peter-yang": ("PETER_YANG_PRD.md.tmpl", "PETER_YANG_PRD.md"),
+    }
+    template_name, filename = templates[template]
+    return template_name, context["docsRoot"] / "drafts" / filename
+
+
+def create_guided_draft(context, template, dry_run=False):
+    template_name, draft_path = guided_draft_destination(context, template)
+    drafts_root = context["docsRoot"] / "drafts"
+    findings = []
+    if drafts_root.is_symlink() or (drafts_root.exists() and not drafts_root.is_dir()):
+        findings.append({
+            "code": "invalid_drafts_directory",
+            "severity": "fail",
+            "message": f"Drafts path must be a real directory: {drafts_root}",
+        })
+        return findings, draft_path
+    if draft_path.exists() or draft_path.is_symlink():
+        findings.append({
+            "code": "draft_exists",
+            "severity": "fail",
+            "message": f"Refusing to overwrite an existing product draft: {draft_path}",
+        })
+        return findings, draft_path
+    date = datetime.now().astimezone().date().isoformat()
+    rendered = render_local_doc_template(template_name, {"DATE": date})
+    if not dry_run:
+        drafts_root.mkdir(parents=True, exist_ok=True)
+        write_new_file(draft_path, rendered)
+    findings.append({
+        "code": "guided_draft_planned" if dry_run else "guided_draft_created",
+        "severity": "pass",
+        "message": f"Gauntlet {'would create' if dry_run else 'created'} an unanswered {template} draft.",
+    })
+    return findings, draft_path
 
 
 def command_docs_init(args):
@@ -607,6 +673,15 @@ def command_docs_ensure(args):
 
     all_paths_exist = all(path.exists() for path in [context["policyPath"], context["docsRoot"], context["indexPath"]])
     if all_paths_exist:
+        drafts_root = context["docsRoot"] / "drafts"
+        created = []
+        preserved = []
+        if drafts_root.is_dir() and not drafts_root.is_symlink():
+            preserved.append(str(drafts_root))
+        else:
+            created.append(str(drafts_root))
+            if not args.dry_run:
+                drafts_root.mkdir(parents=False, exist_ok=False)
         migration_findings, migrated = ensure_doc_execution_contract(context, dry_run=args.dry_run)
         findings = migration_findings + local_docs_validation_findings(context, require_profile=True)
         return local_docs_payload(
@@ -615,13 +690,40 @@ def command_docs_ensure(args):
             findings,
             mode="default-on",
             materialized=True,
-            created=[],
-            preserved=[],
+            created=created,
+            preserved=preserved,
             migrated=migrated,
+            dryRun=args.dry_run,
         )
 
+    had_product_document = bool(local_product_document_paths(context))
+    _, founding_candidate = guided_draft_destination(context, "founding-hypothesis")
+    if not had_product_document and (founding_candidate.exists() or founding_candidate.is_symlink()):
+        return local_docs_payload(
+            args,
+            context,
+            [{
+                "code": "draft_exists",
+                "severity": "fail",
+                "message": f"Refusing to overwrite an existing product draft path: {founding_candidate}",
+            }],
+            mode="default-on",
+            materialized=False,
+            created=[],
+            preserved=[],
+            dryRun=args.dry_run,
+            foundingDraftPath=str(founding_candidate),
+        )
     prefix = args.epic_prefix or (local_epic_prefix(context["indexPath"]) if context["indexPath"].is_file() else inferred_epic_prefix(context))
     findings, created, preserved = initialize_local_docs(args, context, prefix)
+    founding_draft_path = None
+    if not had_product_document and not any(finding.get("severity") == "fail" for finding in findings):
+        draft_findings, founding_draft_path = create_guided_draft(
+            context, "founding-hypothesis", dry_run=args.dry_run,
+        )
+        findings.extend(draft_findings)
+        if not any(finding.get("severity") == "fail" for finding in draft_findings):
+            created.append(str(founding_draft_path))
     if not args.dry_run and not any(finding.get("severity") == "fail" for finding in findings):
         migration_findings, _ = ensure_doc_execution_contract(context, dry_run=False)
         findings.extend(migration_findings)
@@ -637,6 +739,7 @@ def command_docs_ensure(args):
         created=created,
         preserved=preserved,
         excludePath=str(context["excludePath"]),
+        foundingDraftPath=str(founding_draft_path) if founding_draft_path else None,
     )
 
 
@@ -852,6 +955,175 @@ def command_docs_epic_create(args):
             shutil.rmtree(epic_root)
         raise
     return local_docs_payload(args, context, findings, epicId=epic_id, epicRoot=str(prd_path.parent), prdPath=str(prd_path), appended=bool(args.prd))
+
+
+def command_docs_draft_create(args):
+    context = local_docs_context(args.project_root)
+    _, draft_candidate = guided_draft_destination(context, args.template)
+    if draft_candidate.exists() or draft_candidate.is_symlink():
+        return local_docs_payload(
+            args,
+            context,
+            [{
+                "code": "draft_exists",
+                "severity": "fail",
+                "message": f"Refusing to overwrite an existing product draft: {draft_candidate}",
+            }],
+            template=args.template,
+            draftPath=str(draft_candidate),
+            dryRun=args.dry_run,
+        )
+    if local_docs_opted_out(context):
+        findings = local_docs_path_findings(context) + [{
+            "code": "local_document_profile_opted_out",
+            "severity": "fail",
+            "message": f"Project opted out of default local documents through {context['optOutPath']}; run docs enable before creating a draft.",
+        }]
+    elif all(path.exists() for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]):
+        findings = local_docs_validation_findings(context, require_profile=True)
+    else:
+        findings, _, _ = initialize_local_docs(args, context, inferred_epic_prefix(context))
+        if not args.dry_run and not any(finding.get("severity") == "fail" for finding in findings):
+            findings.extend(local_docs_validation_findings(context, require_profile=True))
+    if any(finding.get("severity") == "fail" for finding in findings):
+        return local_docs_payload(args, context, findings, template=args.template, dryRun=args.dry_run)
+
+    draft_findings, draft_path = create_guided_draft(context, args.template, dry_run=args.dry_run)
+    findings.extend(draft_findings)
+    return local_docs_payload(
+        args,
+        context,
+        findings,
+        template=args.template,
+        draftPath=str(draft_path),
+        dryRun=args.dry_run,
+    )
+
+
+def local_draft_path(context, supplied):
+    drafts_root = context["docsRoot"] / "drafts"
+    candidate = Path(supplied).expanduser()
+    if not candidate.is_absolute():
+        candidate = drafts_root / candidate
+    candidate = candidate.absolute()
+    if candidate.is_symlink():
+        raise RuntimeError(f"A promoted draft must not be a symlink: {candidate}")
+    resolved_root = drafts_root.resolve()
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(resolved_root)
+    except ValueError as exc:
+        raise RuntimeError("A promoted draft must be inside local-docs/drafts.") from exc
+    current = candidate.parent
+    resolved_docs_root = context["docsRoot"].resolve()
+    while current.resolve() != resolved_docs_root:
+        if current.is_symlink():
+            raise RuntimeError(f"A promoted draft path must not use symlinks: {candidate}")
+        if current == current.parent:
+            raise RuntimeError("A promoted draft must be inside local-docs/drafts.")
+        current = current.parent
+    if candidate.parent.resolve() != resolved_root:
+        raise RuntimeError("A promoted draft must be directly inside local-docs/drafts.")
+    if not resolved.is_file():
+        raise RuntimeError(f"A promoted draft must already exist: {candidate}")
+    return resolved
+
+
+def command_docs_draft_promote(args):
+    context = local_docs_context(args.project_root)
+    if local_docs_opted_out(context):
+        findings = local_docs_path_findings(context) + [{
+            "code": "local_document_profile_opted_out",
+            "severity": "fail",
+            "message": f"Project opted out of default local documents through {context['optOutPath']}; run docs enable before promoting a draft.",
+        }]
+    elif all(path.exists() for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]):
+        findings = local_docs_validation_findings(context, require_profile=True)
+    else:
+        findings = local_docs_path_findings(context) + [{
+            "code": "local_document_profile_missing",
+            "severity": "fail",
+            "message": "Create a local product draft before promoting it.",
+        }]
+    if any(finding.get("severity") == "fail" for finding in findings):
+        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
+    if not valid_epic_title(args.title):
+        findings.append({
+            "code": "invalid_epic_title",
+            "severity": "fail",
+            "message": "Epic title must be one non-empty line, at most 120 characters, without Markdown link or control delimiters.",
+        })
+        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
+
+    draft_path = local_draft_path(context, args.draft)
+    prefix = local_epic_prefix(context["indexPath"])
+    if not re.fullmatch(r"[A-Z][A-Z0-9]{1,11}", prefix):
+        raise RuntimeError(f"Local document index has an invalid epic prefix: {prefix}")
+    existing = allocated_epic_numbers(context, prefix)
+    number = args.number if args.number is not None else ((max(existing) + 1) if existing else 1)
+    if number < 1 or number > 999:
+        findings.append({"code": "invalid_epic_number", "severity": "fail", "message": "Epic number must be between 001 and 999."})
+        return local_docs_payload(args, context, findings, draftPath=str(draft_path), dryRun=args.dry_run)
+    sequence = f"{number:03d}"
+    epic_id = f"{prefix}-{sequence}"
+    if number in existing:
+        findings.append({"code": "epic_id_exists", "severity": "fail", "message": f"Epic ID already exists: {epic_id}"})
+        return local_docs_payload(args, context, findings, draftPath=str(draft_path), dryRun=args.dry_run)
+
+    epics_root = context["docsRoot"] / "epics"
+    epic_root = epics_root / sequence
+    prd_path = epic_root / f"{sequence}_{epic_title_slug(args.title)}_PRD.md"
+    if epic_root.exists() or epic_root.is_symlink() or prd_path.exists():
+        findings.append({"code": "epic_exists", "severity": "fail", "message": f"Epic destination already exists: {epic_root}"})
+        return local_docs_payload(args, context, findings, draftPath=str(draft_path), dryRun=args.dry_run)
+
+    index_path = context["indexPath"]
+    index_text = index_path.read_text(encoding="utf-8")
+    marker = "<!-- EPICS -->"
+    if index_text.count(marker) != 1:
+        raise RuntimeError(f"Local document index must contain exactly one epic insertion marker: {index_path}")
+    date = datetime.now().astimezone().date().isoformat()
+    relative = prd_path.relative_to(context["docsRoot"])
+    row = f"| `{epic_id}` | [{args.title}]({relative.as_posix()}) | PRD | Proposed | {date} | None | None | Not implemented | Not verified |\n"
+    updated_index = index_text.replace(marker, row + marker, 1)
+    if args.dry_run:
+        return local_docs_payload(
+            args,
+            context,
+            findings,
+            epicId=epic_id,
+            epicRoot=str(epic_root),
+            prdPath=str(prd_path),
+            draftPath=str(draft_path),
+            dryRun=True,
+        )
+
+    moved = False
+    try:
+        epic_root.mkdir(parents=False, exist_ok=False)
+        for child in ["prompts", "research", "decisions", "runs"]:
+            (epic_root / child).mkdir()
+        os.replace(draft_path, prd_path)
+        moved = True
+        atomic_write_text(index_path, updated_index)
+    except Exception:
+        if moved and prd_path.is_file() and not draft_path.exists():
+            os.replace(prd_path, draft_path)
+        if epic_root.exists() and not epic_root.is_symlink():
+            shutil.rmtree(epic_root)
+        if index_path.is_file() and index_path.read_text(encoding="utf-8") != index_text:
+            atomic_write_text(index_path, index_text)
+        raise
+    return local_docs_payload(
+        args,
+        context,
+        findings,
+        epicId=epic_id,
+        epicRoot=str(epic_root),
+        prdPath=str(prd_path),
+        draftPath=str(draft_path),
+        dryRun=False,
+    )
 
 
 def sha256_bytes(value):
@@ -5772,6 +6044,22 @@ def build_parser():
     docs_epic_create.add_argument("--prd", default=None, help="Append the new Epic to an existing PRD under local-docs/epics.")
     docs_epic_create.add_argument("--json", action="store_true")
     docs_epic_create.set_defaults(func=command_docs_epic_create)
+    docs_draft = docs_subcommands.add_parser("draft", help="Create and explicitly promote user-owned product drafts.")
+    docs_draft_subcommands = docs_draft.add_subparsers(dest="docs_draft_command", required=True)
+    docs_draft_create = docs_draft_subcommands.add_parser("create", help="Create one guided, unanswered product draft.")
+    docs_draft_create.add_argument("--project-root", type=Path, default=Path.cwd())
+    docs_draft_create.add_argument("--template", choices=["founding-hypothesis", "peter-yang"], required=True)
+    docs_draft_create.add_argument("--dry-run", action="store_true")
+    docs_draft_create.add_argument("--json", action="store_true")
+    docs_draft_create.set_defaults(func=command_docs_draft_create)
+    docs_draft_promote = docs_draft_subcommands.add_parser("promote", help="Allocate an Epic and atomically move an existing draft into its canonical path.")
+    docs_draft_promote.add_argument("--project-root", type=Path, default=Path.cwd())
+    docs_draft_promote.add_argument("--draft", required=True, help="Draft filename or path below local-docs/drafts.")
+    docs_draft_promote.add_argument("--title", required=True)
+    docs_draft_promote.add_argument("--number", type=int, default=None)
+    docs_draft_promote.add_argument("--dry-run", action="store_true")
+    docs_draft_promote.add_argument("--json", action="store_true")
+    docs_draft_promote.set_defaults(func=command_docs_draft_promote)
 
     followup = subcommands.add_parser("followup", help="Follow-up helpers.")
     followup_subcommands = followup.add_subparsers(dest="followup_command", required=True)

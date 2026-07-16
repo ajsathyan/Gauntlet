@@ -8,6 +8,7 @@ The profile scaffolds:
 doc_org.md
 local-docs/
   INDEX.md
+  drafts/
   epics/
   research/
   executions/
@@ -20,6 +21,8 @@ The project-local opt-out marker is `.gauntlet/doc-org.disabled` in the primary 
 ## Existing Profiles
 
 `docs ensure` is intentionally non-destructive. It creates missing profile paths but does not overwrite an existing `doc_org.md`, `local-docs/INDEX.md`, or canonical document. When the reusable contract changes, review the primary worktree's existing `doc_org.md` against the installed `templates/local-docs/doc_org.md.tmpl` and update only the reusable policy sections that changed. Do not rewrite completed Execution Run manifests, source locks, receipts, or release evidence; those artifacts preserve the contract and topology used by their historical run.
+
+When `docs ensure` initializes a repository with no product document, it also creates `local-docs/drafts/FOUNDING_HYPOTHESIS.md`. The draft contains source guidance but no product-specific answers. Existing profiles and existing product documents are preserved.
 
 ## Visibility Boundary
 
@@ -117,6 +120,25 @@ Materialize the profile when a covered document task needs it. The prefix is inf
 python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs ensure \
   --project-root "$PROJECT_ROOT"
 ```
+
+Create an unanswered follow-up feature draft with the Peter Yang template:
+
+```sh
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs draft create \
+  --project-root "$PROJECT_ROOT" \
+  --template peter-yang
+```
+
+Discussion and read-only checks do not edit a draft. After the user explicitly accepts a title and asks to promote the work, allocate the Epic and atomically move the exact draft bytes into the canonical path:
+
+```sh
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs draft promote \
+  --project-root "$PROJECT_ROOT" \
+  --draft PETER_YANG_PRD.md \
+  --title "Message surfaces"
+```
+
+Both draft commands support `--dry-run`. Promotion performs collision checks before mutation and rolls back the move if the index update fails.
 
 Initialize explicitly from either the primary checkout or a linked worktree:
 

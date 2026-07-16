@@ -5149,6 +5149,12 @@ def test_prd_execution_run_controller_behavior():
         raise AssertionError(f"PRD execution-run controller behavior failed:\n{result.stdout}\n{result.stderr}")
 
 
+def test_document_draft_lifecycle_behavior():
+    result = run(["python3", str(SCRIPTS / "test-doc-lifecycle.py")], check=False)
+    if result.returncode != 0 or "Ran 6 tests" not in result.stderr or "OK" not in result.stderr:
+        raise AssertionError(f"Document draft lifecycle behavior failed:\n{result.stdout}\n{result.stderr}")
+
+
 def test_subagent_orchestration_v2_behavior():
     for script in [
         "test-generated-context.py",
@@ -5249,6 +5255,7 @@ def main():
         test_codex_install_merges_preferences_without_silent_overwrite,
         test_install_docs_explain_codex_and_claude_targets,
         test_local_document_profile_preserves_tracked_docs_and_primary_canonical_copy,
+        test_document_draft_lifecycle_behavior,
         test_prd_execution_run_controller_behavior,
         test_subagent_orchestration_v2_behavior,
     ]
