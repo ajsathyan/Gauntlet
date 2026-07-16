@@ -2868,7 +2868,9 @@ def cmd_integrate(args: argparse.Namespace) -> None:
 def cmd_verify_cohort(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
-    require_state(manifest, ("integrating",))
+    require_state(manifest, ("integrating", "epic_verified"))
+    if manifest["state"] == "epic_verified" and manifest.get("release", {}).get("merge"):
+        raise RunError("Cohort verification cannot change after merge is recorded")
     if args.cohort not in manifest["cohorts"]:
         raise RunError(f"unknown cohort {args.cohort}")
     cohort = manifest["cohorts"][args.cohort]
@@ -2884,8 +2886,11 @@ def cmd_verify_cohort(args: argparse.Namespace) -> None:
         f"cohort-{args.cohort}.json",
         "Cohort verification receipt",
     )
+    if manifest["state"] == "epic_verified" and verification["result"] != "pass":
+        raise RunError("re-verification of an implementation-complete Cohort must pass")
     cohort["result"] = verification["result"]
     cohort["evidence"] = verification["evidence"]
+    cohort["identity"] = verification["identity"]
     cohort["receipt"] = relative
     cohort_report = run / "cohorts" / f"{args.cohort.lower()}.md"
     atomic_text(cohort_report, f"# Cohort {args.cohort}\n\nResult: {verification['result']}\n\nSummary: {verification['summary']}\n\nReceipt: {relative}\n")
@@ -3044,12 +3049,17 @@ def cmd_verify_epic(args: argparse.Namespace) -> None:
     require_state(manifest, ("integrating", "epic_verified"))
     if manifest["state"] == "epic_verified" and manifest.get("release", {}).get("merge"):
         raise RunError("final Epic verification cannot change after merge is recorded")
-    pending = [ticket_id for ticket_id, item in manifest["tickets"].items() if item["status"] != "integrated"]
-    failed_cohorts = [cohort_id for cohort_id, item in manifest["cohorts"].items() if item.get("result") != "pass"]
-    if pending or failed_cohorts:
-        raise RunError(f"final Epic verification requires integrated Tickets and passing declared Cohorts; pending={pending}, cohorts={failed_cohorts}")
     lock = read_json(run / "source-lock.json")
     commit, tree = exact_integration_revision(manifest, lock)
+    pending = [ticket_id for ticket_id, item in manifest["tickets"].items() if item["status"] != "integrated"]
+    failed_cohorts = [
+        cohort_id for cohort_id, item in manifest["cohorts"].items()
+        if item.get("result") != "pass"
+        or item.get("identity", {}).get("commitSha") != commit
+        or item.get("identity", {}).get("treeSha") != tree
+    ]
+    if pending or failed_cohorts:
+        raise RunError(f"final Epic verification requires integrated Tickets and exact-revision passing Cohorts; pending={pending}, cohorts={failed_cohorts}")
     review = consequence_review_status(manifest, commit, tree)
     if review["required"] and review["status"] != "pass":
         raise RunError(f"final Epic verification requires all consequence lenses to pass on the exact candidate revision; status={review['status']}")

@@ -639,6 +639,21 @@ class PrdRunTests(unittest.TestCase):
         self.assertEqual(self.revision()[0], completion["exactRevision"])
         self.assertEqual("E1", completion["epicId"])
 
+        (self.repo / "tracked.txt").write_text("cohort refresh\n")
+        subprocess.run(["git", "add", "tracked.txt"], cwd=self.repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "refresh after cohort verification"], cwd=self.repo, check=True)
+        stale_final = self.verification_receipt("stale-cohort-final", oracle=lock["epics"]["E1"]["section_sha256"])
+        rejected = self.command(
+            "verify-epic", "--run", str(self.run), "--verification-receipt", str(stale_final), ok=False,
+        )
+        self.assertIn("exact-revision passing Cohorts", rejected.stderr)
+        refreshed_cohort = self.verification_receipt("cohort-C1-refreshed")
+        self.command("verify-cohort", "--run", str(self.run), "--cohort", "C1", "--verification-receipt", str(refreshed_cohort))
+        refreshed_final = self.verification_receipt("final-refreshed-cohort", oracle=lock["epics"]["E1"]["section_sha256"])
+        self.command("verify-epic", "--run", str(self.run), "--verification-receipt", str(refreshed_final))
+        refreshed_completion = json.loads(self.command("completion", "--run", str(self.run)).stdout)
+        self.assertEqual(self.revision()[0], refreshed_completion["exactRevision"])
+
     def test_failed_or_stale_final_verification_cannot_claim_implementation(self) -> None:
         self.compile_and_start()
         denominator = self.manifest()["progress"]["denominator_sha256"]
