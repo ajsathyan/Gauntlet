@@ -1,32 +1,29 @@
 ---
 name: maintain-prd
-description: Maintain one canonical human-readable Product Requirements Document while a user develops product ideas into independently shippable Epics with stable Scope Areas, acceptance, test expectations, dependencies, and build-readiness. Use when creating, revising, organizing, or resuming PRD work, or when the user asks to capture product decisions without implementing them.
+description: Use when creating, revising, organizing, or accepting a user-owned product document without starting implementation.
 ---
 
 # Maintain PRD
 
-Turn discussion into one navigable product source of truth. Do not implement, compile Tickets, create an execution run, open a pull request, merge, deploy, or change production.
+Help the user shape one editable product document. Do not implement, compile Tickets, create an Execution Run, publish, merge, deploy, or change production.
 
 ## Procedure
 
-1. When the default local-document profile applies, read `doc_org.md` and `local-docs/INDEX.md` before changing covered documents. Edit canonical local documents only in the primary worktree. If opted out, use the repository's established tracked documentation location.
-2. Find the canonical PRD. Keep related Epics in the same document when that preserves the product task's shared context; a later implementation launch, not document splitting, creates one visible task per Epic.
-3. Reconcile new discussion against existing decisions. Preserve stable Epic and Scope Area IDs; record contradictions and supersession rather than silently rewriting history.
-4. Structure each Epic using [the PRD contract](references/prd-contract.md). Keep separate concepts under separate headings.
-5. Make safe assumptions explicit. Ask only when a missing answer materially changes product behavior, acceptance, authority, risk, cost, or external effect.
-6. Set an Epic to `Accepted` only when its outcome and boundaries are agreed. Add it to `Implementation target` only when it is build-ready, ships independently, rolls back independently, has explicit release stages, and declares the applicable closed high-consequence trigger IDs or `none`. Leave proposed, deferred, or unresolved Epics in the same PRD but outside the target.
-7. Update the index once per Epic. Keep it navigational; do not treat index status as proof.
-8. Return the document path, decisions captured, readiness state, and material open questions. When useful, invite the user to keep going and flesh out the rest of the product as Epics; explain that one later implementation request starts every dependency-ready target Epic in its own visible task. Stop there.
+1. Read `doc_org.md`, `local-docs/INDEX.md`, and the current draft or PRD from the primary worktree.
+2. Treat discussion as discussion. Create or change a document only when the user explicitly asks. For a new product, create the guided Founding Hypothesis; for a follow-up feature, create the guided Peter Yang PRD without Meeting Notes.
+3. Preserve template guidance and arbitrary user sections. Write only product content the user stated, accepted, or explicitly asked the agent to draft. Label agent suggestions as proposed edits and leave them out until accepted.
+4. Never infer non-goals, security or safety boundaries, rollout constraints, quality gates, or other product limits. If one could materially change behavior, scope, cost, or maturity, ask a concise practical-effect question before acceptance.
+5. Promote or accept only on explicit instruction. Require observable done behavior; if it is missing, ask one concise question instead of inventing acceptance. Preserve the exact accepted artifact and let controller state own mechanical execution facts.
+6. Return at most three practical-effect bullets: document changed, readiness, and the next material question. Stop there.
 
-## Integrity Rules
+## Integrity
 
-- Keep the PRD human-readable. Do not insert agent prompt boilerplate, giant JSON, start/end sentinels, runtime status, or raw evidence logs.
-- Use Scope Areas for stable product responsibilities. Do not pre-allocate implementation Tickets during discussion.
-- Keep implementation dependencies at Epic boundaries and name whether the dependency needs the upstream Epic merged, deployed, or production-proved. Do not use conversational ordering as a dependency.
-- Treat Acceptance as the required outcome, Test Expectations as meaningful behavioral evidence, and Verification Strategy as the later proof layers.
-- Never make phrase presence, a populated field, a status label, or an agent self-report an acceptance oracle.
-- Keep secrets and sensitive identifiers out of local documents. Move maintainer-required rules into tracked code, tests, or documentation.
+- The human document owns product intent; guidance and unanswered headings are not decisions.
+- Direct user edits and unfamiliar headings remain valid.
+- Legacy accepted PRDs remain valid; do not rewrite them merely to adopt a new template.
+- Keep secrets and sensitive identifiers out of documents.
+- If a requested change cannot be verified from the discussion or artifact, say `Cannot verify` and name the one useful next check.
 
 ## Completion
 
-Complete when the canonical PRD and index reflect the discussion, readiness is honest, and material open questions are explicit. PRD maintenance never authorizes implementation.
+Complete when the requested document action is done, every new product statement has user authority, and readiness is honest.

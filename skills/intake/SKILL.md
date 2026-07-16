@@ -5,7 +5,7 @@ description: Use when non-trivial coding work needs bounded scope, acceptance cr
 
 # Intake
 
-Turn rough intent into an **Intake Packet** another agent can execute with minimal follow-up. Classify first, then ask only questions that materially change implementation, product behavior, risk, UX, data, API behavior, verification, or scope.
+Bound the requested work without turning rough discussion into product requirements. Ask only questions that materially change implementation, product behavior, risk, UX, data, API behavior, verification, or scope.
 
 ## Tier
 
@@ -39,6 +39,8 @@ If a field is outside accepted scope, write `Not relevant because...` instead of
 ## Rules
 
 - Ask up to three questions; for minor gaps, make an assumption and record it.
+- Do not write or expand a PRD unless the user explicitly requests that document action. Never infer non-goals, security boundaries, rollout, or maturity gates from an empty packet field.
+- Keep agent suggestions outside accepted scope until the user acknowledges them. Preserve existing behavior unless explicitly changed.
 - Frame verification as a behavioral claim, observable outcome, and meaningful limits. For consequential behavior, name a plausible wrong case and required non-effects instead of relying on phrases, populated fields, or a green command.
 - Keep intake in the conversation or canonical plan. Do not create a second permanent intake artifact unless the user explicitly asks for a spec document.
 - When the default local-document profile applies, use its canonical location for a local artifact without creating a second intake or plan.
