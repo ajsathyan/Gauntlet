@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet's Codex installer now defaults to no built-in personality, low response verbosity, concise reasoning summaries, visible context-window usage, and installed and enabled Browser and Computer Use plugins while preserving explicit conflict choices and unrelated configuration.
+
 - Gauntlet's Codex installer now configures `agents.max_threads = 24` through the existing conflict-aware preference flow while preserving unrelated configuration and idempotent reinstalls.
 
 - Gauntlet now lets one product task shape and launch many independently shippable Epics while giving each Epic its own visible task, Execution Run, exact-revision verification, schema 3.0 Project PR, dependency-aware lifecycle copy, and release state. The cutover retires duplicate implementation-plan and model-authored completion-summary mechanics, makes Cohorts optional, and preserves stronger consequence-triggered review and production dry-run gates.
