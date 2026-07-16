@@ -2802,10 +2802,12 @@ def run_facts_projection(run: Path, manifest: dict[str, Any]) -> dict[str, Any]:
         if isinstance(request_owners, dict) and request_owners
         else [item["owner"] for _, item in sorted(manifest["tickets"].items()) if item.get("owner")]
     )
+    completion = completion_projection(manifest, observed_head=commit)
     return {
+        "completion": completion,
         "epicId": epic_id,
         "epicTitle": lock["epics"][epic_id]["title"],
-        "exactRevision": completion_projection(manifest, observed_head=commit)["exactRevision"],
+        "exactRevision": completion["exactRevision"],
         "gapReview": gap_review_status(manifest),
         "operations": operations_projection(manifest),
         "owners": owners,

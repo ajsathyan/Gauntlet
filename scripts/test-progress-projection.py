@@ -192,6 +192,12 @@ class ProgressProjectionTests(unittest.TestCase):
         self.assertEqual("ready_to_merge", verified["presentation"]["state"])
         self.assertEqual("Implementation complete", verified["eta"]["label"])
 
+        value["runs"]["E1"]["facts"]["completion"] = {"complete": True, "exactState": "complete"}
+        legacy_complete = epic(value)
+        self.assertEqual("shipped", legacy_complete["presentation"]["state"])
+        self.assertEqual("succeeded", legacy_complete["identity"]["terminalOutcome"])
+        self.assertEqual("Complete", legacy_complete["eta"]["label"])
+
     def test_health_progress_freshness_and_eta_are_independent(self) -> None:
         value = source_fixture()
         item = epic(value)
