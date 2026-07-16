@@ -1447,8 +1447,15 @@ def ready_launch_epics(launch, projections):
     return ready
 
 
+def launch_path_reference(path, repo):
+    path = Path(path).resolve()
+    try:
+        return path.relative_to(Path(repo).resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def epic_task_packet(launch_path, launch, epic_id, repo):
-    section = epic_source_sections(launch_source_text(launch))[epic_id]["text"]
     epic = launch["epics"][epic_id]
     dependency_outputs = []
     projections = launch_projections(repo, launch)
@@ -1460,17 +1467,16 @@ def epic_task_packet(launch_path, launch, epic_id, repo):
                 "boundary": dependency["boundary"],
                 "exactRevision": projection.get("exactRevision"),
             })
-    source_path = Path(launch["source"]["snapshotPath"])
-    try:
-        source_reference = source_path.relative_to(Path(repo).resolve()).as_posix()
-    except ValueError:
-        source_reference = source_path.name
-    try:
-        launch_reference = Path(launch_path).resolve().relative_to(Path(repo).resolve()).as_posix()
-    except ValueError:
-        launch_reference = Path(launch_path).name
+    source_reference = launch_path_reference(launch["source"]["snapshotPath"], repo)
+    launch_reference = launch_path_reference(launch_path, repo)
+    task_key = launch_task_key(launch, epic_id)
+    bootstrap_argv = [
+        "python3", str(Path(__file__).resolve()), "epic-tasks", "bootstrap",
+        "-l", launch_reference, "-e", epic_id, "-t", task_key,
+        "--json",
+    ]
     packet = {
-        "schemaVersion": "gauntlet.epic-task.v1",
+        "schemaVersion": "gauntlet.epic-task.v2",
         "mode": "single-epic-non-recursive",
         "epicId": epic_id,
         "epicTitle": epic["title"],
@@ -1478,8 +1484,12 @@ def epic_task_packet(launch_path, launch, epic_id, repo):
         "sourceSha256": launch["source"]["sha256"],
         "coverageSha256": launch["coverageSha256"],
         "launchSet": launch_reference,
-        "taskKey": launch_task_key(launch, epic_id),
+        "taskKey": task_key,
         "dependencyOutputs": dependency_outputs,
+        "bootstrap": {
+            "instruction": "Run argv once in task cwd before run creation; use epicSection; stop on failure.",
+            "argv": bootstrap_argv,
+        },
     }
     opening = render_lifecycle_copy("epic_start", {
         "epic_id": epic_id,
@@ -1492,12 +1502,70 @@ def epic_task_packet(launch_path, launch, epic_id, repo):
         "<gauntlet_epic_task>",
         canonical_json(packet),
         "</gauntlet_epic_task>",
-        "",
-        section.rstrip(),
     ])
     if has_secret(message):
         raise ValueError(f"Epic task packet for {epic_id} contains secret-like content")
     return message
+
+
+def resolve_epic_bootstrap(launch_path, epic_id, task_key, source_sha256=None, coverage_sha256=None):
+    launch_path, launch = load_launch_set(launch_path)
+    if coverage_sha256 is not None and coverage_sha256 != launch["coverageSha256"]:
+        raise ValueError("Epic bootstrap coverage digest does not match the launch set")
+    if source_sha256 is not None and source_sha256 != launch["source"]["sha256"]:
+        raise ValueError("Epic bootstrap source digest does not match the launch set")
+    if epic_id not in launch["epics"] or task_key != launch_task_key(launch, epic_id):
+        raise ValueError("Epic bootstrap task key does not match the launch set")
+
+    source_text = launch_source_text(launch)
+    snapshot_path = Path(launch["source"]["snapshotPath"]).resolve()
+    resolved_launch, _ = build_epic_launch_set(snapshot_path, launch["targetEpicIds"])
+    if resolved_launch["targetEpicIds"] != launch["targetEpicIds"]:
+        raise ValueError("Epic bootstrap source target no longer matches the launch set")
+    for target_id in launch["targetEpicIds"]:
+        expected = {
+            key: launch["epics"][target_id][key]
+            for key in ("title", "dependencies", "releaseStages", "consequenceTriggers")
+        }
+        actual = {
+            key: resolved_launch["epics"][target_id][key]
+            for key in ("title", "dependencies", "releaseStages", "consequenceTriggers")
+        }
+        if actual != expected:
+            raise ValueError(f"Epic bootstrap source semantics no longer match the launch set for {target_id}")
+
+    section = epic_source_sections(source_text)[epic_id]["text"]
+    if has_secret(section):
+        raise ValueError(f"Epic bootstrap for {epic_id} contains secret-like content")
+    return {
+        "schemaVersion": "gauntlet.epic-bootstrap.v1",
+        "status": "pass",
+        "launchSet": str(launch_path),
+        "epicId": epic_id,
+        "taskKey": task_key,
+        "sourceSnapshot": str(snapshot_path),
+        "sourceSha256": launch["source"]["sha256"],
+        "coverageSha256": launch["coverageSha256"],
+        "epicSectionSha256": sha256_bytes(section.encode("utf-8")),
+        "epicSection": section,
+        "findings": [],
+    }
+
+
+def command_epic_tasks_bootstrap(args):
+    try:
+        payload = resolve_epic_bootstrap(
+            args.launch_set, args.epic, args.task_key,
+            args.source_sha256, args.coverage_sha256,
+        )
+    except (OSError, ValueError, KeyError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        payload = {
+            "schemaVersion": "gauntlet.epic-bootstrap.v1",
+            "status": "fail",
+            "findings": [{"code": "epic_bootstrap_failed", "severity": "fail", "message": str(exc)}],
+        }
+    print_payload(payload, args.json)
+    return EXIT_CODES[payload["status"]]
 
 
 def launch_state(launch, projections):
@@ -5936,6 +6004,15 @@ def build_parser():
     epic_plan.add_argument("--launch-set", type=Path, required=True)
     epic_plan.add_argument("--json", action="store_true")
     epic_plan.set_defaults(func=command_epic_tasks_plan)
+    epic_bootstrap = epic_task_subcommands.add_parser("bootstrap", help="Verify and resolve one complete accepted Epic before run creation.")
+    epic_bootstrap.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_bootstrap.add_argument("-l", "--launch-set", type=Path, required=True)
+    epic_bootstrap.add_argument("-e", "--epic", required=True)
+    epic_bootstrap.add_argument("-t", "--task-key", required=True)
+    epic_bootstrap.add_argument("-s", "--source-sha256")
+    epic_bootstrap.add_argument("-c", "--coverage-sha256")
+    epic_bootstrap.add_argument("--json", action="store_true")
+    epic_bootstrap.set_defaults(func=command_epic_tasks_bootstrap)
     epic_record_task = epic_task_subcommands.add_parser("record-task", help="Persist a proven native task ID for an Epic.")
     epic_record_task.add_argument("--git-root", type=Path, default=Path.cwd())
     epic_record_task.add_argument("--launch-set", type=Path, required=True)
