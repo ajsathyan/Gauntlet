@@ -255,6 +255,7 @@ class ProgressProjectionTests(unittest.TestCase):
         for operation in final["runs"]["E1"]["facts"]["operations"]:
             operation["status"] = "pass"
         final["runs"]["E1"]["facts"]["time"]["terminalAt"] = NOW
+        final["launch"]["epics"]["E1"]["status"] = "implementation-complete"
         self.assertEqual("shipped", epic(final)["presentation"]["state"])
 
     def test_projection_is_deterministic_and_rejects_malformed_sources(self) -> None:
