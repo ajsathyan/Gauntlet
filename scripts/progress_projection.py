@@ -538,8 +538,11 @@ def epic_projection(
             "reason": "implementation-verified",
             "actionRequired": False,
         }
+    # Legacy runs may have no progress units, so launch state remains their
+    # compatibility signal. Instrumented runs carry the more precise merge,
+    # release, and terminal facts and must not be pinned at ready-to-merge.
     state = (
-        "ready_to_merge" if launch_status == "implementation-complete"
+        "ready_to_merge" if launch_status == "implementation-complete" and not units
         else presentation_state(health, phases, units, time_facts["terminalAt"])
     )
     if state == "shipped":
