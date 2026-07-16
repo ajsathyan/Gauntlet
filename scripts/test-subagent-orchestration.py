@@ -490,7 +490,7 @@ def test_epic_run_test_plan_reuses_only_exact_receipts_and_review_pack_needs_no_
             "--run-facts", str(facts), "--no-test-plan", "--output", str(packet_path),
         ])
         packet = packet_path.read_text(encoding="utf-8")
-        for marker in ("Locked Epic Run", "authority-security", "failure-recovery", "black-box", "no implementation-plan document"):
+        for marker in ("Locked Epic Run", "authority-security", "failure-recovery", "black-box", "bounded source, plan, diff, and proof context"):
             if marker not in packet:
                 raise AssertionError("run-backed review packet missing {}".format(marker))
         if "## Canonical Plan" in packet:

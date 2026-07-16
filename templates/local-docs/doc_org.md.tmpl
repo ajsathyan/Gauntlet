@@ -1,135 +1,67 @@
 # Document organization
 
-This file governs local product, research, decision, planning, and implementation-history documents for this repository. The local-document profile is default-on and is materialized lazily when a covered document task needs it. Read this file with `local-docs/INDEX.md` before creating or changing one of those documents.
+This project keeps private product working documents in the primary Git worktree. Read this file with `local-docs/INDEX.md` before changing those documents.
 
 ## Locations
 
-- Primary worktree policy: `doc_org.md`
-- Canonical local documents: `local-docs/`
-- Tracked repository documentation: the repository's existing tracked documentation location, commonly `docs/`
-- Linked implementation worktrees: follow the repository's Git/worktree convention
+- Product drafts: `local-docs/drafts/`
+- Promoted product documents: `local-docs/epics/`
+- Research and decisions: `local-docs/research/` and the relevant Epic home
+- Execution state: `local-docs/executions/`
+- Tracked maintainer documentation: the repository's established documentation location
 
-`doc_org.md` and `local-docs/` are ignored locally. They are not a security boundary.
+`doc_org.md` and `local-docs/` are ignored locally. They are not a security boundary. Canonical local documents exist only in the primary worktree; linked worktrees read them and return durable results to the parent task.
 
-To opt this project out of the default profile, run `python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs disable --project-root "$PROJECT_ROOT"`. Gauntlet records the opt-out in the ignored primary-worktree marker `.gauntlet/doc-org.disabled` and never deletes an existing local-document profile. Run `docs enable` before using the profile again.
+To opt out, run `python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs disable --project-root "$PROJECT_ROOT"`. Run `docs enable` to reactivate the profile.
 
-## Local And Tracked Documentation
+## User-owned product documents
 
-Use `local-docs/` for local product working documents, exploratory research, deterministic Epic launch state, and local run history.
+Discussion does not change a draft, plan, or PRD. Write only after the user explicitly asks to create or edit one.
 
-Documents required by another checkout, contributor, CI process, operator, auditor, or future maintainer belong in the repository's tracked documentation location. This includes public contracts, contributor guidance, durable architectural decisions, operational runbooks, release notes, compliance evidence, and other documentation required to understand or operate the repository.
+- Use the guided Founding Hypothesis for a new product.
+- Use the guided Peter Yang feature PRD for a follow-up Epic; omit Meeting Notes.
+- Preserve useful template guidance, direct user edits, and arbitrary added, removed, or renamed sections.
+- Write product content only when the user stated it, accepted it, or explicitly asked the agent to draft it.
+- Keep agent suggestions outside the document as proposed edits until the user accepts them.
 
-If an accepted rule is necessary to maintain the software, make it durable through tracked code, tests, a pull request, or tracked documentation. The ignored product history cannot be its only home.
+Do not infer non-goals, security or safety boundaries, quality gates, rollout constraints, or other product limits merely because a template or workflow could contain them. Ask one concise practical-effect question when an unanswered decision would materially change behavior, scope, acceptance, authority, cost, or external effect.
 
-Never put credentials, secret values, private destinations, personal data, or sensitive resource identifiers in either document tree. Refer to settings by name and keep real values in approved configuration and secret-management systems.
+## Promotion and acceptance
 
-## Canonical Local Documents
+Drafts remain under `local-docs/drafts/` until the user explicitly promotes them. Promotion allocates a stable `{{EPIC_PREFIX}}-###` ID, chooses the final filename, preserves the draft bytes, and updates the index atomically.
 
-Canonical local documents live only under the primary worktree's `local-docs/` tree. Linked implementation worktrees contain tracked source, tests, and disposable artifacts. They read canonical local documents from the primary worktree and return durable decisions, exceptions, unresolved gaps, and proof to the main task.
+Acceptance binds the exact human document version. Require observable done behavior; if it is absent, ask instead of inventing acceptance criteria. Existing behavior is preserved unless the accepted document explicitly changes it. Legacy accepted PRDs remain valid and are not rewritten solely to adopt a new template.
 
-The main task updates canonical documents before a linked worktree is removed. Local-document changes are not committed, merged, or deployed.
+The human document owns product intent. Controller state owns source digests, dependencies, release applicability, review iteration, run status, receipts, and dashboard projections. Guidance and unanswered headings are never accepted requirements.
 
-## Minimum Useful Questions
+## Document roles
 
-Gauntlet's global question discipline applies. For documentation work, ask only when the answer could materially change the document's purpose, audience, scope, authority, organization, acceptance criteria, or another consequential decision. Use existing context first and produce a provisional artifact with explicit safe assumptions when clarification is unnecessary.
+- Product documents own user-authorized intent and observable acceptance.
+- Research owns evidence, contradictions, uncertainty, and deferred investigation; it does not authorize implementation.
+- Decisions preserve choices whose reasoning would otherwise be lost.
+- Ticket Graphs direct one locked Epic's execution; they cannot add product requirements.
+- Run state records implementation facts, proof, review dispositions, and resumability.
 
-## Product PRDs And Epic Launches
+Link artifacts rather than copying their full content. Put contributor, operator, CI, release, or architectural requirements in tracked code, tests, or documentation so another checkout can use them.
 
-This project uses prefix `{{EPIC_PREFIX}}`. Accepted epics receive stable three-digit numbers such as `{{EPIC_PREFIX}}-001`. Existing repository or issue-tracker identifiers remain canonical when project policy says so; record the local Epic ID as an alias rather than replacing them.
+## Secrets and configuration
 
-One human-readable PRD may contain multiple Epics discussed in one product task. Give every Epic its own `## Epic <ID>: <title>` section and index row. Do not split a coherent PRD merely to make delegation easier. When the user says to implement the PRD, freeze the complete target into one launch set, create one visible implementation task and one Execution Run per target Epic, and start every dependency-ready Epic. Within each Epic, give stable product responsibilities Scope Area IDs such as `{{EPIC_PREFIX}}-001-S01`. Scope Areas describe the product; implementation Tickets describe the current execution and may change without renumbering Scope Areas.
-
-```text
-local-docs/
-  INDEX.md
-  epics/
-    001/
-      001_EXAMPLE_PRD.md
-      prompts/
-      research/
-      decisions/
-      runs/
-  research/
-```
-
-The numbered directory is a document home, not a requirement that each file contain exactly one Epic. The generated PRD starts with one Epic and may grow to include related Epics. Do not assign an Epic number to unowned research or a small addition already owned by an existing Epic. Never renumber an accepted Epic or Scope Area because its title, order, or implementation changed.
-
-## PRD Structure And Readiness
-
-Keep product concepts separate so humans and agents can retrieve only the needed sections. Each Epic uses distinct headings for:
-
-- Primary User, User Situation, User Job, and First Value;
-- Objectives, Principles, Scope, and Non-goals;
-- User Workflow, Information Architecture, Deterministic Rules, States, and Failures And Recovery;
-- Trust And User Hesitation, Privacy And Sensitive Data, Security Boundaries, and Authority Model;
-- Product Acceptance, Design Acceptance, and Engineering Acceptance;
-- Affected Interfaces, Test Expectations, and Verification Strategy;
-- Dependencies, Assumptions, Open Questions, Cannot Verify, Rollout Constraints, and Rollback Constraints.
-
-Acceptance says what must be true. Test Expectations name behavior claims, observable oracles, plausible wrong cases, and required non-effects. Verification Strategy describes proof layers without pretending a field, phrase, receipt, or green command proves semantics.
-
-Use document status `Discussing` until the PRD is accepted. `Implementation target` must list only accepted Epics whose material decisions, acceptance, interfaces, and release constraints are build-ready. Proposed, deferred, or unresolved Epics remain in the same PRD but are excluded from compilation.
-
-## Document Roles
-
-- A PRD owns accepted user-facing behavior and acceptance.
-- Research preserves evidence, contradictions, uncertainty, and deferred investigation. Research does not authorize implementation.
-- A decision record preserves a durable choice whose reasoning would otherwise be lost.
-- A compiled Ticket Graph directs one locked Epic's Execution Run. It does not own new product requirements or cross-Epic launch state.
-- A run log preserves material decisions, exceptions, proof limits, and unresolved gaps.
-
-Keep these roles distinct and link them rather than copying their content.
-
-## Configuration, Secrets, And Constants
-
-Every PRD states what behavior must be configurable, who controls it, and which secret or private-data classes are involved. Every build-ready Epic inventories values likely to be externalized and classifies each as a secret, environment configuration, user or operator setting, feature flag, derived value, or stable code constant.
-
-Never hardcode secrets, credentials, private resource identifiers, environment-specific endpoints, deployment identifiers, or values that legitimately vary by environment or operator. Store production secrets in the project's approved secret-management system and non-secret environment values in the project's validated configuration mechanism.
-
-Stable product rules, protocol constants, enum values, legal state transitions, and safe defaults may remain in code when they are typed, reviewed, and tested. Do not turn stable behavior into mutable environment configuration without a real operator or deployment need.
-
-## Git Traceability
-
-Git owns exact implementation history. When the local epic ID is the project's chosen work identifier, use it consistently in branches and pull-request descriptions. Follow the repository's commit convention; do not force epic scopes where they conflict. Tests should describe behavior and use requirement IDs only when the repository already follows that convention.
-
-Each pull request records the work identifier, accepted scope, dependencies, proof, rollout, rollback, and unresolved risk. It must not depend on a link to an ignored local document.
-
-Workers own bounded implementation and proof. The main task owns user decisions, canonical-document updates, integration, pull-request sequencing, merges, and production release decisions.
+Never place credentials, secret values, personal data, or sensitive resource identifiers in either document tree. Refer to settings by name. Keep real secrets in the project's approved secret store and environment-specific non-secret values in validated configuration. Stable product rules remain reviewed and tested code unless a real operator need makes them configurable.
 
 <!-- BEGIN GAUNTLET EXECUTION CONTRACT v2 -->
-## PRD Compilation And Ticket Graph
+## Epic execution
 
-An explicit request to `implement the PRD` freezes the current accepted source, then compiles only the named Implementation Target into an agent-oriented Ticket Graph. Use Markdown with stable, searchable headings: one H1 document, `## Epic <ID>`, `### Ticket <ID>`, and canonical `####` fields. No start/end sentinels or giant JSON prompt are required.
+An explicit `implement the PRD` request freezes the accepted target and creates one visible task and one deterministic Execution Run per independently shippable Epic. Dependency-ready Epics may start together. Each Epic gets one integration branch and one Project PR.
 
-One active implementation Ticket per child is the default. A child may take sequential related Tickets when context affinity saves work. Never co-own one implementation Ticket across children. The parent verifies ordinary Ticket evidence directly; independent verification Tickets are reserved for a named consequential boundary. Prefer interface-first Tickets, a dependency-ready queue, critical-path priority, optional cohort barriers only for shared invariants, and incremental parent integration.
+The visible task receives a compact launch envelope. Bootstrap verifies the immutable source and loads the complete relevant Epic once. Child Tickets receive only their accepted source slices, dependency contracts, and proof expectations; they never receive the complete PRD, run history, or unrelated receipts.
 
-Verify at four levels: each Ticket immediately after integration; each Cohort that shares a named interface or invariant; one fresh final check of the locked Epic on its exact integrated revision; and the applicable release or production path. Zero Cohorts is valid. The Epic-task parent owns combined oracles and final acceptance.
+The parent owns user decisions, shared contracts, integration, the acceptance oracle, final verification, pull requests, merge, release, rollback, and canonical-document updates. Delegate only work with independent ownership and proof. Disk run state is authoritative after launch; resume from the locked source, manifest, and compact resume artifact.
 
-## Durable Execution Runs
+Run focused changed-behavior checks and one final Epic verification on the exact integrated revision. Consequence-specific specialists run only when the accepted Epic declares the relevant trigger. Review findings cannot expand the accepted product and must end as `fixed`, `ask user`, `deferred`, or `omitted`.
 
-After compilation, disk artifacts are authoritative for execution state. Conversation history is advisory. Store each run under `local-docs/executions/<run-id>/` with a source lock, manifest, compact resume file, append-only events, materialized Tickets, receipts, evidence, cohort results, and release evidence. The main task alone changes run state; children own only their assigned worktree output and named receipt/evidence paths.
-
-Resume after compaction from the source lock, manifest, and resume file. Dispatch children from one deterministic materialized Ticket bundle containing only its stable instruction prefix, relevant cohort context, dependency contracts, and source slices. Do not send the whole PRD, manifest, event history, unrelated receipts, or raw logs. Keep shared context versioned by cohort, canonicalize field order and whitespace, sort stable IDs, omit empty fields, and put volatile run data last. These rules improve prefix reuse and token cost without promising a cache hit.
-
-Use the installed generated-context renderer and its versioned prompt-family templates for repeated or delegated machine context. The PRD and other human documents remain readable sources; generated bundles are traceable projections, not alternate requirements. A multi-Ticket lane retains independent Ticket state, receipts, evidence, integration, and dependency release.
-
-## Implementation And Release Contract
-
-This is the single reusable release contract for local documents. PRDs do not copy it. Compiled Ticket Graphs reference it and resolve their implementation-specific fields.
-
-1. Use a dedicated parent integration branch for each Epic Run, with isolated child branches or worktrees. Freeze `single-final-pr` at initialization for a small reviewable Epic, or `review-prs-plus-final` for a large tightly coupled Epic that needs parent-owned Review Unit PRs into the integration branch. Produce one Project PR to `main` with deterministic coverage of the locked Epic and every Scope Area.
-2. Compile the locked Epic into bounded Tickets and delegate only independent Tickets with separate ownership, state, and proof paths. Copy the canonical Epic's closed high-consequence trigger declaration exactly into the graph; omission never means `none`. Cross-Epic coverage and dependencies remain in the launch set.
-3. Continue autonomously through reversible, in-scope, authorized work. Stop for a material decision, missing authority, unsafe side effect, preservation risk, or unavailable required proof.
-4. The main task owns Review Unit membership, integration, run-backed PR projections, and changed-surface proof. Keep this topology out of child contexts.
-5. An explicit `implement the PRD` request authorizes the build-ready target end to end: branch/worktree, Tickets, integration, commits, pull request, required-check merge, deployment of the exact verified `main` revision, and documented production changes and verification named by the accepted PRD. A narrower explicit request controls.
-6. Stop before merge, deployment, or a production change when credentials or permissions are missing, a material product decision is unresolved, the side effect is destructive or absent from the accepted PRD, production reality invalidates the rollout or rollback, or required production proof cannot be obtained.
-7. Record non-secret release evidence and follow the accepted rollback path when verification fails.
-8. Update `local-docs/INDEX.md` and the owning PRD from the primary worktree with durable decisions, PRs, release status, proof, and unresolved gaps.
-9. Remove disposable worktrees only after Git preserves all implementation work and canonical local documents preserve every material local update.
-
-A material change to this contract invalidates an active Ticket Graph until its resolved release section is reviewed.
+Implementation stops for a material unresolved product decision, missing authority, unsafe or destructive behavior absent from the accepted document, preservation risk, or required proof that cannot be obtained. Follow `$GAUNTLET_ROOT/docs/prd-execution.md` for controller commands and release mechanics.
 <!-- END GAUNTLET EXECUTION CONTRACT v2 -->
 
-## Future Tasks
+## Future tasks
 
-Tell PRD maintenance to use the `maintain-prd` skill and never implement. Tell an explicit `implement the PRD` request to use `implement-prd`, read `doc_org.md` and `local-docs/INDEX.md`, compile only the accepted Implementation Target, and resume from the execution run on disk after compaction. Keep canonical local documents in the primary worktree and durable maintainer requirements in tracked repository artifacts.
+Use `maintain-prd` for explicit product-document actions and `implement-prd` only for an explicit accepted implementation request. Keep canonical local documents in the primary worktree and durable maintainer requirements in tracked repository artifacts.

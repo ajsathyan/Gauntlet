@@ -29,6 +29,7 @@ def source_fixture() -> dict:
         {"id": "integrate:ticket:T1", "kind": "ticket-integration", "phase": "integrate", "status": "queued"},
         {"id": "integrate:ticket:T2", "kind": "ticket-integration", "phase": "integrate", "status": "running"},
         {"id": "verify:review:black-box", "kind": "consequence-review", "phase": "final-verify", "status": "running"},
+        {"id": "verify:epic-gap-review", "kind": "epic-gap-review", "phase": "final-verify", "status": "queued"},
         {"id": "verify:final-epic", "kind": "final-epic-verification", "phase": "final-verify", "status": "queued"},
         {"id": "ship:merge", "kind": "release-gate", "phase": "ship", "status": "queued"},
         {"id": "ship:deployment", "kind": "release-gate", "phase": "ship", "status": "queued"},
@@ -38,7 +39,8 @@ def source_fixture() -> dict:
         "integrate:ticket:T1": ["build:ticket:T1"],
         "integrate:ticket:T2": ["build:ticket:T2"],
         "verify:review:black-box": ["integrate:ticket:T1", "integrate:ticket:T2"],
-        "verify:final-epic": ["verify:review:black-box"],
+        "verify:epic-gap-review": ["integrate:ticket:T1", "integrate:ticket:T2"],
+        "verify:final-epic": ["verify:review:black-box", "verify:epic-gap-review"],
         "ship:merge": ["verify:final-epic"],
         "ship:deployment": ["ship:merge"],
     }
@@ -72,6 +74,7 @@ def source_fixture() -> dict:
             "facts": {
                 "schemaVersion": "gauntlet/epic-run-facts/v1",
                 "epicId": "E1", "epicTitle": "Balance",
+                "gapReview": {"schemaVersion": "gauntlet.epic-gap-review-status.v1", "status": "not-started", "blockedWork": []},
                 "time": {
                     "protocolVersion": "gauntlet.rfc3339-utc.v1",
                     "elapsedCoverage": "complete", "createdAt": "2026-07-16T15:30:00Z",
@@ -202,6 +205,15 @@ class ProgressProjectionTests(unittest.TestCase):
         self.assertEqual("needs_user", blocked["health"]["status"])
         self.assertEqual("waiting_on_user", blocked["eta"]["status"])
         self.assertEqual(item["details"]["plannedProgress"], blocked["details"]["plannedProgress"])
+
+        review_blocked = copy.deepcopy(value)
+        review_blocked["runs"]["E1"]["facts"]["gapReview"].update({
+            "status": "blocked", "blockedWork": ["T1"],
+        })
+        blocked_by_review = epic(review_blocked)
+        self.assertEqual("needs_user", blocked_by_review["health"]["status"])
+        self.assertEqual("review-decision-required", blocked_by_review["health"]["reason"])
+        self.assertEqual("waiting_on_user", blocked_by_review["eta"]["status"])
 
         stale = projection.build_projection(value, now="2026-07-16T17:00:00Z")["epics"][0]
         self.assertTrue(stale["freshness"]["stale"])

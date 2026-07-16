@@ -177,23 +177,29 @@ class EpicProjectTests(unittest.TestCase):
                 git_root=root, launch_set=launch_path, epic="APP-001",
                 task_key=gauntlet.launch_task_key(launch, "APP-001"), task_id="task-123", json=True,
             )
-            with mock.patch("gauntlet.print_payload") as output:
+            dashboard = {
+                "status": "running", "started": True,
+                "stateFile": str(root / "launch.progress-dashboard.json"),
+            }
+            with mock.patch("gauntlet.ensure_progress_supervisor", return_value=dashboard), mock.patch("gauntlet.print_payload") as output:
                 self.assertEqual(gauntlet.command_epic_tasks_record_task(args), 0)
             events = output.call_args.args[0]["lifecycleEvents"]
             self.assertEqual([item["event"] for item in events], ["epic_start", "aggregate_start"])
             self.assertIn("Time for a break?", events[1]["copy"])
-            with mock.patch("gauntlet.print_payload") as output:
+            self.assertEqual("open_browser", output.call_args.args[0]["actions"][0]["type"])
+            with mock.patch("gauntlet.ensure_progress_supervisor", return_value={**dashboard, "started": False}), mock.patch("gauntlet.print_payload") as output:
                 self.assertEqual(gauntlet.command_epic_tasks_record_task(args), 0)
             self.assertEqual(output.call_args.args[0]["lifecycleEvents"], [])
+            self.assertEqual(output.call_args.args[0]["actions"], [])
 
             _, recorded = gauntlet.load_launch_set(launch_path)
             recorded["epics"]["APP-001"].update({"taskId": None, "status": "planned"})
             gauntlet.write_launch_set(launch_path, recorded)
-            with mock.patch("gauntlet.print_payload") as output:
+            with mock.patch("gauntlet.ensure_progress_supervisor", return_value={**dashboard, "started": False}), mock.patch("gauntlet.print_payload") as output:
                 self.assertEqual(gauntlet.command_epic_tasks_record_task(args), 1)
             self.assertIn("starting state", output.call_args.args[0]["findings"][0]["message"])
             args.task_key = "wrong-task-key"
-            with mock.patch("gauntlet.print_payload") as output:
+            with mock.patch("gauntlet.ensure_progress_supervisor", return_value={**dashboard, "started": False}), mock.patch("gauntlet.print_payload") as output:
                 self.assertEqual(gauntlet.command_epic_tasks_record_task(args), 1)
             self.assertIn("task key", output.call_args.args[0]["findings"][0]["message"])
 
@@ -236,9 +242,13 @@ class EpicProjectTests(unittest.TestCase):
 
     def test_doc_execution_contract_migration_preserves_unmanaged_bytes(self):
         current = (Path(gauntlet.__file__).parents[1] / "templates" / "local-docs" / "doc_org.md.tmpl").read_text(encoding="utf-8")
-        prefix, managed = current.split(gauntlet.DOC_EXECUTION_BLOCK_BEGIN, 1)
-        body, suffix = managed.split(gauntlet.DOC_EXECUTION_BLOCK_END, 1)
-        legacy = prefix + body.lstrip("\n") + suffix.lstrip("\n")
+        prefix = "# Project-authored policy\n\n"
+        body = (
+            "## PRD Compilation And Ticket Graph\n\n"
+            "Use one fresh final check for the accepted work.\n\n"
+        )
+        suffix = "## Future Tasks\n\nKeep this project-authored ending.\n"
+        legacy = prefix + body + suffix
         start = legacy.index("## PRD Compilation And Ticket Graph\n")
         end = legacy.index("## Future Tasks\n", start)
         legacy_hash = gauntlet.sha256_bytes(legacy[start:end].encode("utf-8"))
@@ -264,7 +274,67 @@ class EpicProjectTests(unittest.TestCase):
             self.assertEqual(findings[0]["code"], "local_execution_contract_migration_planned")
             self.assertEqual(policy.read_text(encoding="utf-8"), legacy)
 
-    def test_source_snapshot_is_immutable_input_for_queued_packets(self):
+    def test_task_packet_is_thin_and_bootstrap_resolves_the_complete_epic(self):
+        packet_sizes = []
+        fixtures = (
+            ("EDGE-009", 20465),
+            ("GAUNTLET-005", 44449),
+            ("AGORARUNPOD-014", 61897),
+        )
+        for epic_id, epic_bytes in fixtures:
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                marker = f"semantic-marker-{epic_bytes}"
+                base_section = epic(epic_id, "Representative accepted outcome", extra=marker)
+                padding = "x" * (epic_bytes - len(base_section.encode("utf-8")))
+                epic_section = epic(epic_id, "Representative accepted outcome", extra=marker + padding)
+                self.assertEqual(len(epic_section.encode("utf-8")), epic_bytes)
+                source = self.write_prd(root, epic_id, [
+                    epic_section,
+                ])
+                launch_root = root / "local-docs" / "epic-launches"
+                launch_root.mkdir(parents=True)
+                launch_path = launch_root / f"{epic_id}.launch.json"
+                launch, source_text = gauntlet.build_epic_launch_set(source, [])
+                snapshot = launch_root / f"{epic_id}.source.md"
+                snapshot.write_text(source_text, encoding="utf-8")
+                launch["source"]["snapshotPath"] = str(snapshot)
+                gauntlet.write_launch_set(launch_path, launch)
+
+                packet = gauntlet.epic_task_packet(launch_path, launch, epic_id, root)
+                packet_sizes.append(len(packet.encode("utf-8")))
+                self.assertLessEqual(packet_sizes[-1], 1200)
+                self.assertNotIn(marker, packet)
+                self.assertIn('"bootstrap"', packet)
+                if epic_id == "EDGE-009":
+                    envelope = json.loads(packet.split("<gauntlet_epic_task>\n", 1)[1].split("\n</gauntlet_epic_task>", 1)[0])
+                    result = subprocess.run(
+                        envelope["bootstrap"]["argv"], cwd=root, capture_output=True, text=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn(marker, json.loads(result.stdout)["epicSection"])
+
+                args = argparse.Namespace(
+                    git_root=root,
+                    launch_set=launch_path,
+                    epic=epic_id,
+                    task_key=gauntlet.launch_task_key(launch, epic_id),
+                    source_sha256=launch["source"]["sha256"],
+                    coverage_sha256=launch["coverageSha256"],
+                    json=True,
+                )
+                with mock.patch("gauntlet.print_payload") as output:
+                    self.assertEqual(gauntlet.command_epic_tasks_bootstrap(args), 0)
+                resolved = output.call_args.args[0]
+                self.assertEqual(resolved["status"], "pass")
+                self.assertIn(marker, resolved["epicSection"])
+                self.assertEqual(
+                    resolved["epicSectionSha256"],
+                    gauntlet.sha256_bytes(resolved["epicSection"].encode("utf-8")),
+                )
+        self.assertLessEqual(max(packet_sizes) - min(packet_sizes), 64)
+
+    def test_bootstrap_rejects_stale_tampered_missing_or_unavailable_sources(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source = self.write_prd(root, "APP-001", [epic("APP-001", "Account foundation")])
@@ -274,10 +344,43 @@ class EpicProjectTests(unittest.TestCase):
             snapshot.write_text(source_text, encoding="utf-8")
             launch["source"]["snapshotPath"] = str(snapshot)
             gauntlet.write_launch_set(launch_path, launch)
-            source.write_text("changed canonical source", encoding="utf-8")
-            packet = gauntlet.epic_task_packet(launch_path, launch, "APP-001", root)
-            self.assertIn("Account foundation", packet)
-            self.assertNotIn("changed canonical source", packet)
+            base = argparse.Namespace(
+                git_root=root,
+                launch_set=launch_path,
+                epic="APP-001",
+                task_key=gauntlet.launch_task_key(launch, "APP-001"),
+                source_sha256=launch["source"]["sha256"],
+                coverage_sha256=launch["coverageSha256"],
+                json=True,
+            )
+
+            source.write_text("changed mutable canonical source", encoding="utf-8")
+            with mock.patch("gauntlet.print_payload") as output:
+                self.assertEqual(gauntlet.command_epic_tasks_bootstrap(base), 0)
+            self.assertIn("Account foundation", output.call_args.args[0]["epicSection"])
+
+            stale = argparse.Namespace(**vars(base))
+            stale.coverage_sha256 = "0" * 64
+            with mock.patch("gauntlet.print_payload") as output:
+                self.assertEqual(gauntlet.command_epic_tasks_bootstrap(stale), 1)
+            self.assertIn("coverage", output.call_args.args[0]["findings"][0]["message"])
+
+            snapshot.write_text(source_text + "tampered\n", encoding="utf-8")
+            with mock.patch("gauntlet.print_payload") as output:
+                self.assertEqual(gauntlet.command_epic_tasks_bootstrap(base), 1)
+            self.assertIn("source", output.call_args.args[0]["findings"][0]["message"])
+
+            snapshot.unlink()
+            with mock.patch("gauntlet.print_payload") as output:
+                self.assertEqual(gauntlet.command_epic_tasks_bootstrap(base), 1)
+            self.assertEqual(output.call_args.args[0]["status"], "fail")
+
+            unavailable = argparse.Namespace(**vars(base))
+            unavailable.launch_set = root / "unavailable-launch.json"
+            with mock.patch("gauntlet.print_payload") as output:
+                self.assertEqual(gauntlet.command_epic_tasks_bootstrap(unavailable), 1)
+            self.assertEqual(output.call_args.args[0]["status"], "fail")
+            self.assertFalse((root / "executions").exists())
 
     def test_only_requires_user_blocker_emits_a_question(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -343,7 +446,7 @@ class EpicProjectTests(unittest.TestCase):
                 self.assertEqual(gauntlet.command_epic_tasks_reconcile(args), 0)
             data = output.call_args.args[0]
             self.assertEqual(data["epics"]["APP-001"]["status"], "implementation-complete")
-            self.assertIn("This does not yet prove merge", data["lifecycleEvents"][0]["copy"])
+            self.assertIn("Pending release gates: merge", data["lifecycleEvents"][0]["copy"])
 
     def test_canonical_reconciliation_rejects_target_acceptance_drift(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -730,6 +833,8 @@ class EpicProjectTests(unittest.TestCase):
                 source_path = gauntlet.refresh_progress_source(launch_path, launch, root)
             first = json.loads(source_path.read_text())
             self.assertEqual("APP-002", first["runs"]["APP-002"]["facts"]["epicId"])
+            self.assertIsNotNone(first["runs"]["APP-002"]["facts"]["time"]["updatedAt"])
+            self.assertEqual("unavailable", first["runs"]["APP-002"]["facts"]["time"]["elapsedCoverage"])
             self.assertEqual(10, first["telemetry"]["APP-001"]["tokens"]["total_tokens"])
 
             launch["epics"]["APP-002"].update({"taskId": "task-2", "runPath": str(root / "run-2"), "status": "in-progress"})

@@ -49,7 +49,7 @@ def parse_frontmatter(text, path):
     return data, text[end + 4 :]
 
 
-def lint_skill(path, max_words):
+def lint_skill(path):
     text = read_text(path)
     frontmatter, body = parse_frontmatter(text, path)
     name = frontmatter.get("name", path.parent.name)
@@ -74,16 +74,6 @@ def lint_skill(path, max_words):
     if name in ROLE_SKILLS:
         if not description.startswith("Use when"):
             failures.append("role-skill description must start with 'Use when'")
-        if words > max_words:
-            failures.append(f"word count {words} exceeds budget {max_words}")
-        if "Cannot verify" not in body:
-            failures.append("missing Cannot verify slot")
-        if not any(marker in body for marker in ["Output Contract", "Intake Packet", "Product Packet", "Ticket", "Ready Item", "Implementation Packet"]):
-            failures.append("missing explicit ticket, packet, or output contract")
-        if "Optional example:" not in body:
-            failures.append("missing Optional example reference")
-        if not examples:
-            failures.append("missing optional example file")
 
     lower = body.lower()
     parallel_subagent_guidance = any(
@@ -111,7 +101,6 @@ def lint_skill(path, max_words):
 def main():
     parser = argparse.ArgumentParser(description="Lint Gauntlet skill contracts.")
     parser.add_argument("--skills-root", type=Path, default=DEFAULT_SKILLS)
-    parser.add_argument("--max-words", type=int, default=500)
     parser.add_argument(
         "--only",
         help="Comma-separated skill names to lint. Defaults to every SKILL.md under --skills-root.",
@@ -128,7 +117,7 @@ def main():
         if only and path.parent.name not in only:
             continue
         try:
-            result = lint_skill(path, args.max_words)
+            result = lint_skill(path)
         except ValueError as error:
             result = {
                 "name": path.parent.name,

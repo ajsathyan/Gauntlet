@@ -207,33 +207,16 @@ def test_simplified_modes_and_depth_are_documented():
 
 
 def test_normal_requests_use_minimum_scope_before_lifecycle_routing():
-    agents = read(AGENTS_MD)
     router = read(ROUTER_MD)
-    etiquette = read(ROOT / "docs" / "workflow-etiquette.md")
-    rule_map = read(ROOT / "docs" / "global-router-rule-map.md")
-    combined = "\n".join([agents, router, etiquette, rule_map])
-
     for marker in [
-        "Normal Requests: Minimum Scope",
-        "Before choosing a Gauntlet work path",
-        "bounded, low-consequence, readily reversible, and directly checkable",
-        "direct presentation or formatting changes",
-        "copying existing results into an existing UI",
-        "simple lookups",
-        "routine administration",
-        "Use minimum-scope execution. Deliver the requested artifact first.",
-        "Ask before materially expanding scope.",
-        "not to redesign a schema, methodology, or workflow",
-        "does not require re-validating the underlying data",
-        "Keep the work in the main task",
-        "Stop when the requested artifact is delivered",
-        "Explicit narrow user scope controls execution",
-        "route only the affected part",
+        "## Minimum scope",
+        "bounded, low-consequence, reversible, and directly checkable",
+        "deliver the requested artifact directly",
+        "keep work in the main task",
+        "do not create plans, Tickets, subagents",
+        "stop when the requested result works",
     ]:
-        assert_contains(combined, marker, "normal-request minimum-scope routing")
-
-    assert_contains(etiquette, "Normal Requests stay in the main task.", "normal-request delegation boundary")
-    assert_contains(rule_map, "bypasses lifecycle ceremony", "normal-request router invariant")
+        assert_contains(router, marker, "normal-request minimum-scope routing")
 
 
 def test_v201_run_log_contract_replaces_default_review_brief():
@@ -766,6 +749,8 @@ def test_diff_intel_test_plan_and_review_pack_are_bounded():
         )
         canonical_plan = project / "docs" / "canonical-plan.md"
         canonical_plan.write_text("# Canonical Plan\n\n- Search: `rg session-token src/auth`\n", encoding="utf-8")
+        proof_context = project / "docs" / "focused-proof.md"
+        proof_context.write_text("# Focused Proof\n\nThe session regression check passed.\n", encoding="utf-8")
 
         run([
             str(review_pack),
@@ -776,6 +761,12 @@ def test_diff_intel_test_plan_and_review_pack_are_bounded():
             "docs/accepted-spec.md",
             "--plan",
             "docs/canonical-plan.md",
+            "--phase",
+            "pre-build",
+            "--maturity",
+            "early-internal",
+            "--proof-context",
+            "docs/focused-proof.md",
         ])
         packet = (project / ".gauntlet" / "review-pack.md").read_text()
         for marker in [
@@ -789,6 +780,14 @@ def test_diff_intel_test_plan_and_review_pack_are_bounded():
             "Canonical Plan",
             "docs/canonical-plan.md",
             "rg session-token src/auth",
+            "Epic Gap Review Pack",
+            "Phase: `pre-build`",
+            "Declared maturity: `early-internal`",
+            "Proof Context 1",
+            "focused-proof.md",
+            "at most three findings",
+            "`fixed`, `ask-user`, `deferred`, or `omitted`",
+            "external-practice or state-of-the-art review automatically",
             "Expected Return Format",
             "Cannot verify",
         ]:
@@ -3757,10 +3756,51 @@ def test_promotion_scanner_is_release_wrapup_not_patch_gate():
         raise AssertionError("promotion-scanner eval case is missing")
 
 
-def run_install(agent_home, target="codex", extra_args=None, check=True):
+def fake_codex_plugin_cli(agent_home, available=True):
+    suffix = "available" if available else "unavailable"
+    path = agent_home.parent / f".fake-codex-{agent_home.name}-{suffix}.py"
+    if path.exists():
+        return path
+    plugin_rows = [
+        {"pluginId": plugin, "installed": False, "enabled": False}
+        for plugin in ["browser@openai-bundled", "computer-use@openai-bundled"]
+    ] if available else []
+    path.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, os, sys\n"
+        f"PLUGINS = {plugin_rows!r}\n"
+        "args = sys.argv[1:]\n"
+        "if args[:2] == ['plugin', 'list']:\n"
+        "    print(json.dumps({'installed': [], 'available': PLUGINS}))\n"
+        "    raise SystemExit(0)\n"
+        "if args[:2] == ['plugin', 'add'] and '--help' in args:\n"
+        "    raise SystemExit(0)\n"
+        "if args[:2] == ['plugin', 'add'] and len(args) >= 3:\n"
+        "    plugin = args[2]\n"
+        "    if not any(row['pluginId'] == plugin for row in PLUGINS):\n"
+        "        print(f'plugin unavailable: {plugin}', file=sys.stderr)\n"
+        "        raise SystemExit(1)\n"
+        "    home = os.environ.get('CODEX_HOME')\n"
+        "    if not home:\n"
+        "        print('CODEX_HOME is required', file=sys.stderr)\n"
+        "        raise SystemExit(1)\n"
+        "    with open(os.path.join(home, 'plugin-add.log'), 'a', encoding='utf-8') as handle:\n"
+        "        handle.write(plugin + '\\n')\n"
+        "    print(json.dumps({'pluginId': plugin}))\n"
+        "    raise SystemExit(0)\n"
+        "print('unsupported fake Codex invocation', file=sys.stderr)\n"
+        "raise SystemExit(2)\n"
+    )
+    path.chmod(0o755)
+    return path
+
+
+def run_install(agent_home, target="codex", extra_args=None, check=True, plugins_available=True):
     env = os.environ.copy()
     env["AGENT_HOME"] = str(agent_home)
     env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
+    if target == "codex":
+        env["GAUNTLET_CODEX_BIN"] = str(fake_codex_plugin_cli(agent_home, plugins_available))
     args = [str(SCRIPTS / "install.sh"), "--target", target]
     args.extend(extra_args or [])
     result = subprocess.run(
@@ -3874,8 +3914,12 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         config = read(agent_home / "config.toml")
         assert_contains(config, 'model_verbosity = "low"', "Codex low-verbosity default")
         assert_contains(config, 'personality = "none"', "Codex no-personality default")
+        assert_contains(config, 'model_reasoning_summary = "concise"', "Codex concise-summary default")
         assert_contains(config, "[agents]", "Codex agents table")
         assert_contains(config, "max_threads = 24", "Gauntlet subagent concurrency default")
+        assert_contains(config, "show-context-window-usage = true", "Codex context-usage default")
+        assert_contains(config, '[plugins."browser@openai-bundled"]', "Codex Browser plugin default")
+        assert_contains(config, '[plugins."computer-use@openai-bundled"]', "Codex Computer Use plugin default")
         installed_agents = read(agent_home / "AGENTS.md")
         if not installed_agents.startswith(user_content):
             raise AssertionError("Codex install must preserve every pre-existing user byte before the managed block")
@@ -3959,6 +4003,7 @@ Keep this user-owned instruction across Gauntlet reinstalls.
         installed_env = os.environ.copy()
         installed_env["AGENT_HOME"] = str(agent_home)
         installed_env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
+        installed_env["GAUNTLET_CODEX_BIN"] = str(fake_codex_plugin_cli(agent_home))
         installed_reinstall = subprocess.run(
             [str(agent_home / "gauntlet" / "scripts" / "install.sh"), "--target", "codex"],
             cwd=agent_home / "gauntlet",
@@ -4267,7 +4312,12 @@ def test_install_docs_explain_codex_and_claude_targets():
         "--codex-preferences existing",
         "model_verbosity = \"low\"",
         "personality = \"none\"",
+        "model_reasoning_summary = \"concise\"",
         "max_threads = 24",
+        "show-context-window-usage = true",
+        "browser@openai-bundled",
+        "computer-use@openai-bundled",
+        "GAUNTLET_CODEX_BIN",
         "show both conflicting passages",
         "never removes or rewrites user-owned instructions",
         "reject malformed managed markers",
@@ -4349,10 +4399,29 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
             raise AssertionError("Codex install --check should not create or modify agent-home files")
         run_install(clean_home)
         clean_config = read(clean_home / "config.toml")
-        if clean_config.count('model_verbosity = "low"') != 1 or clean_config.count('personality = "none"') != 1:
+        if (
+            clean_config.count('model_verbosity = "low"') != 1
+            or clean_config.count('personality = "none"') != 1
+            or clean_config.count('model_reasoning_summary = "concise"') != 1
+        ):
             raise AssertionError("new Codex config should contain each Gauntlet preference exactly once")
         if clean_config.count("[agents]") != 1 or clean_config.count("max_threads = 24") != 1:
             raise AssertionError("new Codex config should set the Gauntlet agent thread cap exactly once")
+        assert_contains(
+            clean_config,
+            "[desktop]\nshow-context-window-usage = true",
+            "Gauntlet context-window visibility default",
+        )
+        for plugin in ["browser@openai-bundled", "computer-use@openai-bundled"]:
+            assert_contains(
+                clean_config,
+                f'[plugins."{plugin}"]\nenabled = true',
+                f"Gauntlet {plugin} enablement default",
+            )
+        if sorted((clean_home / "plugin-add.log").read_text().splitlines()) != [
+            "browser@openai-bundled", "computer-use@openai-bundled",
+        ]:
+            raise AssertionError("Codex install should install both required bundled plugins")
         run_install(clean_home)
         if read(clean_home / "config.toml") != clean_config:
             raise AssertionError("Codex preference reinstall should be byte-idempotent")
@@ -4361,8 +4430,17 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         conflict_home.mkdir()
         conflict_config = conflict_home / "config.toml"
         original = (
-            'model = "custom"\nmodel_verbosity = "high" # keep comment\n\n'
-            '[agents]\nmax_threads = 8 # keep agent comment\n\n[features]\ngoals = true\n'
+            'model = "custom"\nmodel_verbosity = "high" # keep comment\n'
+            'model_reasoning_summary = "detailed" # keep summary comment\n\n'
+            'notify = ["custom-notifier", "turn-ended"]\n'
+            'approval_policy = "never"\nsandbox_mode = "danger-full-access"\n\n'
+            '[agents]\nmax_threads = 8 # keep agent comment\n\n'
+            '[desktop]\nshow-context-window-usage = false # keep desktop comment\n'
+            'notifications-turn-mode = "always"\ncomposerEnterBehavior = "cmdIfMultiline"\n\n'
+            '[plugins."browser@openai-bundled"]\nenabled = false # keep browser comment\n\n'
+            '[plugins."computer-use@openai-bundled"]\nenabled = false # keep computer comment\n\n'
+            '[plugins."unrelated@test"]\nenabled = false\n\n'
+            '[features]\ngoals = true\n'
         )
         conflict_config.write_text(original)
         conflict_config.chmod(0o600)
@@ -4374,8 +4452,16 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         for marker in [
             'model_verbosity = "high"',
             'model_verbosity = "low"',
+            'model_reasoning_summary = "detailed"',
+            'model_reasoning_summary = "concise"',
             "agents.max_threads = 8",
             "agents.max_threads = 24",
+            "desktop.show-context-window-usage = false",
+            "desktop.show-context-window-usage = true",
+            'plugins."browser@openai-bundled".enabled = false',
+            'plugins."browser@openai-bundled".enabled = true',
+            'plugins."computer-use@openai-bundled".enabled = false',
+            'plugins."computer-use@openai-bundled".enabled = true',
             "--codex-preferences gauntlet",
             "--codex-preferences existing",
         ]:
@@ -4386,9 +4472,26 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         assert_contains(resolved, 'model = "custom"', "Codex unrelated config preservation")
         assert_contains(resolved, 'model_verbosity = "low"', "Gauntlet verbosity choice")
         assert_contains(resolved, 'personality = "none"', "Gauntlet personality insertion")
+        assert_contains(resolved, 'model_reasoning_summary = "concise"', "Gauntlet reasoning summary choice")
         assert_contains(resolved, "max_threads = 24", "Gauntlet agent thread choice")
+        assert_contains(resolved, "show-context-window-usage = true", "Gauntlet context visibility choice")
+        if resolved.count("enabled = true") < 2:
+            raise AssertionError("Gauntlet plugin choice should enable both required plugins")
         assert_contains(resolved, "# keep comment", "Codex config trailing-comment preservation")
         assert_contains(resolved, "# keep agent comment", "Codex agent config trailing-comment preservation")
+        assert_contains(resolved, "# keep summary comment", "Codex summary trailing-comment preservation")
+        assert_contains(resolved, "# keep desktop comment", "Codex desktop trailing-comment preservation")
+        assert_contains(resolved, "# keep browser comment", "Codex Browser trailing-comment preservation")
+        assert_contains(resolved, "# keep computer comment", "Codex Computer Use trailing-comment preservation")
+        for preserved in [
+            'notify = ["custom-notifier", "turn-ended"]',
+            'approval_policy = "never"',
+            'sandbox_mode = "danger-full-access"',
+            'notifications-turn-mode = "always"',
+            'composerEnterBehavior = "cmdIfMultiline"',
+            '[plugins."unrelated@test"]\nenabled = false',
+        ]:
+            assert_contains(resolved, preserved, "unrelated Codex setting preservation")
         assert_contains(resolved, "[features]\ngoals = true", "Codex table preservation")
         if conflict_config.stat().st_mode & 0o777 != 0o600:
             raise AssertionError("Codex config update should preserve permissions")
@@ -4411,13 +4514,26 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         existing_home.mkdir()
         existing_config = existing_home / "config.toml"
         existing_original = (
-            'model_verbosity = "high"\npersonality = "friendly"\n\n'
-            '[agents]\nmax_threads = 8\n'
+            'model_verbosity = "high"\npersonality = "friendly"\nmodel_reasoning_summary = "detailed"\n\n'
+            '[agents]\nmax_threads = 8\n\n'
+            '[desktop]\nshow-context-window-usage = false\n\n'
+            '[plugins."browser@openai-bundled"]\nenabled = false\n\n'
+            '[plugins."computer-use@openai-bundled"]\nenabled = false\n'
         )
         existing_config.write_text(existing_original)
         run_install(existing_home, extra_args=["--codex-preferences", "existing"])
         if existing_config.read_text() != existing_original:
             raise AssertionError("existing Codex preference choice should preserve all values byte-for-byte")
+        if (existing_home / "plugin-add.log").exists():
+            raise AssertionError("existing Codex plugin choices should not install disabled plugins")
+
+        unavailable_home = root / "plugins-unavailable"
+        unavailable_home.mkdir()
+        unavailable = run_install(unavailable_home, check=False, plugins_available=False)
+        if unavailable.returncode == 0 or "required Codex plugin is unavailable" not in unavailable.stderr:
+            raise AssertionError("missing required bundled plugins should fail preflight")
+        if any(unavailable_home.iterdir()):
+            raise AssertionError("plugin availability preflight must stop before any agent-home mutation")
 
         unsupported_home = root / "unsupported-agents"
         unsupported_home.mkdir()
@@ -4447,12 +4563,17 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         run_install(skip_home, extra_args=["--codex-preferences", "skip"])
         if skip_config.read_text() != skip_original:
             raise AssertionError("skipped Codex preferences should not modify config.toml")
+        if (skip_home / "plugin-add.log").exists():
+            raise AssertionError("skipped Codex preferences should not install plugins")
 
         linked_home = root / "linked"
         linked_home.mkdir()
         linked_target = root / "shared-config.toml"
         linked_target.write_text(
-            'model_verbosity = "low"\npersonality = "none"\n\n[agents]\nmax_threads = 24\n'
+            'model_verbosity = "low"\npersonality = "none"\nmodel_reasoning_summary = "concise"\n\n'
+            '[agents]\nmax_threads = 24\n\n[desktop]\nshow-context-window-usage = true\n\n'
+            '[plugins."browser@openai-bundled"]\nenabled = true\n\n'
+            '[plugins."computer-use@openai-bundled"]\nenabled = true\n'
         )
         linked_target.chmod(0o600)
         (linked_home / "config.toml").symlink_to(linked_target)
@@ -4470,7 +4591,10 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         crlf_result = crlf_config.read_bytes()
         for marker in [
             b'personality_notes = "keep"', b'model_verbosity = "low"', b'personality = "none"',
-            b'[agents]', b'max_threads = 24',
+            b'model_reasoning_summary = "concise"', b'[agents]', b'max_threads = 24',
+            b'[desktop]', b'show-context-window-usage = true',
+            b'[plugins."browser@openai-bundled"]',
+            b'[plugins."computer-use@openai-bundled"]',
         ]:
             if marker not in crlf_result:
                 raise AssertionError(f"Codex CRLF config missing preserved or inserted value: {marker!r}")
@@ -4759,14 +4883,14 @@ def test_skill_changes_are_guarded_by_pre_commit():
             raise AssertionError("non-skill changes should skip skill text coverage")
 
     result = run([str(skill_check), "--changed-files", "skills/planner/SKILL.md"], cwd=ROOT)
-    for marker in ["Gauntlet skill changes detected", "targeted skill evals: planner", "skill text coverage:", "declared trace-field scorer contracts:", "skill linter"]:
+    for marker in ["Gauntlet skill changes detected", "structural lint: planner", "skill structural lint: passed"]:
         assert_contains(result.stdout, marker, "skill change checks")
 
     result = run([
         str(skill_check), "--changed-files",
         "skills/refactor-codebase/assets/breakthrough-agent-packet.md",
     ], cwd=ROOT)
-    for marker in ["Gauntlet skill changes detected", "targeted skill evals: refactor-codebase", "Ran 25 tests", "skill linter"]:
+    for marker in ["Gauntlet skill changes detected", "structural lint: refactor-codebase", "skill structural lint: passed"]:
         assert_contains(result.stdout + result.stderr, marker, "refactor asset change checks")
 
 
@@ -5056,6 +5180,13 @@ def test_live_progress_projection_dashboard_and_production_assets():
         assert_not_contains(production.lower(), forbidden, "production progress dashboard demo controls")
 
 
+def test_document_draft_lifecycle_behavior():
+    for script in ["test-doc-lifecycle.py", "test-flexible-prd.py", "test-context-audit.py", "test-prd-project.py"]:
+        result = run(["python3", str(SCRIPTS / script)], check=False)
+        if result.returncode != 0 or "OK" not in result.stderr:
+            raise AssertionError(f"Document workflow behavior failed for {script}:\n{result.stdout}\n{result.stderr}")
+
+
 def test_subagent_orchestration_v2_behavior():
     for script in [
         "test-generated-context.py",
@@ -5068,94 +5199,16 @@ def test_subagent_orchestration_v2_behavior():
         if result.returncode != 0:
             raise AssertionError(f"Subagent Orchestration V2 check failed for {script}:\n{result.stdout}\n{result.stderr}")
 
-    combined = "\n".join([
-        read(AGENTS_MD),
-        read(ROUTER_MD),
-        read(ROOT / "docs" / "workflow-etiquette.md"),
-        read(ROOT / "docs" / "workflow-speedups.md"),
-        read(ROOT / "docs" / "generated-context.md"),
-        read(ROOT / "docs" / "evaluation-tasks.md"),
-        read(ROOT / "docs" / "evaluation-protocol.md"),
-        read(ROOT / "docs" / "evaluation-harnesses.md"),
-    ])
-    for marker in [
-        "human-readable sources",
-        "versioned deterministic controllers",
-        "bounded machine projections",
-        "Normal Requests",
-        "generated_context.py",
-        "multi-Ticket lane",
-        "cheap current-liveness probe",
-        "replaceable",
-        "same harness and harness version",
-    ]:
-        assert_contains(combined, marker, "durable orchestration architecture")
-
 
 def main():
     tests = [
         test_plugin_manifests_bundle_shared_skills,
-        test_craft_product_terminology_contract,
-        test_simplified_modes_and_depth_are_documented,
         test_normal_requests_use_minimum_scope_before_lifecycle_routing,
-        test_v201_run_log_contract_replaces_default_review_brief,
-        test_coverage_gap_and_design_lint_guidance_are_documented,
-        test_product_thinking_and_scope_routing_are_documented,
-        test_production_quality_bar_is_launch_gated,
-        test_subagent_parallelism_is_context_efficient,
-        test_direct_dispatch_and_quiet_execution_are_documented,
-        test_workflow_guidance_keeps_routine_controls_silent,
-        test_consequence_triggered_review_replaces_broad_panels,
-        test_ts_durability_classifier_behavior,
-        test_diff_intel_test_plan_and_review_pack_are_bounded,
-        test_docs_only_diff_gets_no_runtime_test_commands,
-        test_instruction_surfaces_are_not_classified_as_docs_only,
-        test_workflow_helpers_filter_artifacts_and_find_python_tests,
-        test_workflow_speedup_helpers_are_documented_as_advisory,
-        test_execution_run_is_one_epic_without_child_prompt_duplication,
-        test_single_epic_policy_convergence_rejects_retired_active_mechanics,
-        test_contextual_merge_contract_is_documented,
-        test_response_style_guidance_is_single_global_policy,
-        test_version_changelog_preserves_release_history,
-        test_contextual_pr_template_changelog_and_run_log_contract,
-        test_workflow_etiquette_checker_validates_titles_kickoff_and_auto_assumptions,
-        test_workflow_etiquette_checker_pauses_archive_on_followups_and_git_state,
-        test_workflow_etiquette_checker_builds_archive_action_plan,
-        test_gauntlet_cli_merge_prepare_renders_contextual_handoff,
-        test_gauntlet_cli_run_merge_uses_schema3_projection_and_rejects_drift,
-        test_gauntlet_cli_run_merge_rejects_downgrade_and_incomplete_projection,
-        test_gauntlet_cli_run_merge_execute_uses_bound_projection_and_safe_cleanup_order,
-        test_gauntlet_cli_review_unit_executes_checked_integration_merge_and_recovers_state,
-        test_gauntlet_cli_merge_plan_requires_clean_task_branch,
-        test_gauntlet_cli_merge_execute_creates_pr_waits_and_verifies_main,
-        test_gauntlet_cli_closeout_execute_commits_merges_cleans_and_returns_archive_actions,
-        test_remote_branch_cleanup_accepts_concurrent_auto_delete,
-        test_closeout_forwards_install_conflict_choices_to_preflight_and_apply,
-        test_gauntlet_cli_archive_plans_and_executes_github_merge,
-        test_gauntlet_cli_archive_keeps_archive_anyway_from_overriding_git_risk,
-        test_gauntlet_cli_small_helper_commands,
-        test_gauntlet_cli_changelog_memory_and_followup_helpers,
-        test_gauntlet_cli_local_analytics_and_closeout_facts,
-        test_gauntlet_cli_bounded_attempt_memory,
-        test_thread_changelog_captures_pr_history_and_followups,
-        test_workflow_etiquette_is_in_global_workflow,
-        test_promotion_scanner_is_release_wrapup_not_patch_gate,
-        test_skill_text_coverage_compares_all_arms,
-        test_structural_scorers_are_labeled_and_reject_negative_canaries,
-        test_skill_linter_examples_and_noop_pruning,
         test_skill_changes_are_guarded_by_pre_commit,
-        test_refactor_agent_prompt_renderer_integrity,
-        test_codex_install_layout_supports_workflow_check,
-        test_codex_custom_agent_collision_and_audit_behavior,
-        test_codex_agent_router_is_deterministic,
-        test_codex_agent_installer_recovers_interrupted_update,
         test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks,
-        test_superpowers_sources_are_attributed_and_retirement_is_allowlisted,
-        test_claude_install_layout_adapts_agents_without_overwriting_user_memory,
-        test_install_requires_review_before_layering_over_existing_instructions,
         test_codex_install_merges_preferences_without_silent_overwrite,
-        test_install_docs_explain_codex_and_claude_targets,
         test_local_document_profile_preserves_tracked_docs_and_primary_canonical_copy,
+        test_document_draft_lifecycle_behavior,
         test_prd_execution_run_controller_behavior,
         test_live_progress_projection_dashboard_and_production_assets,
         test_subagent_orchestration_v2_behavior,

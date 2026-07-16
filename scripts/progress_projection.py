@@ -104,6 +104,7 @@ def unit_label(unit: dict[str, Any]) -> str:
         "ticket-build": f"Build {suffix}",
         "ticket-integration": f"Integrate {suffix}",
         "cohort-verification": f"Verify shared check {suffix}",
+        "epic-gap-review": "Review implementation gaps",
         "consequence-review": f"Review {suffix.replace('-', ' ')}",
         "final-epic-verification": "Final Epic verification",
         "release-safeguard": f"Check {suffix.replace('-', ' ')}",
@@ -223,10 +224,15 @@ def source_freshness(
     return {"observedAt": observed_at, "coverage": coverage, "stale": stale, "label": label}
 
 
-def health_projection(launch_epic: dict[str, Any], units: list[dict[str, Any]], stale: bool) -> dict[str, Any]:
-    needs_user = launch_epic.get("status") == "needs-decision" or bool(launch_epic.get("blocker"))
+def health_projection(
+    launch_epic: dict[str, Any], facts: dict[str, Any], units: list[dict[str, Any]], stale: bool,
+) -> dict[str, Any]:
+    gap_review = facts.get("gapReview") if isinstance(facts.get("gapReview"), dict) else {}
+    review_blocked = gap_review.get("status") == "blocked" or bool(gap_review.get("blockedWork"))
+    needs_user = launch_epic.get("status") == "needs-decision" or bool(launch_epic.get("blocker")) or review_blocked
     if needs_user:
-        return {"status": "needs_user", "reason": "owner-decision-required", "actionRequired": True}
+        reason = "review-decision-required" if review_blocked else "owner-decision-required"
+        return {"status": "needs_user", "reason": reason, "actionRequired": True}
     if stale:
         return {"status": "recovering", "reason": "source-stale", "actionRequired": False}
     if any(item["status"] == "failed" for item in units):
@@ -519,7 +525,7 @@ def epic_projection(
         # controller facts remain authoritative instead of aging into recovery.
         freshness["stale"] = False
         freshness["label"] = "Final"
-    health = health_projection(launch_epic, units, freshness["stale"])
+    health = health_projection(launch_epic, facts, units, freshness["stale"])
     if terminal_outcome:
         health = {
             "status": "recovering",

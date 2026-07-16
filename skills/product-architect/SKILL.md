@@ -1,47 +1,33 @@
 ---
 name: product-architect
-description: Use when Feature mode or user-facing work needs workflow, IA, first value, meaningful metrics, trust, and PM/design acceptance before implementation.
+description: Use when a user wants help resolving a material product workflow, information-architecture, first-value, trust, or acceptance question before implementation.
 ---
 
 # Product Architect
 
-Turn user-facing intent into a **Product Packet**. The feature should feel like the real product, not a disposable draft or explanatory mock.
+Help resolve the product decision the user is actually making. Do not manufacture a comprehensive product packet or silently update the PRD.
 
-## Product Packet
+## Output Contract
 
-If a field is outside accepted scope, write `Not relevant because...` instead of inventing product work. Optional example: read `examples/product-packet.md` only when output shape is ambiguous.
+Optional example: read `examples/product-packet.md` only when the output shape is ambiguous.
 
-- Mode recommendation: Feature or escalation to Release
-- Primary user and situation
-- User job
-- First-value moment
-- Workflow
-- Information architecture
-- Key screens or states
-- Key states not in scope
-- Meaningful metrics, if any, and why they matter
-- Production Quality Bar: launch trust, feedback loop, or decision-oriented UI needs, or `Not relevant because...`
-- Not relevant because: activation, retention, growth, sharing, or handoff items that would stretch scope
-- Trust, privacy, permission, and hesitation points
-- Configuration requirements: behavior that must vary, who controls it, secret/private-data classes, and stable product constants
-- PM acceptance criteria
-- Design acceptance criteria
-- Engineering handoff: affected flows, interfaces, and proof expectations
-- Assumptions: mark as `user-stated`, `repo-inferred`, or `agent-assumed`
-- Open questions
-- Cannot verify: product facts that need human or data proof
+Return at most three practical-effect bullets:
+
+- the recommended decision and what changes for the user;
+- a materially different alternative only when it is genuinely plausible;
+- the one unresolved question or `Cannot verify` limit that could change the decision.
+
+When the user explicitly requests a document edit, provide a targeted proposed edit for the named section. Use the `maintain-prd` workflow to apply it.
 
 ## Rules
 
-- Compare 2-3 approaches only when the choice materially changes workflow, architecture, trust, cost, or acceptance. Lead with a recommendation. Ask for approval only when the decision is genuinely the user's; do not impose a universal brainstorming gate.
-- When the default local-document profile applies, update the canonical PRD from the primary worktree. Keep repository-required contracts and maintainer documentation tracked. Opted-out projects use the repository's established tracked documentation location.
-- Never place secret values in the packet. Distinguish behavior that truly varies by environment or operator from stable product rules that belong in reviewed, tested code.
-- Metrics belong in the product only when they help the user understand real progress, quality, confidence, speed, completion, improvement, or next action.
-- Do not put draft explanations, agent/process notes, or absence-of-metric rationale in product UI; put non-obvious rationale in the run log.
-- Include onboarding, activation, retention, or growth only when accepted scope or a real next action makes them relevant.
-- For near-launch Production Quality Bar work, define confidence, freshness, blockers, evidence, user/operator feedback, and next action only where they help decisions.
-- If screens or flows can be explored independently, name subagent-ready lanes for product review, visual review, and implementation handoff, each with separate proof expectations.
+- Start from the current product document and repository behavior. Preserve existing behavior unless the user explicitly changes it.
+- Ask only when the answer changes behavior, scope, acceptance, authority, cost, or external effect.
+- Never invent non-goals, security boundaries, maturity gates, metrics, rollout, or supporting features. Suggest one only when tied to a concrete product effect, and keep it proposed until accepted.
+- Compare approaches only when the choice materially changes the experience or implementation boundary.
+- Do not turn ordinary internal tools into enterprise or state-of-the-art products by default.
+- Keep secret values out of the document. Return `Cannot verify` when a decision needs evidence that is unavailable.
 
-## Attribution
+## Completion
 
-The material-alternatives technique is adapted from Jesse Vincent's Superpowers `brainstorming` skill, version 5.1.3 (MIT). Gauntlet removes the universal approval gate and permanent design-doc requirement. See `docs/upstream-superpowers.md`.
+Complete when the material product choice is clear enough for a targeted document edit or the blocking decision is plainly stated.

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "gauntlet.thin-context-fixtures.v1",
+  "acceptedEpicRecord": {
+    "schemaVersion": "gauntlet.accepted-epic.v1",
+    "epicId": "APP-001",
+    "sourcePath": "local-docs/epics/001/001_FEATURE_PRD.md",
+    "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "acceptedAt": "2026-07-16T12:00:00Z",
+    "dependencies": [],
+    "releaseStages": ["merge"],
+    "consequenceTriggers": []
+  },
+  "representativeEpicBytes": {
+    "EDGE-009": 20465,
+    "GAUNTLET-005": 44449,
+    "AGORARUNPOD-014": 61897
+  },
+  "modelVisibleSurfacePaths": [
+    "router/AGENTS.md",
+    "templates/local-docs/doc_org.md.tmpl",
+    "skills/maintain-prd/SKILL.md",
+    "skills/maintain-prd/references/prd-contract.md",
+    "skills/implement-prd/SKILL.md",
+    "skills/implement-prd/references/execution-contract.md",
+    "skills/adversarial-reviewer/SKILL.md"
+  ],
+  "artifactPaths": [
+    "templates/local-docs/FOUNDING_HYPOTHESIS.md.tmpl",
+    "templates/local-docs/PETER_YANG_PRD.md.tmpl",
+    "templates/local-docs/EPIC_PRD.md.tmpl",
+    "templates/local-docs/EPIC_SECTION.md.tmpl"
+  ],
+  "controllerPaths": [
+    "scripts/review-pack.py"
+  ],
+  "baselineModelVisibleBytes": 57479
+}

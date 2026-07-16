@@ -9,6 +9,7 @@ INSTRUCTIONS_REVIEWED="${GAUNTLET_INSTRUCTIONS_REVIEWED:-0}"
 CODEX_PREFERENCES="${GAUNTLET_CODEX_PREFERENCES:-prompt}"
 CHECK_ONLY="${GAUNTLET_INSTALL_CHECK_ONLY:-0}"
 RESPONSE_STYLE="${GAUNTLET_RESPONSE_STYLE:-gauntlet}"
+CODEX_BIN_OVERRIDE="${GAUNTLET_CODEX_BIN:-}"
 SKILLS_SRC="$ROOT/skills"
 if [ ! -d "$SKILLS_SRC" ] && [ -d "$ROOT/../skills" ]; then
   SKILLS_SRC="$ROOT/../skills"
@@ -36,6 +37,7 @@ Environment:
   GAUNTLET_CODEX_PREFERENCES prompt, gauntlet, existing, or skip (default: prompt)
   GAUNTLET_INSTALL_CHECK_ONLY set to 1 to run conflict and safety preflight without installing
   GAUNTLET_RESPONSE_STYLE   gauntlet or existing (default: gauntlet)
+  GAUNTLET_CODEX_BIN       Codex executable override used to install required bundled plugins
   GAUNTLET_SKIP_GIT_HOOKS set to 1 to skip this repo's pre-commit hook install
 USAGE
 }
@@ -303,8 +305,14 @@ import tempfile
 target = Path(sys.argv[1])
 phase = sys.argv[2]
 choice = sys.argv[3]
-desired_top = {"model_verbosity": "low", "personality": "none"}
+desired_top = {
+    "model_verbosity": "low",
+    "personality": "none",
+    "model_reasoning_summary": "concise",
+}
 desired_max_threads = 24
+desired_context_usage = True
+desired_plugins = ["browser@openai-bundled", "computer-use@openai-bundled"]
 data = target.read_bytes() if target.exists() else b""
 try:
     text = data.decode("utf-8")
@@ -321,13 +329,13 @@ for index, line in enumerate(lines):
         break
 
 assignment = re.compile(
-    r"^(?P<indent>[ \t]*)(?P<key>model_verbosity|personality)(?P<separator>[ \t]*=[ \t]*)"
+    r"^(?P<indent>[ \t]*)(?P<key>model_verbosity|personality|model_reasoning_summary)(?P<separator>[ \t]*=[ \t]*)"
     r"(?P<value>\"(?:\\.|[^\"])*\"|'[^']*')(?P<suffix>[ \t]*(?:#.*)?)(?P<newline>\r?\n)?$"
 )
 found = {}
 for index, line in enumerate(lines[:table_at]):
     stripped = line.lstrip()
-    if not re.match(r"^(model_verbosity|personality)[ \t]*=", stripped):
+    if not re.match(r"^(model_verbosity|personality|model_reasoning_summary)[ \t]*=", stripped):
         continue
     match = assignment.match(line)
     if not match:
@@ -384,12 +392,74 @@ if agent_headers:
             raise SystemExit(1)
         agent_found = (index, int(match.group("value").replace("_", "")), match)
 
+def find_table(header, label):
+    pattern = re.compile(rf"^[ \t]*{re.escape(header)}[ \t]*(?:#.*)?(?:\r?\n)?$")
+    headers = [index for index, line in enumerate(lines) if pattern.match(line)]
+    if len(headers) > 1:
+        print(f"Cannot safely update duplicate {label} tables in {target}", file=sys.stderr)
+        raise SystemExit(1)
+    if not headers:
+        return None
+    header_at = headers[0]
+    table_end = len(lines)
+    for index in range(header_at + 1, len(lines)):
+        if lines[index].lstrip().startswith("["):
+            table_end = index
+            break
+    return (header_at, table_end)
+
+def find_boolean(table, key, label):
+    if table is None:
+        return None
+    assignment = re.compile(
+        rf"^(?P<indent>[ \t]*){re.escape(key)}(?P<separator>[ \t]*=[ \t]*)"
+        r"(?P<value>true|false)(?P<suffix>[ \t]*(?:#.*)?)(?P<newline>\r?\n)?$"
+    )
+    found_value = None
+    for index in range(table[0] + 1, table[1]):
+        stripped = lines[index].lstrip()
+        if not re.match(rf"^{re.escape(key)}[ \t]*=", stripped):
+            continue
+        match = assignment.match(lines[index])
+        if not match:
+            print(f"Cannot safely update unsupported {label} syntax at {target}:{index + 1}", file=sys.stderr)
+            raise SystemExit(1)
+        if found_value is not None:
+            print(f"Cannot safely update duplicate {label} in {target}", file=sys.stderr)
+            raise SystemExit(1)
+        found_value = (index, match.group("value") == "true", match)
+    return found_value
+
+for index, line in enumerate(lines[:table_at]):
+    if re.match(r"^[ \t]*(desktop|plugins)(?:[ \t]*=|\.)", line):
+        print(f"Cannot safely update unsupported top-level desktop or plugins syntax at {target}:{index + 1}", file=sys.stderr)
+        raise SystemExit(1)
+
+desktop_table = find_table("[desktop]", "[desktop]")
+desktop_found = find_boolean(
+    desktop_table, "show-context-window-usage", "desktop.show-context-window-usage"
+)
+plugin_tables = {}
+plugin_found = {}
+for plugin in desired_plugins:
+    header = f'[plugins."{plugin}"]'
+    plugin_tables[plugin] = find_table(header, header)
+    plugin_found[plugin] = find_boolean(
+        plugin_tables[plugin], "enabled", f'plugins."{plugin}".enabled'
+    )
+
 conflicts = {
     key: value for key, (_, value, _) in found.items() if value != desired_top[key]
 }
 agent_conflict = agent_found is not None and agent_found[1] != desired_max_threads
+desktop_conflict = desktop_found is not None and desktop_found[1] != desired_context_usage
+plugin_conflicts = {
+    plugin: value[1]
+    for plugin, value in plugin_found.items()
+    if value is not None and value[1] is not True
+}
 if phase == "check":
-    if (conflicts or agent_conflict) and choice == "prompt":
+    if (conflicts or agent_conflict or desktop_conflict or plugin_conflicts) and choice == "prompt":
         print("Codex preference conflict requires a user choice before Gauntlet can install.", file=sys.stderr)
         for key, current in conflicts.items():
             print(f'Existing: {key} = "{current}"', file=sys.stderr)
@@ -397,6 +467,12 @@ if phase == "check":
         if agent_conflict:
             print(f"Existing: agents.max_threads = {agent_found[1]}", file=sys.stderr)
             print(f"Gauntlet: agents.max_threads = {desired_max_threads}", file=sys.stderr)
+        if desktop_conflict:
+            print(f"Existing: desktop.show-context-window-usage = {str(desktop_found[1]).lower()}", file=sys.stderr)
+            print("Gauntlet: desktop.show-context-window-usage = true", file=sys.stderr)
+        for plugin in plugin_conflicts:
+            print(f'Existing: plugins."{plugin}".enabled = false', file=sys.stderr)
+            print(f'Gauntlet: plugins."{plugin}".enabled = true', file=sys.stderr)
         print("Rerun with --codex-preferences gauntlet to use Gauntlet defaults,", file=sys.stderr)
         print("or --codex-preferences existing to preserve the existing values.", file=sys.stderr)
         print("Use --codex-preferences skip to leave config.toml entirely unchanged.", file=sys.stderr)
@@ -425,6 +501,22 @@ if choice in {"prompt", "gauntlet"}:
             f'{match.group("indent")}max_threads{match.group("separator")}{desired_max_threads}'
             f'{match.group("suffix")}{newline}'
         )
+    if desktop_found is not None and desktop_found[1] != desired_context_usage:
+        index, _, match = desktop_found
+        newline = match.group("newline") or ""
+        output[index] = (
+            f'{match.group("indent")}show-context-window-usage{match.group("separator")}true'
+            f'{match.group("suffix")}{newline}'
+        )
+    for plugin, value in plugin_found.items():
+        if value is None or value[1] is True:
+            continue
+        index, _, match = value
+        newline = match.group("newline") or ""
+        output[index] = (
+            f'{match.group("indent")}enabled{match.group("separator")}true'
+            f'{match.group("suffix")}{newline}'
+        )
 
 newline_style = "\r\n" if any(line.endswith("\r\n") for line in lines) else "\n"
 if agent_found is None:
@@ -445,6 +537,37 @@ if agent_found is None:
             f"[agents]{newline_style}",
             f"max_threads = {desired_max_threads}{newline_style}",
         ])
+
+def ensure_table_value(header, found_value, rendered_value):
+    if found_value is not None:
+        return
+    pattern = re.compile(rf"^[ \t]*{re.escape(header)}[ \t]*(?:#.*)?(?:\r?\n)?$")
+    current_header = next((index for index, line in enumerate(output) if pattern.match(line)), None)
+    if current_header is not None:
+        insert_at = len(output)
+        for index in range(current_header + 1, len(output)):
+            if output[index].lstrip().startswith("["):
+                insert_at = index
+                break
+        while insert_at > current_header + 1 and not output[insert_at - 1].strip():
+            insert_at -= 1
+        if insert_at > 0 and output[insert_at - 1] and not output[insert_at - 1].endswith(("\n", "\r")):
+            output[insert_at - 1] += newline_style
+        output[insert_at:insert_at] = [f"{rendered_value}{newline_style}"]
+        return
+    if output and output[-1] and not output[-1].endswith(("\n", "\r")):
+        output[-1] += newline_style
+    if output and output[-1].strip():
+        output.append(newline_style)
+    output.extend([f"{header}{newline_style}", f"{rendered_value}{newline_style}"])
+
+ensure_table_value(
+    "[desktop]", desktop_found, "show-context-window-usage = true"
+)
+for plugin in desired_plugins:
+    ensure_table_value(
+        f'[plugins."{plugin}"]', plugin_found[plugin], "enabled = true"
+    )
 
 missing = [key for key in desired_top if key not in found]
 if missing:
@@ -476,6 +599,139 @@ finally:
     if os.path.exists(temporary):
         os.unlink(temporary)
 PY
+}
+
+RESOLVED_CODEX_BIN=""
+
+resolve_codex_bin() {
+  local candidate=""
+  if [ -n "$CODEX_BIN_OVERRIDE" ]; then
+    if [ ! -x "$CODEX_BIN_OVERRIDE" ] || ! "$CODEX_BIN_OVERRIDE" plugin add --help >/dev/null 2>&1; then
+      echo "GAUNTLET_CODEX_BIN is not an executable Codex CLI with plugin support: $CODEX_BIN_OVERRIDE" >&2
+      return 1
+    fi
+    RESOLVED_CODEX_BIN="$CODEX_BIN_OVERRIDE"
+    return 0
+  fi
+
+  for candidate in \
+    "$AGENT_HOME/plugins/.plugin-appserver/codex" \
+    "/Applications/ChatGPT.app/Contents/Resources/codex" \
+    "$(command -v codex 2>/dev/null || true)"
+  do
+    [ -n "$candidate" ] || continue
+    if [ -x "$candidate" ] && "$candidate" plugin add --help >/dev/null 2>&1; then
+      RESOLVED_CODEX_BIN="$candidate"
+      return 0
+    fi
+  done
+
+  echo "Gauntlet requires a Codex CLI with plugin support to install Browser and Computer Use." >&2
+  echo "Set GAUNTLET_CODEX_BIN to a working Codex executable and rerun." >&2
+  return 1
+}
+
+planned_codex_plugins() {
+  [ "$CODEX_PREFERENCES" != "skip" ] || return 0
+  python3 - "$AGENT_HOME/config.toml" "$CODEX_PREFERENCES" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+target = Path(sys.argv[1])
+choice = sys.argv[2]
+plugins = ["browser@openai-bundled", "computer-use@openai-bundled"]
+text = target.read_text(encoding="utf-8") if target.exists() else ""
+lines = text.splitlines()
+
+for plugin in plugins:
+    header = f'[plugins."{plugin}"]'
+    header_pattern = re.compile(rf"^[ \t]*{re.escape(header)}[ \t]*(?:#.*)?$")
+    header_at = next((i for i, line in enumerate(lines) if header_pattern.match(line)), None)
+    enabled = None
+    if header_at is not None:
+        for line in lines[header_at + 1:]:
+            if line.lstrip().startswith("["):
+                break
+            match = re.match(r"^[ \t]*enabled[ \t]*=[ \t]*(true|false)(?:[ \t]*(?:#.*)?)?$", line)
+            if match:
+                enabled = match.group(1) == "true"
+                break
+    if choice != "existing" or enabled is not False:
+        print(plugin)
+PY
+}
+
+preflight_codex_plugins() {
+  local planned=()
+  local listing=""
+  local preflight_home=""
+  while IFS= read -r plugin; do
+    [ -n "$plugin" ] && planned+=("$plugin")
+  done < <(planned_codex_plugins)
+  [ "${#planned[@]}" -gt 0 ] || return 0
+
+  resolve_codex_bin
+  listing="$(mktemp)"
+  preflight_home="$(mktemp -d)"
+  if [ -f "$AGENT_HOME/config.toml" ]; then
+    python3 - "$AGENT_HOME/config.toml" "$preflight_home/config.toml" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines(keepends=True)
+output = []
+capture = False
+for line in source:
+    stripped = line.lstrip()
+    if stripped.startswith("["):
+        capture = re.match(r'^\[marketplaces(?:\.|\])', stripped) is not None
+    if capture:
+        output.append(line)
+if output:
+    Path(sys.argv[2]).write_text("".join(output), encoding="utf-8")
+PY
+  fi
+  if ! CODEX_HOME="$preflight_home" "$RESOLVED_CODEX_BIN" plugin list --available --json >"$listing"; then
+    rm -f "$listing"
+    rm -rf "$preflight_home"
+    echo "Gauntlet could not inspect Codex plugin availability." >&2
+    return 1
+  fi
+  if ! python3 - "$listing" "${planned[@]}" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+rows = []
+if isinstance(data, dict):
+    rows.extend(data.get("installed", []))
+    rows.extend(data.get("available", []))
+available = {row.get("pluginId") for row in rows if isinstance(row, dict)}
+missing = [plugin for plugin in sys.argv[2:] if plugin not in available]
+if missing:
+    for plugin in missing:
+        print(f"Required Codex plugin is unavailable: {plugin}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+  then
+    rm -f "$listing"
+    rm -rf "$preflight_home"
+    echo "A required Codex plugin is unavailable; no files were changed." >&2
+    return 1
+  fi
+  rm -f "$listing"
+  rm -rf "$preflight_home"
+}
+
+install_codex_plugins() {
+  local plugin=""
+  while IFS= read -r plugin; do
+    [ -n "$plugin" ] || continue
+    CODEX_HOME="$AGENT_HOME" "$RESOLVED_CODEX_BIN" plugin add "$plugin" --json >/dev/null
+  done < <(planned_codex_plugins)
 }
 
 validate_managed_file() {
@@ -719,6 +975,10 @@ if [ "$instruction_review_status" -ne 0 ] || [ "$codex_preference_status" -ne 0 
   exit 3
 fi
 
+if [ "$TARGET" = "codex" ]; then
+  preflight_codex_plugins
+fi
+
 if [ "$CHECK_ONLY" = "1" ]; then
   exit 0
 fi
@@ -870,6 +1130,7 @@ fi
 case "$TARGET" in
   codex)
     manage_codex_preferences apply
+    install_codex_plugins
     write_managed_file "$AGENT_HOME/AGENTS.md" "$candidate_block" "$legacy_installed_router"
     record_instruction_review "$AGENT_HOME/AGENTS.md" "$candidate_block" "$rendered_router"
     ;;
