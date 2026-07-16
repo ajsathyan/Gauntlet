@@ -1,0 +1,26 @@
+{
+  "name": "gauntlet-progress-dashboard",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b && vite build",
+    "check": "vitest run",
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "smoke:serve": "node scripts/visual-smoke-server.mjs"
+  },
+  "dependencies": {
+    "motion": "12.42.2",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.3",
+    "jsdom": "28.0.0",
+    "typescript": "7.0.2",
+    "vite": "8.1.4",
+    "vitest": "4.1.0"
+  }
+}
