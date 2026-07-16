@@ -524,6 +524,22 @@ class EpicProjectTests(unittest.TestCase):
         self.assertIn("Merged: no", body)
         self.assertIn("blocks overall completion: yes", body)
         self.assertNotIn("Substantial Changes", body)
+
+        grouped = json.loads(json.dumps(projection))
+        grouped["acceptedCriteria"] = {
+            "Product Acceptance": ["A returning user understands the current run."],
+            "Engineering Acceptance": ["The projection remains deterministic."],
+        }
+        self.assertEqual(gauntlet.validate_run_merge_handoff(grouped), [])
+        grouped_body = gauntlet.render_pr_body(grouped)
+        self.assertIn("### Product Acceptance", grouped_body)
+        self.assertIn("- The projection remains deterministic.", grouped_body)
+
+        invalid_grouped = json.loads(json.dumps(grouped))
+        invalid_grouped["acceptedCriteria"]["Engineering Acceptance"] = []
+        self.assertIn("invalid_accepted_criteria", {
+            item["code"] for item in gauntlet.validate_run_merge_handoff(invalid_grouped)
+        })
         self.assertEqual(gauntlet.projection_changelog_entry(projection), "Implement APP-001: Account foundation.")
         safeguarded = json.loads(json.dumps(projection))
         safeguarded["releaseGates"].append({

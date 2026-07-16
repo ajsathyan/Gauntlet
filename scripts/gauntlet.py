@@ -3041,6 +3041,32 @@ def validate_string_list(findings, value, code, label, allow_empty=True):
         findings.append(handoff_finding(code, f"{label} must be {'a non-empty' if not allow_empty else 'a'} list of non-empty strings."))
 
 
+def validate_accepted_criteria(findings, value):
+    if isinstance(value, list):
+        validate_string_list(findings, value, "invalid_accepted_criteria", "acceptedCriteria", allow_empty=False)
+        return
+    if not isinstance(value, dict) or not value:
+        findings.append(handoff_finding(
+            "invalid_accepted_criteria",
+            "acceptedCriteria must be a non-empty list or a non-empty object of named criteria lists.",
+        ))
+        return
+    for group, criteria in value.items():
+        if not nonempty_string(group):
+            findings.append(handoff_finding(
+                "invalid_accepted_criteria",
+                "acceptedCriteria group names must be non-empty strings.",
+            ))
+            continue
+        validate_string_list(
+            findings,
+            criteria,
+            "invalid_accepted_criteria",
+            f"acceptedCriteria.{group}",
+            allow_empty=False,
+        )
+
+
 def validate_run_merge_handoff(data):
     findings = []
     if not isinstance(data, dict):
@@ -3085,7 +3111,7 @@ def validate_run_merge_handoff(data):
             for index, scope in enumerate(scopes, 1):
                 if not isinstance(scope, dict) or set(scope) != {"id", "responsibility"} or any(not nonempty_string(scope.get(key)) for key in ["id", "responsibility"]):
                     findings.append(handoff_finding("invalid_epic_scope", f"epic.scopeAreas item {index} must contain id and responsibility."))
-    validate_string_list(findings, data.get("acceptedCriteria"), "invalid_accepted_criteria", "acceptedCriteria", allow_empty=False)
+    validate_accepted_criteria(findings, data.get("acceptedCriteria"))
     validate_string_list(findings, data.get("changedPaths"), "invalid_changed_paths", "changedPaths")
     validate_string_list(findings, data.get("verificationReceipts"), "invalid_verification_receipts", "verificationReceipts", allow_empty=False)
 
@@ -3188,13 +3214,20 @@ def merge_binding_digest(data):
 def render_run_pr_body(data):
     epic = data["epic"]
     completion = data["completion"]
+    accepted_criteria = data["acceptedCriteria"]
+    if isinstance(accepted_criteria, dict):
+        accepted_lines = []
+        for group, criteria in accepted_criteria.items():
+            accepted_lines.extend([f"### {group}", "", *[f"- {item}" for item in criteria], ""])
+    else:
+        accepted_lines = [*[f"- {item}" for item in accepted_criteria], ""]
     lines = [
         f"## Epic {epic['id']}: {epic['title']}", "",
         f"Implementation state: **{completion['exactState']}**", "",
         "### Scope Areas", "",
         *[f"- `{scope['id']}` — {scope['responsibility']}" for scope in epic["scopeAreas"]], "",
         "## Accepted Criteria", "",
-        *[f"- {item}" for item in data["acceptedCriteria"]], "",
+        *accepted_lines,
         "## Changed Paths", "",
         *([f"- `{path}`" for path in data["changedPaths"]] or ["- None recorded."]), "",
         "## Verification", "",
