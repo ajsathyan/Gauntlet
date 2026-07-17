@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now packages the unchanged live-progress projection and dashboard supervisor while preserving the legacy projection import path, dashboard lifecycle, and Epic progress CLI.
+
 - Gauntlet now extracts unchanged closeout, archive, follow-up, memory, and changelog workflows into a registered stdlib-only package while preserving preflight, scoped mutation, installation, and returned app-action contracts.
 
 - Gauntlet now extracts the unchanged contextual merge workflow into a registered stdlib-only package while preserving run binding, merge authority, lease recovery, PR checks, and branch cleanup behavior.
