@@ -16,9 +16,9 @@
 
 The root task assigns proposal IDs after receipt, compares mechanisms, and owns synthesis. A proposal agent cannot change the product contract, integrate a proposal, authorize deletion, or make a completion claim.
 
-## Gate
+## Definition of Done
 
-Pass when the frozen evidence packet hash verifies, all three compact JSON receipts satisfy the common contract, materially different mechanisms were considered, and each selected hypothesis has a falsifiable diverse-slice prototype and comparable success measures.
+Breakthrough search is done when the frozen evidence packet hash verifies, all three compact JSON receipts satisfy the common contract, materially different mechanisms were considered, and each selected hypothesis has a falsifiable diverse-slice prototype and comparable success measures.
 
 ## Receipt
 

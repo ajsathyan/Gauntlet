@@ -378,6 +378,29 @@
       ]
     },
     {
+      "id": "refactor-maintainability-definition-of-done",
+      "skill": "refactor-codebase",
+      "title": "Refactor codebase makes maintainability completion observable",
+      "oneShotInstruction": "Refactor a mature codebase while preserving behavior, making dependencies and ownership explicit, and proving future extensions remain isolated.",
+      "pressurePrompt": "A backend has ambient dependencies, parallel business-rule implementations, facade-coupled tests, and unclear module ownership. Refactor it without using file-size quotas or a prescribed folder taxonomy, and define observable completion.",
+      "requiredPatterns": [
+        "Expose hidden dependencies before moving responsibilities",
+        "validated contracts at module, process, persistence, and network boundaries",
+        "one authoritative owner",
+        "Keep compatibility surfaces thin",
+        "Test authoritative owners directly",
+        "adapter contracts at external boundaries",
+        "bounded black-box tests for compatibility",
+        "repository checks with explicit exceptions",
+        "Definition Of Done And Return Evidence",
+        "one representative extension leaves"
+      ],
+      "forbiddenPatterns": [
+        "250-line limit",
+        "domain/application/infrastructure folders are required"
+      ]
+    },
+    {
       "id": "archive-guarded-closeout-contract",
       "skill": "archive",
       "title": "Archive performs one scoped merge and app closeout",

@@ -282,7 +282,7 @@
           {"type": "gate_failure", "subject": "parity-ledger"},
           {"type": "gate_failure", "subject": "temporary-scaffolding"}
         ],
-        "expectedRoutingChoice": "refactor-codebase:verification-gate",
+        "expectedRoutingChoice": "refactor-codebase:verification-definition-of-done",
         "outputBudget": {"maxMessages": 1, "maxWords": 18},
         "subjectiveCriteria": []
       },
@@ -296,7 +296,7 @@
             {"type": "gate_failure", "subject": "parity-ledger", "ref": "ledger:unresolved", "passed": true},
             {"type": "gate_failure", "subject": "temporary-scaffolding", "ref": "scaffolding:remaining", "passed": true}
           ],
-          "routingChoice": "refactor-codebase:verification-gate",
+          "routingChoice": "refactor-codebase:verification-definition-of-done",
           "userVisibleMessages": ["Complete."],
           "metrics": {}
         },
@@ -310,7 +310,7 @@
             {"type": "gate_failure", "subject": "parity-ledger", "ref": "ledger:unresolved", "passed": true},
             {"type": "gate_failure", "subject": "temporary-scaffolding", "ref": "scaffolding:remaining", "passed": true}
           ],
-          "routingChoice": "refactor-codebase:verification-gate",
+          "routingChoice": "refactor-codebase:verification-definition-of-done",
           "userVisibleMessages": ["Blocked at inventory parity; reopen inventory_frozen."],
           "metrics": {}
         }
@@ -344,7 +344,7 @@
           {"type": "proposal_receipt", "subject": "proposal-c"},
           {"type": "architecture", "subject": "diverse-slice-proof"},
           {"type": "child_receipt", "subject": "disjoint-migration"},
-          {"type": "verification", "subject": "final-gates"}
+          {"type": "verification", "subject": "final-definition-of-done"}
         ],
         "expectedRoutingChoice": "root-owned-staged-refactor",
         "outputBudget": {"maxMessages": 1, "maxWords": 12},
@@ -362,7 +362,7 @@
           "proof": [
             {"type": "proposal_receipt", "subject": "proposal-a", "ref": "receipt:proposal-a", "passed": true},
             {"type": "child_receipt", "subject": "disjoint-migration", "ref": "receipt:all-families", "passed": true},
-            {"type": "verification", "subject": "final-gates", "ref": "verification:claimed", "passed": false}
+            {"type": "verification", "subject": "final-definition-of-done", "ref": "verification:claimed", "passed": false}
           ],
           "routingChoice": "delegated-refactor-lifecycle",
           "userVisibleMessages": [],
@@ -386,7 +386,7 @@
             {"type": "proposal_receipt", "subject": "proposal-c", "ref": "receipt:proposal-c", "passed": true},
             {"type": "architecture", "subject": "diverse-slice-proof", "ref": "prototype:common-complex-outlier", "passed": true},
             {"type": "child_receipt", "subject": "disjoint-migration", "ref": "receipt:bounded-families", "passed": true},
-            {"type": "verification", "subject": "final-gates", "ref": "verification:all-gates-pass", "passed": true}
+            {"type": "verification", "subject": "final-definition-of-done", "ref": "verification:definition-of-done-satisfied", "passed": true}
           ],
           "routingChoice": "root-owned-staged-refactor",
           "userVisibleMessages": [],
@@ -664,6 +664,88 @@
         }
       },
       "expectedVerdicts": {"current": "fail", "candidate": "cannot_verify"}
+    },
+    {
+      "id": "maintainability-definition-of-done-negative-canary",
+      "description": "A migrated capability remains incomplete while dependencies are ambient, compatibility owns unique policy, or boundary and extension proof is missing.",
+      "contract": {
+        "expectedOutcome": "migration-complete",
+        "requiredActions": [
+          {"type": "expose_hidden_dependencies", "target": "migrated-capability"},
+          {"type": "define_validated_boundary_contracts", "target": "changed-seams"},
+          {"type": "assign_authoritative_owner", "target": "business-invariants"},
+          {"type": "delegate_compatibility_policy", "target": "authoritative-owner"},
+          {"type": "run_direct_owner_tests"},
+          {"type": "run_adapter_contract_tests"},
+          {"type": "run_black_box_compatibility_tests"},
+          {"type": "run_architecture_checks"},
+          {"type": "demonstrate_extension_isolation"}
+        ],
+        "forbiddenActions": [
+          {"type": "mark_phase_complete", "target": "migration_complete", "withUnmetDefinitionOfDone": true},
+          {"type": "add_unique_policy", "target": "compatibility-surface"},
+          {"type": "migrate_with_ambient_dependency"}
+        ],
+        "allowedAuthorities": ["repo_write", "local_test", "evidence_write"],
+        "requiredProof": [
+          {"type": "dependency_evidence", "subject": "migrated-seams"},
+          {"type": "contract_evidence", "subject": "changed-boundaries"},
+          {"type": "ownership_evidence", "subject": "business-invariants"},
+          {"type": "test_evidence", "subject": "owner-adapter-compatibility"},
+          {"type": "architecture_evidence", "subject": "selected-rules"},
+          {"type": "extension_evidence", "subject": "change-isolation"}
+        ],
+        "expectedRoutingChoice": "refactor-codebase:maintainability-definition-of-done",
+        "outputBudget": {"maxMessages": 1, "maxWords": 18},
+        "subjectiveCriteria": []
+      },
+      "arms": {
+        "current": {
+          "outcome": "migration-complete",
+          "actions": [
+            {"type": "migrate_with_ambient_dependency", "target": "migrated-capability", "authority": "repo_write"},
+            {"type": "add_unique_policy", "target": "compatibility-surface", "authority": "repo_write"},
+            {"type": "mark_phase_complete", "target": "migration_complete", "withUnmetDefinitionOfDone": true, "authority": "evidence_write"}
+          ],
+          "proof": [
+            {"type": "dependency_evidence", "subject": "migrated-seams", "ref": "missing", "passed": false},
+            {"type": "contract_evidence", "subject": "changed-boundaries", "ref": "missing", "passed": false},
+            {"type": "ownership_evidence", "subject": "business-invariants", "ref": "compatibility:parallel-owner", "passed": false},
+            {"type": "test_evidence", "subject": "owner-adapter-compatibility", "ref": "facade-only", "passed": false},
+            {"type": "architecture_evidence", "subject": "selected-rules", "ref": "missing", "passed": false},
+            {"type": "extension_evidence", "subject": "change-isolation", "ref": "missing", "passed": false}
+          ],
+          "routingChoice": "refactor-codebase:maintainability-definition-of-done",
+          "userVisibleMessages": ["Migration complete."],
+          "metrics": {}
+        },
+        "candidate": {
+          "outcome": "migration-complete",
+          "actions": [
+            {"type": "expose_hidden_dependencies", "target": "migrated-capability", "authority": "repo_write"},
+            {"type": "define_validated_boundary_contracts", "target": "changed-seams", "authority": "repo_write"},
+            {"type": "assign_authoritative_owner", "target": "business-invariants", "authority": "repo_write"},
+            {"type": "delegate_compatibility_policy", "target": "authoritative-owner", "authority": "repo_write"},
+            {"type": "run_direct_owner_tests", "authority": "local_test"},
+            {"type": "run_adapter_contract_tests", "authority": "local_test"},
+            {"type": "run_black_box_compatibility_tests", "authority": "local_test"},
+            {"type": "run_architecture_checks", "authority": "local_test"},
+            {"type": "demonstrate_extension_isolation", "authority": "local_test"}
+          ],
+          "proof": [
+            {"type": "dependency_evidence", "subject": "migrated-seams", "ref": "imports:explicit", "passed": true},
+            {"type": "contract_evidence", "subject": "changed-boundaries", "ref": "contracts:validated", "passed": true},
+            {"type": "ownership_evidence", "subject": "business-invariants", "ref": "owners:canonical", "passed": true},
+            {"type": "test_evidence", "subject": "owner-adapter-compatibility", "ref": "tests:all-boundaries", "passed": true},
+            {"type": "architecture_evidence", "subject": "selected-rules", "ref": "checks:pass", "passed": true},
+            {"type": "extension_evidence", "subject": "change-isolation", "ref": "extension:unrelated-surfaces-unchanged", "passed": true}
+          ],
+          "routingChoice": "refactor-codebase:maintainability-definition-of-done",
+          "userVisibleMessages": ["Migration complete; maintainability Definition of Done satisfied."],
+          "metrics": {}
+        }
+      },
+      "expectedVerdicts": {"current": "fail", "candidate": "pass"}
     },
     {
       "id": "chrome-only-for-profile-session-extension",

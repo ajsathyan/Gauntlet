@@ -15,13 +15,13 @@
 6. Build a compatibility matrix for every saved or external format: old-to-new load; semantic load/save and unknown-field preservation; new-to-old requirement; versions and unsupported versions; identifiers, ordering, defaults, precision, errors; interrupted recovery and idempotence; export content equivalence.
 7. Store inventory areas and capability rows in `parity-ledger.json`. Record unresolved discovery areas explicitly and validate the draft with [validate_parity_ledger.py](../scripts/validate_parity_ledger.py) using `--allow-incomplete`. Freeze the inventory version before architecture work.
 
-## Gate
+## Definition of Done
 
-Pass when the product job and capability boundaries are coherent, every discovery area is resolved or explicitly blocked, every evidenced capability has a row and source citation, and every external or saved format has compatibility cases.
+Capability mapping is done when the product job and capability boundaries are coherent, every discovery area is resolved or explicitly blocked, every evidenced capability has a row and source citation, and every external or saved format has compatibility cases.
 
 ## Receipt
 
-Write `capability-map.md`, `parity-ledger.json`, and `compatibility-matrix.tsv`. Update `refactor-state.json` with their hashes, inventory version, gate result, and unresolved areas.
+Write `capability-map.md`, `parity-ledger.json`, and `compatibility-matrix.tsv`. Update `refactor-state.json` with their hashes, inventory version, Definition of Done result, and unresolved areas.
 
 ## Invalidation
 

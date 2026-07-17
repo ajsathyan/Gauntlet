@@ -14,13 +14,13 @@
 4. Bound mismatch storage and privacy exposure. Separate expected nondeterminism from semantic divergence.
 5. Promote through explicit lifecycle criteria; keep the control authoritative until candidate evidence passes unless the migration contract says otherwise.
 
-## Gate
+## Definition of Done
 
-Pass strategy selection when dual execution is safe, comparisons are semantically meaningful, reconciliation and rollback are tested, side-effect authority is singular, and cutover criteria are observable.
+Strategy selection is done when dual execution is safe, comparisons are semantically meaningful, reconciliation and rollback are tested, side-effect authority is singular, and cutover criteria are observable.
 
 ## Receipt
 
-Add `dual-run` to `migration-strategy.md` with control authority, comparison/reconciliation design, lifecycle gates, rollback, privacy bounds, and deletion conditions. Update the selected strategy in `refactor-state.json`.
+Add `dual-run` to `migration-strategy.md` with control authority, comparison/reconciliation design, lifecycle criteria, rollback, privacy bounds, and deletion conditions. Update the selected strategy in `refactor-state.json`.
 
 ## Invalidation
 

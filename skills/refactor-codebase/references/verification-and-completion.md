@@ -18,9 +18,9 @@
 8. Run [validate_parity_ledger.py](../scripts/validate_parity_ledger.py) without `--allow-incomplete`. Prove no dead routes, unused public exports, broken controls, unreachable retained presets, orphan pipelines, family-local shared-invariant copies, or unowned scaffolding remain.
 9. Demonstrate adding one representative standard capability primarily through manifest/configuration, narrow renderer/adapter setup, and parity fixture without a family-sized subsystem.
 
-## Gate
+## Definition of Done
 
-Pass only when source integrity is exact; all inventory and compatibility rows resolve; deterministic tests and external checks pass; measurements satisfy explicit targets; shared invariants have one owner; temporary scaffolding is deleted or explicitly accepted; and no material `Cannot verify` item remains. If a binding target conflicts with a higher priority, do not claim completion—report the measured gap and evidence.
+The refactor is done when the global Definition of Done in `SKILL.md` is satisfied, deterministic and external checks pass, and measurements meet explicit targets. If a binding target conflicts with a higher priority, report the measured gap and evidence without claiming completion.
 
 ## Receipt
 

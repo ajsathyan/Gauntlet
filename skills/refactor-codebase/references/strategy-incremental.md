@@ -14,9 +14,9 @@
 4. Keep intermediate states coherent, owned, testable, and safe to maintain longer than expected.
 5. Separate read and write cutovers when state or persistence makes them independently risky.
 
-## Gate
+## Definition of Done
 
-Pass strategy selection when seams isolate side effects and state, representative capabilities can cut over independently, rollback is concrete, and the intermediate architecture does not require duplicating unsettled shared contracts.
+Strategy selection is done when seams isolate side effects and state, representative capabilities can cut over independently, rollback is concrete, and the intermediate architecture does not require duplicating unsettled shared contracts.
 
 ## Receipt
 

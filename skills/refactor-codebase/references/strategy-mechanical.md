@@ -14,9 +14,9 @@
 4. Preserve tests and supported platforms during translation. Defer unrelated architectural cleanup until translation parity unless the proved target architecture requires the change.
 5. Record translation exceptions and prove them explicitly; do not infer parity from mechanical similarity.
 
-## Gate
+## Definition of Done
 
-Pass strategy selection when translation rules cover representative common, complex, and outlier units; the oracle detects intentional mismatches; and the transformation does not require uncontrolled shared-state coexistence.
+Strategy selection is done when translation rules cover representative common, complex, and outlier units; the oracle detects intentional mismatches; and the transformation does not require uncontrolled shared-state coexistence.
 
 ## Receipt
 

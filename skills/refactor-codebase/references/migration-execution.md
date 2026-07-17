@@ -14,10 +14,11 @@
 5. Preserve public terminology and contracts unless explicitly in scope. Record repairs separately from preserved parity.
 6. Re-run representative slices after shared-contract changes. Reconcile routes, exports, public exports, presets/fixtures, pipelines, and saved workflows continuously.
 7. Count production, test, configuration, generated logic, dependencies, and temporary scaffolding without hiding displaced complexity.
+8. Apply the shared-architecture rules from `SKILL.md` before each cutover and link their dependency, contract, ownership, test, repository-check, and extension evidence.
 
-## Gate
+## Definition of Done
 
-Pass each capability when every owned parity and compatibility row passes, rollback or recovery is proved, no supported consumer uses the superseded path, and removal deletes artifacts rather than features. Pass the phase when no capability remains unmigrated or ambiguously retired.
+A capability is done when its parity, compatibility, rollback or recovery, shared-architecture evidence, and retirement checks pass. Migration is done when no capability remains unmigrated or ambiguously retired.
 
 ## Receipt
 

@@ -16,13 +16,13 @@
 6. Invoke `$refactor-performance` to define reproducible test-feedback and product-performance baselines. Preserve its commands, environment, dependency state, cache policy, concurrency, warm-up, run count, and statistic in `baseline.json`.
 7. Record dependency count, major code concentration, duplication or change-amplification signals, and observable start commands without interpreting product parity yet.
 
-## Gate
+## Definition of Done
 
-Pass when the source snapshot is unambiguous, the destination is independently mutable, `source_integrity.py compare` reports a match, and every requested quantitative target has a comparable baseline or an explicit `Cannot verify` reason.
+Baseline work is done when the source snapshot is unambiguous, the destination is independently mutable, `source_integrity.py compare` reports a match, and every requested quantitative target has a comparable baseline or an explicit `Cannot verify` reason.
 
 ## Receipt
 
-Write `source-snapshot.json` and `baseline.json`. Update `refactor-state.json` with their paths, hashes, protocol versions, gate result, and open baseline limits.
+Write `source-snapshot.json` and `baseline.json`. Update `refactor-state.json` with their paths, hashes, protocol versions, Definition of Done result, and open baseline limits.
 
 ## Invalidation
 

@@ -26,7 +26,7 @@ Keep user-supplied quantitative targets as acceptance criteria. Do not lower the
 
 ## Persist The Run
 
-Choose a tracked or explicitly approved private work area in the destination repository. Store `refactor-state.json` there as the state index; never store run artifacts in the source. Treat `source-snapshot.json` as sensitive by default and keep it private unless a human has reviewed and approved it for tracking; its path and symlink tokens avoid raw local metadata but may still disclose information through hashes and repository state. Record the current phase, source and artifact hashes, Definition of Done results, open mismatches, temporary scaffolding, and invalidation status.
+Choose a tracked or explicitly approved private work area in the destination repository. Store `refactor-state.json` there as the state index; never store run artifacts in the source. Treat `source-snapshot.json` as sensitive by default and keep it private unless a human has reviewed and approved it for tracking; its path and symlink tokens avoid raw local metadata but may still disclose information through hashes and repository state. Record the current phase, source and artifact hashes, gate results, open mismatches, temporary scaffolding, and invalidation status.
 
 Each phase writes concise filesystem evidence before advancing. Prefer JSON or TSV for inventories and measurements, Markdown for decisions, and links rather than duplicated prose. Another agent must be able to resume from the repository without chat history.
 
@@ -39,7 +39,7 @@ Keep the state index compact and machine-readable. Include:
 - product job and inventory version;
 - artifact paths, hashes, and measurement protocol versions;
 - selected breakthrough hypothesis, contract version, and migration strategy;
-- Definition of Done results, open mismatches, blocked decisions, and `Cannot verify` items;
+- gate results, open mismatches, blocked decisions, and `Cannot verify` items;
 - temporary scaffolding and its next review point;
 - invalidated phases and the evidence that invalidated them.
 
@@ -48,11 +48,11 @@ Use only these phase states: `source_baselined`, `inventory_frozen`, `breakthrou
 Before every phase:
 
 1. Read `refactor-state.json` and the phase's required artifacts.
-2. Verify their hashes and the preceding phase's Definition of Done.
+2. Verify their hashes and preceding gate.
 3. Check invalidation conditions.
 4. Reopen the earliest invalid phase when an assumption changed.
 
-Apply these completion criteria regardless of migration strategy:
+Apply these gates regardless of migration strategy:
 
 - Do not design the target architecture before freezing capability evidence.
 - Do not scale migration beyond prototypes before diverse slices pass.
@@ -74,16 +74,12 @@ Load only the current phase reference and any selected strategy reference.
 3. **Search for a breakthrough.** Read [breakthrough-search.md](references/breakthrough-search.md). Give three independent agents the same frozen evidence packet and output contract without a favored architecture or one another's conclusions. Compare mechanisms and retain the strongest credible step-change hypotheses.
 4. **Prove architecture.** Read [architecture-proof.md](references/architecture-proof.md). Prototype the leading hypothesis against common, most-complex, and structural-outlier slices. Freeze shared contracts only after all three pass.
 5. **Select one migration strategy.** Choose from the evidence, then read exactly one of [strategy-mechanical.md](references/strategy-mechanical.md), [strategy-incremental.md](references/strategy-incremental.md), or [strategy-dual-run.md](references/strategy-dual-run.md). Record why its preconditions hold.
-6. **Migrate and retire.** Read [migration-execution.md](references/migration-execution.md). Move bounded capabilities through parity completion criteria. Delete replaced code only after its ledger rows pass and no supported consumer remains.
+6. **Migrate and retire.** Read [migration-execution.md](references/migration-execution.md). Move bounded capabilities through parity gates. Delete replaced code only after its ledger rows pass and no supported consumer remains.
 7. **Verify completion.** Read [verification-and-completion.md](references/verification-and-completion.md). Invoke `$refactor-performance` for the optimization and comparison pass. Preserve an explicitly requested verification surface; otherwise use the built-in Browser for web workflows and Computer Use for native, OS-level, cross-app, or browser-inaccessible workflows. Finish only from complete external evidence.
 
 ## Enforce Shared Architecture
 
 An invariant is a rule or guarantee that must remain true across contexts. Give each genuinely shared invariant one authoritative owner at the narrowest common layer. Consolidate duties only when they share semantics, data ownership, lifecycle, and reasons to change. Similar-looking behavior with different guarantees remains separate or uses a narrow adapter.
-
-Expose hidden dependencies before moving responsibilities. Replace ambient collaborators and implicit registries with explicit imports, exports, or injected collaborators so dependency direction is visible. Define validated contracts at module, process, persistence, and network boundaries where a stable seam is required; convert one migrated boundary at a time and leave unrelated internal representations unchanged.
-
-Keep compatibility surfaces thin: they delegate business policy to its authoritative owner and retain only translation, transport, or migration behavior. Test authoritative owners directly, test adapter contracts at external boundaries, and retain bounded black-box tests for compatibility. After architecture proof, encode the highest-value dependency and ownership rules as cheap repository checks with explicit exceptions.
 
 Make a standard capability primarily declarative when the domain supports it. Keep irreducible variation in narrow renderer, adapter, or transformation boundaries. Reject manifests that accumulate hidden control flow, lifecycle policy, or a harder-to-understand programming language.
 
@@ -91,7 +87,7 @@ Track every migration-only adapter, bridge, dual implementation, or tool with an
 
 ## Control Delegation
 
-Keep product interpretation, shared-contract design, ledger adjudication, integration, deletion decisions, and completion claims in the root task. After contracts satisfy the diverse-slice Definition of Done, delegate only disjoint subsystems with explicit ownership and separate proof.
+Keep product interpretation, shared-contract design, ledger adjudication, integration, deletion decisions, and completion claims in the root task. After contracts pass the diverse-slice gate, delegate only disjoint subsystems with explicit ownership and separate proof.
 
 Use `fork_turns: "none"` only for a bounded agent whose complete context exists in durable artifacts and whose task packet identifies every required input. The agent receives no parent conversation, so keep any task with an unstored product decision, unresolved contract, shared integration state, deletion authority, or completion judgment in the root task. Give validation agents the frozen observable contract and artifacts without implementer reasoning. Use no-history packets for compatibility, architecture/metric, or black-box review only after their observable contracts are frozen. Treat reviewer convergence as evidence, not proof.
 
@@ -101,10 +97,10 @@ Require delegated lanes to return only the template's compact machine receipt wi
 
 When the host exposes usage data, keep an indexed raw `efficiency-receipt.json` with packet template version/hash, fork context mode, delegated agent count, Browser and Computer Use action/retry counts, and total/cached input tokens. Mark unavailable fields `Cannot verify`; never estimate them. This receipt measures workflow efficiency and cannot substitute for parity or completion proof.
 
-## Definition Of Done And Return Evidence
+## Stop And Return Evidence
 
 Stop for a material product decision, ambiguous data-loss or compatibility risk, missing authority, or a target that cannot be met without violating a higher-priority constraint. Report the exact conflict, measurements, attempted hypotheses, and smallest needed decision.
 
-Complete only when source integrity, inventory, parity, compatibility, and quantitative comparisons pass; migrated seams expose dependencies and validate changed contracts; every business invariant has one authoritative owner; compatibility surfaces only translate, transport, or migrate; direct-owner, adapter-contract, bounded black-box, and selected architecture checks pass; one representative extension leaves unrelated capabilities and adapters unchanged; temporary scaffolding is retired or explicitly accepted; and no material item remains `Cannot verify`. Return links to the state index, parity ledger, compatibility matrix, architecture decision, measurements, and final verification.
+Complete only when the source-integrity proof passes, every inventory area is resolved, every retained ledger row and compatibility case has evidence, quantitative comparisons use valid baselines, temporary scaffolding is retired or explicitly accepted, and external verification passes. Return links to the state index, parity ledger, compatibility matrix, architecture decision, measurements, and final verification; state residual risks and `Cannot verify` items.
 
-If work stops before completion, return the last completed phase, unmet Definition of Done item, exact artifact paths, and smallest next action. Do not reconstruct or summarize evidence that already exists in the destination.
+If work stops before completion, return the last passed phase, invalid or blocked gate, exact artifact paths, and smallest next action. Do not reconstruct or summarize evidence that already exists in the destination.
