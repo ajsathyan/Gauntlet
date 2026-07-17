@@ -7,7 +7,7 @@ import json
 import os
 import stat
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 RECEIPT = Path("gauntlet/.install-manifest.json")
 
@@ -22,6 +22,99 @@ def load_manifest(root: Path) -> dict:
     if payload.get("schemaVersion") != "1.0" or not isinstance(payload.get("entries"), list):
         raise ValueError(f"Unsupported install manifest: {path}")
     return payload
+
+
+def _relative_path(value, label: str) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != value.strip()
+        or "\\" in value
+        or value.startswith("/")
+        or any(part in {"", ".", ".."} for part in value.split("/"))
+    ):
+        raise ValueError(f"Invalid {label} path: {value!r}")
+    normalized = PurePosixPath(value).as_posix()
+    if normalized != value:
+        raise ValueError(f"Invalid {label} path: {value!r}")
+    return value
+
+
+def _destination_path(agent_home: Path, value, label: str = "destination") -> Path:
+    relative = _relative_path(value, label)
+    if not relative.startswith(("gauntlet/", "skills/")):
+        raise ValueError(f"Manifest {label} is outside managed namespaces: {relative}")
+    base = agent_home.resolve(strict=False)
+    destination = agent_home / relative
+    resolved = destination.resolve(strict=False)
+    if resolved != base and base not in resolved.parents:
+        raise ValueError(f"Manifest {label} escapes agent home: {relative}")
+    cursor = agent_home
+    for part in PurePosixPath(relative).parts[:-1]:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise ValueError(f"Manifest {label} has a symlink ancestor: {relative}")
+    if destination.is_symlink():
+        raise ValueError(f"Manifest {label} is a symlink: {relative}")
+    return destination
+
+
+def _source_path(root: Path, value) -> Path:
+    relative = _relative_path(value, "source")
+    source = root / relative
+    allowed_root = root
+    if relative.startswith("skills/") and not source.exists():
+        source = root.parent / relative
+        allowed_root = root.parent / "skills"
+    try:
+        resolved = source.resolve(strict=True)
+    except FileNotFoundError as error:
+        raise ValueError(f"Missing manifest source: {relative}") from error
+    allowed = allowed_root.resolve(strict=True)
+    if resolved != allowed and allowed not in resolved.parents:
+        raise ValueError(f"Manifest source escapes allowed root: {relative}")
+    if not resolved.is_file():
+        raise ValueError(f"Manifest source is not a file: {relative}")
+    return resolved
+
+
+def _validated_manifest(root: Path, agent_home: Path) -> tuple[dict, list[tuple[dict, Path, Path]]]:
+    manifest = load_manifest(root)
+    prepared = []
+    destinations = set()
+    sources = set()
+    for row in manifest["entries"]:
+        if not isinstance(row, dict):
+            raise ValueError("Manifest entries must be objects")
+        source_value = _relative_path(row.get("source"), "source")
+        destination_value = _relative_path(row.get("destination"), "destination")
+        if source_value in sources or destination_value in destinations:
+            raise ValueError("Manifest source and destination paths must be unique")
+        sources.add(source_value)
+        destinations.add(destination_value)
+        if not isinstance(row.get("sha256"), str) or len(row["sha256"]) != 64:
+            raise ValueError(f"Invalid manifest hash: {source_value}")
+        if not isinstance(row.get("executable"), bool):
+            raise ValueError(f"Invalid executable flag: {source_value}")
+        prepared.append(
+            (
+                row,
+                _source_path(root, source_value),
+                _destination_path(agent_home, destination_value),
+            )
+        )
+    for value in manifest.get("generatedDestinations", []):
+        _destination_path(agent_home, value, "generated destination")
+    for row in manifest.get("legacyManaged", []):
+        if not isinstance(row, dict) or row.get("type") not in {
+            "file",
+            "retired-file",
+            "retired-directory",
+        }:
+            raise ValueError("Invalid legacy managed metadata")
+        _destination_path(agent_home, row.get("destination"), "legacy destination")
+    _destination_path(agent_home, "gauntlet/MANIFEST", "generated destination")
+    return manifest, prepared
 
 
 def _atomic_copy(source: Path, destination: Path, executable: bool) -> None:
@@ -40,9 +133,29 @@ def _atomic_copy(source: Path, destination: Path, executable: bool) -> None:
 def _load_receipt(agent_home: Path) -> dict | None:
     path = agent_home / RECEIPT
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, OSError, UnicodeDecodeError, json.JSONDecodeError):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
         return None
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"Invalid install ownership receipt: {path}") from error
+    if not isinstance(payload, dict) or not isinstance(payload.get("entries"), list):
+        raise ValueError(f"Invalid install ownership receipt: {path}")
+    return payload
+
+
+def _receipt_destinations(receipt: dict, agent_home: Path) -> set[str]:
+    destinations = set()
+    for row in receipt["entries"]:
+        if not isinstance(row, dict):
+            raise ValueError("Invalid install ownership receipt entry")
+        value = _relative_path(row.get("destination"), "receipt destination")
+        _destination_path(agent_home, value, "receipt destination")
+        if value in destinations:
+            raise ValueError("Duplicate install ownership receipt destination")
+        destinations.add(value)
+        if not isinstance(row.get("sha256"), str) or len(row["sha256"]) != 64:
+            raise ValueError(f"Invalid install ownership receipt hash: {value}")
+    return destinations
 
 
 def _remove_empty_parents(path: Path, stop: Path) -> None:
@@ -74,10 +187,30 @@ def _safe_stale_directory(path: Path, findings: list[str]) -> None:
 
 
 def sync_payload(root: Path, agent_home: Path) -> list[str]:
-    manifest = load_manifest(root)
+    manifest, prepared = _validated_manifest(root, agent_home)
     current = {row["destination"]: row for row in manifest["entries"]}
     findings: list[str] = []
     receipt = _load_receipt(agent_home)
+    receipt_destinations = _receipt_destinations(receipt, agent_home) if receipt else set()
+
+    # Complete every path, source, symlink, and ownership check before mutation.
+    for row, source, destination in prepared:
+        if _sha256(source) != row["sha256"]:
+            raise ValueError(f"Source payload differs from MANIFEST: {row['source']}")
+        if destination.exists() and not destination.is_file():
+            raise ValueError(f"Manifest destination is not a file: {row['destination']}")
+        if not destination.exists():
+            continue
+        if receipt:
+            if row["destination"] not in receipt_destinations:
+                raise ValueError(
+                    f"Refusing unowned manifest destination collision: {row['destination']}"
+                )
+        elif row["destination"].startswith("skills/") and _sha256(destination) != row["sha256"]:
+            raise ValueError(
+                f"Refusing unowned skill destination collision: {row['destination']}"
+            )
+
     if receipt:
         for row in receipt.get("entries", []):
             destination = row.get("destination")
@@ -94,14 +227,8 @@ def sync_payload(root: Path, agent_home: Path) -> list[str]:
                 _safe_stale_file(path, row.get("sha256"), findings)
                 _remove_empty_parents(path, agent_home)
 
-    for row in manifest["entries"]:
-        source = root / row["source"]
-        if row["source"].startswith("skills/") and not source.exists():
-            source = root.parent / row["source"]
-        if _sha256(source) != row["sha256"]:
-            raise ValueError(f"Source payload differs from MANIFEST: {row['source']}")
-        destination = agent_home / row["destination"]
-        if source.resolve() != destination.resolve():
+    for row, source, destination in prepared:
+        if source != destination.resolve(strict=False):
             _atomic_copy(source, destination, row["executable"])
 
     manifest_destination = agent_home / "gauntlet" / "MANIFEST"

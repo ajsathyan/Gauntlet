@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from scripts.gauntletlib.install.manifest import sync_payload
 from tests.workflow.fixtures import (
     ROOT,
     SCRIPTS,
@@ -376,6 +377,7 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         _assert_preference_choices(root)
         _assert_preference_file_formats(root)
     test_manifest_install_syncs_runtime_and_preserves_unmanaged_or_modified_stale_files()
+    test_manifest_sync_rejects_unsafe_paths_symlinks_and_skill_collisions()
 
 
 def test_manifest_install_syncs_runtime_and_preserves_unmanaged_or_modified_stale_files():
@@ -480,3 +482,134 @@ def test_manifest_install_syncs_runtime_and_preserves_unmanaged_or_modified_stal
         )
         if copied_cli.returncode != 0:
             raise AssertionError(f"copied-layout CLI smoke failed: {copied_cli.stderr}")
+
+
+def test_manifest_sync_rejects_unsafe_paths_symlinks_and_skill_collisions():
+    def write_manifest(root, source, destination, payload=b"runtime\n"):
+        source_path = root / source
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_bytes(payload)
+        digest = hashlib.sha256(payload).hexdigest()
+        (root / "MANIFEST").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "entries": [
+                        {
+                            "destination": destination,
+                            "executable": False,
+                            "sha256": digest,
+                            "source": source,
+                        }
+                    ],
+                    "generatedDestinations": [
+                        "gauntlet/AGENTS.md",
+                        "gauntlet/.install-manifest.json",
+                    ],
+                    "legacyManaged": [],
+                }
+            )
+        )
+
+    def assert_rejected(root, home):
+        try:
+            sync_payload(root, home)
+        except ValueError:
+            return
+        raise AssertionError("unsafe manifest sync should fail closed")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        sandbox = Path(tmp)
+
+        traversal_root = sandbox / "traversal-root"
+        traversal_root.mkdir()
+        outside_source = sandbox / "outside-source"
+        outside_source.write_bytes(b"runtime\n")
+        write_manifest(
+            traversal_root,
+            "../outside-source",
+            "gauntlet/runtime.txt",
+        )
+        traversal_home = sandbox / "traversal-home"
+        assert_rejected(traversal_root, traversal_home)
+        if traversal_home.exists():
+            raise AssertionError("source traversal rejection must precede agent-home mutation")
+
+        absolute_root = sandbox / "absolute-root"
+        absolute_root.mkdir()
+        outside_destination = sandbox / "outside-destination"
+        write_manifest(
+            absolute_root,
+            "scripts/runtime.py",
+            str(outside_destination),
+        )
+        absolute_home = sandbox / "absolute-home"
+        assert_rejected(absolute_root, absolute_home)
+        if outside_destination.exists() or absolute_home.exists():
+            raise AssertionError("absolute destination rejection must precede any mutation")
+
+        symlink_root = sandbox / "symlink-root"
+        symlink_root.mkdir()
+        write_manifest(
+            symlink_root,
+            "scripts/runtime.py",
+            "gauntlet/scripts/runtime.py",
+        )
+        symlink_home = sandbox / "symlink-home"
+        symlink_home.mkdir()
+        escaped = sandbox / "escaped"
+        escaped.mkdir()
+        (symlink_home / "gauntlet").symlink_to(escaped, target_is_directory=True)
+        assert_rejected(symlink_root, symlink_home)
+        if any(escaped.iterdir()):
+            raise AssertionError("redirecting gauntlet parent symlink must not receive writes")
+
+        collision_root = sandbox / "collision-root"
+        collision_root.mkdir()
+        write_manifest(
+            collision_root,
+            "skills/example/SKILL.md",
+            "skills/example/SKILL.md",
+        )
+        collision_home = sandbox / "collision-home"
+        collision = collision_home / "skills" / "example" / "SKILL.md"
+        collision.parent.mkdir(parents=True)
+        collision.write_text("user owned\n")
+        before = collision.read_bytes()
+        assert_rejected(collision_root, collision_home)
+        if collision.read_bytes() != before or (collision_home / "gauntlet").exists():
+            raise AssertionError("unowned skill collision must abort before any payload mutation")
+
+        receipt_root = sandbox / "receipt-root"
+        receipt_root.mkdir()
+        write_manifest(
+            receipt_root,
+            "scripts/runtime.py",
+            "gauntlet/scripts/runtime.py",
+        )
+        receipt_home = sandbox / "receipt-home"
+        receipt_collision = receipt_home / "gauntlet" / "scripts" / "runtime.py"
+        receipt_collision.parent.mkdir(parents=True)
+        receipt_collision.write_text("unowned new destination\n")
+        (receipt_home / "gauntlet" / ".install-manifest.json").write_text(
+            json.dumps({"schemaVersion": "1.0", "entries": [], "manifestSha256": "0" * 64})
+        )
+        receipt_before = receipt_collision.read_bytes()
+        assert_rejected(receipt_root, receipt_home)
+        if receipt_collision.read_bytes() != receipt_before:
+            raise AssertionError("a newly added receipt collision must remain untouched")
+
+        invalid_receipt_home = sandbox / "invalid-receipt-home"
+        receipt_path = invalid_receipt_home / "gauntlet" / ".install-manifest.json"
+        receipt_path.parent.mkdir(parents=True)
+        receipt_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "entries": [{"destination": "../escape", "sha256": "0" * 64}],
+                }
+            )
+        )
+        assert_rejected(receipt_root, invalid_receipt_home)
+        if (sandbox / "escape").exists():
+            raise AssertionError("receipt traversal must not touch an outside path")

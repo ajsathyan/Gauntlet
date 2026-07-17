@@ -759,7 +759,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/install/manifest.py",
       "executable": false,
-      "sha256": "2dcad0948aae34e2b258d128a4a61abf214aa51b8ae3da94099b7840144dd356",
+      "sha256": "51ee14ad4378f3f25daf1a89e18670c0b651b5cde75cc1b559d3edd938d6f664",
       "source": "scripts/gauntletlib/install/manifest.py"
     },
     {
