@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now extracts the unchanged local product-document lifecycle into a registered stdlib-only docs package while preserving private file modes and execution-contract migration safeguards.
+
 - Gauntlet now routes its unchanged CLI surface through a shared command shell and extracts local analytics and bounded attempt memory into a stdlib-only registered domain package.
 
 - Gauntlet now centralizes shared stdlib-only process, redaction, serialization, atomic file, timestamp, and finding primitives while preserving each script's established contracts.
