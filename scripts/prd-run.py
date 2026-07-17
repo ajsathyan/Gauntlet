@@ -21,11 +21,11 @@ from pathlib import Path
 from typing import Any
 
 from generated_context import ContextError, render_manifest
-from gauntletlib.core.files import atomic_write_json as atomic_json
-from gauntletlib.core.files import atomic_write_text as atomic_text
-from gauntletlib.core.serialization import canonical_json, pretty_json
-from gauntletlib.core.serialization import read_json as _read_json
-from gauntletlib.core.serialization import sha256_bytes as sha_bytes
+from gauntletlib.core.fsio import atomic_write_synced_json as atomic_json
+from gauntletlib.core.fsio import atomic_write_synced_text as atomic_text
+from gauntletlib.core.hashing import sha256_bytes as sha_bytes
+from gauntletlib.core.jsonio import canonical_json, pretty_json
+from gauntletlib.core.jsonio import read_json as _read_json
 
 
 STATES = (

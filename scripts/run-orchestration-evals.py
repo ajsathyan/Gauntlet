@@ -11,7 +11,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from gauntletlib.core.serialization import read_json as _read_json
+from gauntletlib.core.jsonio import read_json as _read_json
 
 
 ROOT = Path(__file__).resolve().parents[1]

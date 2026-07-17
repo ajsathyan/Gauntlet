@@ -11,9 +11,9 @@ import re
 import sys
 from typing import Any, Iterable, Mapping, Sequence
 
-from gauntletlib.core.files import atomic_write_bytes
-from gauntletlib.core.serialization import read_json as _read_json
-from gauntletlib.core.serialization import sha256_bytes
+from gauntletlib.core.fsio import atomic_write_synced_bytes
+from gauntletlib.core.hashing import sha256_bytes
+from gauntletlib.core.jsonio import read_json as _read_json
 
 
 SCHEMA_VERSION = 1
@@ -285,7 +285,7 @@ def render_manifest(
 
 def atomic_write(path: Path, content: bytes) -> None:
     try:
-        atomic_write_bytes(path, content)
+        atomic_write_synced_bytes(path, content)
     except OSError as exc:
         raise ContextError("write-failed", f"Could not write {path}: {exc}") from exc
 

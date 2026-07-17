@@ -17,8 +17,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from gauntletlib.core.serialization import canonical_json, pretty_json
-from gauntletlib.core.serialization import read_json as _read_json
+from gauntletlib.core.jsonio import canonical_json, pretty_json
+from gauntletlib.core.jsonio import read_json as _read_json
 
 
 SCHEMA_VERSION = 1

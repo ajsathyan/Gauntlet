@@ -2,11 +2,11 @@ import json
 import re
 from pathlib import Path
 
-from gauntletlib.core.processes import git, run_command as _run_command
-from gauntletlib.core.security import SECRET_PATTERNS as SECRET_PATTERNS
-from gauntletlib.core.security import has_secret, redact_secrets as redact_secrets
-from gauntletlib.core.serialization import read_json as _read_json
-from gauntletlib.core.timestamps import utc_now_seconds
+from gauntletlib.core.jsonio import read_json as _read_json
+from gauntletlib.core.proc import git, run_command as _run_command
+from gauntletlib.core.redact import SECRET_PATTERNS as SECRET_PATTERNS
+from gauntletlib.core.redact import has_secret, redact_secrets as redact_secrets
+from gauntletlib.core.timefmt import utc_now_seconds
 
 
 RISK_ORDER = [

@@ -18,13 +18,15 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from gauntletlib.core.fsio import atomic_write_mode_preserving_text as _atomic_write_text
+from gauntletlib.core.fsio import write_new_file as _write_new_file
 from gauntletlib.core.findings import finding as make_finding
 from gauntletlib.core.findings import status_for_findings
-from gauntletlib.core.processes import gh, gh_binary as gh_binary, git, run_command
-from gauntletlib.core.security import SECRET_PATTERNS as SECRET_PATTERNS
-from gauntletlib.core.security import has_secret, redact_secrets
-from gauntletlib.core.serialization import canonical_json as _canonical_json
-from gauntletlib.core.serialization import sha256_bytes as _sha256_bytes
+from gauntletlib.core.hashing import sha256_bytes as _sha256_bytes
+from gauntletlib.core.jsonio import canonical_json as _canonical_json
+from gauntletlib.core.proc import gh, gh_binary as gh_binary, git, run_command
+from gauntletlib.core.redact import SECRET_PATTERNS as SECRET_PATTERNS
+from gauntletlib.core.redact import has_secret, redact_secrets
 from thread_titles import epic_task_title, parse_thread_title, product_task_title
 
 
@@ -438,26 +440,11 @@ def ensure_doc_execution_contract(context, dry_run=False):
 
 
 def write_new_file(path, content):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    fd = os.open(path, flags, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(content)
+    return _write_new_file(path, content)
 
 
 def atomic_write_text(path, content, mode=0o600):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    existing_mode = path.stat().st_mode & 0o777 if path.exists() else mode
-    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    temporary_path = Path(temporary)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(content)
-        os.chmod(temporary_path, existing_mode)
-        os.replace(temporary_path, path)
-    finally:
-        if temporary_path.exists():
-            temporary_path.unlink()
+    return _atomic_write_text(path, content, mode=mode)
 
 
 def ensure_local_excludes(exclude_path, dry_run=False):

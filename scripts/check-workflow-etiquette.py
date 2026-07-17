@@ -6,7 +6,7 @@ from pathlib import Path
 
 from gauntletlib.core.findings import finding as make_finding
 from gauntletlib.core.findings import status_for_findings
-from gauntletlib.core.processes import git
+from gauntletlib.core.proc import git
 from thread_titles import parse_thread_title
 
 FIELD_PATTERN = r"^\s*(?:-\s*)?{field}:\s*(.+?)\s*$"

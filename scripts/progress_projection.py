@@ -13,7 +13,7 @@ import re
 import statistics
 from typing import Any
 
-from gauntletlib.core.serialization import canonical_json
+from gauntletlib.core.jsonio import canonical_json
 
 
 SOURCE_SCHEMA = "gauntlet/live-progress-source/v1"
