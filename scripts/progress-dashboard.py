@@ -21,7 +21,7 @@ from urllib.parse import unquote, urlsplit
 
 from gauntletlib.core.fsio import atomic_write_private_json as atomic_private_json
 from gauntletlib.core.hashing import sha256_bytes as sha_bytes
-from gauntletlib.core.timefmt import utc_now_seconds as utc_now
+from gauntletlib.core.timefmt import now_iso as _now_iso
 from progress_projection import ProjectionError, build_projection
 
 
@@ -43,6 +43,10 @@ MAX_CONCURRENT_REQUESTS = 16
 
 class DashboardError(Exception):
     pass
+
+
+def utc_now() -> str:
+    return _now_iso()
 
 
 def executable_digest() -> str:

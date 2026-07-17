@@ -18,15 +18,16 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from gauntletlib.core.fsio import atomic_write_mode_preserving_text as _atomic_write_text
+from gauntletlib.core.fsio import atomic_write_text as _atomic_write_text
 from gauntletlib.core.fsio import write_new_file as _write_new_file
-from gauntletlib.core.findings import finding as make_finding
-from gauntletlib.core.findings import status_for_findings
-from gauntletlib.core.hashing import sha256_bytes as _sha256_bytes
+from gauntletlib.core.findings import add_finding as _add_finding
+from gauntletlib.core.findings import status_for as _status_for
+from gauntletlib.core.hashing import sha256 as _sha256
 from gauntletlib.core.jsonio import canonical_json as _canonical_json
-from gauntletlib.core.proc import gh, gh_binary as gh_binary, git, run_command
+from gauntletlib.core.proc import gh, gh_binary as gh_binary, git, run_cmd as _run_cmd
 from gauntletlib.core.redact import SECRET_PATTERNS as SECRET_PATTERNS
 from gauntletlib.core.redact import has_secret, redact_secrets
+from gauntletlib.core.timefmt import utc_timestamp as _utc_timestamp
 from thread_titles import epic_task_title, parse_thread_title, product_task_title
 
 
@@ -54,7 +55,6 @@ HIGH_CONSEQUENCE_TRIGGERS = {
     "production-authority",
     "destructive-actions",
 }
-STATUS_ORDER = {"pass": 0, "warn": 1, "review": 2, "fail": 3}
 EXIT_CODES = {"pass": 0, "warn": 0, "review": 2, "fail": 1}
 DEFERRED_AGENT_ACTIONS = {
     "set_thread_title",
@@ -184,7 +184,7 @@ SENSITIVE_PAYLOAD_FRAGMENTS = [
 
 
 def run_cmd(args, cwd=None, env=None, check=False):
-    return run_command(args, cwd=cwd, env=env, check=check)
+    return _run_cmd(args, cwd=cwd, env=env, check=check)
 
 
 def read_text(path):
@@ -192,7 +192,7 @@ def read_text(path):
 
 
 def utc_timestamp():
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return _utc_timestamp()
 
 
 def local_hash(value, salt):
@@ -1181,7 +1181,7 @@ def command_docs_epic_accept(args):
 
 
 def sha256_bytes(value):
-    return _sha256_bytes(value)
+    return _sha256(value)
 
 
 def canonical_json(value):
@@ -3249,11 +3249,11 @@ def parse_followups(text):
 
 
 def add_finding(payload, code, severity, message, **details):
-    payload.setdefault("findings", []).append(make_finding(code, severity, message, **details))
+    _add_finding(payload.setdefault("findings", []), code, severity, message, **details)
 
 
 def status_for(payload):
-    return status_for_findings(payload.get("findings", []), STATUS_ORDER)
+    return _status_for(payload.get("findings", []))
 
 
 def memory_lint_payload(path):

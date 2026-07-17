@@ -19,7 +19,7 @@ def write_new_file(path, content):
         handle.write(content)
 
 
-def atomic_write_mode_preserving_text(path, content, mode=0o600):
+def atomic_write_text(path, content, mode=0o600):
     path.parent.mkdir(parents=True, exist_ok=True)
     existing_mode = path.stat().st_mode & 0o777 if path.exists() else mode
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)

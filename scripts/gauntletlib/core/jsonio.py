@@ -18,3 +18,8 @@ def pretty_json(value: Any) -> str:
 def read_json(path: Path, *, encoding: Optional[str] = "utf-8") -> Any:
     text = path.read_text() if encoding is None else path.read_text(encoding=encoding)
     return json.loads(text)
+
+
+def write_json(path, payload):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

@@ -4,15 +4,9 @@ from __future__ import annotations
 
 import os
 import subprocess
-from typing import Mapping, Optional, Sequence
 
 
-def run_command(
-    args: Sequence[str],
-    cwd=None,
-    env: Optional[Mapping[str, str]] = None,
-    check: bool = False,
-):
+def run_cmd(args, cwd=None, env=None, check=False):
     result = subprocess.run(
         args,
         cwd=cwd,
@@ -29,7 +23,7 @@ def run_command(
 
 
 def git(args, cwd):
-    return run_command(["git", *args], cwd=cwd)
+    return run_cmd(["git", *args], cwd=cwd)
 
 
 def gh_binary():
@@ -37,4 +31,4 @@ def gh_binary():
 
 
 def gh(args, cwd):
-    return run_command([gh_binary(), *args], cwd=cwd, env=os.environ.copy())
+    return run_cmd([gh_binary(), *args], cwd=cwd, env=os.environ.copy())

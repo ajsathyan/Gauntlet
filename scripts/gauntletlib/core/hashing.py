@@ -3,5 +3,8 @@
 import hashlib
 
 
-def sha256_bytes(value: bytes) -> str:
+def sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+sha256_bytes = sha256

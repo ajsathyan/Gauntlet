@@ -1,12 +1,12 @@
-import json
 import re
 from pathlib import Path
 
 from gauntletlib.core.jsonio import read_json as _read_json
-from gauntletlib.core.proc import git, run_command as _run_command
+from gauntletlib.core.jsonio import write_json as write_json
+from gauntletlib.core.proc import git, run_cmd as _run_cmd
 from gauntletlib.core.redact import SECRET_PATTERNS as SECRET_PATTERNS
 from gauntletlib.core.redact import has_secret, redact_secrets as redact_secrets
-from gauntletlib.core.timefmt import utc_now_seconds
+from gauntletlib.core.timefmt import now_iso as now_iso
 
 
 RISK_ORDER = [
@@ -53,12 +53,8 @@ RISK_PATTERNS = [
 ]
 
 
-def now_iso():
-    return utc_now_seconds()
-
-
 def run_command(args, cwd):
-    return _run_command(args, cwd=cwd)
+    return _run_cmd(args, cwd=cwd)
 
 
 def relpath(root, path):
@@ -70,11 +66,6 @@ def relpath(root, path):
 
 def read_json(path):
     return _read_json(Path(path))
-
-
-def write_json(path, payload):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
 def read_text(path):
