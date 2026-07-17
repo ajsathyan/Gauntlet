@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now extracts unchanged closeout, archive, follow-up, memory, and changelog workflows into a registered stdlib-only package while preserving preflight, scoped mutation, installation, and returned app-action contracts.
+
 - Gauntlet now extracts the unchanged contextual merge workflow into a registered stdlib-only package while preserving run binding, merge authority, lease recovery, PR checks, and branch cleanup behavior.
 
 - Gauntlet now extracts unchanged merge-handoff contracts and the Review Unit workflow into registered stdlib-only packages while preserving validation findings and review-merge command ordering.
