@@ -593,8 +593,9 @@ def test_security_authority_is_attested_and_runtime_enforced_per_version():
                 "proof": "security",
             }
         )
-        if run(security_route, check=False).returncode != 3:
-            raise AssertionError("security sandbox violation must block future reviewers on the affected version")
+        routed = json.loads(run(security_route).stdout)
+        if routed["status"] != "codex-cli" or routed["profile"] is not None:
+            raise AssertionError("security review must bypass native profile circuits through the read-only CLI runner")
         validated = json.loads(run([
             "python3", str(audit), "reconcile", "--agent-home", str(home),
             "--agent-id", "security-good", "--requested-profile", "gauntlet_security_reviewer",

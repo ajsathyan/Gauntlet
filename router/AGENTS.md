@@ -64,7 +64,7 @@ For an accepted product launch:
 
 Run one bounded pre-build Epic gap review when a material plan exists and one integrated pass before final verification. Allow at most three findings per pass and three passes. Every finding ends as `fixed`, `ask-user`, `deferred`, or `omitted`; `ask-user` blocks only affected work. Do not add external-practice, compliance, enterprise-hardening, or state-of-the-art review unless the user asks or an accepted external constraint requires it.
 
-Consequence-specific security, recovery, or black-box review runs only for explicit accepted triggers. Run deterministic checks first, then the applicable exact-revision specialist proof. Production quality, TypeScript durability, UI, or release safeguards run only when their concrete trigger applies. Do not make ordinary patches pay for them.
+Consequence-specific security, recovery, or black-box review runs only for explicit accepted triggers. Run deterministic checks first, then the applicable exact-revision specialist proof. Run a triggered security review through `python3 {{GAUNTLET_ROOT}}/scripts/security-review.py --workspace "$WORKTREE" --ticket-file "$SECURITY_TICKET"`; this dedicated non-interactive Codex CLI boundary enforces a read-only sandbox and must replace native subagent dispatch for the security lens. Production quality, TypeScript durability, UI, or release safeguards run only when their concrete trigger applies. Do not make ordinary patches pay for them.
 
 Record a pending `GAP-###` only when repeated evidence exposes missing Gauntlet-general guidance. Repo-specific misses belong in repo code, tests, docs, or a later Epic. Report new or updated gap IDs with final deferrals or omissions.
 
@@ -72,7 +72,7 @@ Record a pending `GAP-###` only when repeated evidence exposes missing Gauntlet-
 
 Parallelism must beat its context cost. Delegate only independent ownership, state, or evidence lanes with separate proof. Keep user decisions, shared contracts, integration, acceptance, pull requests, merge, release, and rollback in the parent task.
 
-Route a delegated Ticket with `{{GAUNTLET_ROOT}}/scripts/route-codex-agent.py`, then send one compact Ticket containing only its objective, owned files or state, dependencies, constraints, proof, return contract, and ask-parent policy. Give children accepted source slices and named dependency contracts, not the complete PRD, plan, manifest, event stream, unrelated receipts, or conversation history.
+Route a delegated Ticket with `{{GAUNTLET_ROOT}}/scripts/route-codex-agent.py`, then send one compact Ticket containing only its objective, owned files or state, dependencies, constraints, proof, return contract, and ask-parent policy. A `codex-cli` security route is executed with `security-review.py` and is not a delegated child. Give children and the security CLI accepted source slices and named dependency contracts, not the complete PRD, plan, manifest, event stream, unrelated receipts, or conversation history.
 
 Children work quietly and return changed artifacts, compact proof, and risk. The parent integrates continuously and performs final verification. Surface only a user decision, unrecoverable blocker, safety stop, required host heartbeat, or final outcome.
 

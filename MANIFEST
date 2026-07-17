@@ -3,7 +3,7 @@
     {
       "destination": "gauntlet/README.md",
       "executable": false,
-      "sha256": "adda51c5c7be9c3c1b75e114f21830579e1640ba4810486b678c6e489c792360",
+      "sha256": "6c4fc70e2110153d108d24e405ae8ea5b140230a8b1b34a11653769de271002c",
       "source": "README.md"
     },
     {
@@ -57,7 +57,7 @@
     {
       "destination": "gauntlet/docs/custom-agent-routing.md",
       "executable": false,
-      "sha256": "203e475c46fc320155d5d58ff61eec9818d77f91562b4cedcb1478d76619f06b",
+      "sha256": "0f4e03aa78e58c9beac0ac3bc36dd667ed881f0795d7ea2f2ff7664cd8299a13",
       "source": "docs/custom-agent-routing.md"
     },
     {
@@ -531,7 +531,7 @@
     {
       "destination": "gauntlet/router/AGENTS.md",
       "executable": false,
-      "sha256": "8f801104204bfef564457e284378cb2d6f0ecb079164d636ebe947d9b03669a7",
+      "sha256": "a7438e3b667adf1668ae2f66fcac8dfbd2c2958a2da09471512aad2141372a7c",
       "source": "router/AGENTS.md"
     },
     {
@@ -903,7 +903,7 @@
     {
       "destination": "gauntlet/scripts/route-codex-agent.py",
       "executable": false,
-      "sha256": "ab1d4393b824fd3afce109dac10f788c68cc577c9eba4c751e4810a45a69f2af",
+      "sha256": "c316ca3ab8366b409baf12bb4c4d5de4887767e8fc9c121e0f92fbe9ff64b716",
       "source": "scripts/route-codex-agent.py"
     },
     {
@@ -923,6 +923,12 @@
       "executable": true,
       "sha256": "e6053cf33f22739157814999431059cc034ed288e2e9bb11011cbd67a36567b2",
       "source": "scripts/run-skill-evals.py"
+    },
+    {
+      "destination": "gauntlet/scripts/security-review.py",
+      "executable": true,
+      "sha256": "bcbd849675260cedf1d7ecbf9ed3c1fb26cb026d1893d2b656dcf8764dceb5ed",
+      "source": "scripts/security-review.py"
     },
     {
       "destination": "gauntlet/scripts/subagent-audit.py",
