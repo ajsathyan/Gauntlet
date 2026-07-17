@@ -9,7 +9,7 @@ import sys
 import tempfile
 import unittest
 
-from tests.support import ROOT
+from support import ROOT
 
 import generated_context
 

@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.support import ROOT, SCRIPTS
+from support import ROOT, SCRIPTS
 
 
 TOKEN_KEYS = (

@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import unittest
 
-from tests.support import SCRIPTS
+from support import SCRIPTS
 
 
 SCRIPT = SCRIPTS / "prd-run.py"

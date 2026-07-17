@@ -1,6 +1,6 @@
 """Discovery adapter for the installed progress-projection compatibility test."""
 
-from tests.support import load_script_test
+from support import load_script_test
 
 
 _legacy = load_script_test("legacy_test_progress_projection", "test-progress-projection.py")

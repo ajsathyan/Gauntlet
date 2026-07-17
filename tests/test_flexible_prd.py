@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.support import ROOT
+from support import ROOT
 
 
 GAUNTLET_CLI = ROOT / "scripts" / "gauntlet.py"

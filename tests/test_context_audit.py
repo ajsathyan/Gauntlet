@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.support import SCRIPTS
+from support import SCRIPTS
 
 
 SCRIPT = SCRIPTS / "context-audit.py"

@@ -10,7 +10,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tests.support import ROOT
+from support import ROOT
+from gauntletlib.docs import lifecycle as docs_lifecycle
 
 
 CLI = ROOT / "scripts" / "gauntlet.py"
@@ -188,14 +189,18 @@ class DocumentLifecycleTests(unittest.TestCase):
             dry_run=False,
             json=True,
         )
-        original_atomic_write = GAUNTLET.atomic_write_text
+        original_atomic_write = docs_lifecycle._atomic_write_text
 
         def fail_index_write(path, content, mode=0o600):
             if Path(path).resolve() == index.resolve():
                 raise OSError("injected index failure")
             return original_atomic_write(path, content, mode=mode)
 
-        with mock.patch.object(GAUNTLET, "atomic_write_text", side_effect=fail_index_write):
+        with mock.patch.object(
+            docs_lifecycle,
+            "_atomic_write_text",
+            side_effect=fail_index_write,
+        ):
             with self.assertRaisesRegex(OSError, "injected index failure"):
                 with contextlib.redirect_stdout(io.StringIO()):
                     GAUNTLET.command_docs_draft_promote(args)
