@@ -1,5 +1,6 @@
 """Live Epic progress supervisor and dashboard lifecycle."""
 
+import copy
 import fcntl
 import json
 import os
@@ -109,6 +110,73 @@ def telemetry_for_progress(facts):
             Path(temporary).unlink()
 
 
+def unavailable_telemetry(facts):
+    owners = facts.get("owners") if isinstance(facts.get("owners"), list) else []
+    return {
+        "schemaVersion": "gauntlet/run-telemetry-summary/v1",
+        "coverage": {
+            "status": "unavailable",
+            "declaredOwners": len(owners),
+            "observedOwners": 0,
+            "unavailableOwners": [],
+            "totalsScope": "unavailable",
+            "limitations": ["telemetry-refresh-failed"],
+            "freshness": {"observedThrough": None, "status": "unavailable"},
+        },
+        "modelRequests": None,
+        "tokens": None,
+        "tokensByModel": None,
+        "pricing": {
+            "status": "unavailable",
+            "currency": "USD",
+            "registryVersion": "gauntlet.model-api-pricing.v1",
+            "effectiveAt": None,
+            "source": None,
+            "pricedRequests": 0,
+            "components": None,
+            "byModel": {},
+            "lowerBoundUsd": None,
+            "estimatedUsd": None,
+            "limitations": ["telemetry-refresh-failed"],
+        },
+        "profileMismatches": [],
+    }
+
+
+def stale_telemetry(previous):
+    if (
+        not isinstance(previous, dict)
+        or previous.get("schemaVersion") != "gauntlet/run-telemetry-summary/v1"
+        or not isinstance(previous.get("tokens"), dict)
+    ):
+        return None
+    telemetry = copy.deepcopy(previous)
+    coverage = telemetry.get("coverage") if isinstance(telemetry.get("coverage"), dict) else {}
+    limitations = coverage.get("limitations") if isinstance(coverage.get("limitations"), list) else []
+    coverage["status"] = "partial"
+    coverage["limitations"] = sorted(set(
+        [item for item in limitations if isinstance(item, str)] + ["telemetry-refresh-failed"]
+    ))
+    freshness = coverage.get("freshness") if isinstance(coverage.get("freshness"), dict) else {}
+    freshness["status"] = "stale"
+    coverage["freshness"] = freshness
+    telemetry["coverage"] = coverage
+
+    pricing = telemetry.get("pricing") if isinstance(telemetry.get("pricing"), dict) else None
+    if pricing is not None:
+        limitations = pricing.get("limitations") if isinstance(pricing.get("limitations"), list) else []
+        pricing["limitations"] = sorted(set(
+            [item for item in limitations if isinstance(item, str)] + ["telemetry-refresh-failed"]
+        ))
+        if pricing.get("status") == "complete":
+            estimate = pricing.get("estimatedUsd")
+            if isinstance(estimate, (int, float)):
+                pricing["lowerBoundUsd"] = estimate
+            pricing["estimatedUsd"] = None
+            pricing["status"] = "partial"
+    return telemetry
+
+
 def refresh_progress_source(launch_path, launch, repo):
     paths = progress_paths(launch_path)
     previous = {}
@@ -137,8 +205,11 @@ def refresh_progress_source(launch_path, launch, repo):
         summary = telemetry_for_progress(facts)
         if summary is not None:
             telemetry[epic_id] = summary
-        elif epic_id in previous_telemetry:
-            telemetry[epic_id] = previous_telemetry[epic_id]
+        elif facts.get("owners"):
+            telemetry[epic_id] = (
+                stale_telemetry(previous_telemetry.get(epic_id))
+                or unavailable_telemetry(facts)
+            )
     source = {
         "schemaVersion": PROGRESS_SOURCE_SCHEMA,
         "launch": {

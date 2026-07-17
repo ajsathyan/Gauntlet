@@ -9,7 +9,6 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import statistics
 from typing import Any
 
 from gauntletlib.core.jsonio import canonical_json
@@ -30,7 +29,7 @@ PHASE_LABELS = {
     "prepare": "Prepare",
     "build": "Build",
     "integrate": "Integrate",
-    "final_verify": "Final verify",
+    "final_verify": "Verify",
     "ship": "Ship",
 }
 PRESENTATION_STATES = (
@@ -39,7 +38,6 @@ PRESENTATION_STATES = (
 )
 PRICING_DISCLAIMER = "comparison only — not your bill or savings"
 OPAQUE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$")
-REASON_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 
 class ProjectionError(Exception):
@@ -334,57 +332,7 @@ def time_projection(facts: dict[str, Any], now: str, current: datetime) -> dict[
         "started": format_clock(started_at),
         "current": format_clock(now),
         "elapsed": format_duration(elapsed),
-        "updated": format_clock(time_facts.get("updatedAt")),
     }
-
-
-def eta_projection(
-    facts: dict[str, Any], units: list[dict[str, Any]], health: dict[str, Any], now: str, current: datetime,
-) -> dict[str, Any]:
-    if health["status"] == "needs_user":
-        return {"status": "waiting_on_user", "likelyFinishAt": None, "remainingSeconds": None,
-                "confidence": None, "estimatorVersion": "gauntlet-eta/v1", "label": "Waiting on you",
-                "detail": "A decision is required before scheduling can continue.", "reason": "needs-user"}
-    time_facts = facts.get("time") or {}
-    started = parse_time(time_facts.get("startedAt"))
-    updated = parse_time(time_facts.get("updatedAt"))
-    terminal = parse_time(time_facts.get("terminalAt"))
-    inconsistent = (
-        started is None
-        or (updated is not None and updated < started)
-        or (terminal is not None and terminal < started)
-        or (updated is not None and (updated - current).total_seconds() > 5)
-    )
-    if time_facts.get("elapsedCoverage") != "complete" or inconsistent:
-        return {"status": "unavailable", "likelyFinishAt": None, "remainingSeconds": None,
-                "confidence": None, "estimatorVersion": "gauntlet-eta/v1", "label": "Cannot estimate yet",
-                "detail": "The run has no consistent timestamp sequence.", "reason": "timestamp-unavailable"}
-    unfinished = [item for item in units if item["status"] != "passed"]
-    if not unfinished:
-        return {"status": "available", "likelyFinishAt": now, "remainingSeconds": 0,
-                "confidence": "high", "estimatorVersion": "gauntlet-eta/v1", "label": "Complete",
-                "detail": "No execution units remain.", "reason": None}
-    durations = []
-    for operation in facts.get("operations", []):
-        for attempt in operation.get("attempts", []):
-            start, finish = parse_time(attempt.get("startedAt")), parse_time(attempt.get("finishedAt"))
-            if start and finish and finish >= start:
-                durations.append((finish - start).total_seconds())
-    if not durations:
-        return {"status": "settling", "likelyFinishAt": None, "remainingSeconds": None,
-                "confidence": "low", "estimatorVersion": "gauntlet-eta/v1", "label": "Estimate settling",
-                "detail": "Waiting for timestamped operation durations.", "reason": "insufficient-priors"}
-    typical = max(60.0, statistics.median(durations))
-    active = max(1, sum(item["status"] == "running" for item in unfinished))
-    serial = sum(item["phase"] in {"integrate", "final_verify", "ship"} for item in unfinished)
-    parallel = len(unfinished) - serial
-    remaining = int(serial * typical + (parallel * typical / active))
-    finish = current.timestamp() + remaining
-    likely = datetime.fromtimestamp(finish, timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-    return {"status": "available", "likelyFinishAt": likely, "remainingSeconds": remaining,
-            "confidence": "low", "estimatorVersion": "gauntlet-eta/v1",
-            "label": f"Likely done {format_clock(likely)}",
-            "detail": f"About {format_duration(remaining)} remaining · Low confidence", "reason": None}
 
 
 def usage_projection(telemetry: dict[str, Any] | None) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -392,72 +340,50 @@ def usage_projection(telemetry: dict[str, Any] | None) -> tuple[dict[str, Any], 
     coverage_status = coverage.get("status") if coverage.get("status") in {"complete", "partial"} else "unavailable"
     tokens = (telemetry or {}).get("tokens") if isinstance((telemetry or {}).get("tokens"), dict) else None
     total = tokens.get("total_tokens") if tokens and isinstance(tokens.get("total_tokens"), int) else 0
-    freshness = (coverage.get("freshness") or {}).get("observedThrough") or "Unavailable"
+    freshness_facts = coverage.get("freshness") if isinstance(coverage.get("freshness"), dict) else {}
+    observed_through = freshness_facts.get("observedThrough")
+    freshness = (
+        f"Last observed {format_clock(observed_through)}"
+        if tokens and freshness_facts.get("status") == "stale" and observed_through
+        else "Last observation unavailable"
+        if tokens and freshness_facts.get("status") == "stale"
+        else observed_through or "Unavailable"
+    )
     usage = {
         "totalTokens": total,
         "totalLabel": f"{total:,}" if tokens else "Unavailable",
-        "observedThrough": (coverage.get("freshness") or {}).get("observedThrough"),
         "freshness": freshness,
         "coverage": coverage_status,
         "models": [],
     }
-    raw_pricing = (telemetry or {}).get("pricing") if isinstance((telemetry or {}).get("pricing"), dict) else {}
-    for model, values in sorted((raw_pricing.get("byModel") or {}).items()):
-        if model not in {"gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra"} or not isinstance(values, dict):
+    tokens_by_model = (
+        (telemetry or {}).get("tokensByModel")
+        if isinstance((telemetry or {}).get("tokensByModel"), dict)
+        else {}
+    )
+    for model, model_total in sorted(tokens_by_model.items()):
+        if model not in {"gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra"}:
             continue
-        model_total = values.get("totalTokens")
         if not isinstance(model_total, int) or model_total < 0:
             continue
-        usage["models"].append({
-            "model": model,
-            "tokens": model_total,
-            "label": f"{model_total:,}",
-            "inputTokens": values.get("inputTokens"),
-            "cachedInputTokens": values.get("cachedInputTokens"),
-            "outputTokens": values.get("outputTokens"),
-            "reasoningOutputTokens": values.get("reasoningOutputTokens"),
-        })
+        usage["models"].append({"model": model, "tokens": model_total})
+    raw_pricing = (telemetry or {}).get("pricing") if isinstance((telemetry or {}).get("pricing"), dict) else {}
     raw_status = raw_pricing.get("status")
     status = "complete" if raw_status == "complete" else "lower_bound" if raw_status == "partial" else "unavailable"
     amount = raw_pricing.get("estimatedUsd") if status == "complete" else raw_pricing.get("lowerBoundUsd") if status == "lower_bound" else None
-    components = []
-    for key, label in (("inputUsd", "Input"), ("cachedInputUsd", "Cached input"), ("outputUsd", "Output")):
-        value = (raw_pricing.get("components") or {}).get(key)
-        if isinstance(value, (int, float)):
-            components.append({"label": label, "value": f"${value:.4f}"})
-    for model, values in sorted((raw_pricing.get("byModel") or {}).items()):
-        total_usd = values.get("totalUsd") if isinstance(values, dict) else None
-        if model in {"gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra"} and isinstance(total_usd, (int, float)):
-            components.append({"label": f"{model} subtotal", "value": f"${total_usd:.4f}"})
-    limitations = [
-        item for item in raw_pricing.get("limitations", [])
-        if isinstance(item, str) and REASON_RE.fullmatch(item)
-    ]
-    if len(limitations) != len(raw_pricing.get("limitations", [])):
-        limitations.append("pricing-coverage-unavailable")
-    registry_version = raw_pricing.get("registryVersion")
-    if registry_version != "gauntlet.model-api-pricing.v1":
-        registry_version = None
-    effective_at = raw_pricing.get("effectiveAt")
-    if isinstance(effective_at, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}T.+Z", effective_at):
-        effective_at = effective_at[:10]
-    if not isinstance(effective_at, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", effective_at):
-        effective_at = None
+    if not isinstance(amount, (int, float)):
+        amount = None
     pricing = {
         "status": status,
-        "registryVersion": registry_version,
-        "effectiveDate": effective_at,
         "amountUsd": amount,
         "amountLabel": "Unavailable" if amount is None else f"${amount:.2f}",
         "disclaimer": PRICING_DISCLAIMER,
-        "components": components,
-        "unpricedReasons": sorted(set(limitations)),
     }
     return usage, pricing
 
 
 def agents_projection(facts: dict[str, Any], units: list[dict[str, Any]]) -> dict[str, Any]:
-    active = []
+    active_phases = []
     for index, owner in enumerate(facts.get("owners", []), 1):
         if not isinstance(owner, dict) or owner.get("ownerKind") != "delegated":
             continue
@@ -468,19 +394,11 @@ def agents_projection(facts: dict[str, Any], units: list[dict[str, Any]]) -> dic
         ticket = owner_id.split(":")[1] if owner_id.startswith("ticket:") and len(owner_id.split(":")) > 1 else None
         ticket_unit = next((item for item in units if item["id"] == f"build:ticket:{ticket}"), None)
         phase = ticket_unit["phase"] if ticket_unit else "build"
-        active.append({
-            "id": digest({"owner": owner_id})[:12],
-            "label": f"Agent {len(active) + 1}",
-            "phase": phase,
-            "phaseLabel": PHASE_LABELS[phase],
-            "status": "active",
-            "elapsed": None,
-            "modelUsage": None,
-        })
-    counts = [{"phase": phase, "count": sum(item["phase"] == phase for item in active)} for phase in PHASE_POLICY]
+        active_phases.append(phase)
+    counts = [{"phase": phase, "count": active_phases.count(phase)} for phase in PHASE_POLICY]
     counts = [item for item in counts if item["count"]]
     summary = " · ".join(f"{item['count']} {PHASE_LABELS[item['phase']].lower()}" for item in counts) or "No delegated agents active"
-    return {"activeCount": len(active), "summary": summary, "byPhase": counts, "details": active}
+    return {"activeCount": len(active_phases), "summary": summary}
 
 
 def epic_projection(launch_id: str, epic_id: str, launch_epic: dict[str, Any], run_value: dict[str, Any], telemetry: dict[str, Any] | None, now: str, current: datetime, stale_after: int) -> dict[str, Any]:
@@ -549,50 +467,17 @@ def epic_projection(launch_id: str, epic_id: str, launch_epic: dict[str, Any], r
         terminal_outcome = "succeeded"
     now_copy, next_copy = representative_copy(state, phases, units, terminal_outcome)
     usage, pricing = usage_projection(telemetry)
-    progress = facts.get("progress") if isinstance(facts.get("progress"), dict) else {}
-    policy_version = progress.get("policyVersion")
-    if policy_version != "gauntlet.progress-policy.v1":
-        policy_version = "unavailable"
-    denominator = progress.get("denominatorSha256")
-    if not isinstance(denominator, str) or not re.fullmatch(r"[0-9a-f]{64}", denominator):
-        denominator = None
     raw_run_id = str(run_value.get("runId") or facts.get("runId") or epic_id)
     safe_run_id = raw_run_id if OPAQUE_ID_RE.fullmatch(raw_run_id) else "run-" + digest({"run": raw_run_id})[:20]
-    planned = sum(
-        phase["policyShare"] * phase["provedShare"]
-        for phase in phases
-    )
     transition = digest({
         "health": health["status"], "phases": [(item["key"], item["status"], item["provedShare"]) for item in phases],
         "state": state, "terminal": time_facts["terminalAt"], "terminalOutcome": terminal_outcome,
     })[:16]
-    eta = eta_projection(facts, units, health, now, current)
-    if state == "ready_to_merge":
-        eta = {
-            "status": "available", "likelyFinishAt": now, "remainingSeconds": 0,
-            "confidence": "high", "estimatorVersion": "gauntlet-eta/v1",
-            "label": "Implementation complete", "detail": "Merge remains.", "reason": None,
-        }
-    elif state == "shipped":
-        eta = {
-            "status": "available", "likelyFinishAt": now, "remainingSeconds": 0,
-            "confidence": "high", "estimatorVersion": "gauntlet-eta/v1",
-            "label": "Complete", "detail": "The accepted release path is complete.", "reason": None,
-        }
-    if terminal_outcome in {"failed", "stopped"}:
-        eta = {
-            "status": "unavailable", "likelyFinishAt": None, "remainingSeconds": None,
-            "confidence": None, "estimatorVersion": "gauntlet-eta/v1",
-            "label": "No completion estimate", "detail": "This implementation run is terminal.",
-            "reason": terminal_outcome,
-        }
     agents = agents_projection(facts, units)
     if terminal_outcome in {"failed", "stopped"}:
         agents = {
             "activeCount": 0,
             "summary": "No delegated agents active — run ended",
-            "byPhase": [],
-            "details": [],
         }
     return {
         "identity": {
@@ -610,24 +495,8 @@ def epic_projection(launch_id: str, epic_id: str, launch_epic: dict[str, Any], r
         "now": now_copy,
         "next": next_copy,
         "agents": agents,
-        "eta": eta,
         "usage": usage,
         "pricing": pricing,
-        "details": {
-            "progressPolicy": policy_version,
-            "denominatorDigest": denominator,
-            "plannedProgress": f"{planned * 100:.1f}%" if units else None,
-            "units": units,
-            "timing": [
-                {"label": "Started", "value": time_facts["started"]},
-                {"label": "Updated", "value": time_facts["updated"]},
-            ],
-            "coverage": [
-                {"label": "Freshness", "value": freshness["coverage"]},
-                {"label": "Usage", "value": usage["coverage"]},
-            ],
-            "recovery": ([{"label": "Status", "value": health["reason"]}] if health["status"] != "healthy" else []),
-        },
         "actions": [],
     }
 

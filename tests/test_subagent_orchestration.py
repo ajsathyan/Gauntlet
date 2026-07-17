@@ -58,6 +58,10 @@ def token_event(total, last, timestamp=None):
     return event
 
 
+def turn_context(model):
+    return {"type": "turn_context", "payload": {"model": model}}
+
+
 def tokens(input_tokens, cached_input_tokens, output_tokens, reasoning_output_tokens):
     return {
         "input_tokens": input_tokens,
@@ -112,11 +116,16 @@ def test_cumulative_analytics_are_idempotent_and_partial_safe():
         first = tokens(100, 40, 20, 5)
         second_last = tokens(50, 20, 10, 2)
         second_total = {key: first[key] + second_last[key] for key in TOKEN_KEYS}
+        first_emitted = {**first, "cache_write_input_tokens": 12}
+        second_last_emitted = {**second_last, "cache_write_input_tokens": 4}
+        second_total_emitted = {**second_total, "cache_write_input_tokens": 16}
         rows = [
             {"type": "event_msg", "payload": {"type": "user_message", "message": "PROMPT-SECRET"}},
-            token_event(first, first, "2026-07-16T10:00:00Z"),
-            token_event(first, first),
-            token_event(second_total, second_last, "2026-07-16T10:01:00Z"),
+            turn_context("gpt-5.6-sol"),
+            token_event(first_emitted, first_emitted, "2026-07-16T10:00:00Z"),
+            token_event(first_emitted, first_emitted),
+            turn_context("gpt-5.6-terra"),
+            token_event(second_total_emitted, second_last_emitted, "2026-07-16T10:01:00Z"),
         ]
         write_lines(rollout, rows, partial='{"type":"event_msg","payload":{"type":"token_count"')
         connection = create_native_state(home)
@@ -143,6 +152,8 @@ def test_cumulative_analytics_are_idempotent_and_partial_safe():
             raise AssertionError("duplicate cumulative snapshots must not become extra model requests: {}".format(requests))
         if [row["tokens"] for row in requests] != [first, second_last]:
             raise AssertionError("analytics must derive per-request deltas from cumulative totals")
+        if [row["model"] for row in requests] != ["gpt-5.6-sol", "gpt-5.6-terra"]:
+            raise AssertionError("analytics must attribute each request to its emitted turn model")
         if [row["observedAt"] for row in requests] != ["2026-07-16T10:00:00Z", "2026-07-16T10:01:00Z"]:
             raise AssertionError("request analytics must retain bounded observation timestamps")
         cursor_path = home / "gauntlet" / "state" / "subagent-request-cursors.json"
@@ -373,10 +384,18 @@ def test_model_pricing_is_exact_per_known_model_and_partial_for_unknown_models()
             "schemaVersion": "gauntlet/epic-run-facts/v1",
             "owners": [owner(label) for label in ("luna", "sol", "terra")],
         }), encoding="utf-8")
-        complete = json.loads(run([
+        complete_summary = json.loads(run([
             "python3", str(audit), "summary", "--agent-home", str(home),
             "--run-facts", str(facts), "--json",
-        ]).stdout)["pricing"]
+        ]).stdout)
+        complete = complete_summary["pricing"]
+        expected_token_models = {
+            "gpt-5.6-luna": 200_000,
+            "gpt-5.6-sol": 200_000,
+            "gpt-5.6-terra": 200_000,
+        }
+        if complete_summary["tokensByModel"] != expected_token_models:
+            raise AssertionError("model token usage must be emitted independently from pricing")
         if complete["status"] != "partial" or complete["lowerBoundUsd"] != 5.95 or complete["estimatedUsd"] is not None:
             raise AssertionError("known model rates must remain a lower bound while cache writes are unobservable: {}".format(complete))
         if complete["limitations"] != ["cache-write-telemetry-unavailable"]:
@@ -390,12 +409,15 @@ def test_model_pricing_is_exact_per_known_model_and_partial_for_unknown_models()
             "schemaVersion": "gauntlet/epic-run-facts/v1",
             "owners": [owner(label) for label in ("luna", "sol", "terra", "unknown")],
         }), encoding="utf-8")
-        partial = json.loads(run([
+        partial_summary = json.loads(run([
             "python3", str(audit), "summary", "--agent-home", str(home),
             "--run-facts", str(facts), "--json",
-        ]).stdout)["pricing"]
+        ]).stdout)
+        partial = partial_summary["pricing"]
         if partial["status"] != "partial" or partial["lowerBoundUsd"] != 5.95 or partial["estimatedUsd"] is not None:
             raise AssertionError("unknown model pricing must preserve the known lower bound without an invented total")
+        if partial_summary["tokensByModel"].get("future-model") != 200_000:
+            raise AssertionError("unpriced models must retain their observed token usage")
 
 
 def test_epic_aggregate_start_copy_is_count_agnostic_and_single_event():

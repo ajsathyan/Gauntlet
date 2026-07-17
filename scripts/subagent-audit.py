@@ -23,7 +23,8 @@ EXPECTED = {
     "gauntlet_deep_expert_researcher": ("gpt-5.6-sol", "xhigh"),
     "gauntlet_security_reviewer": ("gpt-5.6-sol", "high"),
 }
-OPAQUE_ID = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
+OPAQUE_ID = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_:-]{0,127}\Z")
+MODEL_ID = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}\Z")
 SECRET_LIKE = re.compile(
     r"\A(?:sk-|gh[pousr]_|github_pat_|xox[a-z]-|akia|aiza|bearer-)",
     re.IGNORECASE,
@@ -48,6 +49,7 @@ TOKEN_KEYS = (
     "reasoning_output_tokens",
     "total_tokens",
 )
+OPTIONAL_EMITTED_TOKEN_KEYS = ("cache_write_input_tokens",)
 REQUEST_WINDOW_KEYS = {"startedAt", "endedAt", "startOrdinal", "endOrdinal"}
 PRICING_SCHEMA = "gauntlet.model-api-pricing.v1"
 NATIVE_COLUMNS = (
@@ -202,6 +204,24 @@ def valid_tokens(value):
     )
 
 
+def normalized_emitted_tokens(value):
+    if not isinstance(value, dict):
+        return None
+    allowed = set(TOKEN_KEYS) | set(OPTIONAL_EMITTED_TOKEN_KEYS)
+    if not set(TOKEN_KEYS).issubset(value) or not set(value).issubset(allowed):
+        return None
+    for key in OPTIONAL_EMITTED_TOKEN_KEYS:
+        extra = value.get(key, 0)
+        if isinstance(extra, bool) or not isinstance(extra, int) or extra < 0:
+            return None
+    normalized = {key: value[key] for key in TOKEN_KEYS}
+    return normalized if valid_tokens(normalized) else None
+
+
+def valid_model_id(value):
+    return value if isinstance(value, str) and MODEL_ID.fullmatch(value) else None
+
+
 def quarantine(agent_id, line_number, reason):
     return {"agentId": agent_id, "lineNumber": line_number, "reason": reason}
 
@@ -233,6 +253,7 @@ def request_analytics(row, cursor=None):
     line_number = cursor.get("lineNumber", 0)
     ordinal = cursor.get("requestOrdinal", 0)
     previous = cursor.get("lastTotals", {key: 0 for key in TOKEN_KEYS})
+    current_model = valid_model_id(cursor.get("currentModel")) or valid_model_id(row.get("model"))
     if (
         not isinstance(offset, int) or offset < 0
         or not isinstance(line_number, int) or line_number < 0
@@ -265,6 +286,10 @@ def request_analytics(row, cursor=None):
             break
         next_offset = committed_offset + len(raw)
         committed_line = current_line
+        if event.get("type") == "turn_context" and isinstance(event.get("payload"), dict):
+            current_model = valid_model_id(event["payload"].get("model")) or current_model
+            committed_offset = next_offset
+            continue
         if event.get("type") != "event_msg" or not isinstance(event.get("payload"), dict):
             committed_offset = next_offset
             continue
@@ -273,9 +298,9 @@ def request_analytics(row, cursor=None):
             committed_offset = next_offset
             continue
         info = payload.get("info")
-        total = info.get("total_token_usage") if isinstance(info, dict) else None
-        last = info.get("last_token_usage") if isinstance(info, dict) else None
-        if not valid_tokens(total) or not valid_tokens(last):
+        total = normalized_emitted_tokens(info.get("total_token_usage")) if isinstance(info, dict) else None
+        last = normalized_emitted_tokens(info.get("last_token_usage")) if isinstance(info, dict) else None
+        if total is None or last is None:
             quarantined.append(quarantine(row["agentId"], current_line, "partial-token-count"))
             committed_line -= 1
             break
@@ -301,7 +326,7 @@ def request_analytics(row, cursor=None):
         requests.append({
             "agentId": row["agentId"],
             "codexVersion": row.get("cliVersion") or "unknown",
-            "model": row.get("model"),
+            "model": current_model,
             "profile": row.get("profile"),
             "reasoningEffort": row.get("reasoningEffort"),
             "requestId": "{}:{}".format(row["agentId"], ordinal),
@@ -313,6 +338,7 @@ def request_analytics(row, cursor=None):
         committed_offset = next_offset
     next_cursor = {
         "byteOffset": committed_offset,
+        "currentModel": current_model,
         "lastTotals": previous,
         "lineNumber": committed_line,
         "pathFingerprint": path_fingerprint,
@@ -687,6 +713,7 @@ def run_summary_payload(owners, audit_path, analytics_path, quarantine_path, pri
     observed = []
     coverage_limitations = set()
     token_totals = {key: 0 for key in TOKEN_KEYS}
+    tokens_by_model = {}
     request_count = 0
     profile_mismatches = []
     counted_requests = set()
@@ -744,15 +771,20 @@ def run_summary_payload(owners, audit_path, analytics_path, quarantine_path, pri
             included_rows.append(row)
             for key in TOKEN_KEYS:
                 token_totals[key] += row["tokens"][key]
+            model = row.get("model")
+            if isinstance(model, str):
+                tokens_by_model[model] = tokens_by_model.get(model, 0) + row["tokens"]["total_tokens"]
     if not observed:
         status = "unavailable"
         model_requests = None
         tokens = None
+        model_tokens = None
         totals_scope = "unavailable"
     else:
         status = "partial" if unavailable or coverage_limitations else "complete"
         model_requests = request_count
         tokens = token_totals
+        model_tokens = dict(sorted(tokens_by_model.items()))
         totals_scope = "observed-only" if unavailable or coverage_limitations else "all-declared-owners"
     quarantined_agents = set()
     if quarantine_path.exists():
@@ -785,6 +817,7 @@ def run_summary_payload(owners, audit_path, analytics_path, quarantine_path, pri
         },
         "modelRequests": model_requests,
         "tokens": tokens,
+        "tokensByModel": model_tokens,
         "pricing": pricing,
         "profileMismatches": profile_mismatches,
     }
