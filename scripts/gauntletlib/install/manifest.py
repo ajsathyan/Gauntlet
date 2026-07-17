@@ -9,7 +9,12 @@ import stat
 import tempfile
 from pathlib import Path, PurePosixPath
 
-RECEIPT = Path("gauntlet/.install-manifest.json")
+GENERATED_DESTINATIONS = (
+    "gauntlet/AGENTS.md",
+    "gauntlet/MANIFEST",
+    "gauntlet/.install-manifest.json",
+)
+RECEIPT = Path(GENERATED_DESTINATIONS[-1])
 
 
 def _sha256(path: Path) -> str:
@@ -44,6 +49,8 @@ def _destination_path(agent_home: Path, value, label: str = "destination") -> Pa
     relative = _relative_path(value, label)
     if not relative.startswith(("gauntlet/", "skills/")):
         raise ValueError(f"Manifest {label} is outside managed namespaces: {relative}")
+    if agent_home.is_symlink() or (agent_home.exists() and not agent_home.is_dir()):
+        raise ValueError(f"Agent home is not a real directory: {agent_home}")
     base = agent_home.resolve(strict=False)
     destination = agent_home / relative
     resolved = destination.resolve(strict=False)
@@ -52,10 +59,19 @@ def _destination_path(agent_home: Path, value, label: str = "destination") -> Pa
     cursor = agent_home
     for part in PurePosixPath(relative).parts[:-1]:
         cursor = cursor / part
-        if cursor.is_symlink():
-            raise ValueError(f"Manifest {label} has a symlink ancestor: {relative}")
+        if cursor.is_symlink() or (cursor.exists() and not cursor.is_dir()):
+            raise ValueError(
+                f"Manifest {label} has a non-directory ancestor: {relative}"
+            )
     if destination.is_symlink():
         raise ValueError(f"Manifest {label} is a symlink: {relative}")
+    return destination
+
+
+def _generated_destination_path(agent_home: Path, value: str) -> Path:
+    destination = _destination_path(agent_home, value, "generated destination")
+    if destination.exists() and not destination.is_file():
+        raise ValueError(f"Generated destination is not a file: {value}")
     return destination
 
 
@@ -103,8 +119,11 @@ def _validated_manifest(root: Path, agent_home: Path) -> tuple[dict, list[tuple[
                 _destination_path(agent_home, destination_value),
             )
         )
-    for value in manifest.get("generatedDestinations", []):
-        _destination_path(agent_home, value, "generated destination")
+    for value in GENERATED_DESTINATIONS:
+        _generated_destination_path(agent_home, value)
+    generated = manifest.get("generatedDestinations")
+    if not isinstance(generated, list) or tuple(generated) != GENERATED_DESTINATIONS:
+        raise ValueError("Manifest generated destinations differ from the fixed contract")
     for row in manifest.get("legacyManaged", []):
         if not isinstance(row, dict) or row.get("type") not in {
             "file",
@@ -113,7 +132,6 @@ def _validated_manifest(root: Path, agent_home: Path) -> tuple[dict, list[tuple[
         }:
             raise ValueError("Invalid legacy managed metadata")
         _destination_path(agent_home, row.get("destination"), "legacy destination")
-    _destination_path(agent_home, "gauntlet/MANIFEST", "generated destination")
     return manifest, prepared
 
 
@@ -138,7 +156,13 @@ def _load_receipt(agent_home: Path) -> dict | None:
         return None
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError(f"Invalid install ownership receipt: {path}") from error
-    if not isinstance(payload, dict) or not isinstance(payload.get("entries"), list):
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schemaVersion") != "1.0"
+        or not isinstance(payload.get("entries"), list)
+        or not isinstance(payload.get("manifestSha256"), str)
+        or len(payload["manifestSha256"]) != 64
+    ):
         raise ValueError(f"Invalid install ownership receipt: {path}")
     return payload
 

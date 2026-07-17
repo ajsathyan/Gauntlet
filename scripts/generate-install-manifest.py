@@ -8,6 +8,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from gauntletlib.install.manifest import GENERATED_DESTINATIONS
+
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "MANIFEST"
 
@@ -120,10 +122,7 @@ def build_manifest() -> dict:
     return {
         "schemaVersion": "1.0",
         "entries": entries,
-        "generatedDestinations": [
-            "gauntlet/AGENTS.md",
-            "gauntlet/.install-manifest.json",
-        ],
+        "generatedDestinations": list(GENERATED_DESTINATIONS),
         "legacyManaged": legacy,
     }
 

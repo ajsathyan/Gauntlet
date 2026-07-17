@@ -759,7 +759,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/install/manifest.py",
       "executable": false,
-      "sha256": "51ee14ad4378f3f25daf1a89e18670c0b651b5cde75cc1b559d3edd938d6f664",
+      "sha256": "ff7961a1b9feca4633ce44a1f92b59b373c1af5c902fdc70837a190af5b4fb37",
       "source": "scripts/gauntletlib/install/manifest.py"
     },
     {
@@ -1539,6 +1539,7 @@
   ],
   "generatedDestinations": [
     "gauntlet/AGENTS.md",
+    "gauntlet/MANIFEST",
     "gauntlet/.install-manifest.json"
   ],
   "legacyManaged": [

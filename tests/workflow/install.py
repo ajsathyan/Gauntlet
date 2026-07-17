@@ -378,6 +378,7 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         _assert_preference_file_formats(root)
     test_manifest_install_syncs_runtime_and_preserves_unmanaged_or_modified_stale_files()
     test_manifest_sync_rejects_unsafe_paths_symlinks_and_skill_collisions()
+    test_manifest_preflight_rejects_bad_ancestors_and_fixed_generated_paths()
 
 
 def test_manifest_install_syncs_runtime_and_preserves_unmanaged_or_modified_stale_files():
@@ -504,6 +505,7 @@ def test_manifest_sync_rejects_unsafe_paths_symlinks_and_skill_collisions():
                     ],
                     "generatedDestinations": [
                         "gauntlet/AGENTS.md",
+                        "gauntlet/MANIFEST",
                         "gauntlet/.install-manifest.json",
                     ],
                     "legacyManaged": [],
@@ -613,3 +615,108 @@ def test_manifest_sync_rejects_unsafe_paths_symlinks_and_skill_collisions():
         assert_rejected(receipt_root, invalid_receipt_home)
         if (sandbox / "escape").exists():
             raise AssertionError("receipt traversal must not touch an outside path")
+
+
+def test_manifest_preflight_rejects_bad_ancestors_and_fixed_generated_paths():
+    def manifest_row(root, name, destination):
+        source = root / "scripts" / name
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text(name)
+        return {
+            "destination": destination,
+            "executable": False,
+            "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            "source": f"scripts/{name}",
+        }
+
+    def write_manifest(root, entries, generated=None, legacy=None):
+        (root / "MANIFEST").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "entries": entries,
+                    "generatedDestinations": generated
+                    if generated is not None
+                    else [
+                        "gauntlet/AGENTS.md",
+                        "gauntlet/MANIFEST",
+                        "gauntlet/.install-manifest.json",
+                    ],
+                    "legacyManaged": legacy or [],
+                }
+            )
+        )
+
+    def assert_rejected(root, home):
+        try:
+            sync_payload(root, home)
+        except (OSError, ValueError):
+            return
+        raise AssertionError("invalid destination preflight should reject installation")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        sandbox = Path(tmp)
+        ancestor_root = sandbox / "ancestor-root"
+        ancestor_root.mkdir()
+        rows = [
+            manifest_row(ancestor_root, "first.py", "gauntlet/first.py"),
+            manifest_row(ancestor_root, "second.py", "gauntlet/scripts/second.py"),
+        ]
+        write_manifest(ancestor_root, rows)
+        ancestor_home = sandbox / "ancestor-home"
+        ancestor_home.mkdir()
+        (ancestor_home / "gauntlet").mkdir()
+        (ancestor_home / "gauntlet" / "scripts").write_text("regular ancestor\n")
+        assert_rejected(ancestor_root, ancestor_home)
+        if (ancestor_home / "gauntlet" / "first.py").exists():
+            raise AssertionError("regular-file ancestor must reject before the first payload copy")
+
+        manifest_root = sandbox / "manifest-root"
+        manifest_root.mkdir()
+        manifest_row_value = manifest_row(
+            manifest_root,
+            "runtime.py",
+            "gauntlet/scripts/runtime.py",
+        )
+        write_manifest(manifest_root, [manifest_row_value])
+        manifest_home = sandbox / "manifest-home"
+        (manifest_home / "gauntlet" / "MANIFEST").mkdir(parents=True)
+        assert_rejected(manifest_root, manifest_home)
+        if (manifest_home / "gauntlet" / "scripts" / "runtime.py").exists():
+            raise AssertionError("MANIFEST directory collision must reject before payload mutation")
+
+        metadata_root = sandbox / "metadata-root"
+        metadata_root.mkdir()
+        metadata_row = manifest_row(
+            metadata_root,
+            "runtime.py",
+            "gauntlet/scripts/runtime.py",
+        )
+        stale_payload = b"stale managed payload\n"
+        stale_sha = hashlib.sha256(stale_payload).hexdigest()
+        write_manifest(metadata_root, [metadata_row], generated=[])
+        metadata_home = sandbox / "metadata-home"
+        stale = metadata_home / "gauntlet" / "scripts" / "stale.py"
+        stale.parent.mkdir(parents=True)
+        stale.write_bytes(stale_payload)
+        outside_receipt = sandbox / "outside-receipt.json"
+        outside_receipt.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "entries": [
+                        {
+                            "destination": "gauntlet/scripts/stale.py",
+                            "sha256": stale_sha,
+                        }
+                    ],
+                    "manifestSha256": "0" * 64,
+                }
+            )
+        )
+        (metadata_home / "gauntlet" / ".install-manifest.json").symlink_to(
+            outside_receipt
+        )
+        assert_rejected(metadata_root, metadata_home)
+        if stale.read_bytes() != stale_payload:
+            raise AssertionError("malformed generated metadata must reject before stale deletion")
