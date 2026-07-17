@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "metric": {
+    "name": "gauntlet_workflow_wall_time",
+    "unit": "seconds",
+    "direction": "lower-is-better"
+  },
+  "workload": {
+    "id": "gauntlet-workflow-full-11-cases",
+    "inputDigest": "sha256:e5e64d9dc6104b91c5f9f1a531a5b011c199532f91f696c0d1569321cccc6f2d",
+    "scale": 11
+  },
+  "environment": {
+    "os": "macOS 26.5 Darwin 25.5.0",
+    "architecture": "arm64",
+    "runtime": "Python 3.9.6",
+    "flags": []
+  },
+  "oracle": {
+    "id": "all-11-workflow-cases-pass",
+    "result": "pass",
+    "evidence": [
+      "Every candidate sample required all five groups to exit zero, covering all 11 cases exactly once."
+    ]
+  },
+  "protocol": {
+    "command": "Execute every gauntlet-workflow-full-11-cases member exactly once with five runner lanes available; measure aggregate completion.",
+    "machine": "Akhils-MacBook-Pro.local",
+    "dependencyState": "stdlib-only repository at 3e60344c88694fb1faabfe65e3f4312b8a42b907",
+    "cachePolicy": "warm",
+    "concurrency": 5,
+    "warmups": 1,
+    "expensiveRunException": true,
+    "expensiveRunReason": "Each sequential sample costs about 70 seconds and each parallel sample about 28 seconds; three complete samples keep the optimization run proportionate."
+  },
+  "samples": [
+    28.206,
+    28.081,
+    28.481
+  ]
+}

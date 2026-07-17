@@ -301,6 +301,30 @@
       "source": "docs/meaningful-proof.md"
     },
     {
+      "destination": "gauntlet/docs/performance/parallel-ci-2026-07-17/baseline.json",
+      "executable": false,
+      "sha256": "89c897ca9d07efc112fd7d34ab0ee5e1586d2ba051f981ff4bfbef7e6cfeeef3",
+      "source": "docs/performance/parallel-ci-2026-07-17/baseline.json"
+    },
+    {
+      "destination": "gauntlet/docs/performance/parallel-ci-2026-07-17/candidate.json",
+      "executable": false,
+      "sha256": "4742ae079b849b5e88da58f16e264e31956cd31df2f8696d0d3e57b73525ec37",
+      "source": "docs/performance/parallel-ci-2026-07-17/candidate.json"
+    },
+    {
+      "destination": "gauntlet/docs/performance/parallel-ci-2026-07-17/comparison.json",
+      "executable": false,
+      "sha256": "b5268f12323d1c9bb6954a84e08ce4f17cf2c1ec671acb89b4ec59492c6febc2",
+      "source": "docs/performance/parallel-ci-2026-07-17/comparison.json"
+    },
+    {
+      "destination": "gauntlet/docs/performance/parallel-ci-2026-07-17/receipt.json",
+      "executable": false,
+      "sha256": "213e28b9c611e4a1b9eb3c8b5bfe23b67a3946c9c48fc36fe5c91748101f1921",
+      "source": "docs/performance/parallel-ci-2026-07-17/receipt.json"
+    },
+    {
       "destination": "gauntlet/docs/prd-execution.md",
       "executable": false,
       "sha256": "6b48869ba7deebd819f8a9796facc85e414c8ce2b11b02120df22d33be3194d2",

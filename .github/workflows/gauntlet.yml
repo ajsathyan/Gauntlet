@@ -10,8 +10,18 @@ permissions:
   contents: read
 
 jobs:
-  gauntlet:
+  checks:
+    name: ${{ matrix.group }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group:
+          - policy
+          - install
+          - lifecycle
+          - prd
+          - orchestration
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -21,7 +31,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run Gauntlet workflow checks
-        run: |
-          python3 scripts/generate-install-manifest.py --check
-          python3 scripts/check-gauntlet-workflow.py
+      - name: Check install manifest
+        if: matrix.group == 'policy'
+        run: python3 scripts/generate-install-manifest.py --check
+
+      - name: Run ${{ matrix.group }} checks
+        run: python3 scripts/check-gauntlet-workflow.py --group "${{ matrix.group }}"
+
+  gauntlet:
+    if: always()
+    needs:
+      - checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every check group
+        run: test "${{ needs.checks.result }}" = "success"

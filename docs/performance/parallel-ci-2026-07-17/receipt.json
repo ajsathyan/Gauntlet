@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "mode": "optimize",
+  "timestamp": "2026-07-17",
+  "source": {
+    "baselineRevision": "3e60344c88694fb1faabfe65e3f4312b8a42b907",
+    "candidateBranch": "perf/parallel-ci",
+    "candidateWorkingTree": "modified only on the recorded CI, runner, test, changelog, manifest, and receipt paths"
+  },
+  "surface": "developer and pull-request deterministic test feedback",
+  "target": null,
+  "baselineArtifact": "baseline.json",
+  "candidateArtifact": "candidate.json",
+  "comparisonArtifact": "comparison.json",
+  "artifactSha256": {
+    "baseline.json": "89c897ca9d07efc112fd7d34ab0ee5e1586d2ba051f981ff4bfbef7e6cfeeef3",
+    "candidate.json": "4742ae079b849b5e88da58f16e264e31956cd31df2f8696d0d3e57b73525ec37",
+    "comparison.json": "b5268f12323d1c9bb6954a84e08ce4f17cf2c1ec671acb89b4ec59492c6febc2"
+  },
+  "workload": {
+    "purpose": "Run the complete Gauntlet workflow regression suite without reducing cases, assertions, retries, or failure behavior.",
+    "setup": "One warm-up preceded three measured samples. Five runner lanes were available to both implementations.",
+    "correctnessOracle": "All 11 named top-level workflow cases exit zero."
+  },
+  "profile": {
+    "dominantCosts": [
+      "PRD execution-run controller: 26.65 seconds",
+      "Subagent orchestration and evaluations: 24.36 seconds",
+      "Installer behavior: 10.60 seconds"
+    ],
+    "diagnosis": "The single GitHub Actions job called every independent top-level case sequentially.",
+    "hypothesis": "Scheduling five isolated domain groups concurrently should reduce wall time toward the slower of the PRD and orchestration groups without changing the correctness oracle.",
+    "prediction": "Approximately 28 to 35 seconds locally, plus GitHub runner setup in hosted CI.",
+    "falsification": "Reject the change if any case is skipped, group execution is order-dependent, the aggregate gate can pass after a child failure, or candidate timing overlaps the baseline range."
+  },
+  "change": {
+    "summary": "Add five workflow groups, run them as a GitHub Actions matrix, and retain one stable aggregate gauntlet job.",
+    "complexity": "Five hosted runners are used concurrently instead of one; no dependency or cache was added.",
+    "displacedCosts": "Hosted runner-minutes remain approximately similar and checkout/setup work is repeated five times."
+  },
+  "correctness": {
+    "fullSequentialCompatibility": "pass",
+    "groupCoverage": "All 11 cases appear exactly once across policy, install, lifecycle, prd, and orchestration.",
+    "yamlParse": "pass",
+    "aggregateGate": "The gauntlet job runs with always() and fails unless the matrix result is success."
+  },
+  "adjacentMetrics": {
+    "localCpuContention": "Candidate samples ran five processes on one machine and still improved materially.",
+    "githubHostedWallTime": "Unmeasured until the workflow runs on GitHub.",
+    "runnerConsumption": "Expected to remain similar or increase slightly from repeated setup."
+  },
+  "limitations": [
+    "Local parallel timing does not include GitHub queue and runner startup.",
+    "Branch protection is currently disabled, so the aggregate job is preserved for future re-enablement but is not presently enforced by GitHub."
+  ],
+  "invalidatedBy": [
+    "Changing the 11-case workload or its assertions.",
+    "Changing Python, operating system, machine, cache policy, or available runner lanes.",
+    "Changing the workflow grouping or benchmark harness."
+  ],
+  "gate": "improvement-proved"
+}
