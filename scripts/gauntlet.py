@@ -20,7 +20,13 @@ from gauntletlib.cli import build_parser as build_cli_parser
 from gauntletlib.cli import dispatch
 from gauntletlib.closeout import configure as configure_closeout
 from gauntletlib.closeout import (
+    advance_run_release_state as advance_run_release_state,
     closeout_install_command as closeout_install_command,
+    completion_allows_archive as completion_allows_archive,
+)
+from gauntletlib.contracts import (
+    validate_merge_handoff as validate_merge_handoff,
+    validate_run_merge_handoff as validate_run_merge_handoff,
 )
 from gauntletlib.closeout import register_archive
 from gauntletlib.closeout import register_changelog
@@ -36,19 +42,25 @@ from gauntletlib.docs import ensure_doc_execution_contract as ensure_doc_executi
 from gauntletlib.docs import migrate_doc_execution_contract as migrate_doc_execution_contract
 from gauntletlib.docs import register as register_docs
 from gauntletlib.docs import valid_epic_title
+from gauntletlib.merge import acquire_run_merge_lease as _acquire_run_merge_lease
 from gauntletlib.merge import branch_name
 from gauntletlib.merge import checks_state
 from gauntletlib.merge import configure as configure_merge
 from gauntletlib.merge import current_default_head
 from gauntletlib.merge import current_head
-from gauntletlib.merge import default_represents_candidate
+from gauntletlib.merge import default_represents_candidate as _default_represents_candidate
 from gauntletlib.merge import delete_remote_branch
 from gauntletlib.merge import dirty_paths
 from gauntletlib.merge import launch_merge_lease_path
 from gauntletlib.merge import merge_input_path
-from gauntletlib.merge import persist_merge_lease
+from gauntletlib.merge import pending_run_merge_gates as pending_run_merge_gates
+from gauntletlib.merge import persisted_run_merge_lease as persisted_run_merge_lease
+from gauntletlib.merge import persist_merge_lease as _persist_merge_lease
+from gauntletlib.merge import projection_changelog_entry as projection_changelog_entry
 from gauntletlib.merge import primary_worktree
 from gauntletlib.merge import refresh_default_head
+from gauntletlib.merge import release_run_merge_lease as _release_run_merge_lease
+from gauntletlib.merge import render_pr_body as render_pr_body
 from gauntletlib.merge import register as register_merge
 from gauntletlib.review_unit import configure as configure_review_unit
 from gauntletlib.review_unit import register as register_review_unit
@@ -91,6 +103,48 @@ PASSING_CHECK_CONCLUSIONS = {"SUCCESS", "SKIPPED", "NEUTRAL"}
 PASSING_STATUS_STATES = {"SUCCESS", "SKIPPED", "NEUTRAL"}
 def run_cmd(args, cwd=None, env=None, check=False):
     return _run_cmd(args, cwd=cwd, env=env, check=check)
+
+
+def default_represents_candidate(repo, candidate, default_head):
+    return _default_represents_candidate(
+        repo,
+        candidate,
+        default_head,
+        git_fn=git,
+    )
+
+
+def persist_merge_lease(repo, lease_path, lease, default_head):
+    return _persist_merge_lease(
+        repo,
+        lease_path,
+        lease,
+        default_head,
+        default_represents_candidate_fn=default_represents_candidate,
+    )
+
+
+def acquire_run_merge_lease(repo, run_path, handoff):
+    return _acquire_run_merge_lease(
+        repo,
+        run_path,
+        handoff,
+        refresh_default_head_fn=refresh_default_head,
+        git_fn=git,
+        persist_merge_lease_fn=persist_merge_lease,
+    )
+
+
+def release_run_merge_lease(repo, lease_path, lease, merged_head):
+    return _release_run_merge_lease(
+        repo,
+        lease_path,
+        lease,
+        merged_head,
+        refresh_default_head_fn=refresh_default_head,
+        default_represents_candidate_fn=default_represents_candidate,
+        git_fn=git,
+    )
 
 
 def read_text(path):

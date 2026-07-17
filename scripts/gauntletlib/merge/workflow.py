@@ -95,11 +95,22 @@ def run_launch_lease_context(run_path, handoff):
     return launch_path, launch, epic_id
 
 
-def acquire_run_merge_lease(repo, run_path, handoff):
+def acquire_run_merge_lease(
+    repo,
+    run_path,
+    handoff,
+    *,
+    refresh_default_head_fn=None,
+    git_fn=None,
+    persist_merge_lease_fn=None,
+):
     launch_path, launch, epic_id = run_launch_lease_context(run_path, handoff)
     candidate = handoff["binding"]["headSha"]
-    default_head, default_ref = refresh_default_head(repo)
-    if git(["merge-base", "--is-ancestor", default_head, candidate], repo).returncode != 0:
+    refresh = refresh_default_head_fn or refresh_default_head
+    run_git = git_fn or git
+    persist = persist_merge_lease_fn or persist_merge_lease
+    default_head, default_ref = refresh(repo)
+    if run_git(["merge-base", "--is-ancestor", default_head, candidate], repo).returncode != 0:
         raise ValueError("Verified Epic candidate does not contain the current default-branch head; re-integrate and reverify")
     lease = {
         "schemaVersion": "gauntlet.epic-merge-lease.v1",
@@ -110,11 +121,21 @@ def acquire_run_merge_lease(repo, run_path, handoff):
         "baseRef": default_ref,
     }
     lease_path = launch_merge_lease_path(launch_path)
-    persist_merge_lease(repo, lease_path, lease, default_head)
+    persist(repo, lease_path, lease, default_head)
     return lease_path, lease
 
 
-def persist_merge_lease(repo, lease_path, lease, default_head):
+def persist_merge_lease(
+    repo,
+    lease_path,
+    lease,
+    default_head,
+    *,
+    default_represents_candidate_fn=None,
+):
+    represents_candidate = (
+        default_represents_candidate_fn or default_represents_candidate
+    )
     if lease_path.exists():
         current = json.loads(lease_path.read_text(encoding="utf-8"))
         if current != lease:
@@ -123,7 +144,7 @@ def persist_merge_lease(repo, lease_path, lease, default_head):
                 raise ValueError("Default branch changed while this Epic held the merge lease; re-integrate and reverify")
             if current.get("epicId") == lease["epicId"]:
                 old_candidate = current.get("candidateHead")
-                if default_represents_candidate(repo, old_candidate, default_head):
+                if represents_candidate(repo, old_candidate, default_head):
                     raise ValueError("The previous leased Epic candidate is already on the default branch; reconcile that merge before replacing the lease")
                 atomic_write_text(lease_path, json.dumps(lease, indent=2, sort_keys=True) + "\n")
             else:
@@ -143,14 +164,15 @@ def validate_run_merge_lease(repo, lease_path, lease):
         raise ValueError("Leased candidate no longer contains its verified default-branch base")
 
 
-def default_represents_candidate(repo, candidate, default_head):
-    ancestry = git(["merge-base", "--is-ancestor", candidate, default_head], repo)
+def default_represents_candidate(repo, candidate, default_head, *, git_fn=None):
+    run_git = git_fn or git
+    ancestry = run_git(["merge-base", "--is-ancestor", candidate, default_head], repo)
     if ancestry.returncode == 0:
         return True
     if ancestry.returncode != 1:
         raise ValueError(ancestry.stderr.strip() or "Cannot determine candidate ancestry")
-    candidate_tree = git(["rev-parse", f"{candidate}^{{tree}}"], repo)
-    default_tree = git(["rev-parse", f"{default_head}^{{tree}}"], repo)
+    candidate_tree = run_git(["rev-parse", f"{candidate}^{{tree}}"], repo)
+    default_tree = run_git(["rev-parse", f"{default_head}^{{tree}}"], repo)
     if candidate_tree.returncode != 0 or default_tree.returncode != 0:
         raise ValueError(candidate_tree.stderr.strip() or default_tree.stderr.strip() or "Cannot compare candidate and default trees")
     return (
@@ -158,11 +180,25 @@ def default_represents_candidate(repo, candidate, default_head):
     )
 
 
-def release_run_merge_lease(repo, lease_path, lease, merged_head):
-    default_head, _ = refresh_default_head(repo)
-    if not default_represents_candidate(repo, lease["candidateHead"], merged_head):
+def release_run_merge_lease(
+    repo,
+    lease_path,
+    lease,
+    merged_head,
+    *,
+    refresh_default_head_fn=None,
+    default_represents_candidate_fn=None,
+    git_fn=None,
+):
+    refresh = refresh_default_head_fn or refresh_default_head
+    represents_candidate = (
+        default_represents_candidate_fn or default_represents_candidate
+    )
+    run_git = git_fn or git
+    default_head, _ = refresh(repo)
+    if not represents_candidate(repo, lease["candidateHead"], merged_head):
         raise ValueError("Recorded merge head preserves neither candidate ancestry nor the exact candidate tree")
-    if git(["merge-base", "--is-ancestor", merged_head, default_head], repo).returncode != 0:
+    if run_git(["merge-base", "--is-ancestor", merged_head, default_head], repo).returncode != 0:
         raise ValueError("Current default branch does not contain the recorded merge head")
     if not Path(lease_path).is_file() or json.loads(Path(lease_path).read_text(encoding="utf-8")) != lease:
         raise ValueError("Run-backed merge lease changed before release")

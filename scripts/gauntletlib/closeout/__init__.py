@@ -3,6 +3,8 @@
 import argparse
 from pathlib import Path
 
+from .workflow import advance_run_release_state as advance_run_release_state
+from .workflow import completion_allows_archive as completion_allows_archive
 from .workflow import command_archive_execute
 from .workflow import command_archive_plan
 from .workflow import command_changelog_pr
