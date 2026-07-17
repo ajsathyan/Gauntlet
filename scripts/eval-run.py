@@ -12,9 +12,12 @@ import signal
 import statistics
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
+
+from gauntletlib.core.fsio import atomic_write_synced_json as atomic_json
+from gauntletlib.core.jsonio import canonical_json, pretty_json
+from gauntletlib.core.jsonio import read_json as _read_json
 
 
 SCHEMA_VERSION = 1
@@ -51,14 +54,6 @@ class AdapterFailure(Exception):
         self.code = code
 
 
-def canonical_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-def pretty_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-
-
 def digest(value: Any) -> str:
     return hashlib.sha256(canonical_json(value).encode()).hexdigest()
 
@@ -71,21 +66,9 @@ def full_digest(value: Any, label: str) -> str:
 
 def read_json(path: Path, label: str) -> Any:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return _read_json(path)
     except (OSError, json.JSONDecodeError) as exc:
         raise EvalRunError(f"cannot read {label} {path}: {exc}") from exc
-
-
-def atomic_json(path: Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(pretty_json(value)); handle.flush(); os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
 
 
 def require_object(value: Any, label: str) -> dict[str, Any]:

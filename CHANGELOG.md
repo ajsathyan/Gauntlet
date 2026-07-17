@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- Gauntlet installs an exact manifest-declared runtime payload, excludes development tests and UI dependencies, safely reconciles previously managed stale files, and checks manifest drift in CI and pre-commit.
+
+- Gauntlet now packages the execution-run controller behind its unchanged CLI, calls the default controller in process, and preserves the trusted development override subprocess path.
+
+- Gauntlet now extracts accepted-Epic launch contracts and Epic task orchestration into a registered stdlib-only package while preserving launch snapshots, task packets, dependency readiness, lifecycle events, document reconciliation, merge leases, CLI behavior, and legacy imports.
+
+- Gauntlet now packages the unchanged live-progress projection and dashboard supervisor while preserving the legacy projection import path, dashboard lifecycle, and Epic progress CLI.
+
+- Gauntlet now extracts unchanged closeout, archive, follow-up, memory, and changelog workflows into a registered stdlib-only package while preserving preflight, scoped mutation, installation, and returned app-action contracts.
+
+- Gauntlet now extracts the unchanged contextual merge workflow into a registered stdlib-only package while preserving run binding, merge authority, lease recovery, PR checks, and branch cleanup behavior.
+
+- Gauntlet now extracts unchanged merge-handoff contracts and the Review Unit workflow into registered stdlib-only packages while preserving validation findings and review-merge command ordering.
+
+- Gauntlet now extracts the unchanged local product-document lifecycle into a registered stdlib-only docs package while preserving private file modes and execution-contract migration safeguards.
+
+- Gauntlet now routes its unchanged CLI surface through a shared command shell and extracts local analytics and bounded attempt memory into a stdlib-only registered domain package.
+
+- Gauntlet now centralizes shared stdlib-only process, redaction, serialization, atomic file, timestamp, and finding primitives while preserving each script's established contracts.
+
+- Gauntlet now defines stdlib-only Python package scaffolding and runs conservative Ruff linting on changed Python files.
+
+- Phase 7 moves development tests into discovery-native `tests/` modules, splits workflow checks by domain, preserves compatibility entry points, and adds a fast workflow smoke mode.
+
 - Implement GAUNTLET-005: Live Epic progress.
 
 - Gauntlet now automatically starts or recovers one launch-scoped live Epic progress dashboard, opens it through a secret-free Codex Browser action when available, refreshes run and usage facts continuously, and cleans it up only after every sibling reaches a terminal state.

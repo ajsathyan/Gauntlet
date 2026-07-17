@@ -17,6 +17,9 @@ import time
 from pathlib import Path
 from typing import Any
 
+from gauntletlib.core.jsonio import canonical_json, pretty_json
+from gauntletlib.core.jsonio import read_json as _read_json
+
 
 SCHEMA_VERSION = 1
 HARNESS_KINDS = ("codex-cli", "claude-code")
@@ -44,14 +47,6 @@ class HarnessError(Exception):
     pass
 
 
-def canonical_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-def pretty_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-
-
 def digest(value: Any) -> str:
     return "sha256:" + hashlib.sha256(canonical_json(value).encode()).hexdigest()
 
@@ -76,7 +71,7 @@ def tree_digest(root: Path) -> str:
 
 def read_json(path: Path, label: str) -> Any:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return _read_json(path)
     except (OSError, json.JSONDecodeError) as exc:
         raise HarnessError(f"cannot read {label} {path}: {exc}") from exc
 

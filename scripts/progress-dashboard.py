@@ -5,9 +5,7 @@ from __future__ import annotations
 
 import argparse
 import copy
-from datetime import datetime, timezone
 import fcntl
-import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -17,11 +15,13 @@ import signal
 import stat
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from urllib.parse import unquote, urlsplit
 
+from gauntletlib.core.fsio import atomic_write_private_json as atomic_private_json
+from gauntletlib.core.hashing import sha256_bytes as sha_bytes
+from gauntletlib.core.timefmt import now_iso as _now_iso
 from progress_projection import ProjectionError, build_projection
 
 
@@ -46,28 +46,7 @@ class DashboardError(Exception):
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-
-
-def sha_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
-
-
-def atomic_private_json(path: Path, value: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    try:
-        os.fchmod(fd, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            json.dump(value, handle, ensure_ascii=False, sort_keys=True, indent=2)
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-        os.chmod(path, 0o600)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+    return _now_iso()
 
 
 def executable_digest() -> str:

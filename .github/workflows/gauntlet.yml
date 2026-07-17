@@ -22,4 +22,6 @@ jobs:
           python-version: "3.12"
 
       - name: Run Gauntlet workflow checks
-        run: python3 scripts/check-gauntlet-workflow.py
+        run: |
+          python3 scripts/generate-install-manifest.py --check
+          python3 scripts/check-gauntlet-workflow.py

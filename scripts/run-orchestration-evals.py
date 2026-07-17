@@ -11,6 +11,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from gauntletlib.core.jsonio import read_json as _read_json
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PACK = ROOT / "evals" / "orchestration-trace-fixtures.json"
@@ -26,7 +28,7 @@ class TracePackError(ValueError):
 
 def read_json(path):
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return _read_json(path)
     except (OSError, json.JSONDecodeError) as exc:
         raise TracePackError(f"cannot read trace pack {path}: {exc}") from exc
 

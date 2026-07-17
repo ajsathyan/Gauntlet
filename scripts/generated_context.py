@@ -5,14 +5,15 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import sys
-import tempfile
 from typing import Any, Iterable, Mapping, Sequence
+
+from gauntletlib.core.fsio import atomic_write_synced_bytes
+from gauntletlib.core.hashing import sha256_bytes
+from gauntletlib.core.jsonio import read_json as _read_json
 
 
 SCHEMA_VERSION = 1
@@ -58,10 +59,6 @@ class RenderedContext:
     stable_prefix: bytes
     metadata: dict[str, Any]
     metadata_bytes: bytes
-
-
-def sha256_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
 
 
 def canonical_json(value: Any) -> bytes:
@@ -288,27 +285,14 @@ def render_manifest(
 
 def atomic_write(path: Path, content: bytes) -> None:
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-        try:
-            with os.fdopen(descriptor, "wb") as stream:
-                stream.write(content)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.replace(temporary_name, path)
-        except BaseException:
-            try:
-                os.unlink(temporary_name)
-            except OSError:
-                pass
-            raise
+        atomic_write_synced_bytes(path, content)
     except OSError as exc:
         raise ContextError("write-failed", f"Could not write {path}: {exc}") from exc
 
 
 def _load_manifest(path: Path) -> Mapping[str, Any]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = _read_json(path)
     except (OSError, json.JSONDecodeError) as exc:
         raise ContextError("invalid-manifest", f"Could not read manifest: {exc}") from exc
     return _ensure_mapping(value, "manifest")

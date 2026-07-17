@@ -1,0 +1,1 @@
+"""Shared Gauntlet Python package."""

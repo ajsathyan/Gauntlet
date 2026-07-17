@@ -1,0 +1,1701 @@
+{
+  "entries": [
+    {
+      "destination": "gauntlet/README.md",
+      "executable": false,
+      "sha256": "adda51c5c7be9c3c1b75e114f21830579e1640ba4810486b678c6e489c792360",
+      "source": "README.md"
+    },
+    {
+      "destination": "gauntlet/agents/codex/gauntlet_deep_expert_researcher.toml",
+      "executable": false,
+      "sha256": "16c4dd9630d633de165116afad3168f086b515f29285eb4337265f2d2735261d",
+      "source": "agents/codex/gauntlet_deep_expert_researcher.toml"
+    },
+    {
+      "destination": "gauntlet/agents/codex/gauntlet_deep_worker.toml",
+      "executable": false,
+      "sha256": "0ff777eb31dc28c4b71de66b06027f2580a821d65cea84cfb5bdff71ad5b48a6",
+      "source": "agents/codex/gauntlet_deep_worker.toml"
+    },
+    {
+      "destination": "gauntlet/agents/codex/gauntlet_fast_reader.toml",
+      "executable": false,
+      "sha256": "762b8cedbcb63142e0161e173b512433c82bb5f7e328fa4cf29221c8bb699020",
+      "source": "agents/codex/gauntlet_fast_reader.toml"
+    },
+    {
+      "destination": "gauntlet/agents/codex/gauntlet_independent_verifier.toml",
+      "executable": false,
+      "sha256": "709493cb3c1e2b5438c88ed8c03c9ded2c3f7a6098d7bcb01b3652d75b4c6fea",
+      "source": "agents/codex/gauntlet_independent_verifier.toml"
+    },
+    {
+      "destination": "gauntlet/agents/codex/gauntlet_release_integrator.toml",
+      "executable": false,
+      "sha256": "e537a46ad4b80fc10cb95f8070df674ecc51df3de095ea6dc6513646ff4437c1",
+      "source": "agents/codex/gauntlet_release_integrator.toml"
+    },
+    {
+      "destination": "gauntlet/agents/codex/gauntlet_security_reviewer.toml",
+      "executable": false,
+      "sha256": "30e9891e1148ccb3e7f6164e639ff4f5a1338aa37bd35c4d98ebaef21c8ab5ed",
+      "source": "agents/codex/gauntlet_security_reviewer.toml"
+    },
+    {
+      "destination": "gauntlet/agents/codex/gauntlet_standard_worker.toml",
+      "executable": false,
+      "sha256": "8ea400e1f69c3a8b7bd6322f0846baeec681745799cb1d8ffd8eb1c0e21638b7",
+      "source": "agents/codex/gauntlet_standard_worker.toml"
+    },
+    {
+      "destination": "gauntlet/docs/coverage-gaps.md",
+      "executable": false,
+      "sha256": "b30bfbdb1e3cc7281f7f087bf3b76ff9eb462161b804a9183cb5d9c9d64ec396",
+      "source": "docs/coverage-gaps.md"
+    },
+    {
+      "destination": "gauntlet/docs/custom-agent-routing.md",
+      "executable": false,
+      "sha256": "203e475c46fc320155d5d58ff61eec9818d77f91562b4cedcb1478d76619f06b",
+      "source": "docs/custom-agent-routing.md"
+    },
+    {
+      "destination": "gauntlet/docs/design-lint-candidates.md",
+      "executable": false,
+      "sha256": "f646959f726530111d0e456839c37f7e1c1ef2ddfed72809de72831baa82dad3",
+      "source": "docs/design-lint-candidates.md"
+    },
+    {
+      "destination": "gauntlet/docs/evaluation-harnesses.md",
+      "executable": false,
+      "sha256": "0d08eaeef7e68f9bae0bcebe61379cb495e749c1da36c23d7eb034cf67b4980c",
+      "source": "docs/evaluation-harnesses.md"
+    },
+    {
+      "destination": "gauntlet/docs/evaluation-protocol.md",
+      "executable": false,
+      "sha256": "c6533eb9c37597eb11c6f7a518ab99576538699df5f725e6ab9816cff5988f85",
+      "source": "docs/evaluation-protocol.md"
+    },
+    {
+      "destination": "gauntlet/docs/evaluation-tasks.md",
+      "executable": false,
+      "sha256": "1a79c1d5f6e7bc0246ff78c86cee817847122926be69fa1f14055a0392ff6a20",
+      "source": "docs/evaluation-tasks.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-diagrams/2026-07-04-workflow-etiquette-flow.md",
+      "executable": false,
+      "sha256": "74a596a635ad53e952fb20ce3b9b7ae3e051a154d3f43213d757ea89768a105d",
+      "source": "docs/gauntlet-diagrams/2026-07-04-workflow-etiquette-flow.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-diagrams/index.md",
+      "executable": false,
+      "sha256": "1d756c7f733136e5a3820dd290edab3fa09cad3121e5ae26de3a7c46f7af7693",
+      "source": "docs/gauntlet-diagrams/index.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-06-28-frontend-quality-gates.md",
+      "executable": false,
+      "sha256": "bb64ab67952b0a12cf7f3cfe1402b89293ba76ca41822fd3f3bfe15be7077714",
+      "source": "docs/gauntlet-runs/2026-06-28-frontend-quality-gates.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-06-28-gauntlet-v201-run-log.md",
+      "executable": false,
+      "sha256": "3d169ee3764c16ddb6d9ad6986966310706679c4c29a24325956799e02a3bff1",
+      "source": "docs/gauntlet-runs/2026-06-28-gauntlet-v201-run-log.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-06-28-product-thinking-proof-scope.md",
+      "executable": false,
+      "sha256": "4d35e2a57f217042047e32e8a13aa6f57c52addeabb01e8d99485aeb523d99ab",
+      "source": "docs/gauntlet-runs/2026-06-28-product-thinking-proof-scope.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-06-29-gauntlet-v202-product-thinking-proof-scope.md",
+      "executable": false,
+      "sha256": "b226762f32206bc4996904d7fefe62f213d0d4dc16596105afe23692a1c3b8cb",
+      "source": "docs/gauntlet-runs/2026-06-29-gauntlet-v202-product-thinking-proof-scope.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-06-30-production-quality-bar.md",
+      "executable": false,
+      "sha256": "dfe680723522105e310526f19c8efa2b8558b9ecb63dcd47678450dbab791152",
+      "source": "docs/gauntlet-runs/2026-06-30-production-quality-bar.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-06-30-workflow-speedup-helpers.md",
+      "executable": false,
+      "sha256": "42fdfa1d2707251c8c44cbcd9c9687a39ca3cb1c42978022fe714c97491ffe2c",
+      "source": "docs/gauntlet-runs/2026-06-30-workflow-speedup-helpers.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-01-promotion-scanner.md",
+      "executable": false,
+      "sha256": "ac796d973cffbefaf05ec50ef7caf58bd9d14e7d77c79f362710b0ce020f4a60",
+      "source": "docs/gauntlet-runs/2026-07-01-promotion-scanner.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-02-gap-007-reference-doc-paths.md",
+      "executable": false,
+      "sha256": "f46e8d541195f55aee514daedc2304ce64c80e6126bb52a33177b22b0714113a",
+      "source": "docs/gauntlet-runs/2026-07-02-gap-007-reference-doc-paths.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-04-archive-execution-cli.md",
+      "executable": false,
+      "sha256": "6b9fc9647bbab90691f1473dfd29033aae5d8e30e1ca68de4e9e9d4e99201a57",
+      "source": "docs/gauntlet-runs/2026-07-04-archive-execution-cli.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-04-claude-install-target.md",
+      "executable": false,
+      "sha256": "3e1326e7bb265b63bd24679c62f0642e30baffd4affa624e8789b21640a541fd",
+      "source": "docs/gauntlet-runs/2026-07-04-claude-install-target.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-04-thread-changelog.md",
+      "executable": false,
+      "sha256": "51618f056db5926e2a439427d6889924336797dd55ca88627792539b7c7f5bbb",
+      "source": "docs/gauntlet-runs/2026-07-04-thread-changelog.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-04-workflow-etiquette-checker.md",
+      "executable": false,
+      "sha256": "aab6ca0ea0a7ca8c768422725f3045c9af292c5a64b67fc744fdbfe56da95821",
+      "source": "docs/gauntlet-runs/2026-07-04-workflow-etiquette-checker.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-08-changelog-followup-helpers.md",
+      "executable": false,
+      "sha256": "18e014929b341787cd3035010e00137a3bb8875277bb5290d6e9890a27a8deac",
+      "source": "docs/gauntlet-runs/2026-07-08-changelog-followup-helpers.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-08-github-discipline-defaults.md",
+      "executable": false,
+      "sha256": "c999f2c61184128c3914648f9b62e297ba63ca58ee212c954b2eff2db9e17214",
+      "source": "docs/gauntlet-runs/2026-07-08-github-discipline-defaults.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-08-skill-writing-harness-lessons.md",
+      "executable": false,
+      "sha256": "9bc8397ba12fa47b507f8deca081a20630f864c30a9b1a5df0a036dc843d1a99",
+      "source": "docs/gauntlet-runs/2026-07-08-skill-writing-harness-lessons.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-09-quiet-workflow-guaranteed-merge.md",
+      "executable": false,
+      "sha256": "e5c39955f7a1954ae6e01f6d21491b55b2e67f09f0934a94f6ebad55a7a78cea",
+      "source": "docs/gauntlet-runs/2026-07-09-quiet-workflow-guaranteed-merge.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-10-deterministic-workflow-enforcement.md",
+      "executable": false,
+      "sha256": "6dbf59b5c1385b73a0b0d2b280d356aa0e13807c058754a140e1768b76a92b2b",
+      "source": "docs/gauntlet-runs/2026-07-10-deterministic-workflow-enforcement.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-10-single-workflow-planning.md",
+      "executable": false,
+      "sha256": "7ca1c8e672858ce6e7ea04ab240073ffa7413965544dbc5455ff4e1b4e5d1693",
+      "source": "docs/gauntlet-runs/2026-07-10-single-workflow-planning.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-11-single-closeout-command.md",
+      "executable": false,
+      "sha256": "ed796a8d752f65c3a9bb723646e4648315468c8415bcbbede9638a236761c00a",
+      "source": "docs/gauntlet-runs/2026-07-11-single-closeout-command.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-13-gauntlet-skill-bundle.md",
+      "executable": false,
+      "sha256": "83b2810e6a91337e6e80a9b01e5284b63464f44c424fa2d7a5ff36486cc2ac90",
+      "source": "docs/gauntlet-runs/2026-07-13-gauntlet-skill-bundle.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-13-local-document-profile.md",
+      "executable": false,
+      "sha256": "80264775f472365a8b17e11d796413ff029e8015a824bad1dd2c9762e95b398b",
+      "source": "docs/gauntlet-runs/2026-07-13-local-document-profile.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-13-meaningful-proof-policy.md",
+      "executable": false,
+      "sha256": "930e458854107d8789e7b396aa927c1c98e7523eee5b8e6a81f2fe6c6c7c567a",
+      "source": "docs/gauntlet-runs/2026-07-13-meaningful-proof-policy.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-13-response-style-install.md",
+      "executable": false,
+      "sha256": "4ba4d259b02de8ca4267c1190989986e978a79df939e8a54ec7ed51ce912ef1b",
+      "source": "docs/gauntlet-runs/2026-07-13-response-style-install.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-14-auditable-custom-agents.md",
+      "executable": false,
+      "sha256": "440468b570372e704f21444e8dd01552e495a21ad3e78cafcbc95a88f86e2f10",
+      "source": "docs/gauntlet-runs/2026-07-14-auditable-custom-agents.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-14-autonomous-epic-execution.md",
+      "executable": false,
+      "sha256": "30b6c5124c7c3e261ce0a9cc49f5071ac026b1aba82ed665ca43b145b5029051",
+      "source": "docs/gauntlet-runs/2026-07-14-autonomous-epic-execution.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-14-default-on-local-docs.md",
+      "executable": false,
+      "sha256": "838924337a8574f74e087fb5520c8a2498819d81977233698a8ba7b2da2f74e1",
+      "source": "docs/gauntlet-runs/2026-07-14-default-on-local-docs.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-14-parent-integration-branch.md",
+      "executable": false,
+      "sha256": "0b6bac72c14af9841ddaa73fa01e6208f1e92edec825af6669d5f3405dc1e757",
+      "source": "docs/gauntlet-runs/2026-07-14-parent-integration-branch.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-14-prd-project-pr-review-units.md",
+      "executable": false,
+      "sha256": "b3e2dd3c15f8edb535b269eac8b6a371f901b72b67828fff351d32d02307363b",
+      "source": "docs/gauntlet-runs/2026-07-14-prd-project-pr-review-units.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-runs/2026-07-14-prd-ticket-execution.md",
+      "executable": false,
+      "sha256": "a6eb0fa4c3971ee3dae596e33f3be083f740400f588b1366d1fb5620fe95879e",
+      "source": "docs/gauntlet-runs/2026-07-14-prd-ticket-execution.md"
+    },
+    {
+      "destination": "gauntlet/docs/gauntlet-v2-skill-audit.md",
+      "executable": false,
+      "sha256": "282d7f5bfb282cee0d52edc1051a270dd1b76b41a53b29e2873ea874c561f1ad",
+      "source": "docs/gauntlet-v2-skill-audit.md"
+    },
+    {
+      "destination": "gauntlet/docs/generated-context.md",
+      "executable": false,
+      "sha256": "a7c61efa66dee980b3a226fac4b909fe0f54b26c25c349a3876ec34434f84e0d",
+      "source": "docs/generated-context.md"
+    },
+    {
+      "destination": "gauntlet/docs/github-discipline.md",
+      "executable": false,
+      "sha256": "8f891675a80282c169d8499fa28ad044b5b526fd74f1f8b5cadd00f3e97c7076",
+      "source": "docs/github-discipline.md"
+    },
+    {
+      "destination": "gauntlet/docs/global-router-rule-map.md",
+      "executable": false,
+      "sha256": "ed3c887e6b9f613d2a2e029b76459366ccc99dd22b73e32d5b31308e0fce08c7",
+      "source": "docs/global-router-rule-map.md"
+    },
+    {
+      "destination": "gauntlet/docs/local-documentation.md",
+      "executable": false,
+      "sha256": "7ffc967c1a342342a45ec1d6e5728ee6fdecf49d1a1bd8c70e7cc0af13946ba7",
+      "source": "docs/local-documentation.md"
+    },
+    {
+      "destination": "gauntlet/docs/meaningful-proof.md",
+      "executable": false,
+      "sha256": "69ac58aa183429a123e7874bfd859a987896979a3cddc8c4af5de941d7e342b9",
+      "source": "docs/meaningful-proof.md"
+    },
+    {
+      "destination": "gauntlet/docs/prd-execution.md",
+      "executable": false,
+      "sha256": "6b48869ba7deebd819f8a9796facc85e414c8ce2b11b02120df22d33be3194d2",
+      "source": "docs/prd-execution.md"
+    },
+    {
+      "destination": "gauntlet/docs/production-quality-bar.md",
+      "executable": false,
+      "sha256": "2c8ca4112c0162ddf9ccbb3f646b0146694dee0e4a18dc4929eee69153f3e7b9",
+      "source": "docs/production-quality-bar.md"
+    },
+    {
+      "destination": "gauntlet/docs/promotion-scanner.md",
+      "executable": false,
+      "sha256": "db6d9ada2a6ca6e166e18a5824b6a28d3c81157bf9f88166e606c37f3afd9309",
+      "source": "docs/promotion-scanner.md"
+    },
+    {
+      "destination": "gauntlet/docs/skill-quality-bar.md",
+      "executable": false,
+      "sha256": "ad9d99878dca8cb07d587e1d7582de2ef1270a70b5c677246586eb9c1f25f43d",
+      "source": "docs/skill-quality-bar.md"
+    },
+    {
+      "destination": "gauntlet/docs/skill-quality-implementation-plan.md",
+      "executable": false,
+      "sha256": "512f7c22fa7020a8f65d4362142f4dbdd162f49bb98ebe165c2a16e551195f25",
+      "source": "docs/skill-quality-implementation-plan.md"
+    },
+    {
+      "destination": "gauntlet/docs/ui-constitution.md",
+      "executable": false,
+      "sha256": "70780800bd1e0ab2937ae9e53f2e6498716e7cd1011438dbcaac89ed3f152352",
+      "source": "docs/ui-constitution.md"
+    },
+    {
+      "destination": "gauntlet/docs/upstream-eval-skills.md",
+      "executable": false,
+      "sha256": "e4729b6301bd5bacabae9db3e836ad412ffe5b3cd03ae839acdeb250d504c9bf",
+      "source": "docs/upstream-eval-skills.md"
+    },
+    {
+      "destination": "gauntlet/docs/upstream-superpowers.json",
+      "executable": false,
+      "sha256": "625e7afd275666b8d835a2ecd7e65bd2f4b32c4a39ba1eccd9adbe7be0a162b1",
+      "source": "docs/upstream-superpowers.json"
+    },
+    {
+      "destination": "gauntlet/docs/upstream-superpowers.md",
+      "executable": false,
+      "sha256": "e3c976ab20e726fb2a33d07b0f55dde7a177545d84ac9bdc20d72148a73123f6",
+      "source": "docs/upstream-superpowers.md"
+    },
+    {
+      "destination": "gauntlet/docs/used-price-guarded-panel-pressure-test.md",
+      "executable": false,
+      "sha256": "fa9076cd7a1f46aecb2a67a99702575e0f126793162187102cc0b8fe6d1361aa",
+      "source": "docs/used-price-guarded-panel-pressure-test.md"
+    },
+    {
+      "destination": "gauntlet/docs/workflow-etiquette.md",
+      "executable": false,
+      "sha256": "816119867dcfbb58a4c1873c2615d47e20aac9905d0b2e95345253e5c5afdc65",
+      "source": "docs/workflow-etiquette.md"
+    },
+    {
+      "destination": "gauntlet/docs/workflow-speedups.md",
+      "executable": false,
+      "sha256": "36f5db0442b16d15792fea2a5764e6f14f06b0e1d971853ab0b7bf3b160c0aca",
+      "source": "docs/workflow-speedups.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/adversarial-reviewer/SKILL.md",
+      "executable": false,
+      "sha256": "a00634a7eaae5719467d11f2060e26dcae1a4ad59eee98873704927158a6e4fe",
+      "source": "evals/baselines/current/skills/adversarial-reviewer/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/archive/SKILL.md",
+      "executable": false,
+      "sha256": "f465bfd21e69bd9951c62ba77772bac7c5ee9987a22301329f8a3f48d6c76c8b",
+      "source": "evals/baselines/current/skills/archive/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/black-box-tester/SKILL.md",
+      "executable": false,
+      "sha256": "11038f8eb46d28e56c6f9cc0c08dba10c8c61400b269b5bf682835fd5c2b20f5",
+      "source": "evals/baselines/current/skills/black-box-tester/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/debugger/SKILL.md",
+      "executable": false,
+      "sha256": "ac7d92f19eff3b693f019945571622af183ade083ddd8e3f1b8868b1747b463b",
+      "source": "evals/baselines/current/skills/debugger/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/deep-code-reviewer/SKILL.md",
+      "executable": false,
+      "sha256": "53a308eceea419ed6cf303da12478d477d5aa72930d051ad4414c7a22a0a5afc",
+      "source": "evals/baselines/current/skills/deep-code-reviewer/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/experience-reviewer/SKILL.md",
+      "executable": false,
+      "sha256": "4a8679679a8802cc09e08186170fe7b3eb94914ef9b2e90f1fc462e2e842bf2e",
+      "source": "evals/baselines/current/skills/experience-reviewer/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/implementer/SKILL.md",
+      "executable": false,
+      "sha256": "21196e31e83d9ea44fa9011312edf3050953ab6d15f30dee460a5c8efe152ceb",
+      "source": "evals/baselines/current/skills/implementer/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/intake/SKILL.md",
+      "executable": false,
+      "sha256": "a818daa18c0ba97c6e7b6e607e461529da7cf05803d38480ba3cad6fa41bf5e4",
+      "source": "evals/baselines/current/skills/intake/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/issue-triager/SKILL.md",
+      "executable": false,
+      "sha256": "122aa7f05369f1a843f114fe957b73964697f05f77bbf3b61dfc20c47c7098b3",
+      "source": "evals/baselines/current/skills/issue-triager/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/planner/SKILL.md",
+      "executable": false,
+      "sha256": "a82bd9a74f5d927ec095557afce9388243edaf11c0bb791ff87e24331d45ed33",
+      "source": "evals/baselines/current/skills/planner/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/product-architect/SKILL.md",
+      "executable": false,
+      "sha256": "5afee5c92316f2c0903e98977b01ef2b9f3ab0f5ab51fefe2859ef88eb1a18bd",
+      "source": "evals/baselines/current/skills/product-architect/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/promotion-scanner/SKILL.md",
+      "executable": false,
+      "sha256": "8bb41426ee582fa8a6f0a18ad9d0b3acad004bccafe80a40a5c2518b78ba4db5",
+      "source": "evals/baselines/current/skills/promotion-scanner/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/refactor-codebase/SKILL.md",
+      "executable": false,
+      "sha256": "1d6263fca6488cb2f848566c49f6c46161305e50b1f761306dc81224dda89777",
+      "source": "evals/baselines/current/skills/refactor-codebase/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/researcher/SKILL.md",
+      "executable": false,
+      "sha256": "f27815864bbca90f0a711589c13ebbcd7605287d9917d004fcca4c0b183aa63a",
+      "source": "evals/baselines/current/skills/researcher/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/baselines/current/skills/run-log-builder/SKILL.md",
+      "executable": false,
+      "sha256": "0608ae6b1dcad8f531570412a47e4b2c66c904c2e5d9781e0b97859ffdf27ec5",
+      "source": "evals/baselines/current/skills/run-log-builder/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/evals/orchestration-trace-fixtures.json",
+      "executable": false,
+      "sha256": "2f481c8a526c7e206f53b7a8039fd3ae8bf3e7c11155be467c321d20ef04f663",
+      "source": "evals/orchestration-trace-fixtures.json"
+    },
+    {
+      "destination": "gauntlet/evals/orchestration-trace-schema.json",
+      "executable": false,
+      "sha256": "e4e6a6d7981022fc9acf3e585120d822a47c7195009d7ad6d7883b05c489c2cd",
+      "source": "evals/orchestration-trace-schema.json"
+    },
+    {
+      "destination": "gauntlet/evals/refactor-skill-trace-fixtures.json",
+      "executable": false,
+      "sha256": "384bdf501bacbd2318aa227b2cff978d5c96ab5d37e15d36b2f8a7bf7615a9b7",
+      "source": "evals/refactor-skill-trace-fixtures.json"
+    },
+    {
+      "destination": "gauntlet/evals/scorer-smoke-fixtures.json",
+      "executable": false,
+      "sha256": "4b480c3c2b28a3422dd73f21de492348fed8c18019ca95403b722ac2b751ca38",
+      "source": "evals/scorer-smoke-fixtures.json"
+    },
+    {
+      "destination": "gauntlet/evals/skill-evals.json",
+      "executable": false,
+      "sha256": "e4acaedfcbf8fb6d394427b7043cd1ced67fc226717f6d10620e3ace3cd4cd05",
+      "source": "evals/skill-evals.json"
+    },
+    {
+      "destination": "gauntlet/evals/thin-context-fixtures.json",
+      "executable": false,
+      "sha256": "de156ffbbc4621ab4378a2ab04f6fb55c90c1fb47e39a54ed4eaf0898775e065",
+      "source": "evals/thin-context-fixtures.json"
+    },
+    {
+      "destination": "gauntlet/evals/thin-context-prds/empty-comprehensive.md",
+      "executable": false,
+      "sha256": "25e3aebc4b4a708c7be5e96fa9dc9f6ca4dd1b585a0563979ea6dc60e40e67f4",
+      "source": "evals/thin-context-prds/empty-comprehensive.md"
+    },
+    {
+      "destination": "gauntlet/evals/thin-context-prds/founding-hypothesis.md",
+      "executable": false,
+      "sha256": "fa902f6a43734346fa54510a626c366b96204473d15dbf3a4da4324e9125634c",
+      "source": "evals/thin-context-prds/founding-hypothesis.md"
+    },
+    {
+      "destination": "gauntlet/evals/thin-context-prds/legacy.md",
+      "executable": false,
+      "sha256": "a135da81337280a5cf5fd79fdb7a0da181be5823acf7378bc3ee4ebc53970413",
+      "source": "evals/thin-context-prds/legacy.md"
+    },
+    {
+      "destination": "gauntlet/evals/thin-context-prds/peter-yang.md",
+      "executable": false,
+      "sha256": "46a950f376849a71bb330976f0137fb6880ae14e9320d1a16ddbaeec39bb6fd1",
+      "source": "evals/thin-context-prds/peter-yang.md"
+    },
+    {
+      "destination": "gauntlet/router/AGENTS.md",
+      "executable": false,
+      "sha256": "8f801104204bfef564457e284378cb2d6f0ecb079164d636ebe947d9b03669a7",
+      "source": "router/AGENTS.md"
+    },
+    {
+      "destination": "gauntlet/router/response-style.md",
+      "executable": false,
+      "sha256": "a9f7ee047b7689b7fb8b31b891a24d497dbd9aeb7f5a4a303bea7d4b612342e5",
+      "source": "router/response-style.md"
+    },
+    {
+      "destination": "gauntlet/scripts/check-superpowers-sync.py",
+      "executable": true,
+      "sha256": "c57ff86b35b17f36ab91ef014bf8c4dd678ae214ee9584b35e9c94f8f1fa59fd",
+      "source": "scripts/check-superpowers-sync.py"
+    },
+    {
+      "destination": "gauntlet/scripts/check-workflow-etiquette.py",
+      "executable": true,
+      "sha256": "c460474b1457038829101583a4643d908230c427eb857210f83b15bce4f22446",
+      "source": "scripts/check-workflow-etiquette.py"
+    },
+    {
+      "destination": "gauntlet/scripts/classify-ts-durability.sh",
+      "executable": true,
+      "sha256": "c14f580bd277a6f467ba03da2d47d906f27951bed703a09560c8a70cff276ade",
+      "source": "scripts/classify-ts-durability.sh"
+    },
+    {
+      "destination": "gauntlet/scripts/context-audit.py",
+      "executable": false,
+      "sha256": "b0d518af1db575aadd7a153b743676e187c1fa43a409009a207e390f12c854c6",
+      "source": "scripts/context-audit.py"
+    },
+    {
+      "destination": "gauntlet/scripts/diff-intel.py",
+      "executable": true,
+      "sha256": "de5c493e17ae59acffb1d1ba56dc226685b7333dc9c680dcae96c0a827a83a1c",
+      "source": "scripts/diff-intel.py"
+    },
+    {
+      "destination": "gauntlet/scripts/eval-harness.py",
+      "executable": true,
+      "sha256": "934f40f268fa842430c1a9e391edfb0cdb2556bc2722543a7322e8ced5eb0a1a",
+      "source": "scripts/eval-harness.py"
+    },
+    {
+      "destination": "gauntlet/scripts/eval-run.py",
+      "executable": true,
+      "sha256": "e9168183645e384110dbe2b1a47041416e71b1ea2f53178f8c38e6f19c5743fc",
+      "source": "scripts/eval-run.py"
+    },
+    {
+      "destination": "gauntlet/scripts/eval-task.py",
+      "executable": true,
+      "sha256": "b639e0c9b0ff2588e7f2b214e657773f0fa3f9f7bd0aa98549db10a2d00d4088",
+      "source": "scripts/eval-task.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntlet.py",
+      "executable": true,
+      "sha256": "e30a5ec32da0e8e2415503ccd5e4905a22c6b552f62673dd3280b14d38056c4f",
+      "source": "scripts/gauntlet.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntlet_diff_helpers.py",
+      "executable": false,
+      "sha256": "0cafaff5de6ac2588c2ca26e28fa77d73bb13381c818e847e0ad83a851a2d813",
+      "source": "scripts/gauntlet_diff_helpers.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/__init__.py",
+      "executable": false,
+      "sha256": "a2c67d7962a5dcc5ce0b859105995727a940b44af0e25655882d2846e9db28a4",
+      "source": "scripts/gauntletlib/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/analytics/__init__.py",
+      "executable": false,
+      "sha256": "8e843f3dc5b2bda29516f8c01d5586d633136f29a87979991ce9b1ea19cfcff6",
+      "source": "scripts/gauntletlib/analytics/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/analytics/attempt_memory.py",
+      "executable": false,
+      "sha256": "45610e6224f30916161d26cfb28c520067b9cff486b45203096ca294f8f5becb",
+      "source": "scripts/gauntletlib/analytics/attempt_memory.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/analytics/commands.py",
+      "executable": false,
+      "sha256": "42eb4aed8ca3d6bbb3920cb668d50bc23233fd84e9f18186b6183c68db069d52",
+      "source": "scripts/gauntletlib/analytics/commands.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/analytics/events.py",
+      "executable": false,
+      "sha256": "6df6c4a370fac0446b9b0add848fc45a89733478aed2aa6ccccf7578f3fbe3c5",
+      "source": "scripts/gauntletlib/analytics/events.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/cli.py",
+      "executable": false,
+      "sha256": "066431a5c6e595cadaeae09edaca8b4ef6e5b149025402a6bd8286d3059b2f86",
+      "source": "scripts/gauntletlib/cli.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/cli_application.py",
+      "executable": false,
+      "sha256": "13d708994af9f0a9faacf49bacedcf15481c146ad0dbe8175241e23d2a4d8546",
+      "source": "scripts/gauntletlib/cli_application.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/cli_config.py",
+      "executable": false,
+      "sha256": "2b66dd623cd4e4ca02f647737aa670f38efb19ba39e7c24bf43e5c948ad6eb97",
+      "source": "scripts/gauntletlib/cli_config.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/cli_registration.py",
+      "executable": false,
+      "sha256": "3058a4f97841f044aa0ee79abbe3b66c9750ba1e90e8121c1a3331200fa06009",
+      "source": "scripts/gauntletlib/cli_registration.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/cli_support.py",
+      "executable": false,
+      "sha256": "a421ecb0874e18ad93955032f3d3b75015bbe9f0a5820abde4b9182c064ce7b6",
+      "source": "scripts/gauntletlib/cli_support.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/closeout/__init__.py",
+      "executable": false,
+      "sha256": "a6d1afee27d8995e8ee3909cc0f8bef12c0bb2cc999184f9111bff9de2b79be8",
+      "source": "scripts/gauntletlib/closeout/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/closeout/workflow.py",
+      "executable": false,
+      "sha256": "2c07de46587574bd04d82deb82631ddde88718eab346d9daafcb36b5080952b5",
+      "source": "scripts/gauntletlib/closeout/workflow.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/contracts/__init__.py",
+      "executable": false,
+      "sha256": "45cd5a08389e6f2eeac683e044c71b5e5abfaa5af1795a7b45ae862dbeb9487c",
+      "source": "scripts/gauntletlib/contracts/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/contracts/handoff.py",
+      "executable": false,
+      "sha256": "1441dede16ec3dc001fe1551d2dc5418d531dff7f9eb8e22d80065e4acfac156",
+      "source": "scripts/gauntletlib/contracts/handoff.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/core/__init__.py",
+      "executable": false,
+      "sha256": "3b4114b8ff618beeba2dbea93949c313e8a304f3d6d5c555bc80d107f0d22908",
+      "source": "scripts/gauntletlib/core/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/core/findings.py",
+      "executable": false,
+      "sha256": "84beb781c1ce6c0cd311baf9c506df15ed70fa045de264a62b35b9385c0303d7",
+      "source": "scripts/gauntletlib/core/findings.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/core/fsio.py",
+      "executable": false,
+      "sha256": "3c7f9c997734eb9671475edce7cd28548c85e6f498b2a0a25631fcdafb6f196c",
+      "source": "scripts/gauntletlib/core/fsio.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/core/hashing.py",
+      "executable": false,
+      "sha256": "0b5a906a6bc8ad3ce6953e41a186496bbcdbca2060328240be42fac34ffb2fcc",
+      "source": "scripts/gauntletlib/core/hashing.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/core/jsonio.py",
+      "executable": false,
+      "sha256": "7dbf62ee230febd237cbdf61923581078c516301bfcdd2529233383131b17eb9",
+      "source": "scripts/gauntletlib/core/jsonio.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/core/proc.py",
+      "executable": false,
+      "sha256": "ff069293d39df74ae6d7124fca28cdcccb7d0ea16a75512a0b786130150fa822",
+      "source": "scripts/gauntletlib/core/proc.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/core/redact.py",
+      "executable": false,
+      "sha256": "e7cc4edcbf1e78c005e5d47a68753cd1bb987020815e428af9c3d51efae8085d",
+      "source": "scripts/gauntletlib/core/redact.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/core/timefmt.py",
+      "executable": false,
+      "sha256": "a185494c9c28569fc5d7ea246e6f59f029bfa0f3d99d38d2cee664ef7f1cd063",
+      "source": "scripts/gauntletlib/core/timefmt.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/diagram.py",
+      "executable": false,
+      "sha256": "e1fb1311356131ba6b413d08e3c0c257d1c91045c30e358d1d595a744f87e183",
+      "source": "scripts/gauntletlib/diagram.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/docs/__init__.py",
+      "executable": false,
+      "sha256": "0ba0b399dae14ecb3ffde1c5360e44d9c2d8fc361f42fa731510a53df73a17c0",
+      "source": "scripts/gauntletlib/docs/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/docs/lifecycle.py",
+      "executable": false,
+      "sha256": "de57c5bb2690f68ef401d3aea2106875ae8c98bd96eed5a40d1666714fafa791",
+      "source": "scripts/gauntletlib/docs/lifecycle.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/install/__init__.py",
+      "executable": false,
+      "sha256": "f0a279d18fbd40a574271bc99c0d1a08c0e150f680770129f645c8750861ae38",
+      "source": "scripts/gauntletlib/install/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/install/manifest.py",
+      "executable": false,
+      "sha256": "ff7961a1b9feca4633ce44a1f92b59b373c1af5c902fdc70837a190af5b4fb37",
+      "source": "scripts/gauntletlib/install/manifest.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/install/verify.py",
+      "executable": false,
+      "sha256": "31fb61905a9d96b78d4baca2a79cca2840fc1f7077ce3a0b7598db3e82a4834d",
+      "source": "scripts/gauntletlib/install/verify.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/launch/__init__.py",
+      "executable": false,
+      "sha256": "f552d955faa07b63ea1c6771621bb07aba059306363a4969e0ac295efb2123f1",
+      "source": "scripts/gauntletlib/launch/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/launch/registry.py",
+      "executable": false,
+      "sha256": "dab6532888b01c2ce2bc4ce13ae626528f12061dec16423486073ca337e4534d",
+      "source": "scripts/gauntletlib/launch/registry.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/launch/workflow.py",
+      "executable": false,
+      "sha256": "2bdaa1fb5e5260a28be0e23a58d6d47b6337faf14309bbb506ce550676f42524",
+      "source": "scripts/gauntletlib/launch/workflow.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/merge/__init__.py",
+      "executable": false,
+      "sha256": "6f747bd431d6ce34f4eea0a7487dfd17e54670de7726b61363766a48f108b7f9",
+      "source": "scripts/gauntletlib/merge/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/merge/workflow.py",
+      "executable": false,
+      "sha256": "c0c9c3e077b57b080d8f8ad757a251204299bd46df34b3be8a1e7c6d024789de",
+      "source": "scripts/gauntletlib/merge/workflow.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/progress/__init__.py",
+      "executable": false,
+      "sha256": "8f02499c57c4b3387d5cdb4615b64631a6f63ded5eecf3f03e03eac361ca4464",
+      "source": "scripts/gauntletlib/progress/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/progress/projection.py",
+      "executable": false,
+      "sha256": "e686768b80f614fc34f8e50357ebbabe79156d177e4b4262ba7618442f6fa823",
+      "source": "scripts/gauntletlib/progress/projection.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/progress/supervisor.py",
+      "executable": false,
+      "sha256": "927c167e31dcd3db95145551cc534190e0e08504c85647e7dae9e81e5a39b5ae",
+      "source": "scripts/gauntletlib/progress/supervisor.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/review_unit/__init__.py",
+      "executable": false,
+      "sha256": "cc016b894d633ea79e0fe9e79180f4ba80edb66ee9b6630c0656b2fabaa14052",
+      "source": "scripts/gauntletlib/review_unit/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/review_unit/workflow.py",
+      "executable": false,
+      "sha256": "1c018ca43490400644c8f8623ea9598e23d141318b20e80bca5d63aa64c08a71",
+      "source": "scripts/gauntletlib/review_unit/workflow.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/run/__init__.py",
+      "executable": false,
+      "sha256": "db17dbdc424acbde71bb0af11dae30d708f9281d7ba5768cbf9dcda771714d5b",
+      "source": "scripts/gauntletlib/run/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/run/controller.py",
+      "executable": false,
+      "sha256": "8686517603de253a2bbe5b2d8987548bf0697b0c3bdc36510451b08ab031de56",
+      "source": "scripts/gauntletlib/run/controller.py"
+    },
+    {
+      "destination": "gauntlet/scripts/generated_context.py",
+      "executable": true,
+      "sha256": "ae64f87d5e8a2041a80078f6465c4b0750d1b0b9b922fb28a1300145ae59ae72",
+      "source": "scripts/generated_context.py"
+    },
+    {
+      "destination": "gauntlet/scripts/install-codex-agents.py",
+      "executable": false,
+      "sha256": "07943c8d6ee8f65b41ae3303ac5459dd1370bd1fccd25bc84dc9fa5cddb41f4f",
+      "source": "scripts/install-codex-agents.py"
+    },
+    {
+      "destination": "gauntlet/scripts/install-git-hooks.sh",
+      "executable": true,
+      "sha256": "32471de6272fee76b7d56abd97e0c8a5430228d470a9b755665849095c85475f",
+      "source": "scripts/install-git-hooks.sh"
+    },
+    {
+      "destination": "gauntlet/scripts/install.sh",
+      "executable": true,
+      "sha256": "c63feaa385d7f2d65602d093b241b9781d14dc51a99eccdbca3f8679854eb8df",
+      "source": "scripts/install.sh"
+    },
+    {
+      "destination": "gauntlet/scripts/lint-skills.py",
+      "executable": true,
+      "sha256": "86e441f550b5703e328a35e24221c38704196c8b5e7eb0965cf55754e833d191",
+      "source": "scripts/lint-skills.py"
+    },
+    {
+      "destination": "gauntlet/scripts/prd-run.py",
+      "executable": true,
+      "sha256": "f8549cc4fc7882edee4f7cfce8c499dfa48f2f995bccd7f9a248c51380d83aaa",
+      "source": "scripts/prd-run.py"
+    },
+    {
+      "destination": "gauntlet/scripts/progress-dashboard.py",
+      "executable": false,
+      "sha256": "1423cd33a975dfd19fc7a4c2a5a65c57f6d9aa7d212ff8b1b06031996f50ab86",
+      "source": "scripts/progress-dashboard.py"
+    },
+    {
+      "destination": "gauntlet/scripts/progress_projection.py",
+      "executable": false,
+      "sha256": "d3c0ac10d90f502598dd3e80960b6b72af4ce45d8887132463195dc9f4ba475d",
+      "source": "scripts/progress_projection.py"
+    },
+    {
+      "destination": "gauntlet/scripts/retire-superpowers.py",
+      "executable": true,
+      "sha256": "46ec708eecfbf3f90e857218693a8a350ac011586a03d2d394dc17d6eebbd52e",
+      "source": "scripts/retire-superpowers.py"
+    },
+    {
+      "destination": "gauntlet/scripts/review-pack.py",
+      "executable": true,
+      "sha256": "085aac47b91d12079c044a8ded4b0d3ba12f1fe8fb7d11e1a8822df7a3e5104d",
+      "source": "scripts/review-pack.py"
+    },
+    {
+      "destination": "gauntlet/scripts/route-codex-agent.py",
+      "executable": false,
+      "sha256": "ab1d4393b824fd3afce109dac10f788c68cc577c9eba4c751e4810a45a69f2af",
+      "source": "scripts/route-codex-agent.py"
+    },
+    {
+      "destination": "gauntlet/scripts/run-orchestration-evals.py",
+      "executable": true,
+      "sha256": "ab8b42db92d3050419704e6e640b15fe24978f791eb8a5aae720f789e1d9e9ed",
+      "source": "scripts/run-orchestration-evals.py"
+    },
+    {
+      "destination": "gauntlet/scripts/run-skill-change-checks.sh",
+      "executable": true,
+      "sha256": "b087d3047dbf031dae29430387f3ab6ebeafd1abeb9bd9dec4c042bf81550283",
+      "source": "scripts/run-skill-change-checks.sh"
+    },
+    {
+      "destination": "gauntlet/scripts/run-skill-evals.py",
+      "executable": true,
+      "sha256": "e6053cf33f22739157814999431059cc034ed288e2e9bb11011cbd67a36567b2",
+      "source": "scripts/run-skill-evals.py"
+    },
+    {
+      "destination": "gauntlet/scripts/subagent-audit.py",
+      "executable": false,
+      "sha256": "6d5d81367b96a1d8eb0537b69207f64b3de3ec10e5b27955d4f2d36aeb030db8",
+      "source": "scripts/subagent-audit.py"
+    },
+    {
+      "destination": "gauntlet/scripts/test-plan.py",
+      "executable": true,
+      "sha256": "c8297d540a21dab6cbc99aa94b0c5cb8bb4d6a9e5efc167897ea33bc650a7a99",
+      "source": "scripts/test-plan.py"
+    },
+    {
+      "destination": "gauntlet/scripts/thread_titles.py",
+      "executable": false,
+      "sha256": "7d13660b0549556ccfb2c804cb3a03d205e498909ee31fc171ca22a56c11993a",
+      "source": "scripts/thread_titles.py"
+    },
+    {
+      "destination": "skills/adversarial-reviewer/SKILL.md",
+      "executable": false,
+      "sha256": "dd1746491d9edcdd191356e6889b6231e969ff8b7f60532b0181d9d4d2e677bd",
+      "source": "skills/adversarial-reviewer/SKILL.md"
+    },
+    {
+      "destination": "skills/adversarial-reviewer/examples/adversarial-report.md",
+      "executable": false,
+      "sha256": "0659098b3eea8a32932dd1c32e695ea76f90b05abdbe0fc2755279aaa9155bf6",
+      "source": "skills/adversarial-reviewer/examples/adversarial-report.md"
+    },
+    {
+      "destination": "skills/archive/SKILL.md",
+      "executable": false,
+      "sha256": "ee0b38e97fa9a24079432cb9a84dcc1ca0eae766d25ffcbbcd7a20e04f5f72c8",
+      "source": "skills/archive/SKILL.md"
+    },
+    {
+      "destination": "skills/archive/agents/openai.yaml",
+      "executable": false,
+      "sha256": "4c1816656a788232ef498da379a7d71f619b03ea61702d9d6c5d11e1972a86cd",
+      "source": "skills/archive/agents/openai.yaml"
+    },
+    {
+      "destination": "skills/archive/examples/standard-closeout.md",
+      "executable": false,
+      "sha256": "c47935a38dd316affdc2bd7bb95eb08851277afb49bd31fd46d224498d6513f1",
+      "source": "skills/archive/examples/standard-closeout.md"
+    },
+    {
+      "destination": "skills/black-box-tester/SKILL.md",
+      "executable": false,
+      "sha256": "bc8bd4b5d4022bba3e669d9845bd897f8be2718effe302365029e6f767f023b5",
+      "source": "skills/black-box-tester/SKILL.md"
+    },
+    {
+      "destination": "skills/black-box-tester/examples/black-box-report.md",
+      "executable": false,
+      "sha256": "41ebe7d4ab2a12222aaa0ffe6ef321df0f5ba6ad238147ebdaa1910467d64aa3",
+      "source": "skills/black-box-tester/examples/black-box-report.md"
+    },
+    {
+      "destination": "skills/craft-customer-email/SKILL.md",
+      "executable": false,
+      "sha256": "6ce94c13ca7e4aa3cdeff7af47b3348ef627f113edc494920b8d72ac359a3cf0",
+      "source": "skills/craft-customer-email/SKILL.md"
+    },
+    {
+      "destination": "skills/craft-customer-email/agents/openai.yaml",
+      "executable": false,
+      "sha256": "16eebe553c5f45f24df03d3ade68450d800ba6e8bea5cd87633540cd6aa24724",
+      "source": "skills/craft-customer-email/agents/openai.yaml"
+    },
+    {
+      "destination": "skills/craft-customer-email/references/patterns-and-examples.md",
+      "executable": false,
+      "sha256": "b7a92dc87331197c9f42bde5aed099ce8db29505d6d44b3c4bc8f969a4eb6cff",
+      "source": "skills/craft-customer-email/references/patterns-and-examples.md"
+    },
+    {
+      "destination": "skills/craft-product-terminology/SKILL.md",
+      "executable": false,
+      "sha256": "8c275fb32a09519fe47bbf5bb33f943a80a9bfcfc608c75e189af61485fa272f",
+      "source": "skills/craft-product-terminology/SKILL.md"
+    },
+    {
+      "destination": "skills/craft-product-terminology/agents/openai.yaml",
+      "executable": false,
+      "sha256": "d35000309f7626a05a433567fe676fb413ac58f941f65b2d28aa7678380e1b96",
+      "source": "skills/craft-product-terminology/agents/openai.yaml"
+    },
+    {
+      "destination": "skills/debugger/SKILL.md",
+      "executable": false,
+      "sha256": "2ffb65542c840297687b06f2d6b0cbfb77c839ee58bef1bca1395820c55d9f21",
+      "source": "skills/debugger/SKILL.md"
+    },
+    {
+      "destination": "skills/debugger/examples/debug-report.md",
+      "executable": false,
+      "sha256": "1ac6514cf4e36b6122050d9eff6db43cfef2847336e7a8f795ea80bc9585a72f",
+      "source": "skills/debugger/examples/debug-report.md"
+    },
+    {
+      "destination": "skills/deep-code-reviewer/SKILL.md",
+      "executable": false,
+      "sha256": "53a308eceea419ed6cf303da12478d477d5aa72930d051ad4414c7a22a0a5afc",
+      "source": "skills/deep-code-reviewer/SKILL.md"
+    },
+    {
+      "destination": "skills/deep-code-reviewer/examples/deep-code-review-report.md",
+      "executable": false,
+      "sha256": "9e66710ce17538035028378c8adb4e75173c48352d9b435491da3750aa76fc9c",
+      "source": "skills/deep-code-reviewer/examples/deep-code-review-report.md"
+    },
+    {
+      "destination": "skills/eval-audit/SKILL.md",
+      "executable": false,
+      "sha256": "2d1890ccb725b3dde7816944d1fd47793bd689bb8c753b749f6a88dbfbb2c27d",
+      "source": "skills/eval-audit/SKILL.md"
+    },
+    {
+      "destination": "skills/eval-error-analysis/SKILL.md",
+      "executable": false,
+      "sha256": "1f864e24686f6d25e43a91c31a14cfea9c84db5e2546c050ea17c07c009e78eb",
+      "source": "skills/eval-error-analysis/SKILL.md"
+    },
+    {
+      "destination": "skills/eval-judge-prompt/SKILL.md",
+      "executable": false,
+      "sha256": "c55ed2ba5b10ef54097d86513f61d176711196c8a76002ffd3e605ea9998f763",
+      "source": "skills/eval-judge-prompt/SKILL.md"
+    },
+    {
+      "destination": "skills/eval-rag/SKILL.md",
+      "executable": false,
+      "sha256": "77c5c113f4684472a9bd30d5a9037b56ff0dfc5c16cd39a2bafa6cf6a91bab91",
+      "source": "skills/eval-rag/SKILL.md"
+    },
+    {
+      "destination": "skills/eval-review-interface/SKILL.md",
+      "executable": false,
+      "sha256": "4931c96e68972ca93309d3efdad6876ccc5e83c5e7b49872a62aac6dc4b63d49",
+      "source": "skills/eval-review-interface/SKILL.md"
+    },
+    {
+      "destination": "skills/eval-synthetic-data/SKILL.md",
+      "executable": false,
+      "sha256": "097bf7bc7f7b0ed483dcaa780e9627a04d2fd1adc7b354105b5ed5f4a37fc97b",
+      "source": "skills/eval-synthetic-data/SKILL.md"
+    },
+    {
+      "destination": "skills/eval-validate-evaluator/SKILL.md",
+      "executable": false,
+      "sha256": "fd62265c72a8973eeda29e43d5ab7861ffa39cefbe3b0c94a4ba7c8b4b23a96c",
+      "source": "skills/eval-validate-evaluator/SKILL.md"
+    },
+    {
+      "destination": "skills/experience-reviewer/SKILL.md",
+      "executable": false,
+      "sha256": "e05972d362a59bcd4978f76b0a995b5611ab6613a145619da3fc8f39fcdde529",
+      "source": "skills/experience-reviewer/SKILL.md"
+    },
+    {
+      "destination": "skills/experience-reviewer/examples/experience-report.md",
+      "executable": false,
+      "sha256": "6e28f490121c17387db70a0c546a23b5a2d450f1b3463d293b32b23bc6bf5d4c",
+      "source": "skills/experience-reviewer/examples/experience-report.md"
+    },
+    {
+      "destination": "skills/implement-prd/SKILL.md",
+      "executable": false,
+      "sha256": "7ffe3200448b701fda91432d4e23b5dec69aba0fa37d6c7dff0f0871de5303f3",
+      "source": "skills/implement-prd/SKILL.md"
+    },
+    {
+      "destination": "skills/implement-prd/agents/openai.yaml",
+      "executable": false,
+      "sha256": "44f1bf89c34867f594c5a253f150f80c41c8897289b0feef6302715ca17db528",
+      "source": "skills/implement-prd/agents/openai.yaml"
+    },
+    {
+      "destination": "skills/implement-prd/references/execution-contract.md",
+      "executable": false,
+      "sha256": "dbe3e8fb7a6e4f578a2c1787959df2b96941e2af502810d684d8ecac36d83d74",
+      "source": "skills/implement-prd/references/execution-contract.md"
+    },
+    {
+      "destination": "skills/implementer/SKILL.md",
+      "executable": false,
+      "sha256": "f2053293ed136ee2ffc8cd20f7e10cc31efdba087a083acd19421708076e2c27",
+      "source": "skills/implementer/SKILL.md"
+    },
+    {
+      "destination": "skills/implementer/examples/implementation-report.md",
+      "executable": false,
+      "sha256": "e9b1a877ed094c64c41d13f3cbd3ec0704e70b99e879b8d0ef4090362e0f482d",
+      "source": "skills/implementer/examples/implementation-report.md"
+    },
+    {
+      "destination": "skills/intake/SKILL.md",
+      "executable": false,
+      "sha256": "a9d7319e0a79ff7db1b2306e4b726ed68979b3701c9a2bf75bbefd90a652a5c2",
+      "source": "skills/intake/SKILL.md"
+    },
+    {
+      "destination": "skills/intake/examples/intake-packet.md",
+      "executable": false,
+      "sha256": "0e0fcc5567cd27840c1b90ad41bcf8f0efb7dd632473966fd0efe2a0320fbf9b",
+      "source": "skills/intake/examples/intake-packet.md"
+    },
+    {
+      "destination": "skills/issue-triager/SKILL.md",
+      "executable": false,
+      "sha256": "122aa7f05369f1a843f114fe957b73964697f05f77bbf3b61dfc20c47c7098b3",
+      "source": "skills/issue-triager/SKILL.md"
+    },
+    {
+      "destination": "skills/issue-triager/examples/ready-item.md",
+      "executable": false,
+      "sha256": "a4018bec1b26dc3b67fa97108073f06ec0333579c57c097a92ea538180af37cd",
+      "source": "skills/issue-triager/examples/ready-item.md"
+    },
+    {
+      "destination": "skills/maintain-prd/SKILL.md",
+      "executable": false,
+      "sha256": "0e21d0428ca5589ffc0e24178442c18fb2eff684e3c11b6d742e39da935a8cab",
+      "source": "skills/maintain-prd/SKILL.md"
+    },
+    {
+      "destination": "skills/maintain-prd/agents/openai.yaml",
+      "executable": false,
+      "sha256": "521c75aea636397d03d111be74d13f7c86718e26919b2a1c78ac677112771766",
+      "source": "skills/maintain-prd/agents/openai.yaml"
+    },
+    {
+      "destination": "skills/maintain-prd/references/prd-contract.md",
+      "executable": false,
+      "sha256": "54c20ec3d55ec269093d3b7ccc0ff042adb535279172195102c84fc3de4a5456",
+      "source": "skills/maintain-prd/references/prd-contract.md"
+    },
+    {
+      "destination": "skills/planner/SKILL.md",
+      "executable": false,
+      "sha256": "138a43af52d8e56f1f87e67e54d0a17b6774a5d2666ece31040188f7441f9fd0",
+      "source": "skills/planner/SKILL.md"
+    },
+    {
+      "destination": "skills/planner/examples/ticket.md",
+      "executable": false,
+      "sha256": "66cb28b20c6e9c46cf966a582e622d4e1b40a1ceebe849c627ed6a050d477182",
+      "source": "skills/planner/examples/ticket.md"
+    },
+    {
+      "destination": "skills/product-architect/SKILL.md",
+      "executable": false,
+      "sha256": "e3334e9c6d286aee289d7264af30ae72ba41b49703115c17d018d3b8586a44ad",
+      "source": "skills/product-architect/SKILL.md"
+    },
+    {
+      "destination": "skills/product-architect/examples/product-packet.md",
+      "executable": false,
+      "sha256": "e525bccf0e10da4e480b387dacd575e7a7a305ffbf0e14e3603be36ba8461d0a",
+      "source": "skills/product-architect/examples/product-packet.md"
+    },
+    {
+      "destination": "skills/promotion-scanner/SKILL.md",
+      "executable": false,
+      "sha256": "a03307d525c92c13dd71ca9a8becd900f8c7fec52159c843a6e22387689aa4da",
+      "source": "skills/promotion-scanner/SKILL.md"
+    },
+    {
+      "destination": "skills/promotion-scanner/examples/promotion-brief.md",
+      "executable": false,
+      "sha256": "636571a6cf4c9d6223ed83930190655706abd86ec4a502d21a4e268b0fffb602",
+      "source": "skills/promotion-scanner/examples/promotion-brief.md"
+    },
+    {
+      "destination": "skills/refactor-codebase/SKILL.md",
+      "executable": false,
+      "sha256": "d72a69c6bd769d42fcd6c2c7914c5a2fe1014c0d6c3484c0254583539fe59f7a",
+      "source": "skills/refactor-codebase/SKILL.md"
+    },
+    {
+      "destination": "skills/refactor-codebase/agents/openai.yaml",
+      "executable": false,
+      "sha256": "6370795a35502802c4de70f2df8d44fa854d1e02a94e4126a4f14b969c4ad28c",
+      "source": "skills/refactor-codebase/agents/openai.yaml"
+    },
+    {
+      "destination": "skills/refactor-codebase/assets/breakthrough-agent-packet.md",
+      "executable": false,
+      "sha256": "3613242b3f1a9c23995d1243c4dbfd44f2527a56e5c7566a6a171a29bfb8bf57",
+      "source": "skills/refactor-codebase/assets/breakthrough-agent-packet.md"
+    },
+    {
+      "destination": "skills/refactor-codebase/assets/observable-review-agent-packet.md",
+      "executable": false,
+      "sha256": "3c6289154bced4f80fa8f01def852ac8db7081ee334ec80b7e8e92914a284ac0",
+      "source": "skills/refactor-codebase/assets/observable-review-agent-packet.md"
+    },
+    {
+      "destination": "skills/refactor-codebase/references/architecture-proof.md",
+      "executable": false,
+      "sha256": "eca9b564e2fd905fe7fa73d31c1a668712187bc308caa4d1c21e0a310424488a",
+      "source": "skills/refactor-codebase/references/architecture-proof.md"
+    },
+    {
+      "destination": "skills/refactor-codebase/references/breakthrough-search.md",
+      "executable": false,
+      "sha256": "cbc730d9f2993fe5686c29ab7f41937460a6ad21649b0b60c556ccb20d6359ff",
+      "source": "skills/refactor-codebase/references/breakthrough-search.md"
+    },
+    {
+      "destination": "skills/refactor-codebase/references/capability-and-parity.md",
+      "executable": false,
+      "sha256": "662bbad402df98aedca9c16cd287ae25e75480af68a14ed32791ff5f763c0434",
+      "source": "skills/refactor-codebase/references/capability-and-parity.md"
+    },
+    {
+      "destination": "skills/refactor-codebase/references/migration-execution.md",
+      "executable": false,
+      "sha256": "06a5a6212285ac23a1e0d3ea67b63becbd4d312f9b0a6fba9ea1684c0fe0d612",
+      "source": "skills/refactor-codebase/references/migration-execution.md"
+    },
+    {
+      "destination": "skills/refactor-codebase/references/source-and-baseline.md",
+      "executable": false,
+      "sha256": "2c8d8d2ec9452e82bfce5f489771ba5cc9596ff15ff37c33430e93728762d92c",
+      "source": "skills/refactor-codebase/references/source-and-baseline.md"
+    },
+    {
+      "destination": "skills/refactor-codebase/references/strategy-dual-run.md",
+      "executable": false,
+      "sha256": "2827a8b15add1a7aeca5a3f5236207c80b1d1e70eebd36274dccd788edbf2c7c",
+      "source": "skills/refactor-codebase/references/strategy-dual-run.md"
+    },
+    {
+      "destination": "skills/refactor-codebase/references/strategy-incremental.md",
+      "executable": false,
+      "sha256": "4c3a060aeb4c3a595f0da281cb896af238aad1dd5bc658d9df3ce5f410f8ae56",
+      "source": "skills/refactor-codebase/references/strategy-incremental.md"
+    },
+    {
+      "destination": "skills/refactor-codebase/references/strategy-mechanical.md",
+      "executable": false,
+      "sha256": "3b21ba77713d5e96baa8167b22d001db44824134a8d0745072d516686bcce0cc",
+      "source": "skills/refactor-codebase/references/strategy-mechanical.md"
+    },
+    {
+      "destination": "skills/refactor-codebase/references/verification-and-completion.md",
+      "executable": false,
+      "sha256": "d5b43506fc77ac748981a07bfade61c0a9505d5c4fafd3fcb2795b73c5748f55",
+      "source": "skills/refactor-codebase/references/verification-and-completion.md"
+    },
+    {
+      "destination": "skills/refactor-codebase/scripts/measure_loc.py",
+      "executable": true,
+      "sha256": "fd7a51c671c210c673e7348e96000bdb4159516ee4939c89b19e7a294aeb69aa",
+      "source": "skills/refactor-codebase/scripts/measure_loc.py"
+    },
+    {
+      "destination": "skills/refactor-codebase/scripts/render_agent_prompt.py",
+      "executable": true,
+      "sha256": "4334ced5ba2b7fa56b9fa4aa43790b421c7c9795118d61c8be3a705545ddcee7",
+      "source": "skills/refactor-codebase/scripts/render_agent_prompt.py"
+    },
+    {
+      "destination": "skills/refactor-codebase/scripts/source_integrity.py",
+      "executable": true,
+      "sha256": "862342ffd37ed2668541c69d2f45d2880316c8eb269d3e727039780ea095acff",
+      "source": "skills/refactor-codebase/scripts/source_integrity.py"
+    },
+    {
+      "destination": "skills/refactor-codebase/scripts/test_refactor_helpers.py",
+      "executable": true,
+      "sha256": "898d9c5e800a50aa9685c43aee01fa958d40e363950756e6d7247f91b054dbab",
+      "source": "skills/refactor-codebase/scripts/test_refactor_helpers.py"
+    },
+    {
+      "destination": "skills/refactor-codebase/scripts/test_render_agent_prompt.py",
+      "executable": true,
+      "sha256": "304c50ca7ba75f91db49d1c13f91a52fc0b66dd264216a5408d6b5963cdfcf4d",
+      "source": "skills/refactor-codebase/scripts/test_render_agent_prompt.py"
+    },
+    {
+      "destination": "skills/refactor-codebase/scripts/validate_parity_ledger.py",
+      "executable": true,
+      "sha256": "a98b23e977feb75b2f07c7a28577912e7c86e6d3bf28e00e5db723983c0f0f96",
+      "source": "skills/refactor-codebase/scripts/validate_parity_ledger.py"
+    },
+    {
+      "destination": "skills/refactor-performance/SKILL.md",
+      "executable": false,
+      "sha256": "7cf24aee95915e33f360c528639b70f1ebb77e3822eb3b05befc1f80f4fa4495",
+      "source": "skills/refactor-performance/SKILL.md"
+    },
+    {
+      "destination": "skills/refactor-performance/agents/openai.yaml",
+      "executable": false,
+      "sha256": "a6cbdf3b71727ec0441df73cdc0a3adfff8f6697fb4d258ef447aa505ff0cf87",
+      "source": "skills/refactor-performance/agents/openai.yaml"
+    },
+    {
+      "destination": "skills/refactor-performance/references/baseline-protocol.md",
+      "executable": false,
+      "sha256": "5801bf5608a958a74f04aad1724dac29129d6bd3f5552cb78d1a02a9a81cd331",
+      "source": "skills/refactor-performance/references/baseline-protocol.md"
+    },
+    {
+      "destination": "skills/refactor-performance/references/benchmark-receipt.md",
+      "executable": false,
+      "sha256": "82d23fa3bec875a57e946b69d69a181e55634b58d6c3da0c9766d41d80beefec",
+      "source": "skills/refactor-performance/references/benchmark-receipt.md"
+    },
+    {
+      "destination": "skills/refactor-performance/references/optimization-loop.md",
+      "executable": false,
+      "sha256": "8102dcc863885cfdb27ad5c527c2dba0a69f0c30b76a1b1348a59c17fac5a779",
+      "source": "skills/refactor-performance/references/optimization-loop.md"
+    },
+    {
+      "destination": "skills/refactor-performance/scripts/compare_benchmarks.py",
+      "executable": true,
+      "sha256": "63e65868462699b9a91e40f5bb4bb3af1f27462058d298a1a0e27a002c3f68cc",
+      "source": "skills/refactor-performance/scripts/compare_benchmarks.py"
+    },
+    {
+      "destination": "skills/refactor-performance/scripts/test_compare_benchmarks.py",
+      "executable": true,
+      "sha256": "7384fe200dd1be160d8691b3ebea7d44f2852746d4a7c8e54d291af054ee5402",
+      "source": "skills/refactor-performance/scripts/test_compare_benchmarks.py"
+    },
+    {
+      "destination": "skills/researcher/SKILL.md",
+      "executable": false,
+      "sha256": "1ad7036eeee47982d04e89cb593533951b634fdb277eba2c7ad1b5752622cd70",
+      "source": "skills/researcher/SKILL.md"
+    },
+    {
+      "destination": "skills/researcher/examples/research-contract.md",
+      "executable": false,
+      "sha256": "438d6062255a02e8b39e826c9a569c165b026294b115c37c989b874410344d81",
+      "source": "skills/researcher/examples/research-contract.md"
+    },
+    {
+      "destination": "skills/run-log-builder/SKILL.md",
+      "executable": false,
+      "sha256": "0608ae6b1dcad8f531570412a47e4b2c66c904c2e5d9781e0b97859ffdf27ec5",
+      "source": "skills/run-log-builder/SKILL.md"
+    },
+    {
+      "destination": "skills/run-log-builder/examples/run-log.md",
+      "executable": false,
+      "sha256": "a6dccffd40d909f3c3cbf5197e1412abd6792a9e24eb80b5bc203f06fc9e13d8",
+      "source": "skills/run-log-builder/examples/run-log.md"
+    },
+    {
+      "destination": "skills/to-prd/SKILL.md",
+      "executable": false,
+      "sha256": "44aef32681db91ee58ce2895ac2a4e2bdd0b26b40724c0b001189c2e5b984cb8",
+      "source": "skills/to-prd/SKILL.md"
+    },
+    {
+      "destination": "gauntlet/templates/epic-execution-copy.json",
+      "executable": false,
+      "sha256": "36ff4776fbc182dd2fee3d67b58f8b6ff5e5a60a5e673ce12f70490272e98075",
+      "source": "templates/epic-execution-copy.json"
+    },
+    {
+      "destination": "gauntlet/templates/evaluation/core-registry.json",
+      "executable": false,
+      "sha256": "161bba8e2f8f926ebeb13438f96625d23ade2c277c1967befcdfbcd9e18d9f01",
+      "source": "templates/evaluation/core-registry.json"
+    },
+    {
+      "destination": "gauntlet/templates/evaluation/core-slots.json",
+      "executable": false,
+      "sha256": "161bba8e2f8f926ebeb13438f96625d23ade2c277c1967befcdfbcd9e18d9f01",
+      "source": "templates/evaluation/core-slots.json"
+    },
+    {
+      "destination": "gauntlet/templates/evaluation/harnesses/adapter-registry.json.tmpl",
+      "executable": false,
+      "sha256": "075fc9209618199cf5cc476e95ea0574695f2e5ca27c160477cdf6f0641e2288",
+      "source": "templates/evaluation/harnesses/adapter-registry.json.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/evaluation/harnesses/claude-code.json.tmpl",
+      "executable": false,
+      "sha256": "b4cf3893e56d40c8a247083b9abb11f5aab18fa628e9937ce1f56395b5576c1b",
+      "source": "templates/evaluation/harnesses/claude-code.json.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/evaluation/harnesses/codex-cli.json.tmpl",
+      "executable": false,
+      "sha256": "9e0a0c35b9d1c86138df0bcd058acb1ea4d49452b5342adbdf2abd62fec613f8",
+      "source": "templates/evaluation/harnesses/codex-cli.json.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/evaluation/harnesses/trusted-tasks.json",
+      "executable": false,
+      "sha256": "a616c5722aefc642861e23341e4cfa682acf0395cb18e212c1a816e82a99bc16",
+      "source": "templates/evaluation/harnesses/trusted-tasks.json"
+    },
+    {
+      "destination": "gauntlet/templates/evaluation/task.json.tmpl",
+      "executable": false,
+      "sha256": "e59291f7f580e6cda31461e96980f0de664bab343c7a028cd639f2239f5ec70f",
+      "source": "templates/evaluation/task.json.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/evaluation/verifier/verifier.json.tmpl",
+      "executable": false,
+      "sha256": "b88098f833fe4e08a4a8dbb6c665f191aa681b5716aed6534f9ce13ef2a7d88a",
+      "source": "templates/evaluation/verifier/verifier.json.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/generated-context/implementation-v1.md",
+      "executable": false,
+      "sha256": "fefacf2770f9a217e42ba5a569fbea9349c9b433f1ae0082e6f3474ff7925b2a",
+      "source": "templates/generated-context/implementation-v1.md"
+    },
+    {
+      "destination": "gauntlet/templates/generated-context/research-v1.md",
+      "executable": false,
+      "sha256": "d085cbb8446c44061a737ac2c29acddd0c574e3096a14728a8df88a8afd7974a",
+      "source": "templates/generated-context/research-v1.md"
+    },
+    {
+      "destination": "gauntlet/templates/generated-context/review-v1.md",
+      "executable": false,
+      "sha256": "72e63bea91de7ab9050a750eff489989bb7a7b46aaaabed8683ebd7aa289af5a",
+      "source": "templates/generated-context/review-v1.md"
+    },
+    {
+      "destination": "gauntlet/templates/local-docs/DECISION.md.tmpl",
+      "executable": false,
+      "sha256": "4f6883c2aacd55154629c1ddcea4ca96bbc656fe78ad1a1f0367cd2710f1a9dd",
+      "source": "templates/local-docs/DECISION.md.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/local-docs/EPIC_PRD.md.tmpl",
+      "executable": false,
+      "sha256": "5d815873fcc44da5cc606034ecd8315241b2f7a049e20276d2213d7598b0bbe2",
+      "source": "templates/local-docs/EPIC_PRD.md.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/local-docs/EPIC_SECTION.md.tmpl",
+      "executable": false,
+      "sha256": "ef8a86c1cddcb164d41be5788a86423e9a86770fc404082b492388f32a7d2384",
+      "source": "templates/local-docs/EPIC_SECTION.md.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/local-docs/FOUNDING_HYPOTHESIS.md.tmpl",
+      "executable": false,
+      "sha256": "206a0a11b15a509dc517c3be8138580337a23d8586c5c97e329efedf0b039759",
+      "source": "templates/local-docs/FOUNDING_HYPOTHESIS.md.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/local-docs/INDEX.md.tmpl",
+      "executable": false,
+      "sha256": "d39a580ac2ff58cdf8c43943fb58ccf06a1cb72ac727f39f68797a17c5fb8dac",
+      "source": "templates/local-docs/INDEX.md.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/local-docs/PETER_YANG_PRD.md.tmpl",
+      "executable": false,
+      "sha256": "847db4ffc6918040857766a069f7dca3509d08b4dcaf445b7522639d92aa98df",
+      "source": "templates/local-docs/PETER_YANG_PRD.md.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/local-docs/RESEARCH.md.tmpl",
+      "executable": false,
+      "sha256": "573e30e6febbd653a2cb8f1220dc13d91c7b07806c76874de742afc7cd62d752",
+      "source": "templates/local-docs/RESEARCH.md.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/local-docs/RUN_LOG.md.tmpl",
+      "executable": false,
+      "sha256": "4bac2fbbb10bb0a87687595549e756841b1c244f2b636c07213013ef716f09f0",
+      "source": "templates/local-docs/RUN_LOG.md.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/local-docs/doc_org.md.tmpl",
+      "executable": false,
+      "sha256": "5fef51829d95cff312e2d0009788017fd3df4bf3f8fbe2511794976d4d9828f8",
+      "source": "templates/local-docs/doc_org.md.tmpl"
+    },
+    {
+      "destination": "gauntlet/templates/model-api-pricing.json",
+      "executable": false,
+      "sha256": "94fb464376d05229bc0c6f580079fb9fb244fc9508e2607507897646d58a33be",
+      "source": "templates/model-api-pricing.json"
+    },
+    {
+      "destination": "gauntlet/templates/progress-dashboard/assets/app.css",
+      "executable": false,
+      "sha256": "a2b832058ea141538352cec49d270c7afd505fd617dbd9be4d1369df4cbffdac",
+      "source": "templates/progress-dashboard/assets/app.css"
+    },
+    {
+      "destination": "gauntlet/templates/progress-dashboard/assets/app.js",
+      "executable": false,
+      "sha256": "0639c2f9d1d31e629128b62515d833a141c44a68e35a28b346b60ff207801aaf",
+      "source": "templates/progress-dashboard/assets/app.js"
+    },
+    {
+      "destination": "gauntlet/templates/progress-dashboard/index.html",
+      "executable": false,
+      "sha256": "c5d5660d8633fb79fc83c283b3723833c3e70a0ca069d766535b787ea01c0360",
+      "source": "templates/progress-dashboard/index.html"
+    }
+  ],
+  "generatedDestinations": [
+    "gauntlet/AGENTS.md",
+    "gauntlet/MANIFEST",
+    "gauntlet/.install-manifest.json"
+  ],
+  "legacyManaged": [
+    {
+      "destination": "gauntlet/review-brief-data.json",
+      "sha256": "70edae77f59c3125feb3b6d934deb72b2da0322b8c0cc1195ddcc51fc8d6cf76",
+      "type": "retired-file"
+    },
+    {
+      "destination": "gauntlet/review-brief-data.schema.json",
+      "sha256": "daa313f86f578676531b016110055e1db4b8f414321df20907299791d88a31dc",
+      "type": "retired-file"
+    },
+    {
+      "destination": "gauntlet/review-brief.html",
+      "sha256": "0a12db60b96ba50aad544882021d05db431766303f97a5827f090787227a42bd",
+      "type": "retired-file"
+    },
+    {
+      "destination": "gauntlet/scripts/check-gauntlet-workflow.py",
+      "sha256": "900f8829c8173b945dc3f95c693a5bc0639c5014ed9c6b993ff3e2391021b7f6",
+      "type": "file"
+    },
+    {
+      "destination": "gauntlet/scripts/check-review-brief.py",
+      "sha256": "b07357aea64ba7f32153a71050dc87ccdbc9dce99d923c52c71faf9e83961428",
+      "type": "retired-file"
+    },
+    {
+      "destination": "gauntlet/scripts/embed-review-brief-data.py",
+      "sha256": "22697fd5999c15b4d656e66807ca4b4a47152827f832677d9389226d98574cb0",
+      "type": "retired-file"
+    },
+    {
+      "destination": "gauntlet/scripts/init-review-brief.sh",
+      "sha256": "65625abec816bc793f11b614c829c12e2de89c2492c201ef4afdabe5efbe2e9b",
+      "type": "retired-file"
+    },
+    {
+      "destination": "gauntlet/scripts/require-review-brief-started.sh",
+      "sha256": "764512573c6bc1e5d821dd3d84ad77216b957bed1cde454282476f90d3576626",
+      "type": "retired-file"
+    },
+    {
+      "destination": "gauntlet/scripts/serve-notes.sh",
+      "sha256": "1b9e6e9c6263cdb87763419253a74c01727f81ad798ebc94d4f634585b3f6e46",
+      "type": "retired-file"
+    },
+    {
+      "destination": "gauntlet/scripts/serve-review-brief.sh",
+      "sha256": "6e22bedee20c5c4b69601bb5eda61c269b4e0fc2bd26fa57ae6eebd976d3b2cc",
+      "type": "retired-file"
+    },
+    {
+      "destination": "gauntlet/scripts/start-review-brief.sh",
+      "sha256": "1e46cdbecf63991f91d920ca8c3c11c824a50eb7268eeac38afa53e001a9d478",
+      "type": "retired-file"
+    },
+    {
+      "destination": "gauntlet/scripts/test-context-audit.py",
+      "sha256": "af618b081cb4a22ad7228c324ccf9e9e4006c9e055d7fc90a81647cc496b1d76",
+      "type": "file"
+    },
+    {
+      "destination": "gauntlet/scripts/test-doc-lifecycle.py",
+      "sha256": "5c44b27a912ebc586b95efa54b8a38661958397cff4a0b18bcdf5512c6da0f1f",
+      "type": "file"
+    },
+    {
+      "destination": "gauntlet/scripts/test-eval-harness.py",
+      "sha256": "f7d9cd6bd3924465090402efe5cfa05553eb8b02f3d2913a12f62ecdb09f8177",
+      "type": "file"
+    },
+    {
+      "destination": "gauntlet/scripts/test-eval-run.py",
+      "sha256": "b3e2a59d85c09b0a50de3f742b5b849b410c4b88e0d67e60a84aba8c0a2161c7",
+      "type": "file"
+    },
+    {
+      "destination": "gauntlet/scripts/test-eval-task.py",
+      "sha256": "34a7e3e45e94a90aa89c0af671479a7b23fa2685c1f40080ee08b9ea3890d592",
+      "type": "file"
+    },
+    {
+      "destination": "gauntlet/scripts/test-flexible-prd.py",
+      "sha256": "ab380c57c898dea4dab3adce488870c2ebab3eecd615cab915288ecdc09ffe42",
+      "type": "file"
+    },
+    {
+      "destination": "gauntlet/scripts/test-generated-context.py",
+      "sha256": "deb4010d7d83f42a5709755c85f8c7e8027ab5dde06a920f3a99ba68f575fc77",
+      "type": "file"
+    },
+    {
+      "destination": "gauntlet/scripts/test-prd-project.py",
+      "sha256": "64b187b93c2ac3332115a4ac981459dd25cef6e0ffdb7ec911b21d2758076c2b",
+      "type": "file"
+    },
+    {
+      "destination": "gauntlet/scripts/test-prd-run.py",
+      "sha256": "72bfecb48d0f925444b8df32a94257a93acc5b4e01765b675a2fb5ab693a149a",
+      "type": "file"
+    },
+    {
+      "destination": "gauntlet/scripts/test-progress-dashboard.py",
+      "sha256": "849d097479fabdc485474143858935e66db870456b3c1fdfd8d588e5e22eb776",
+      "type": "file"
+    },
+    {
+      "destination": "gauntlet/scripts/test-progress-projection.py",
+      "sha256": "801484bd9da4b2b0c2e8b881fea80c27485947d3dcaf6b335612f949ceb28b05",
+      "type": "file"
+    },
+    {
+      "destination": "gauntlet/scripts/test-subagent-orchestration.py",
+      "sha256": "aa67edf8c2c4566e830f3760a394950e4f04c71af25db0247a87eb24229bbfbb",
+      "type": "file"
+    },
+    {
+      "destination": "gauntlet/scripts/validate-review-brief-data.py",
+      "sha256": "6c6b4cf5204249a4657b598e478ff4f2ab918efbf2c0559e2b15963f2df9f3b2",
+      "type": "retired-file"
+    },
+    {
+      "destination": "gauntlet/templates/local-docs/IMPLEMENTATION_PLAN.md.tmpl",
+      "sha256": "c5bc0c05ce73ae0e5173ae8f8a28c8a8f24eee08a402cb34628b900faca7c384",
+      "type": "retired-file"
+    },
+    {
+      "destination": "skills/build-review-interface",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/error-analysis",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/evaluate-rag",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/generate-synthetic-data",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/review-brief-builder",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/validate-evaluator",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/write-judge-prompt",
+      "type": "retired-directory"
+    }
+  ],
+  "schemaVersion": "1.0"
+}
