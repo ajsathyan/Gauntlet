@@ -22,6 +22,8 @@
 
 - Gauntlet now defines stdlib-only Python package scaffolding and runs conservative Ruff linting on changed Python files.
 
+- Phase 7 moves development tests into discovery-native `tests/` modules, splits workflow checks by domain, preserves compatibility entry points, and adds a fast workflow smoke mode.
+
 - Implement GAUNTLET-005: Live Epic progress.
 
 - Gauntlet now automatically starts or recovers one launch-scoped live Epic progress dashboard, opens it through a secret-free Codex Browser action when available, refreshes run and usage facts continuously, and cleans it up only after every sibling reaches a terminal state.
