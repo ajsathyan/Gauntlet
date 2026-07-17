@@ -1168,6 +1168,35 @@ def local_draft_path(context, supplied):
     return resolved
 
 
+def _commit_draft_promotion(
+    draft_path,
+    epic_root,
+    prd_path,
+    index_path,
+    index_text,
+    updated_index,
+):
+    moved = False
+    try:
+        epic_root.mkdir(parents=False, exist_ok=False)
+        for child in ["prompts", "research", "decisions", "runs"]:
+            (epic_root / child).mkdir()
+        os.replace(draft_path, prd_path)
+        moved = True
+        _atomic_write_text(index_path, updated_index)
+    except Exception:
+        if moved and prd_path.is_file() and not draft_path.exists():
+            os.replace(prd_path, draft_path)
+        if epic_root.exists() and not epic_root.is_symlink():
+            shutil.rmtree(epic_root)
+        if (
+            index_path.is_file()
+            and index_path.read_text(encoding="utf-8") != index_text
+        ):
+            _atomic_write_text(index_path, index_text)
+        raise
+
+
 def command_docs_draft_promote(args):
     context = local_docs_context(args.project_root)
     if local_docs_opted_out(context):
@@ -1296,25 +1325,14 @@ def command_docs_draft_promote(args):
             dryRun=True,
         )
 
-    moved = False
-    try:
-        epic_root.mkdir(parents=False, exist_ok=False)
-        for child in ["prompts", "research", "decisions", "runs"]:
-            (epic_root / child).mkdir()
-        os.replace(draft_path, prd_path)
-        moved = True
-        _atomic_write_text(index_path, updated_index)
-    except Exception:
-        if moved and prd_path.is_file() and not draft_path.exists():
-            os.replace(prd_path, draft_path)
-        if epic_root.exists() and not epic_root.is_symlink():
-            shutil.rmtree(epic_root)
-        if (
-            index_path.is_file()
-            and index_path.read_text(encoding="utf-8") != index_text
-        ):
-            _atomic_write_text(index_path, index_text)
-        raise
+    _commit_draft_promotion(
+        draft_path,
+        epic_root,
+        prd_path,
+        index_path,
+        index_text,
+        updated_index,
+    )
     return local_docs_payload(
         args,
         context,
@@ -1355,6 +1373,84 @@ def markdown_answer(text, headings):
 
 def accepted_record_path(prd_path):
     return prd_path.with_suffix(".accepted.json")
+
+
+def _commit_epic_acceptance(
+    args,
+    context,
+    findings,
+    epic_id,
+    prd_path,
+    source_bytes,
+    index_path,
+    index_text,
+    row_match,
+    sidecar,
+):
+    if not all(
+        [
+            _parse_dependency_list,
+            _parse_release_stages,
+            _parse_consequence_triggers,
+        ]
+    ):
+        raise RuntimeError("Docs acceptance contracts are not configured.")
+    record = {
+        "schemaVersion": "gauntlet.accepted-epic.v1",
+        "epicId": epic_id,
+        "title": row_match.group(1),
+        "sourcePath": str(prd_path.resolve()),
+        "sourceSha256": sha256(source_bytes),
+        "acceptedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "dependencies": _parse_dependency_list(args.depends_on),
+        "releaseStages": _parse_release_stages(args.release_stages),
+        "consequenceTriggers": _parse_consequence_triggers(
+            args.consequence_triggers
+        ),
+    }
+    updated_index = (
+        index_text[: row_match.start()]
+        + row_match.group(0).replace("| Proposed |", "| Accepted |", 1)
+        + index_text[row_match.end() :]
+    )
+    if updated_index == index_text:
+        findings.append(
+            {
+                "code": "epic_not_proposed",
+                "severity": "fail",
+                "message": f"Epic {epic_id} must be Proposed before acceptance.",
+            }
+        )
+        return local_docs_payload(
+            args,
+            context,
+            findings,
+            epicId=epic_id,
+            prdPath=str(prd_path),
+            dryRun=args.dry_run,
+        )
+    if not args.dry_run:
+        try:
+            write_new_file(
+                sidecar, json.dumps(record, indent=2, sort_keys=True) + "\n"
+            )
+            _atomic_write_text(index_path, updated_index)
+        except Exception:
+            if sidecar.is_file() and not sidecar.is_symlink():
+                sidecar.unlink()
+            if index_path.read_text(encoding="utf-8") != index_text:
+                _atomic_write_text(index_path, index_text)
+            raise
+    return local_docs_payload(
+        args,
+        context,
+        findings,
+        epicId=epic_id,
+        prdPath=str(prd_path),
+        acceptedRecord=str(sidecar),
+        sourceSha256=record["sourceSha256"],
+        dryRun=args.dry_run,
+    )
 
 
 def command_docs_epic_accept(args):
@@ -1455,67 +1551,15 @@ def command_docs_epic_accept(args):
             acceptedRecord=str(sidecar),
             dryRun=args.dry_run,
         )
-    if not all(
-        [
-            _parse_dependency_list,
-            _parse_release_stages,
-            _parse_consequence_triggers,
-        ]
-    ):
-        raise RuntimeError("Docs acceptance contracts are not configured.")
-    record = {
-        "schemaVersion": "gauntlet.accepted-epic.v1",
-        "epicId": epic_id,
-        "title": row_match.group(1),
-        "sourcePath": str(prd_path.resolve()),
-        "sourceSha256": sha256(source_bytes),
-        "acceptedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "dependencies": _parse_dependency_list(args.depends_on),
-        "releaseStages": _parse_release_stages(args.release_stages),
-        "consequenceTriggers": _parse_consequence_triggers(
-            args.consequence_triggers
-        ),
-    }
-    updated_index = (
-        index_text[: row_match.start()]
-        + row_match.group(0).replace("| Proposed |", "| Accepted |", 1)
-        + index_text[row_match.end() :]
-    )
-    if updated_index == index_text:
-        findings.append(
-            {
-                "code": "epic_not_proposed",
-                "severity": "fail",
-                "message": f"Epic {epic_id} must be Proposed before acceptance.",
-            }
-        )
-        return local_docs_payload(
-            args,
-            context,
-            findings,
-            epicId=epic_id,
-            prdPath=str(prd_path),
-            dryRun=args.dry_run,
-        )
-    if not args.dry_run:
-        try:
-            write_new_file(
-                sidecar, json.dumps(record, indent=2, sort_keys=True) + "\n"
-            )
-            _atomic_write_text(index_path, updated_index)
-        except Exception:
-            if sidecar.is_file() and not sidecar.is_symlink():
-                sidecar.unlink()
-            if index_path.read_text(encoding="utf-8") != index_text:
-                _atomic_write_text(index_path, index_text)
-            raise
-    return local_docs_payload(
+    return _commit_epic_acceptance(
         args,
         context,
         findings,
-        epicId=epic_id,
-        prdPath=str(prd_path),
-        acceptedRecord=str(sidecar),
-        sourceSha256=record["sourceSha256"],
-        dryRun=args.dry_run,
+        epic_id,
+        prd_path,
+        source_bytes,
+        index_path,
+        index_text,
+        row_match,
+        sidecar,
     )
