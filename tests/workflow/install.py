@@ -1,6 +1,8 @@
 """Installer migration and Codex preference workflow cases."""
 
 import os
+import hashlib
+import json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -373,3 +375,108 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
         _assert_conflicting_preferences(root)
         _assert_preference_choices(root)
         _assert_preference_file_formats(root)
+    test_manifest_install_syncs_runtime_and_preserves_unmanaged_or_modified_stale_files()
+
+
+def test_manifest_install_syncs_runtime_and_preserves_unmanaged_or_modified_stale_files():
+    with tempfile.TemporaryDirectory() as tmp:
+        agent_home = Path(tmp) / "agent-home"
+        stale = agent_home / "gauntlet" / "scripts" / "test-context-audit.py"
+        stale.parent.mkdir(parents=True)
+        stale.write_bytes((SCRIPTS / "test-context-audit.py").read_bytes())
+        unmanaged = agent_home / "gauntlet" / "scripts" / "user-tool.py"
+        unmanaged.write_text("keep me\n")
+        modified_stale = agent_home / "gauntlet" / "scripts" / "test-eval-run.py"
+        modified_stale.write_text("locally modified\n")
+
+        first = run_install(agent_home)
+        if stale.exists():
+            raise AssertionError("an unchanged previous-layout development test should be retired")
+        if unmanaged.read_text() != "keep me\n":
+            raise AssertionError("manifest sync must preserve unmanaged payload paths")
+        if modified_stale.read_text() != "locally modified\n":
+            raise AssertionError("manifest sync must preserve a modified stale managed file")
+        assert_contains(first.stderr, "preserved modified stale managed file", "modified stale finding")
+
+        installed = agent_home / "gauntlet"
+        if (installed / "scripts" / "check-gauntlet-workflow.py").exists():
+            raise AssertionError("the development workflow checker must not be installed")
+        remaining_tests = sorted(
+            path.name for path in (installed / "scripts").glob("test-*.py")
+        )
+        if remaining_tests != ["test-eval-run.py", "test-plan.py"]:
+            raise AssertionError("only the production test-plan CLI and preserved modified stale test may remain")
+        if not (installed / "scripts" / "test-plan.py").is_file():
+            raise AssertionError("the externally referenced test-plan CLI must remain installed")
+        for forbidden in [installed / "tests", installed / "ui", installed / "node_modules"]:
+            if forbidden.exists():
+                raise AssertionError(f"development payload must not be installed: {forbidden}")
+        if list(installed.rglob("node_modules")):
+            raise AssertionError("nested node_modules must not be installed")
+        if not (installed / "scripts" / "thread_titles.py").is_file():
+            raise AssertionError("runtime dependency closure must include thread_titles.py")
+        source_modules = {
+            path.relative_to(SCRIPTS).as_posix()
+            for path in (SCRIPTS / "gauntletlib").rglob("*.py")
+        }
+        installed_modules = {
+            path.relative_to(installed / "scripts").as_posix()
+            for path in (installed / "scripts" / "gauntletlib").rglob("*.py")
+        }
+        if installed_modules != source_modules:
+            raise AssertionError("installed runtime must include every gauntletlib module")
+
+        receipt_before = (installed / ".install-manifest.json").read_bytes()
+        agents_before = (agent_home / "AGENTS.md").read_bytes()
+        run_install(agent_home)
+        if (installed / ".install-manifest.json").read_bytes() != receipt_before:
+            raise AssertionError("manifest ownership receipt should be idempotent")
+        if (agent_home / "AGENTS.md").read_bytes() != agents_before:
+            raise AssertionError("manifest reinstall should preserve byte-idempotent router output")
+        copied_env = os.environ.copy()
+        copied_env["AGENT_HOME"] = str(agent_home)
+        copied_env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
+        copied_env["GAUNTLET_CODEX_BIN"] = str(fake_codex_plugin_cli(agent_home))
+        copied_reinstall = subprocess.run(
+            [str(installed / "scripts" / "install.sh"), "--target", "codex"],
+            cwd=installed,
+            env=copied_env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if copied_reinstall.returncode != 0:
+            raise AssertionError(
+                f"copied-layout reinstall failed:\n{copied_reinstall.stdout}\n{copied_reinstall.stderr}"
+            )
+
+        manifest = json.loads((installed / "MANIFEST").read_text())
+        for row in manifest["entries"]:
+            path = agent_home / row["destination"]
+            if hashlib.sha256(path.read_bytes()).hexdigest() != row["sha256"]:
+                raise AssertionError(f"installed manifest hash mismatch: {row['destination']}")
+        verify = subprocess.run(
+            [
+                "python3",
+                str(installed / "scripts" / "gauntlet.py"),
+                "install",
+                "verify",
+                "--target",
+                "codex",
+                "--agent-home",
+                str(agent_home),
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if verify.returncode != 0 or "Install verify: pass" not in verify.stdout:
+            raise AssertionError(f"copied-layout verify failed:\n{verify.stdout}\n{verify.stderr}")
+        copied_cli = subprocess.run(
+            ["python3", str(installed / "scripts" / "gauntlet.py"), "--help"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if copied_cli.returncode != 0:
+            raise AssertionError(f"copied-layout CLI smoke failed: {copied_cli.stderr}")

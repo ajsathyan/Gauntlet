@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet installs an exact manifest-declared runtime payload, excludes development tests and UI dependencies, safely reconciles previously managed stale files, and checks manifest drift in CI and pre-commit.
+
 - Gauntlet now packages the execution-run controller behind its unchanged CLI, calls the default controller in process, and preserves the trusted development override subprocess path.
 
 - Gauntlet now extracts accepted-Epic launch contracts and Epic task orchestration into a registered stdlib-only package while preserving launch snapshots, task packets, dependency readiness, lifecycle events, document reconciliation, merge leases, CLI behavior, and legacy imports.

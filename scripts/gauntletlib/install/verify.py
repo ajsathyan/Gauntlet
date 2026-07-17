@@ -7,6 +7,7 @@ from pathlib import Path
 
 from gauntletlib.cli_support import EXIT_CODES
 from gauntletlib.core.findings import status_for
+from gauntletlib.install.manifest import verify_payload
 
 
 def _missing(findings, path, code):
@@ -20,22 +21,6 @@ def _required_runtime_paths(agent_home):
     root = agent_home / "gauntlet"
     return [
         (root / "AGENTS.md", "missing_installed_agents"),
-        (root / "router" / "AGENTS.md", "missing_router_source"),
-        (root / "router" / "response-style.md", "missing_response_style_source"),
-        (root / "scripts" / "check-gauntlet-workflow.py", "missing_installed_workflow_check"),
-        (root / "scripts" / "gauntlet.py", "missing_installed_gauntlet_cli"),
-        (root / "scripts" / "progress-dashboard.py", "missing_progress_dashboard"),
-        (root / "scripts" / "progress_projection.py", "missing_progress_projection"),
-        (root / "scripts" / "install-codex-agents.py", "missing_custom_agent_installer"),
-        (root / "scripts" / "subagent-audit.py", "missing_subagent_audit_exporter"),
-        (root / "scripts" / "route-codex-agent.py", "missing_custom_agent_router"),
-        (root / "docs" / "local-documentation.md", "missing_local_documentation_policy"),
-        (root / "templates" / "local-docs" / "doc_org.md.tmpl", "missing_local_document_template"),
-        (root / "templates" / "model-api-pricing.json", "missing_model_api_pricing"),
-        (root / "templates" / "progress-dashboard" / "index.html", "missing_progress_dashboard_html"),
-        (root / "templates" / "progress-dashboard" / "assets" / "app.js", "missing_progress_dashboard_js"),
-        (root / "templates" / "progress-dashboard" / "assets" / "app.css", "missing_progress_dashboard_css"),
-        (agent_home / "skills", "missing_installed_skills"),
     ]
 
 
@@ -99,6 +84,8 @@ def command_verify(args):
     for path, code in _required_runtime_paths(agent_home):
         _missing(findings, path, code)
     installed_root = agent_home / "gauntlet"
+    for message in verify_payload(installed_root, agent_home):
+        findings.append({"code": "invalid_manifest_payload", "severity": "fail", "message": message})
     if (installed_root / "ui").exists() or list(installed_root.rglob("node_modules")):
         findings.append({"code": "development_ui_installed", "severity": "fail", "message": "Installed runtime must not contain ui/ or node_modules/."})
     _verify_router(agent_home, findings)

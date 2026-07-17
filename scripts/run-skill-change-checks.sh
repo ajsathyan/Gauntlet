@@ -2,6 +2,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -f "$ROOT/scripts/generate-install-manifest.py" ]; then
+  python3 "$ROOT/scripts/generate-install-manifest.py" --check
+fi
 SKILLS_ROOT="$ROOT/skills"
 if [ ! -d "$SKILLS_ROOT" ] && [ -d "$ROOT/../skills" ]; then
   SKILLS_ROOT="$ROOT/../skills"

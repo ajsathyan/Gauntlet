@@ -984,140 +984,18 @@ if [ "$CHECK_ONLY" = "1" ]; then
 fi
 
 mkdir -p "$AGENT_HOME/skills" "$AGENT_HOME/gauntlet"
-source_is_installed_payload="$(python3 - "$ROOT" "$AGENT_HOME/gauntlet" <<'PY'
-import os
-import sys
-
-print("1" if os.path.realpath(sys.argv[1]) == os.path.realpath(sys.argv[2]) else "0")
-PY
-)"
-
-if [ "$source_is_installed_payload" != "1" ]; then
-  cp "$ROOT/README.md" "$AGENT_HOME/gauntlet/README.md"
-  mkdir -p "$AGENT_HOME/gauntlet/router"
-  cp -R "$ROOT/router/." "$AGENT_HOME/gauntlet/router/"
-  rm -rf \
-    "$AGENT_HOME/skills/review-brief-builder" \
-    "$AGENT_HOME/skills/build-review-interface" \
-    "$AGENT_HOME/skills/error-analysis" \
-    "$AGENT_HOME/skills/evaluate-rag" \
-    "$AGENT_HOME/skills/generate-synthetic-data" \
-    "$AGENT_HOME/skills/validate-evaluator" \
-    "$AGENT_HOME/skills/write-judge-prompt"
-  cp -R "$SKILLS_SRC/." "$AGENT_HOME/skills/"
-  rm -rf "$AGENT_HOME/gauntlet/docs"
-  cp -R "$ROOT/docs" "$AGENT_HOME/gauntlet/"
-  rm -rf "$AGENT_HOME/gauntlet/scripts"
-  cp -R "$ROOT/scripts" "$AGENT_HOME/gauntlet/"
-  rm -rf "$AGENT_HOME/gauntlet/templates"
-  cp -R "$ROOT/templates" "$AGENT_HOME/gauntlet/"
-  rm -rf "$AGENT_HOME/gauntlet/agents"
-  mkdir -p "$AGENT_HOME/gauntlet/agents"
-  cp -R "$ROOT/agents/codex" "$AGENT_HOME/gauntlet/agents/"
-  mkdir -p "$AGENT_HOME/gauntlet/evals"
-  rsync -a --delete \
-    --exclude '/generated-prompts/' \
-    --exclude '/results/' \
-    "$ROOT/evals/" "$AGENT_HOME/gauntlet/evals/"
-  rm -f "$AGENT_HOME/gauntlet/review-brief.html"
-  rm -f "$AGENT_HOME/gauntlet/review-brief-data.json"
-  rm -f "$AGENT_HOME/gauntlet/review-brief-data.schema.json"
-  rm -f "$AGENT_HOME/gauntlet/scripts/serve-notes.sh"
-  rm -f "$AGENT_HOME/gauntlet/scripts/check-review-brief.py"
-  rm -f "$AGENT_HOME/gauntlet/scripts/embed-review-brief-data.py"
-  rm -f "$AGENT_HOME/gauntlet/scripts/init-review-brief.sh"
-  rm -f "$AGENT_HOME/gauntlet/scripts/require-review-brief-started.sh"
-  rm -f "$AGENT_HOME/gauntlet/scripts/serve-review-brief.sh"
-  rm -f "$AGENT_HOME/gauntlet/scripts/start-review-brief.sh"
-  rm -f "$AGENT_HOME/gauntlet/scripts/validate-review-brief-data.py"
-fi
-
-# Retire payloads removed by the single-Epic cutover even when the installer is
-# running from the already-installed Gauntlet directory.
-rm -f "$AGENT_HOME/gauntlet/templates/local-docs/IMPLEMENTATION_PLAN.md.tmpl"
-
-cp "$rendered_router" "$AGENT_HOME/gauntlet/AGENTS.md"
-chmod 0644 "$AGENT_HOME/gauntlet/AGENTS.md"
-
-for required_path in \
-  "$AGENT_HOME/gauntlet/AGENTS.md" \
-  "$AGENT_HOME/gauntlet/docs/workflow-etiquette.md" \
-  "$AGENT_HOME/gauntlet/docs/workflow-speedups.md" \
-  "$AGENT_HOME/gauntlet/docs/local-documentation.md" \
-  "$AGENT_HOME/gauntlet/docs/prd-execution.md" \
-  "$AGENT_HOME/gauntlet/docs/generated-context.md" \
-  "$AGENT_HOME/gauntlet/docs/evaluation-tasks.md" \
-  "$AGENT_HOME/gauntlet/docs/evaluation-protocol.md" \
-  "$AGENT_HOME/gauntlet/docs/evaluation-harnesses.md" \
-  "$AGENT_HOME/gauntlet/scripts/gauntlet.py" \
-  "$AGENT_HOME/gauntlet/scripts/prd-run.py" \
-  "$AGENT_HOME/gauntlet/scripts/progress-dashboard.py" \
-  "$AGENT_HOME/gauntlet/scripts/progress_projection.py" \
-  "$AGENT_HOME/gauntlet/scripts/test-progress-dashboard.py" \
-  "$AGENT_HOME/gauntlet/scripts/test-progress-projection.py" \
-  "$AGENT_HOME/gauntlet/scripts/generated_context.py" \
-  "$AGENT_HOME/gauntlet/scripts/eval-task.py" \
-  "$AGENT_HOME/gauntlet/scripts/eval-run.py" \
-  "$AGENT_HOME/gauntlet/scripts/eval-harness.py" \
-  "$AGENT_HOME/gauntlet/scripts/install-codex-agents.py" \
-  "$AGENT_HOME/gauntlet/scripts/subagent-audit.py" \
-  "$AGENT_HOME/gauntlet/scripts/route-codex-agent.py" \
-  "$AGENT_HOME/gauntlet/templates/epic-execution-copy.json" \
-  "$AGENT_HOME/gauntlet/templates/model-api-pricing.json" \
-  "$AGENT_HOME/gauntlet/templates/progress-dashboard/index.html" \
-  "$AGENT_HOME/gauntlet/templates/progress-dashboard/assets/app.js" \
-  "$AGENT_HOME/gauntlet/templates/progress-dashboard/assets/app.css" \
-  "$AGENT_HOME/gauntlet/templates/local-docs/doc_org.md.tmpl" \
-  "$AGENT_HOME/gauntlet/templates/local-docs/EPIC_SECTION.md.tmpl" \
-  "$AGENT_HOME/gauntlet/templates/generated-context/implementation-v1.md" \
-  "$AGENT_HOME/gauntlet/templates/evaluation/core-slots.json" \
-  "$AGENT_HOME/gauntlet/templates/evaluation/core-registry.json" \
-  "$AGENT_HOME/gauntlet/templates/evaluation/harnesses/trusted-tasks.json" \
-  "$AGENT_HOME/gauntlet/templates/evaluation/harnesses/adapter-registry.json.tmpl" \
-  "$AGENT_HOME/gauntlet/templates/evaluation/harnesses/codex-cli.json.tmpl" \
-  "$AGENT_HOME/gauntlet/templates/evaluation/harnesses/claude-code.json.tmpl" \
-  "$AGENT_HOME/skills/intake/SKILL.md" \
-  "$AGENT_HOME/skills/planner/SKILL.md" \
-  "$AGENT_HOME/skills/implementer/SKILL.md" \
-  "$AGENT_HOME/skills/maintain-prd/SKILL.md" \
-  "$AGENT_HOME/skills/implement-prd/SKILL.md"
-do
-  if [ ! -s "$required_path" ]; then
-    echo "Gauntlet install payload is incomplete: $required_path" >&2
-    exit 1
-  fi
-done
-
-python3 - "$ROOT" "$AGENT_HOME/gauntlet" <<'PY'
-import hashlib
+PYTHONPATH="$ROOT/scripts${PYTHONPATH:+:$PYTHONPATH}" python3 - "$ROOT" "$AGENT_HOME" <<'PY'
 from pathlib import Path
 import sys
 
-source, installed = map(Path, sys.argv[1:])
-required = [
-    "scripts/progress-dashboard.py",
-    "scripts/progress_projection.py",
-    "templates/model-api-pricing.json",
-    "templates/progress-dashboard/index.html",
-    "templates/progress-dashboard/assets/app.js",
-    "templates/progress-dashboard/assets/app.css",
-]
-for relative in required:
-    expected = hashlib.sha256((source / relative).read_bytes()).hexdigest()
-    actual = hashlib.sha256((installed / relative).read_bytes()).hexdigest()
-    if actual != expected:
-        raise SystemExit("Gauntlet progress payload hash mismatch: " + relative)
-for forbidden in (installed / "ui", installed / "node_modules"):
-    if forbidden.exists():
-        raise SystemExit("Gauntlet install retained forbidden development UI payload: " + str(forbidden))
-if list(installed.rglob("node_modules")):
-    raise SystemExit("Gauntlet install retained a node_modules directory")
+from gauntletlib.install.manifest import sync_payload
+
+for finding in sync_payload(Path(sys.argv[1]), Path(sys.argv[2])):
+    print(f"Gauntlet installer finding: {finding}", file=sys.stderr)
 PY
 
-if [ -e "$AGENT_HOME/gauntlet/templates/local-docs/IMPLEMENTATION_PLAN.md.tmpl" ]; then
-  echo "Gauntlet install retained retired implementation-plan template" >&2
-  exit 1
-fi
+cp "$rendered_router" "$AGENT_HOME/gauntlet/AGENTS.md"
+chmod 0644 "$AGENT_HOME/gauntlet/AGENTS.md"
 
 if [ "$TARGET" = "codex" ]; then
   python3 "$ROOT/scripts/install-codex-agents.py" apply \
@@ -1139,6 +1017,9 @@ case "$TARGET" in
     record_instruction_review "$AGENT_HOME/CLAUDE.md" "$candidate_block" "$rendered_router"
     ;;
 esac
+
+python3 "$AGENT_HOME/gauntlet/scripts/gauntlet.py" install verify \
+  --target "$TARGET" --agent-home "$AGENT_HOME"
 
 if [ "$SKIP_GIT_HOOKS" != "1" ] && [ -d "$ROOT/.git" ]; then
   "$ROOT/scripts/install-git-hooks.sh" --repo "$ROOT" --gauntlet-root "$ROOT" >/dev/null
