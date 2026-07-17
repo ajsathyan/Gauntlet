@@ -22,7 +22,7 @@ def select(fields):
             raise ValueError("{} must be one of: {}".format(key, ", ".join(sorted(allowed))))
     work = fields["work_class"]
     if work == "verification" and fields["proof"] == "security":
-        return "gauntlet_security_reviewer"
+        return None
     if work == "release" or fields["proof"] == "release":
         return "gauntlet_release_integrator"
     if work == "verification" or fields["proof"] == "behavioral":
@@ -79,6 +79,7 @@ def main():
     args = parser.parse_args()
     fields = {key: getattr(args, key) for key in VALUES}
     try:
+        security_cli = fields["work_class"] == "verification" and fields["proof"] == "security"
         profile = select(fields)
         blocked = circuit_block(args.circuit_file, args.codex_version, profile) if profile else None
     except ValueError as exc:
@@ -97,9 +98,18 @@ def main():
         else:
             print("dispatch circuit is open for {} on Codex {}".format(profile, blocked["version"]), file=sys.stderr)
         return 3
-    payload = {"schemaVersion": "1.0", "routing": fields, "profile": profile, "status": "delegate" if profile else "stay-parent"}
+    payload = {
+        "schemaVersion": "1.0",
+        "routing": fields,
+        "profile": profile,
+        "status": "codex-cli" if security_cli else ("delegate" if profile else "stay-parent"),
+    }
+    if security_cli:
+        payload["runner"] = "security-review"
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
+    elif security_cli:
+        print("security-review")
     elif profile:
         print(profile)
     return 0
