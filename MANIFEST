@@ -3,7 +3,7 @@
     {
       "destination": "gauntlet/README.md",
       "executable": false,
-      "sha256": "585121f0519dc25d3b6910685e524ac0a4bf8d01826052ef4d31e7aebcb7a579",
+      "sha256": "75941e396319186fcca906becbe0d0c06fea30f66091eeaee11f83d7cb310097",
       "source": "README.md"
     },
     {
@@ -279,7 +279,7 @@
     {
       "destination": "gauntlet/docs/github-discipline.md",
       "executable": false,
-      "sha256": "91dce167e413d8ee57bdc04e8e167aa1b63867aac16033e9823246d6c03ea544",
+      "sha256": "34aa1178895dc1af47a9f397ad497f1384ea6a8d058f068e21810b069bf2f18a",
       "source": "docs/github-discipline.md"
     },
     {
@@ -363,7 +363,7 @@
     {
       "destination": "gauntlet/docs/workflow-etiquette.md",
       "executable": false,
-      "sha256": "dd20fbd8f52095e8d927a66197951693629a07f6302114a058e87bccead3e69e",
+      "sha256": "aa5732ed4dcababe3a0f145eee039c570599f00a7afdece719236e3b183ae05c",
       "source": "docs/workflow-etiquette.md"
     },
     {
@@ -525,7 +525,7 @@
     {
       "destination": "gauntlet/router/AGENTS.md",
       "executable": false,
-      "sha256": "9720cb2cb339952d83131a11784f54f1645be553114dc628e5c675e8e4c7946a",
+      "sha256": "15c75adae6105d39753bbbfffbfb4143ff4db4d6886baf7bd66d5f2fc7447517",
       "source": "router/AGENTS.md"
     },
     {
@@ -957,7 +957,7 @@
     {
       "destination": "skills/archive/SKILL.md",
       "executable": false,
-      "sha256": "4696fcc328d96f035aae7a47e09c48e34a6e154e4954805c438eaba8bd953813",
+      "sha256": "5d4ce8090846160ae793f463161eaa167201aad050c0457bb5f4f68a76b64fae",
       "source": "skills/archive/SKILL.md"
     },
     {
@@ -969,7 +969,7 @@
     {
       "destination": "skills/archive/examples/standard-closeout.md",
       "executable": false,
-      "sha256": "40f81c1d52ac8c3d6f6dd27489422dd872f0ebc6b481b47ffa3bc3ccab4448f4",
+      "sha256": "f226ec3e3abb44701f5b319080e238ade299a42d0637b578ad61e39eb1c135e7",
       "source": "skills/archive/examples/standard-closeout.md"
     },
     {
@@ -1145,6 +1145,18 @@
       "executable": false,
       "sha256": "a4018bec1b26dc3b67fa97108073f06ec0333579c57c097a92ea538180af37cd",
       "source": "skills/issue-triager/examples/ready-item.md"
+    },
+    {
+      "destination": "skills/land/SKILL.md",
+      "executable": false,
+      "sha256": "bad3a9f27bdd3b87accf57dbdd5de0cef6d3d0b54e31c3b1bc75f178afbaabfe",
+      "source": "skills/land/SKILL.md"
+    },
+    {
+      "destination": "skills/land/agents/openai.yaml",
+      "executable": false,
+      "sha256": "8f2fa65ec11195fb8e28bbd6fdfb757c1441db58c2d5dbab03b8a9a66a7a482e",
+      "source": "skills/land/agents/openai.yaml"
     },
     {
       "destination": "skills/maintain-prd/SKILL.md",

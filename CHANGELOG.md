@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now owns a `land` skill for explicit merge-to-default requests, defaults GitHub operations to the authenticated `gh` CLI, completes landed-revision monitoring and safe cleanup, and leaves installation and task archival to `/Archive`.
+
 - Explicit merge or land requests now carry required CI, landed-revision verification, applicable post-merge monitoring, local default-branch sync, and safe remote branch, isolated-worktree, and local-branch cleanup; `/Archive` performs task archival only after that closeout passes.
 
 - Gauntlet installs an exact manifest-declared runtime payload, excludes development tests and UI dependencies, safely reconciles previously managed stale files, and checks manifest drift in CI and pre-commit.
