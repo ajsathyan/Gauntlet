@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now provides `land execute` as one CLI flow for PR merge, exact-revision push monitoring, local default-branch synchronization, and preservation-safe branch and worktree cleanup.
+
 - Gauntlet CI now runs policy, installer, lifecycle, PRD, and orchestration checks as parallel matrix jobs behind one stable aggregate `gauntlet` result, while preserving the complete sequential local checker.
 
 - Gauntlet now owns a `land` skill for explicit merge-to-default requests, defaults GitHub operations to the authenticated `gh` CLI, completes landed-revision monitoring and safe cleanup, and leaves installation and task archival to `/Archive`.

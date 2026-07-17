@@ -49,6 +49,8 @@ from gauntletlib.diagram import command_find as _command_diagram_find
 from gauntletlib.diagram import register as register_diagram
 from gauntletlib.install.verify import command_verify as command_install_verify
 from gauntletlib.install.verify import register as register_install
+from gauntletlib.land import configure as configure_land
+from gauntletlib.land import register as register_land
 from gauntletlib.merge import acquire_run_merge_lease as _acquire_run_merge_lease
 from gauntletlib.merge import branch_name
 from gauntletlib.merge import checks_state
@@ -575,9 +577,11 @@ configure_runtime(
 
 
 def register(subcommands):
+    configure_land(print_payload=print_payload)
     register_commands(
         subcommands,
         register_archive=register_archive,
+        register_land=register_land,
         register_merge=register_merge,
         register_review_unit=register_review_unit,
         register_closeout=register_closeout,

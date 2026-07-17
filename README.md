@@ -371,7 +371,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [docs/workflow-speedups.md](docs/workflow-speedups.md) | Advisory changed-surface, test-planning, review-packet, and child-dispatch guidance. |
 | [docs/promotion-scanner.md](docs/promotion-scanner.md) | Trigger policy and gap-routing guidance for promotion scans. |
 | [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
-| [scripts/gauntlet.py](scripts/gauntlet.py) | Deterministic CLI for guarded one-command closeout, merge/archive actions, analytics, install verification, follow-up packets, compatibility memory linting, and PR/changelog drafts. |
+| [scripts/gauntlet.py](scripts/gauntlet.py) | Deterministic CLI for guarded landing and closeout, exact-revision monitoring, merge/archive actions, analytics, install verification, follow-up packets, compatibility memory linting, and PR/changelog drafts. |
 | [templates/local-docs/](templates/local-docs) | Scaffolds `doc_org.md`, the local index, Epic PRDs, research, decisions, and run logs without a duplicate implementation-plan document. |
 | [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals with instruction-conflict preflight and conflict-aware Codex response and subagent defaults. |
 | [scripts/install-codex-agents.py](scripts/install-codex-agents.py) | Validates, installs, retires, and verifies Gauntlet-owned Codex profiles without overwriting user-owned agents. |

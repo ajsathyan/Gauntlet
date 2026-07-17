@@ -3,7 +3,7 @@
     {
       "destination": "gauntlet/README.md",
       "executable": false,
-      "sha256": "75941e396319186fcca906becbe0d0c06fea30f66091eeaee11f83d7cb310097",
+      "sha256": "b4b36b1651f86bad5c01708997db9f90d80d53721e26b6c5eb010e0bacf90d4e",
       "source": "README.md"
     },
     {
@@ -279,7 +279,7 @@
     {
       "destination": "gauntlet/docs/github-discipline.md",
       "executable": false,
-      "sha256": "34aa1178895dc1af47a9f397ad497f1384ea6a8d058f068e21810b069bf2f18a",
+      "sha256": "22aacf00946dca461da30fe71bc0215c68a7f812f111c4a63393629abd626184",
       "source": "docs/github-discipline.md"
     },
     {
@@ -657,7 +657,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/cli_application.py",
       "executable": false,
-      "sha256": "13d708994af9f0a9faacf49bacedcf15481c146ad0dbe8175241e23d2a4d8546",
+      "sha256": "2a768edbf91f7a9272ae50a12184b82383a709ce73399c57fd73ee08825a36b0",
       "source": "scripts/gauntletlib/cli_application.py"
     },
     {
@@ -669,7 +669,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/cli_registration.py",
       "executable": false,
-      "sha256": "3058a4f97841f044aa0ee79abbe3b66c9750ba1e90e8121c1a3331200fa06009",
+      "sha256": "fa314e2281babafa2b0f12b2297ed9a5706e6998a9f05dd5d711f1bfde9b69d5",
       "source": "scripts/gauntletlib/cli_registration.py"
     },
     {
@@ -785,6 +785,18 @@
       "executable": false,
       "sha256": "9de701a186e68e79fb56063e563cadfc055f7cbca9d0733bf8097a00451d3b3d",
       "source": "scripts/gauntletlib/install/verify.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/land/__init__.py",
+      "executable": false,
+      "sha256": "e9636b1dd275402fa65fe811fbb8a27b911f8fcb61f3272a9c223c1371a03d1c",
+      "source": "scripts/gauntletlib/land/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/land/workflow.py",
+      "executable": false,
+      "sha256": "92345a2fa737370d5701dc7a00d28d954d3bd9e858ed5627144114472c0fdc00",
+      "source": "scripts/gauntletlib/land/workflow.py"
     },
     {
       "destination": "gauntlet/scripts/gauntletlib/launch/__init__.py",
@@ -1173,7 +1185,7 @@
     {
       "destination": "skills/land/SKILL.md",
       "executable": false,
-      "sha256": "bad3a9f27bdd3b87accf57dbdd5de0cef6d3d0b54e31c3b1bc75f178afbaabfe",
+      "sha256": "5956207eedcccbbc01a79c740c57fdede067f6009892bb7e1f0825dcb37b4fd3",
       "source": "skills/land/SKILL.md"
     },
     {
