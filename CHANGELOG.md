@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now routes its unchanged CLI surface through a shared command shell and extracts local analytics and bounded attempt memory into a stdlib-only registered domain package.
+
 - Gauntlet now centralizes shared stdlib-only process, redaction, serialization, atomic file, timestamp, and finding primitives while preserving each script's established contracts.
 
 - Gauntlet now defines stdlib-only Python package scaffolding and runs conservative Ruff linting on changed Python files.
