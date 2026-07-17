@@ -24,10 +24,10 @@ Land one accepted scope through GitHub and clean up its Git state. Do not instal
 
 ## Land
 
-Use the repository Gauntlet CLI for Gauntlet changes and the installed CLI otherwise.
+Use the repository Gauntlet CLI for Gauntlet changes and the installed CLI otherwise. After `merge prepare` has produced the exact PR body, run the complete flow with:
 
-- For a non-run patch, use `merge prepare|plan|execute` with its schema v1 handoff and PR body.
-- For an Execution Run, complete frozen Review Unit PRs first, then use `merge prepare|plan|execute --run <run>`. Never substitute a caller-authored handoff.
+- `python3 scripts/gauntlet.py land execute --handoff <handoff.json> --body <pr.md> --json` for a non-run patch.
+- `python3 scripts/gauntlet.py land execute --run <run> --body <pr.md> --json` for an Execution Run after its frozen Review Unit PRs complete. Never substitute a caller-authored handoff.
 - Push the scoped branch, create or update a ready PR, and wait for required CI and blocking review state.
 - Merge through the PR. Fetch the remote default branch and verify it contains the accepted head or a tree-equivalent merge.
 - Run established push-to-default CI, deployment health, or production monitoring only when the repository provides it and the result is attributable to the landed revision. PR CI is not production proof.

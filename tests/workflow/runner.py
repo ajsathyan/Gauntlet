@@ -21,6 +21,7 @@ from tests.workflow.policy import (
     test_plugin_manifests_bundle_shared_skills,
 )
 from tests.workflow.quality import test_skill_changes_are_guarded_by_pre_commit
+from tests.test_land import test_land_workflow_behavior
 
 
 POLICY_CASES = (
@@ -28,6 +29,7 @@ POLICY_CASES = (
     test_normal_requests_use_minimum_scope_before_lifecycle_routing,
     test_merge_and_archive_authority_requires_complete_safe_closeout,
     test_skill_changes_are_guarded_by_pre_commit,
+    test_land_workflow_behavior,
 )
 
 INSTALL_CASES = (

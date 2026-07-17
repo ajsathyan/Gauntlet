@@ -5,6 +5,7 @@ def register_commands(
     subcommands,
     *,
     register_archive,
+    register_land,
     register_merge,
     register_review_unit,
     register_closeout,
@@ -19,6 +20,7 @@ def register_commands(
     command_diagram_find,
 ):
     register_archive(subcommands)
+    register_land(subcommands)
     register_merge(subcommands)
     register_review_unit(subcommands)
     register_closeout(subcommands)
