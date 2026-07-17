@@ -63,6 +63,7 @@ from gauntletlib.progress import configure as configure_progress
 from gauntletlib.progress import progress_browser_action
 from gauntletlib.progress import register as register_progress
 from gauntletlib.progress import supervisor as _progress_supervisor
+from gauntletlib.run import invoke as invoke_prd_controller
 from gauntletlib.core.fsio import atomic_write_text as _atomic_write_text
 from gauntletlib.core.fsio import write_new_file as _write_new_file
 from gauntletlib.core.findings import add_finding as _add_finding
@@ -292,7 +293,10 @@ def run_prd_controller(repo, arguments):
     controller = prd_controller_path()
     if not controller.is_file():
         return None, f"Execution Run controller does not exist: {controller}"
-    result = run_cmd([sys.executable, str(controller), *arguments], cwd=repo)
+    if os.environ.get("GAUNTLET_DEV_PRD_CONTROLLER"):
+        result = run_cmd([sys.executable, str(controller), *arguments], cwd=repo)
+    else:
+        result = invoke_prd_controller(arguments, cwd=repo)
     if result.returncode != 0:
         return None, result.stderr.strip() or result.stdout.strip() or "prd-run command failed"
     return result.stdout, None
