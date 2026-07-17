@@ -130,7 +130,7 @@ Use the narrowest Gauntlet role skill that adds value:
 
 Domain/tool skills may add concrete capability without imposing a second planning or execution lifecycle.
 
-Create every Gauntlet-owned skill under this repository's `skills/` directory with the installed `skill-creator`. The Codex and Claude Code plugin manifests bundle that directory automatically; do not maintain a separate installed copy as source. Use family prefixes such as `craft-` and `eval-` only when they make a coherent capability family easier to discover.
+Create every Gauntlet-owned skill under this repository's `skills/` directory with the installed `skill-creator`. The Codex plugin manifest bundles that directory automatically; do not maintain a separate installed copy as source. Use family prefixes such as `craft-` and `eval-` only when they make a coherent capability family easier to discover.
 
 Before finalizing a skill with `skill-creator`, ask: **Is this cache-hit friendly in every step? Are there ways to improve token efficiency? Is this being assigned to the right custom agent? How should this skill be structured to avoid response drift from its instructions?** Apply the detailed, trigger-bounded review in `docs/skill-quality-bar.md`; do not add delegation fields when the skill never delegates.
 

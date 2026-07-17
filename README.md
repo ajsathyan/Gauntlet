@@ -241,7 +241,7 @@ enabled = true
 enabled = true
 ```
 
-If any key already has a different value, show the existing and Gauntlet values and ask which to keep. For Claude Code, install the response-style guidance through the managed `CLAUDE.md` import; do not add Codex-only configuration keys.
+If any key already has a different value, show the existing and Gauntlet values and ask which to keep.
 
 Preserve these concepts:
 - Patch, Feature, and Release build stages
@@ -267,18 +267,13 @@ After installing, tell me:
 Already cloned the repo?
 
 ```sh
-# Codex
 ./scripts/install.sh --target codex
-
-# Claude Code
-./scripts/install.sh --target claude
 ```
 
 If the target already contains global instructions, the first install stops before changing files. Later installs stop again when either the user-owned instructions or Gauntlet's candidate guidance has changed since the last acknowledged review. Review the two, resolve or confirm compatibility, then rerun with:
 
 ```sh
 ./scripts/install.sh --target codex --instructions-reviewed
-./scripts/install.sh --target claude --instructions-reviewed
 ```
 
 `--instructions-reviewed` is an acknowledgement, not a conflict override. Do not pass it until the comparison is complete. The installer never removes or rewrites user-owned instructions; it owns only its marked Gauntlet block.
@@ -287,7 +282,7 @@ When a voice or response-style passage conflicts, use `--response-style gauntlet
 
 Use `--check` to run the same marker, instruction-review, and Codex-preference preflight without installing anything. Gauntlet's guarded `closeout execute` command runs this check before it commits or merges, so an unresolved local conflict cannot be discovered only after the repository change lands.
 
-`./scripts/install.sh` defaults to `--target codex`, which installs Gauntlet into `$HOME/.codex` unless `AGENT_HOME` or `GAUNTLET_AGENT_HOME` is set. For Claude Code, use `./scripts/install.sh --target claude` or `GAUNTLET_INSTALL_TARGET=claude ./scripts/install.sh`; this installs into `$HOME/.claude` by default.
+`./scripts/install.sh` defaults to `--target codex`, which installs Gauntlet into `$HOME/.codex` unless `AGENT_HOME` or `GAUNTLET_AGENT_HOME` is set.
 
 The Codex target writes or replaces one Gauntlet managed block inside the agent-home `AGENTS.md`, preserving unrelated instructions outside the block. It adds the communication, context-visibility, and 24-thread defaults shown above; installs and enables the bundled Browser and Computer Use plugins through the Codex plugin CLI; and installs seven named profiles under `~/.codex/agents/`. Set `GAUNTLET_CODEX_BIN` when the installer cannot discover a working Codex executable. The installer refuses unavailable required plugins before changing files, preserves unrelated configuration and profiles, and keeps explicit `--codex-preferences existing|skip` overrides. Computer Use still requires a supported desktop and any OS permissions prompted by Codex; Gauntlet does not grant them. Restart or reload Codex after installation so the defaults, plugins, profiles, and thread limit are discovered.
 
@@ -313,24 +308,17 @@ When Codex already has a different value, the installer stops before changing an
 ./scripts/install.sh --target codex --codex-preferences skip
 ```
 
-The Claude Code target writes or updates `CLAUDE.md` with a managed import block pointing at the installed portable router because Claude Code reads `CLAUDE.md` rather than `AGENTS.md`. The imported router contains the same response-style policy used by Codex, without duplicating it in the adapter. Claude installs do not create or modify `config.toml`.
+The installer rejects malformed managed markers and replaces its own block idempotently. Shell code cannot reliably decide whether arbitrary prose instructions conflict, so the installation prompt requires the installing agent to perform that semantic comparison, show both conflicting passages, and ask the user. The direct installer stores only hashes of the reviewed user-owned and candidate instructions; it reopens the review gate when either hash changes without copying private instruction text into its state.
 
-Both targets reject malformed managed markers and replace their own block idempotently. Shell code cannot reliably decide whether arbitrary prose instructions conflict, so the installation prompt requires the installing agent to perform that semantic comparison, show both conflicting passages, and ask the user. The direct installer stores only hashes of the reviewed user-owned and candidate instructions; it reopens the review gate when either hash changes without copying private instruction text into its state.
+The installer includes only the Gauntlet files that live in this repository: the global workflow, Gauntlet role skills, docs, scripts, and eval fixtures. It does not import personal skills or instructions from elsewhere on your machine.
 
-Both targets install only the Gauntlet files that live in this repository: the global workflow, Gauntlet role skills, docs, scripts, and eval fixtures. They do not import personal skills or instructions from elsewhere on your machine.
-
-The same `skills/` tree is also distributed as one Gauntlet plugin for Codex and Claude Code. Codex reads `.codex-plugin/plugin.json` and `.agents/plugins/marketplace.json`; Claude Code reads `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. New Gauntlet-owned skills created under `skills/<name>/` enter both bundles automatically. Use the direct installer or the plugin for skills in one environment, not both, to avoid duplicate skill discovery; the direct installer remains the path that installs Gauntlet's always-loaded global router.
+The same `skills/` tree is also distributed as one Gauntlet plugin for Codex through `.codex-plugin/plugin.json` and `.agents/plugins/marketplace.json`. New Gauntlet-owned skills created under `skills/<name>/` enter the bundle automatically. Use the direct installer or the plugin, not both, to avoid duplicate skill discovery; the direct installer remains the path that installs Gauntlet's always-loaded global router.
 
 Install the shared bundle from GitHub:
 
 ```sh
-# Codex
 codex plugin marketplace add ajsathyan/Gauntlet
 codex plugin add gauntlet@gauntlet
-
-# Claude Code
-claude plugin marketplace add ajsathyan/Gauntlet
-claude plugin install gauntlet@gauntlet
 ```
 
 The installer also adds a Gauntlet pre-commit hook in this repo. When staged files include `skills/*/SKILL.md` or `skills/*/examples/*`, the hook runs skill text coverage, declared trace-field scorer contracts, and structural lint before the commit can proceed. These checks do not establish live agent behavior. Set `GAUNTLET_SKIP_GIT_HOOKS=1` for headless installs that should not touch git hooks.
@@ -343,7 +331,6 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [router/response-style.md](router/response-style.md) | Single response-style policy rendered into the portable router unless the user keeps a conflicting existing style. |
 | [agents/codex/](agents/codex) | Seven canonical named Codex profiles with fixed models, reasoning effort, authority boundaries, and quiet return contracts. |
 | [AGENTS.md](AGENTS.md) | Repository contributor guide for changing and proving Gauntlet itself; it is not installed as the portable router. |
-| `CLAUDE.md` | Claude Code adapter created by `--target claude`; imports the installed Gauntlet `AGENTS.md` through a managed block while preserving existing Claude instructions. |
 | [skills/intake/SKILL.md](skills/intake/SKILL.md) | Turns rough intent into an implementable spec. |
 | [skills/researcher/SKILL.md](skills/researcher/SKILL.md) | Produces bounded evidence-backed research without importing implementation ceremony. |
 | [skills/debugger/SKILL.md](skills/debugger/SKILL.md) | Reproduces and isolates root cause before a fix is implemented. |
@@ -407,7 +394,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [scripts/generated_context.py](scripts/generated_context.py) | Renders versioned bounded machine projections with stable-prefix metadata and adversarial validation. |
 | [scripts/eval-task.py](scripts/eval-task.py) | Admits development evaluation tasks with separate hidden verifiers, cached immutable checks, current liveness, and quarantine. |
 | [scripts/eval-run.py](scripts/eval-run.py) | Records paired executions, state-conditional replay, adapter equivalence, total-package and ablation estimands, and sealed core-study state. |
-| [scripts/eval-harness.py](scripts/eval-harness.py) | Launches version-pinned Codex CLI or Claude Code study cells, normalizes bounded telemetry, scores through trusted task registries, and checks same-harness/model A/A equivalence. |
+| [scripts/eval-harness.py](scripts/eval-harness.py) | Launches version-pinned Codex CLI study cells, normalizes bounded telemetry, scores through trusted task registries, and checks same-harness/model A/A equivalence. |
 | [evals/skill-evals.json](evals/skill-evals.json) | Pressure scenarios for skill contract coverage. |
 | [evals/scorer-smoke-fixtures.json](evals/scorer-smoke-fixtures.json) | One positive and one negative matcher canary that prove phrase-scorer wiring—not agent behavior. |
 | [evals/orchestration-trace-fixtures.json](evals/orchestration-trace-fixtures.json) | Paired declared trace-field scorer cases, including wrong-outcome, self-attested-proof, different-prose, authority, verbosity, and subjective-judgment canaries. |
@@ -430,9 +417,7 @@ Selected techniques are adapted from Jesse Vincent's [Superpowers](https://githu
 | [router/AGENTS.md](router/AGENTS.md) | Portable global workflow router. |
 | [router/response-style.md](router/response-style.md) | Portable response-style policy rendered by the installer. |
 | [.codex-plugin/plugin.json](.codex-plugin/plugin.json) | Codex plugin manifest for the shared Gauntlet skill bundle. |
-| [.claude-plugin/plugin.json](.claude-plugin/plugin.json) | Claude Code plugin manifest for the shared Gauntlet skill bundle. |
 | [.agents/plugins/marketplace.json](.agents/plugins/marketplace.json) | Codex marketplace entry for installing the bundle. |
-| [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) | Claude Code marketplace entry for installing the bundle. |
 | [AGENTS.md](AGENTS.md) | Contributor guidance for this repository. |
 | [skills/](skills) | Role-specific reusable instructions. |
 | [docs/](docs) | Coverage gaps, UI constitution, Production Quality Bar, workflow speedups, promotion scanner, design lint candidates, and historical plans. |

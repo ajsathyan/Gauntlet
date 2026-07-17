@@ -288,12 +288,12 @@ class EvalRunTests(unittest.TestCase):
 
     def test_adapter_environment_passes_provider_auth_names_only(self) -> None:
         with patch.dict(os.environ, {
-            "OPENAI_API_KEY": "openai-secret", "ANTHROPIC_API_KEY": "anthropic-secret",
+            "OPENAI_API_KEY": "openai-secret", "OTHER_PROVIDER_API_KEY": "other-secret",
             "UNRELATED_SECRET": "must-not-pass",
         }, clear=False):
             environment = eval_run.adapter_environment()
         self.assertEqual(environment["OPENAI_API_KEY"], "openai-secret")
-        self.assertEqual(environment["ANTHROPIC_API_KEY"], "anthropic-secret")
+        self.assertNotIn("OTHER_PROVIDER_API_KEY", environment)
         self.assertNotIn("UNRELATED_SECRET", environment)
 
     def test_adapter_result_rejects_nonfinite_metrics_and_unsafe_artifact_references(self) -> None:

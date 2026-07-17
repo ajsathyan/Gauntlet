@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Behavioral tests for Codex CLI and Claude Code evaluation adapters."""
+"""Behavioral tests for the Codex CLI evaluation adapter."""
 
 from __future__ import annotations
 
@@ -39,16 +39,10 @@ if "--version" in sys.argv:
     raise SystemExit(0)
 
 prompt = sys.stdin.read()
-if "exec" in sys.argv:
-    workspace = Path(sys.argv[sys.argv.index("--cd") + 1])
-    (workspace / "result.txt").write_text(os.environ["GAUNTLET_EVAL_PROFILE"] + ":" + prompt.strip())
-    print(json.dumps({"type": "thread.started", "thread_id": "volatile"}))
-    print(json.dumps({"type": "turn.completed", "model": sys.argv[sys.argv.index("--model") + 1], "permission_mode": sys.argv[sys.argv.index("--sandbox") + 1], "tools": ["shell", "apply_patch"], "usage": {"input_tokens": 12, "output_tokens": 4}}))
-else:
-    workspace = Path.cwd()
-    (workspace / "result.txt").write_text(os.environ["GAUNTLET_EVAL_PROFILE"] + ":" + prompt.strip())
-    print(json.dumps({"type": "system", "subtype": "init", "session_id": "volatile", "model": sys.argv[sys.argv.index("--model") + 1], "permissionMode": sys.argv[sys.argv.index("--permission-mode") + 1], "tools": ["Bash", "Read"]}))
-    print(json.dumps({"type": "result", "subtype": "success", "duration_ms": 12, "is_error": False, "num_turns": 2, "total_cost_usd": 0.01, "usage": {"input_tokens": 10, "output_tokens": 3}}))
+workspace = Path(sys.argv[sys.argv.index("--cd") + 1])
+(workspace / "result.txt").write_text(os.environ["GAUNTLET_EVAL_PROFILE"] + ":" + prompt.strip())
+print(json.dumps({"type": "thread.started", "thread_id": "volatile"}))
+print(json.dumps({"type": "turn.completed", "model": sys.argv[sys.argv.index("--model") + 1], "permission_mode": sys.argv[sys.argv.index("--sandbox") + 1], "tools": ["shell", "apply_patch"], "usage": {"input_tokens": 12, "output_tokens": 4}}))
 '''
 
 
@@ -95,29 +89,28 @@ class HarnessFixture:
         self.prompt.write_text("implement the development fixture")
         self.workspaces = root / "workspaces"
 
-    def manifest(self, kind: str = "codex-cli") -> dict:
-        permission = "workspace-write" if kind == "codex-cli" else "acceptEdits"
+    def manifest(self) -> dict:
         return {
             "capabilities": {name: "required" for name in eval_harness.EQUIVALENCE_DIMENSIONS},
             "executable": [sys.executable, str(self.cli)],
             "extra_args": [],
-            "harness_id": f"{kind}-fake",
+            "harness_id": "codex-cli-fake",
             "inherit_env": [],
-            "kind": kind,
+            "kind": "codex-cli",
             "max_turns": None,
-            "model": "gpt-test" if kind == "codex-cli" else "claude-test",
-            "permission_mode": permission,
+            "model": "gpt-test",
+            "permission_mode": "workspace-write",
             "profiles": {
                 "baseline": {"environment": {
-                    "CODEX_HOME" if kind == "codex-cli" else "CLAUDE_CONFIG_DIR": str(self.root / f"{kind}-baseline"),
+                    "CODEX_HOME": str(self.root / "codex-cli-baseline"),
                     "GAUNTLET_EVAL_PROFILE": "baseline",
                 }},
                 "treatment": {"environment": {
-                    "CODEX_HOME" if kind == "codex-cli" else "CLAUDE_CONFIG_DIR": str(self.root / f"{kind}-treatment"),
+                    "CODEX_HOME": str(self.root / "codex-cli-treatment"),
                     "GAUNTLET_EVAL_PROFILE": "treatment",
                 }},
             },
-            "reasoning_effort": "medium" if kind == "codex-cli" else None,
+            "reasoning_effort": "medium",
             "schema_version": 1,
             "version_pin": "9.9.0",
         }
@@ -148,19 +141,12 @@ class EvalHarnessTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def test_manifests_build_native_noninteractive_commands_without_prompt_argv(self) -> None:
-        codex = eval_harness.validate_manifest(self.fixture.manifest("codex-cli"))
+        codex = eval_harness.validate_manifest(self.fixture.manifest())
         command = eval_harness.build_command(codex, self.fixture.start)
         self.assertIn("exec", command)
         self.assertIn("--json", command)
         self.assertIn("--ephemeral", command)
         self.assertIn('model_reasoning_effort="medium"', command)
-        self.assertNotIn("implement the development fixture", command)
-
-        claude = eval_harness.validate_manifest(self.fixture.manifest("claude-code"))
-        command = eval_harness.build_command(claude, self.fixture.start)
-        self.assertIn("-p", command)
-        self.assertIn("stream-json", command)
-        self.assertNotIn("--max-turns", command)
         self.assertNotIn("implement the development fixture", command)
 
     def test_manifest_rejects_inline_secrets_and_unresolved_models(self) -> None:
@@ -176,9 +162,9 @@ class EvalHarnessTests(unittest.TestCase):
         manifest["profiles"]["treatment"]["environment"]["EXPERIMENT_FLAG"] = "treatment-only"
         with self.assertRaisesRegex(eval_harness.HarnessError, "environment keys must match"):
             eval_harness.validate_manifest(manifest)
-        manifest = self.fixture.manifest("claude-code")
-        manifest["reasoning_effort"] = "high"
-        with self.assertRaisesRegex(eval_harness.HarnessError, "reasoning_effort must be null"):
+        manifest = self.fixture.manifest()
+        manifest["kind"] = "other-harness"
+        with self.assertRaisesRegex(eval_harness.HarnessError, "kind must be codex-cli"):
             eval_harness.validate_manifest(manifest)
 
     def test_liveness_is_version_pinned_and_spends_no_model_turn(self) -> None:
@@ -195,22 +181,20 @@ class EvalHarnessTests(unittest.TestCase):
         with self.assertRaisesRegex(eval_harness.HarnessError, "must be finite"):
             eval_harness.numeric_metrics({"input_tokens": float("nan")})
 
-    def test_codex_and_claude_adapters_launch_score_and_return_bounded_telemetry(self) -> None:
+    def test_codex_adapter_launches_scores_and_returns_bounded_telemetry(self) -> None:
         tasks = eval_harness.validate_task_registry(self.fixture.tasks())
-        for kind, execution in (("codex-cli", "codex-one"), ("claude-code", "claude-one")):
-            with self.subTest(kind=kind):
-                raw_manifest = self.fixture.manifest(kind)
-                raw_manifest["inherit_env"] = ["OPENAI_API_KEY"]
-                manifest = eval_harness.validate_manifest(raw_manifest)
-                with patch.dict(os.environ, {"OPENAI_API_KEY": "provider-secret"}):
-                    result = eval_harness.execute_adapter(
-                        manifest, tasks, self.fixture.workspaces, self.fixture.request(execution), 5
-                    )
-                self.assertEqual(result["outcome"], "pass")
-                self.assertEqual(result["artifacts"], ["result.txt"])
-                self.assertEqual(result["telemetry"]["harness"], kind)
-                self.assertNotIn("prompt", eval_harness.canonical_json(result).lower())
-                self.assertGreater(result["metrics"]["duration_ms"], 0)
+        raw_manifest = self.fixture.manifest()
+        raw_manifest["inherit_env"] = ["OPENAI_API_KEY"]
+        manifest = eval_harness.validate_manifest(raw_manifest)
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "provider-secret"}):
+            result = eval_harness.execute_adapter(
+                manifest, tasks, self.fixture.workspaces, self.fixture.request("codex-one"), 5
+            )
+        self.assertEqual(result["outcome"], "pass")
+        self.assertEqual(result["artifacts"], ["result.txt"])
+        self.assertEqual(result["telemetry"]["harness"], "codex-cli")
+        self.assertNotIn("prompt", eval_harness.canonical_json(result).lower())
+        self.assertGreater(result["metrics"]["duration_ms"], 0)
 
         manifest = eval_harness.validate_manifest(self.fixture.manifest())
         events = '\n'.join((
@@ -271,7 +255,7 @@ class EvalHarnessTests(unittest.TestCase):
         with self.assertRaisesRegex(eval_harness.HarnessError, "separate study blocks"):
             eval_harness.aa_compare(left, cross_model)
         cross_harness = observations()
-        cross_harness["harness"] = "claude-code"
+        cross_harness["harness"] = "other-harness"
         with self.assertRaisesRegex(eval_harness.HarnessError, "separate study blocks"):
             eval_harness.aa_compare(left, cross_harness)
         cross_version = observations()

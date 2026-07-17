@@ -3,7 +3,7 @@
     {
       "destination": "gauntlet/README.md",
       "executable": false,
-      "sha256": "6c4fc70e2110153d108d24e405ae8ea5b140230a8b1b34a11653769de271002c",
+      "sha256": "585121f0519dc25d3b6910685e524ac0a4bf8d01826052ef4d31e7aebcb7a579",
       "source": "README.md"
     },
     {
@@ -69,13 +69,13 @@
     {
       "destination": "gauntlet/docs/evaluation-harnesses.md",
       "executable": false,
-      "sha256": "0d08eaeef7e68f9bae0bcebe61379cb495e749c1da36c23d7eb034cf67b4980c",
+      "sha256": "b90ecdcffa34b4c4ad117ae6a911700f2f355b81477fe38abe599adf8f9797f2",
       "source": "docs/evaluation-harnesses.md"
     },
     {
       "destination": "gauntlet/docs/evaluation-protocol.md",
       "executable": false,
-      "sha256": "c6533eb9c37597eb11c6f7a518ab99576538699df5f725e6ab9816cff5988f85",
+      "sha256": "4875daae85d9983147a40e6830a83d532ed80cb8fbcaa1683a854c75f4b086a6",
       "source": "docs/evaluation-protocol.md"
     },
     {
@@ -149,12 +149,6 @@
       "executable": false,
       "sha256": "6b9fc9647bbab90691f1473dfd29033aae5d8e30e1ca68de4e9e9d4e99201a57",
       "source": "docs/gauntlet-runs/2026-07-04-archive-execution-cli.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-04-claude-install-target.md",
-      "executable": false,
-      "sha256": "3e1326e7bb265b63bd24679c62f0642e30baffd4affa624e8789b21640a541fd",
-      "source": "docs/gauntlet-runs/2026-07-04-claude-install-target.md"
     },
     {
       "destination": "gauntlet/docs/gauntlet-runs/2026-07-04-thread-changelog.md",
@@ -573,13 +567,13 @@
     {
       "destination": "gauntlet/scripts/eval-harness.py",
       "executable": true,
-      "sha256": "934f40f268fa842430c1a9e391edfb0cdb2556bc2722543a7322e8ced5eb0a1a",
+      "sha256": "87ee5faf6df17f79fe224819c41a470bb0fff07156aa663a5a20e1daf6f0d885",
       "source": "scripts/eval-harness.py"
     },
     {
       "destination": "gauntlet/scripts/eval-run.py",
       "executable": true,
-      "sha256": "e9168183645e384110dbe2b1a47041416e71b1ea2f53178f8c38e6f19c5743fc",
+      "sha256": "75069d9567d3e18d6e3049af58980502abfd17bb9053827f798689c714ede900",
       "source": "scripts/eval-run.py"
     },
     {
@@ -597,7 +591,7 @@
     {
       "destination": "gauntlet/scripts/gauntlet_diff_helpers.py",
       "executable": false,
-      "sha256": "0cafaff5de6ac2588c2ca26e28fa77d73bb13381c818e847e0ad83a851a2d813",
+      "sha256": "fbd9af8a92c25724e8525c37a6fc2a3fa542d6f8ef8518b3468e2f0e4fe18ccd",
       "source": "scripts/gauntlet_diff_helpers.py"
     },
     {
@@ -663,7 +657,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/closeout/__init__.py",
       "executable": false,
-      "sha256": "a6d1afee27d8995e8ee3909cc0f8bef12c0bb2cc999184f9111bff9de2b79be8",
+      "sha256": "0fbdf01ea04351c7941628624065018424aa67573472b34e3a4ead301e314e2b",
       "source": "scripts/gauntletlib/closeout/__init__.py"
     },
     {
@@ -765,7 +759,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/install/verify.py",
       "executable": false,
-      "sha256": "31fb61905a9d96b78d4baca2a79cca2840fc1f7077ce3a0b7598db3e82a4834d",
+      "sha256": "9de701a186e68e79fb56063e563cadfc055f7cbca9d0733bf8097a00451d3b3d",
       "source": "scripts/gauntletlib/install/verify.py"
     },
     {
@@ -861,7 +855,7 @@
     {
       "destination": "gauntlet/scripts/install.sh",
       "executable": true,
-      "sha256": "c63feaa385d7f2d65602d093b241b9781d14dc51a99eccdbca3f8679854eb8df",
+      "sha256": "bffd76d703c6c150b53e240919cec2e875efb6fe1e5a9b6d99c4f7fa53e0199c",
       "source": "scripts/install.sh"
     },
     {
@@ -1415,12 +1409,6 @@
       "executable": false,
       "sha256": "075fc9209618199cf5cc476e95ea0574695f2e5ca27c160477cdf6f0641e2288",
       "source": "templates/evaluation/harnesses/adapter-registry.json.tmpl"
-    },
-    {
-      "destination": "gauntlet/templates/evaluation/harnesses/claude-code.json.tmpl",
-      "executable": false,
-      "sha256": "b4cf3893e56d40c8a247083b9abb11f5aab18fa628e9937ce1f56395b5576c1b",
-      "source": "templates/evaluation/harnesses/claude-code.json.tmpl"
     },
     {
       "destination": "gauntlet/templates/evaluation/harnesses/codex-cli.json.tmpl",

@@ -63,19 +63,6 @@ def _verify_codex(agent_home, findings):
             findings.append({"code": "invalid_codex_custom_agents", "severity": "fail", "message": result.stderr.strip() or result.stdout.strip()})
 
 
-def _verify_claude(agent_home, findings):
-    claude_md = agent_home / "CLAUDE.md"
-    _missing(findings, claude_md, "missing_claude_md")
-    if not claude_md.exists():
-        return
-    text = claude_md.read_text(encoding="utf-8")
-    expected_import = f"@{agent_home}/gauntlet/AGENTS.md"
-    if "BEGIN GAUNTLET MANAGED BLOCK" not in text:
-        findings.append({"code": "missing_claude_managed_block", "severity": "fail", "message": "CLAUDE.md lacks Gauntlet managed block."})
-    if expected_import not in text:
-        findings.append({"code": "missing_claude_agents_import", "severity": "fail", "message": "CLAUDE.md does not import installed AGENTS.md."})
-
-
 def command_verify(args):
     agent_home = Path(args.agent_home).expanduser()
     if not agent_home.is_absolute():
@@ -89,10 +76,7 @@ def command_verify(args):
     if (installed_root / "ui").exists() or list(installed_root.rglob("node_modules")):
         findings.append({"code": "development_ui_installed", "severity": "fail", "message": "Installed runtime must not contain ui/ or node_modules/."})
     _verify_router(agent_home, findings)
-    if args.target == "codex":
-        _verify_codex(agent_home, findings)
-    if args.target == "claude":
-        _verify_claude(agent_home, findings)
+    _verify_codex(agent_home, findings)
     payload = {"schemaVersion": "1.0", "status": "pass", "target": args.target, "agentHome": str(agent_home), "findings": findings}
     payload["status"] = status_for(findings)
     if args.json:
@@ -108,7 +92,7 @@ def register(subcommands, *, command):
     install = subcommands.add_parser("install", help="Installed-layout helpers.")
     commands = install.add_subparsers(dest="install_command", required=True)
     verify = commands.add_parser("verify")
-    verify.add_argument("--target", choices=["codex", "claude"], required=True)
+    verify.add_argument("--target", choices=["codex"], required=True)
     verify.add_argument("--agent-home", required=True)
     verify.add_argument("--json", action="store_true")
     verify.set_defaults(func=command)

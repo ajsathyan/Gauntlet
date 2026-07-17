@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch Codex CLI or Claude Code through one trusted evaluation adapter."""
+"""Launch Codex CLI through one trusted evaluation adapter."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from gauntletlib.core.jsonio import read_json as _read_json
 
 
 SCHEMA_VERSION = 1
-HARNESS_KINDS = ("codex-cli", "claude-code")
+HARNESS_KIND = "codex-cli"
 EQUIVALENCE_DIMENSIONS = (
     "single-agent",
     "custom-profile",
@@ -111,8 +111,8 @@ def validate_manifest(raw: Any) -> dict[str, Any]:
         raise HarnessError("harness manifest schema_version must be 1")
     harness_id = require_string(manifest.get("harness_id"), "harness_id")
     kind = manifest.get("kind")
-    if kind not in HARNESS_KINDS:
-        raise HarnessError(f"kind must be one of {', '.join(HARNESS_KINDS)}")
+    if kind != HARNESS_KIND:
+        raise HarnessError(f"kind must be {HARNESS_KIND}")
     executable = require_command(manifest.get("executable"), "executable")
     if not Path(executable[0]).is_absolute():
         raise HarnessError("executable[0] must be an absolute version-pinned path")
@@ -152,7 +152,7 @@ def validate_manifest(raw: Any) -> dict[str, Any]:
                 raise HarnessError(f"profiles.{profile_name}.environment cannot store secret-like values; inherit {key} by name")
             normalized_environment[key] = value
         normalized_profiles[profile_name] = {"environment": normalized_environment}
-    home_key = "CODEX_HOME" if kind == "codex-cli" else "CLAUDE_CONFIG_DIR"
+    home_key = "CODEX_HOME"
     profile_homes = []
     for profile_name in ("baseline", "treatment"):
         value = normalized_profiles[profile_name]["environment"].get(home_key)
@@ -175,14 +175,10 @@ def validate_manifest(raw: Any) -> dict[str, Any]:
         raise HarnessError("capabilities must declare every adapter-equivalence dimension")
     if any(value not in ("required", "unsupported", "not-applicable") for value in capabilities.values()):
         raise HarnessError("capability values must be required, unsupported, or not-applicable")
-    if kind == "codex-cli" and permission_mode not in ("read-only", "workspace-write", "danger-full-access"):
+    if permission_mode not in ("read-only", "workspace-write", "danger-full-access"):
         raise HarnessError("Codex permission_mode must be read-only, workspace-write, or danger-full-access")
-    if kind == "codex-cli" and max_turns is not None:
+    if max_turns is not None:
         raise HarnessError("Codex max_turns must be null because the direct CLI adapter has no typed turn-cap flag")
-    if kind == "claude-code" and permission_mode not in ("default", "acceptEdits", "plan", "bypassPermissions"):
-        raise HarnessError("Claude permission_mode must be default, acceptEdits, plan, or bypassPermissions")
-    if kind == "claude-code" and effort is not None:
-        raise HarnessError("Claude reasoning_effort must be null until the direct CLI adapter has a typed effort flag")
     return {
         "capabilities": dict(sorted(capabilities.items())),
         "executable": executable,
@@ -239,21 +235,13 @@ def validate_task_registry(raw: Any) -> dict[str, dict[str, Any]]:
 
 def build_command(manifest: dict[str, Any], workspace: Path) -> list[str]:
     command = list(manifest["executable"])
-    if manifest["kind"] == "codex-cli":
-        command.extend([
-            "exec", "--json", "--ephemeral", "--model", manifest["model"],
-            "--sandbox", manifest["permission_mode"], "--cd", str(workspace),
-        ])
-        if manifest["reasoning_effort"]:
-            command.extend(["-c", f'model_reasoning_effort="{manifest["reasoning_effort"]}"'])
-        command.extend(["-c", 'approval_policy="never"'])
-    else:
-        command.extend([
-            "-p", "--output-format", "stream-json", "--verbose", "--model", manifest["model"],
-            "--permission-mode", manifest["permission_mode"],
-        ])
-        if manifest["max_turns"] is not None:
-            command.extend(["--max-turns", str(manifest["max_turns"])])
+    command.extend([
+        "exec", "--json", "--ephemeral", "--model", manifest["model"],
+        "--sandbox", manifest["permission_mode"], "--cd", str(workspace),
+    ])
+    if manifest["reasoning_effort"]:
+        command.extend(["-c", f'model_reasoning_effort="{manifest["reasoning_effort"]}"'])
+    command.extend(["-c", 'approval_policy="never"'])
     command.extend(manifest["extra_args"])
     return command
 
@@ -326,31 +314,19 @@ def normalize_events(manifest: dict[str, Any], stdout: str) -> dict[str, Any]:
     session_recorded = False
     tools: list[str] = []
     result_status = "completed"
-    if manifest["kind"] == "codex-cli":
-        for event in events:
-            event_type = event.get("type")
-            if event_type == "thread.started" and isinstance(event.get("thread_id"), str):
-                session_recorded = True
-            if event_type in ("turn.completed", "turn.failed"):
-                result_status = "failed" if event_type == "turn.failed" else "completed"
-                metrics.update(numeric_metrics(event.get("usage", {})))
-            if isinstance(event.get("model"), str):
-                observed_model = event["model"]
-            if isinstance(event.get("permission_mode"), str):
-                observed_permission = event["permission_mode"]
-            if isinstance(event.get("tools"), list):
-                tools = sorted(str(item) for item in event["tools"])
-    else:
-        for event in events:
-            if event.get("type") == "system" and event.get("subtype") == "init":
-                session_recorded = isinstance(event.get("session_id"), str)
-                observed_model = event.get("model") if isinstance(event.get("model"), str) else None
-                observed_permission = event.get("permissionMode") if isinstance(event.get("permissionMode"), str) else None
-                if isinstance(event.get("tools"), list):
-                    tools = sorted(str(item) for item in event["tools"])
-            if event.get("type") == "result":
-                result_status = "failed" if event.get("is_error") else "completed"
-                metrics.update(numeric_metrics(event))
+    for event in events:
+        event_type = event.get("type")
+        if event_type == "thread.started" and isinstance(event.get("thread_id"), str):
+            session_recorded = True
+        if event_type in ("turn.completed", "turn.failed"):
+            result_status = "failed" if event_type == "turn.failed" else "completed"
+            metrics.update(numeric_metrics(event.get("usage", {})))
+        if isinstance(event.get("model"), str):
+            observed_model = event["model"]
+        if isinstance(event.get("permission_mode"), str):
+            observed_permission = event["permission_mode"]
+        if isinstance(event.get("tools"), list):
+            tools = sorted(str(item) for item in event["tools"])
     if observed_model is not None and observed_model != manifest["model"]:
         raise HarnessError(
             f'harness reported model {observed_model!r}, expected the pinned model {manifest["model"]!r}'

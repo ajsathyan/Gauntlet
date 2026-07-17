@@ -127,7 +127,7 @@ def path_is_instruction_surface(path, text=""):
         lower = lower[2:]
     name = Path(lower).name
     parts = Path(lower).parts
-    if name in {"agents.md", "claude.md", "gemini.md"}:
+    if name in {"agents.md", "gemini.md"}:
         return True
     if parts and parts[0] == "router" and Path(name).suffix in {".md", ".mdx", ".txt"}:
         return True
@@ -147,7 +147,7 @@ def path_is_instruction_surface(path, text=""):
         return True
     if any(part in {"prompts", "prompt", "templates", "template", "instructions"} for part in parts[:-1]):
         return True
-    if parts and parts[0] in {".codex-plugin", ".claude-plugin"}:
+    if parts and parts[0] == ".codex-plugin":
         return True
     instruction_tokens = {
         "agent",
