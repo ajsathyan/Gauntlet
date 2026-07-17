@@ -340,6 +340,7 @@ The installer also adds a Gauntlet pre-commit hook in this repo. When staged fil
 | [skills/issue-triager/SKILL.md](skills/issue-triager/SKILL.md) | Routes plans, findings, test failures, bugs, and open questions into ready tasks. |
 | [skills/implementer/SKILL.md](skills/implementer/SKILL.md) | Executes scoped code changes while preserving repo patterns and collecting proof. |
 | [skills/implement-prd/SKILL.md](skills/implement-prd/SKILL.md) | Compiles a build-ready PRD into a durable Ticket Graph and coordinates its authorized end-to-end release path. |
+| [skills/land/SKILL.md](skills/land/SKILL.md) | Lands accepted work through a ready PR, required CI, merge, landed-revision monitoring, default-branch sync, and safe cleanup using local Git and `gh` by default. |
 | [skills/adversarial-reviewer/SKILL.md](skills/adversarial-reviewer/SKILL.md) | Stress-tests assumptions, edge cases, trust boundaries, and regressions. |
 | [skills/black-box-tester/SKILL.md](skills/black-box-tester/SKILL.md) | Validates behavior externally through user-visible outcomes. |
 | [skills/experience-reviewer/SKILL.md](skills/experience-reviewer/SKILL.md) | Reviews workflow clarity, IA, states, metrics, accessibility, trust, activation, retention, and growth. |

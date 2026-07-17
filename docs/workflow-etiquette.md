@@ -195,6 +195,8 @@ Use a branch for persisted work. Use a worktree for p0–p2, broad, dirty-worktr
 
 "Merge this," "land this," or "merge this to main" authorizes the contextual changelog → commit → push → ready PR → required checks → merge-commit → landed-revision verification → established revision-attributable post-merge monitoring → local default-branch fast-forward → remote branch deletion → safe isolated-worktree and local-branch removal flow for the current scope. Skip monitoring only when the repository provides none; never infer production health from PR CI. Preserve cleanup state when unique or dirty work, branch drift, another worktree, or failed monitoring makes deletion unsafe. Generic merge authority does not archive the task or install locally. For an Epic Run, use `scripts/gauntlet.py merge prepare|plan|execute --run <run>` and its controller-owned schema 3.0 Project PR facts; use schema v1 `--handoff` only for non-run Patches. Ask only for a new material choice or preservation risk.
 
+Use the `land` skill for this flow. Default to local `git` and authenticated `gh`; use a GitHub connector only when explicitly requested or the CLI cannot perform a required operation.
+
 "Implement the PRD" authorizes freezing its complete accepted target, creating one visible task and one Execution Run per independently shippable Epic, and carrying dependency-ready Epics through branch/worktree setup, Ticket execution, exact-revision proof, PR, merge, specified deployment/production stages, required rollback, durable updates, and safe cleanup. Proposed, deferred, and materially unresolved work stays out.
 
 See `docs/github-discipline.md` for the detailed beginner-friendly branch → coherent commits → PR → verification → merge-commit → cleanup path.

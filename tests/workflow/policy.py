@@ -44,20 +44,25 @@ def test_normal_requests_use_minimum_scope_before_lifecycle_routing():
 def test_merge_and_archive_authority_requires_complete_safe_closeout():
     router = read(ROUTER_MD)
     archive = read(SKILLS / "archive" / "SKILL.md")
+    land = read(SKILLS / "land" / "SKILL.md")
     for marker in [
-        "one complete Git closeout",
-        "wait for required CI",
-        "revision-attributable post-merge monitoring",
-        "fast-forward the local default branch",
-        "safely remove the isolated worktree and local branch",
-        "does not authorize local installation or task archival",
+        "invokes the installed `land` skill",
+        "Default to local `git` and `gh`",
+        "Generic merge authority does not authorize local installation or task archival",
     ]:
         assert_contains(router, marker, "always-loaded merge closeout")
     for marker in [
-        "## Land And Clean Up",
-        "Only after landed verification and applicable monitoring pass",
-        "remove a clean isolated worktree",
-        "Generic merge or land requests stop after Git closeout",
-        "Preserve the task branch/worktree",
+        "Use local `git` and `gh` by default",
+        "wait for required CI",
+        "verify it contains the accepted head",
+        "Run established push-to-default CI",
+        "Fast-forward the checkout that owns the local default branch",
+        "Remove a clean isolated worktree",
     ]:
-        assert_contains(archive, marker, "archive closeout")
+        assert_contains(land, marker, "land closeout")
+    for marker in [
+        "Read `../land/SKILL.md` completely",
+        "Complete the `land` skill",
+        "Stop without archival if it does not pass",
+    ]:
+        assert_contains(archive, marker, "archive composition")

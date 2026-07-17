@@ -101,6 +101,8 @@ Human or agent judgment should remain conversational:
 
 "Merge this," "land this," or "merge this to main" authorizes the complete safe closeout for the current scoped work: prepare the non-run handoff or run-backed Project PR projection, update `CHANGELOG.md`, commit coherent local changes, push the task branch, create or update a ready PR, wait for required checks and blocking review state, merge, verify the accepted revision on the remote default branch, run established post-merge CI/deployment monitoring when it exists and is attributable to that revision, fast-forward the local default branch, delete the remote branch, then remove the isolated worktree and local branch only when no unique or dirty work remains. Preserve cleanup state on drift, another-worktree use, or failed monitoring. This authority does not install locally or archive the Codex task.
 
+Use the Gauntlet `land` skill for this flow. Default to local `git` and authenticated `gh` commands because they share the checkout and local credential state. Use a GitHub connector only when the user explicitly asks for it or the CLI cannot perform a required operation. Do not edit or shadow a bundled publishing skill to change this policy.
+
 "push to git" means push the current branch. It does not imply direct-push to `main` or merge.
 
 Use `scripts/gauntlet.py merge prepare` before committing the changelog, `scripts/gauntlet.py merge plan` for a read-only preflight, and `scripts/gauntlet.py merge execute` after the worktree is clean. For an Epic Run, pass `--run <run>` so the helper consumes schema 3.0 facts and verifies the locked Epic, graph, repository, branch, exact head, and final Epic verification binding. For a non-run Patch, pass schema v1 `--handoff <handoff.json>`. Never downgrade a run-bound branch to `--handoff`.
@@ -109,21 +111,7 @@ With `review-prs-plus-final`, the parent uses `scripts/gauntlet.py review-unit p
 
 For explicit standalone drafts, use `scripts/gauntlet.py changelog pr --accepted-spec "$SPEC_PATH" --plan "$PLAN_PATH" --git-root "$PROJECT_ROOT"`. The hidden `--implementation-memory` alias remains migration-only.
 
-For the combined instruction “apply it locally, merge it to main with a new PR, then archive this task,” use one guarded closeout execution:
-
-```sh
-python3 scripts/gauntlet.py closeout execute \
-  --git-root "$PROJECT_ROOT" \
-  --handoff "$HANDOFF_PATH" \
-  --stage path/to/changed-file \
-  --install-target codex \
-  --title "$THREAD_TITLE" \
-  --suggested-title "p3-auto: complete guarded release closeout" \
-  --content "$ARCHIVE_SUMMARY_PATH" \
-  --json
-```
-
-Repeat `--stage` for every intended source path. The command rejects unlisted dirty work and invalid archive inputs before committing. It prepares the PR body and changelog, commits the named scope, pushes, creates or updates one PR, waits for checks, merges, verifies and synchronizes the default branch, cleans safe local and remote task state, installs the merged Gauntlet version when requested, and returns `remainingAppActions`. If the repository defines a separate post-merge monitor, use the merge helper first, run the monitor against the landed revision, complete safe cleanup, and only then execute the archive actions. The agent must execute returned Codex app actions in order; a local process cannot rename or archive a Codex task directly.
+For the combined instruction “apply it locally, merge it to main with a new PR, then archive this task,” complete the `land` skill first. Install and verify the landed default branch, then run `archive plan` and `archive execute` with the Archive Summary. Execute returned Codex app actions in order; a local process cannot rename or archive a Codex task directly.
 
 ## Commit And PR Framing
 

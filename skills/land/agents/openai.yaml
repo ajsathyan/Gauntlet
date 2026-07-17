@@ -1,0 +1,4 @@
+interface:
+  display_name: "Land Changes"
+  short_description: "Merge through CI and clean up safely"
+  default_prompt: "Use $land to merge these completed changes into the default branch and finish the safe Git closeout."

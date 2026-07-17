@@ -158,7 +158,7 @@ Keep deterministic coverage, scorer plumbing, and behavioral outcome evidence di
 - Automated merges use merge commits. Direct push to `main` is an explicit tiny-change shortcut, not the default.
 - Child lanes commit to their branches and return receipts; the main chat integrates and owns the PR.
 
-“Merge this,” “land this,” or “merge this to main” authorizes the complete safe closeout for the accepted scope: prepare the non-run handoff or run-backed Project PR projection, update `CHANGELOG.md`, commit and push the task branch, create or update the applicable PR, wait for required checks and blocking review state, merge, delete the remote task branch, verify the default branch, and clean local task state only when no unique work remains. Ask only for a new material decision or preservation risk.
+“Merge this,” “land this,” or “merge this to main” invokes the Gauntlet `land` skill for the complete safe closeout. Default to local `git` and authenticated `gh`; use a GitHub connector only when explicitly requested or the CLI cannot perform a required operation. Ask only for a new material decision or preservation risk.
 
 “Implement the PRD” authorizes one frozen launch set. The product task creates one visible Epic task per independently shippable Epic, reconciles dependency-ready starts, and gives the user concise start, blocker, Epic-finish, and aggregate-finish copy. Each Epic task owns branch/worktree creation, Ticket Graph execution, proof, one Project PR, merge, specified deployment and production changes, verification, required rollback, durable updates, and safe cleanup. It excludes proposed, deferred, and materially unresolved work. Stop only for a material blocker such as missing authority or credentials, an unsafe or destructive effect absent from the PRD, invalid rollout or rollback, or required production proof that cannot be obtained.
 
@@ -166,7 +166,7 @@ When cutting a version, move the shipped entries from `Unreleased` under a headi
 
 “Push to git” means push the current branch; it does not authorize direct-pushing or merging `main`. Use `scripts/gauntlet.py merge prepare|plan|execute --run <run>` for an Execution Run's controller-owned schema 3.0 Project PR projection. Use `--handoff <schema-v1.json>` only for a non-run Patch. A branch bound to a run must not downgrade to `--handoff`. Run `execute` only with merge authority; a request to open a PR does not authorize merging it.
 
-When AJS asks to apply Gauntlet locally, merge it through a new PR, and then archive the task, use one `scripts/gauntlet.py closeout execute` invocation with explicit `--stage` paths. The command preflights archive inputs, commits only the named scope plus `CHANGELOG.md`, merges through the existing PR gates, updates and installs the merged default branch, and returns the Codex app actions. The main task must execute those returned app actions in order because the local CLI cannot mutate Codex task state.
+When AJS asks to apply Gauntlet locally, merge it through a new PR, and then archive the task, complete `land`, install and verify the landed default branch, then run the archive planner and execute its returned Codex app actions in order. A local CLI cannot mutate Codex task state.
 
 ## Run logs and coverage gaps
 
