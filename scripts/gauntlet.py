@@ -18,6 +18,13 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from gauntletlib.core.findings import finding as make_finding
+from gauntletlib.core.findings import status_for_findings
+from gauntletlib.core.processes import gh, gh_binary as gh_binary, git, run_command
+from gauntletlib.core.security import SECRET_PATTERNS as SECRET_PATTERNS
+from gauntletlib.core.security import has_secret, redact_secrets
+from gauntletlib.core.serialization import canonical_json as _canonical_json
+from gauntletlib.core.serialization import sha256_bytes as _sha256_bytes
 from thread_titles import epic_task_title, parse_thread_title, product_task_title
 
 
@@ -95,11 +102,6 @@ SECTION_REQUIRED = [
     ("follow_ups", ["follow-ups", "follow ups", "followup", "followups"]),
     ("stale_context_warning", ["stale context warning", "stale-context warning", "stale context"]),
     ("redaction_notes", ["redaction notes", "redaction", "secrets"]),
-]
-SECRET_PATTERNS = [
-    re.compile(r"(?i)\b[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*['\"]?[^\s'\"`]+"),
-    re.compile(r"(?i)\b(sk|pk|rk)-(live|test)-[A-Za-z0-9_-]{8,}"),
-    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
 ]
 ARCHIVE_SUMMARY_ALIASES = ["archive summary", "what changed", "change summary"]
 ANALYTICS_SCHEMA_VERSION = "gauntlet.analytics.v1"
@@ -180,44 +182,11 @@ SENSITIVE_PAYLOAD_FRAGMENTS = [
 
 
 def run_cmd(args, cwd=None, env=None, check=False):
-    result = subprocess.run(
-        args,
-        cwd=cwd,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    if check and result.returncode != 0:
-        raise RuntimeError(f"{args} failed with {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
-    return result
-
-
-def git(args, cwd):
-    return run_cmd(["git", *args], cwd=cwd)
-
-
-def gh_binary():
-    return os.environ.get("GAUNTLET_GH", "gh")
-
-
-def gh(args, cwd):
-    return run_cmd([gh_binary(), *args], cwd=cwd, env=os.environ.copy())
+    return run_command(args, cwd=cwd, env=env, check=check)
 
 
 def read_text(path):
     return Path(path).read_text(encoding="utf-8", errors="ignore")
-
-
-def redact_secrets(text):
-    redacted = text or ""
-    for pattern in SECRET_PATTERNS:
-        redacted = pattern.sub("[REDACTED_SECRET]", redacted)
-    return redacted
-
-
-def has_secret(text):
-    return any(pattern.search(text or "") for pattern in SECRET_PATTERNS)
 
 
 def utc_timestamp():
@@ -1225,11 +1194,11 @@ def command_docs_epic_accept(args):
 
 
 def sha256_bytes(value):
-    return hashlib.sha256(value).hexdigest()
+    return _sha256_bytes(value)
 
 
 def canonical_json(value):
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return _canonical_json(value)
 
 
 def epic_source_sections(source_text):
@@ -3293,22 +3262,11 @@ def parse_followups(text):
 
 
 def add_finding(payload, code, severity, message, **details):
-    finding = {
-        "code": code,
-        "severity": severity,
-        "message": message,
-    }
-    finding.update(details)
-    payload.setdefault("findings", []).append(finding)
+    payload.setdefault("findings", []).append(make_finding(code, severity, message, **details))
 
 
 def status_for(payload):
-    status = "pass"
-    for finding in payload.get("findings", []):
-        severity = finding.get("severity", "warn")
-        if STATUS_ORDER[severity] > STATUS_ORDER[status]:
-            status = severity
-    return status
+    return status_for_findings(payload.get("findings", []), STATUS_ORDER)
 
 
 def memory_lint_payload(path):

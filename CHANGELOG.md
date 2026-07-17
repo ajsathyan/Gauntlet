@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now centralizes shared stdlib-only process, redaction, serialization, atomic file, timestamp, and finding primitives while preserving each script's established contracts.
+
 - Gauntlet now defines stdlib-only Python package scaffolding and runs conservative Ruff linting on changed Python files.
 
 - Implement GAUNTLET-005: Live Epic progress.

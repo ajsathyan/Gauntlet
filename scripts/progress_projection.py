@@ -13,6 +13,8 @@ import re
 import statistics
 from typing import Any
 
+from gauntletlib.core.serialization import canonical_json
+
 
 SOURCE_SCHEMA = "gauntlet/live-progress-source/v1"
 PROJECTION_SCHEMA = "gauntlet/live-epic-progress/v1"
@@ -43,10 +45,6 @@ REASON_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 class ProjectionError(Exception):
     pass
-
-
-def canonical_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
 def digest(value: Any) -> str:

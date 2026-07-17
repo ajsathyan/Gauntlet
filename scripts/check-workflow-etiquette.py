@@ -2,9 +2,11 @@
 import argparse
 import json
 import re
-import subprocess
 from pathlib import Path
 
+from gauntletlib.core.findings import finding as make_finding
+from gauntletlib.core.findings import status_for_findings
+from gauntletlib.core.processes import git
 from thread_titles import parse_thread_title
 
 FIELD_PATTERN = r"^\s*(?:-\s*)?{field}:\s*(.+?)\s*$"
@@ -28,24 +30,15 @@ EXIT_CODES = {"pass": 0, "warn": 0, "review": 2, "fail": 1}
 
 
 def add_finding(findings, code, severity, message, migration_friendly=False, **details):
-    finding = {
-        "code": code,
-        "severity": severity,
-        "message": message,
-    }
+    extra = {}
     if migration_friendly:
-        finding["migrationFriendly"] = True
-    finding.update(details)
-    findings.append(finding)
+        extra["migrationFriendly"] = True
+    extra.update(details)
+    findings.append(make_finding(code, severity, message, **extra))
 
 
 def status_for(findings):
-    status = "pass"
-    for finding in findings:
-        severity = finding.get("severity", "warn")
-        if STATUS_ORDER[severity] > STATUS_ORDER[status]:
-            status = severity
-    return status
+    return status_for_findings(findings, STATUS_ORDER)
 
 
 def read_content(path):
@@ -247,10 +240,6 @@ def check_followups(content, archive, archive_anyway, findings):
                     "review",
                     "Strong follow-up remains; offer complete here, create same-repo chat with context, or archive anyway.",
                 )
-
-
-def git(args, cwd):
-    return subprocess.run(["git", *args], cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
 def check_git_state(root, archive, findings):

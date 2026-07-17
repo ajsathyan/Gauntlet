@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import fcntl
-import hashlib
 import json
 import os
 import re
@@ -22,6 +21,11 @@ from pathlib import Path
 from typing import Any
 
 from generated_context import ContextError, render_manifest
+from gauntletlib.core.files import atomic_write_json as atomic_json
+from gauntletlib.core.files import atomic_write_text as atomic_text
+from gauntletlib.core.serialization import canonical_json, pretty_json
+from gauntletlib.core.serialization import read_json as _read_json
+from gauntletlib.core.serialization import sha256_bytes as sha_bytes
 
 
 STATES = (
@@ -92,18 +96,6 @@ PROGRESS_POLICY = "gauntlet.progress-policy.v1"
 
 class RunError(Exception):
     pass
-
-
-def canonical_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-def pretty_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-
-
-def sha_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
 
 
 def canonical_consequence_triggers(raw: str | None, label: str) -> list[str]:
@@ -419,27 +411,9 @@ def validate_launch_set(path: Path, source: Path, source_info: dict[str, Any], t
 
 def read_json(path: Path) -> Any:
     try:
-        return json.loads(path.read_text())
+        return _read_json(path, encoding=None)
     except (OSError, json.JSONDecodeError) as exc:
         raise RunError(f"cannot read JSON {path}: {exc}") from exc
-
-
-def atomic_text(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
-
-
-def atomic_json(path: Path, value: Any) -> None:
-    atomic_text(path, pretty_json(value))
 
 
 def relative_run_path(run: Path, path: Path, label: str) -> tuple[Path, str]:

@@ -9,15 +9,18 @@ in a separate directory supplied only to the trusted evaluation process.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
+
+from gauntletlib.core.files import atomic_write_json as atomic_json
+from gauntletlib.core.serialization import canonical_json, pretty_json
+from gauntletlib.core.serialization import read_json as _read_json
+from gauntletlib.core.serialization import sha256_bytes as sha_bytes
 
 
 SCHEMA_VERSION = 1
@@ -35,37 +38,11 @@ class EvalTaskError(Exception):
         self.kind = kind
 
 
-def canonical_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-def pretty_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-
-
-def sha_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
-
-
 def read_json(path: Path, label: str) -> Any:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return _read_json(path)
     except (OSError, json.JSONDecodeError) as exc:
         raise EvalTaskError(f"cannot read {label} {path}: {exc}", kind="integrity") from exc
-
-
-def atomic_json(path: Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(pretty_json(value))
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
 
 
 def tree_digest(root: Path) -> str:

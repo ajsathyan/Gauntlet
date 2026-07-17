@@ -1,8 +1,12 @@
 import json
 import re
-import subprocess
-from datetime import datetime, timezone
 from pathlib import Path
+
+from gauntletlib.core.processes import git, run_command as _run_command
+from gauntletlib.core.security import SECRET_PATTERNS as SECRET_PATTERNS
+from gauntletlib.core.security import has_secret, redact_secrets as redact_secrets
+from gauntletlib.core.serialization import read_json as _read_json
+from gauntletlib.core.timestamps import utc_now_seconds
 
 
 RISK_ORDER = [
@@ -22,11 +26,6 @@ RISK_ORDER = [
     "docs-only",
 ]
 
-SECRET_PATTERNS = [
-    re.compile(r"(?i)\b[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*['\"]?[^\s'\"`]+"),
-    re.compile(r"(?i)\b(sk|pk|rk)-(live|test)-[A-Za-z0-9_-]{8,}"),
-    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
-]
 IGNORED_CHANGE_PREFIXES = (
     ".gauntlet/",
     ".review-brief",
@@ -55,15 +54,11 @@ RISK_PATTERNS = [
 
 
 def now_iso():
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return utc_now_seconds()
 
 
 def run_command(args, cwd):
-    return subprocess.run(args, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-
-def git(args, cwd):
-    return run_command(["git", *args], cwd)
+    return _run_command(args, cwd=cwd)
 
 
 def relpath(root, path):
@@ -74,7 +69,7 @@ def relpath(root, path):
 
 
 def read_json(path):
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    return _read_json(Path(path))
 
 
 def write_json(path, payload):
@@ -87,17 +82,6 @@ def read_text(path):
         return Path(path).read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return ""
-
-
-def has_secret(text):
-    return any(pattern.search(text or "") for pattern in SECRET_PATTERNS)
-
-
-def redact_secrets(text):
-    redacted = text or ""
-    for pattern in SECRET_PATTERNS:
-        redacted = pattern.sub("[REDACTED_SECRET]", redacted)
-    return redacted
 
 
 def is_git_repo(root):

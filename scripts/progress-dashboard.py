@@ -5,9 +5,7 @@ from __future__ import annotations
 
 import argparse
 import copy
-from datetime import datetime, timezone
 import fcntl
-import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -22,6 +20,8 @@ import threading
 import time
 from urllib.parse import unquote, urlsplit
 
+from gauntletlib.core.serialization import sha256_bytes as sha_bytes
+from gauntletlib.core.timestamps import utc_now_seconds as utc_now
 from progress_projection import ProjectionError, build_projection
 
 
@@ -43,14 +43,6 @@ MAX_CONCURRENT_REQUESTS = 16
 
 class DashboardError(Exception):
     pass
-
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-
-
-def sha_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
 
 
 def atomic_private_json(path: Path, value: dict) -> None:
