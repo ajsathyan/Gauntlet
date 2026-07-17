@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now extracts accepted-Epic launch contracts and Epic task orchestration into a registered stdlib-only package while preserving launch snapshots, task packets, dependency readiness, lifecycle events, document reconciliation, merge leases, CLI behavior, and legacy imports.
+
 - Gauntlet now packages the unchanged live-progress projection and dashboard supervisor while preserving the legacy projection import path, dashboard lifecycle, and Epic progress CLI.
 
 - Gauntlet now extracts unchanged closeout, archive, follow-up, memory, and changelog workflows into a registered stdlib-only package while preserving preflight, scoped mutation, installation, and returned app-action contracts.

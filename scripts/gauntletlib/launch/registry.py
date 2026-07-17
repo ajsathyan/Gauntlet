@@ -1,0 +1,121 @@
+"""Epic task command registry."""
+
+from pathlib import Path
+
+from gauntletlib.progress import register as register_progress
+
+from .workflow import (
+    command_epic_tasks_blocker,
+    command_epic_tasks_bootstrap,
+    command_epic_tasks_init,
+    command_epic_tasks_merge_lease_acquire,
+    command_epic_tasks_merge_lease_release,
+    command_epic_tasks_plan,
+    command_epic_tasks_reconcile,
+    command_epic_tasks_reconcile_docs,
+    command_epic_tasks_record_run,
+    command_epic_tasks_record_task,
+    command_epic_tasks_release_start,
+    command_epic_tasks_resolve_blocker,
+    command_epic_tasks_status,
+)
+
+
+def register(subcommands, refresh_seconds=2.5):
+    epic_tasks = subcommands.add_parser("epic-tasks", help="Plan and reconcile one visible implementation task per build-ready Epic.")
+    epic_task_subcommands = epic_tasks.add_subparsers(dest="epic_tasks_command", required=True)
+    epic_init = epic_task_subcommands.add_parser("init", help="Freeze one complete PRD target into an Epic launch set.")
+    epic_init.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_init.add_argument("--source", type=Path, required=True)
+    epic_init.add_argument("--target", action="append", default=[])
+    epic_init.add_argument("--launch-set", type=Path, required=True)
+    epic_init.add_argument("--priority", choices=["p0", "p1", "p2", "p3", "p4"], default="p1")
+    epic_init.add_argument("--json", action="store_true")
+    epic_init.set_defaults(func=command_epic_tasks_init)
+    epic_plan = epic_task_subcommands.add_parser("plan", help="Emit only missing dependency-ready task actions.")
+    epic_plan.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_plan.add_argument("--launch-set", type=Path, required=True)
+    epic_plan.add_argument("--json", action="store_true")
+    epic_plan.set_defaults(func=command_epic_tasks_plan)
+    epic_bootstrap = epic_task_subcommands.add_parser("bootstrap", help="Verify and resolve one complete accepted Epic before run creation.")
+    epic_bootstrap.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_bootstrap.add_argument("-l", "--launch-set", type=Path, required=True)
+    epic_bootstrap.add_argument("-e", "--epic", required=True)
+    epic_bootstrap.add_argument("-t", "--task-key", required=True)
+    epic_bootstrap.add_argument("-s", "--source-sha256")
+    epic_bootstrap.add_argument("-c", "--coverage-sha256")
+    epic_bootstrap.add_argument("--json", action="store_true")
+    epic_bootstrap.set_defaults(func=command_epic_tasks_bootstrap)
+    epic_record_task = epic_task_subcommands.add_parser("record-task", help="Persist a proven native task ID for an Epic.")
+    epic_record_task.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_record_task.add_argument("--launch-set", type=Path, required=True)
+    epic_record_task.add_argument("--epic", required=True)
+    epic_record_task.add_argument("--task-key", required=True)
+    epic_record_task.add_argument("--task-id", required=True)
+    epic_record_task.add_argument("--json", action="store_true")
+    epic_record_task.set_defaults(func=command_epic_tasks_record_task)
+    epic_release = epic_task_subcommands.add_parser("release-start", help="Release an ambiguous task action only after native reconciliation proves no task exists.")
+    epic_release.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_release.add_argument("--launch-set", type=Path, required=True)
+    epic_release.add_argument("--epic", required=True)
+    epic_release.add_argument("--task-key", required=True)
+    epic_release.add_argument("--native-index", type=Path, required=True)
+    epic_release.add_argument("--json", action="store_true")
+    epic_release.set_defaults(func=command_epic_tasks_release_start)
+    epic_record_run = epic_task_subcommands.add_parser("record-run", help="Bind an Epic task to its single-Epic Execution Run.")
+    epic_record_run.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_record_run.add_argument("--launch-set", type=Path, required=True)
+    epic_record_run.add_argument("--epic", required=True)
+    epic_record_run.add_argument("--run", type=Path, required=True)
+    epic_record_run.add_argument("--json", action="store_true")
+    epic_record_run.set_defaults(func=command_epic_tasks_record_run)
+    epic_status = epic_task_subcommands.add_parser("status", help="Read current Epic task and completion projections without changing state.")
+    epic_status.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_status.add_argument("--launch-set", type=Path, required=True)
+    epic_status.add_argument("--json", action="store_true")
+    epic_status.set_defaults(func=command_epic_tasks_status)
+    epic_reconcile = epic_task_subcommands.add_parser("reconcile", help="Refresh completion facts, finish copy, and newly ready task actions.")
+    epic_reconcile.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_reconcile.add_argument("--launch-set", type=Path, required=True)
+    epic_reconcile.add_argument("--json", action="store_true")
+    epic_reconcile.set_defaults(func=command_epic_tasks_reconcile)
+    register_progress(epic_task_subcommands, refresh_seconds)
+    epic_blocker = epic_task_subcommands.add_parser("blocker", help="Record a structured Epic blocker and emit a user question only when required.")
+    epic_blocker.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_blocker.add_argument("--launch-set", type=Path, required=True)
+    epic_blocker.add_argument("--epic", required=True)
+    epic_blocker.add_argument("--blocker", type=Path, required=True)
+    epic_blocker.add_argument("--json", action="store_true")
+    epic_blocker.set_defaults(func=command_epic_tasks_blocker)
+    epic_resolve = epic_task_subcommands.add_parser("resolve-blocker", help="Apply the product task's accepted blocker disposition.")
+    epic_resolve.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_resolve.add_argument("--launch-set", type=Path, required=True)
+    epic_resolve.add_argument("--epic", required=True)
+    epic_resolve.add_argument("--disposition", choices=["continue", "stop"], required=True)
+    epic_resolve.add_argument("--reason", default=None)
+    epic_resolve.add_argument("--json", action="store_true")
+    epic_resolve.set_defaults(func=command_epic_tasks_resolve_blocker)
+    epic_docs = epic_task_subcommands.add_parser("reconcile-docs", help="Project one implemented Epic back into its canonical PRD and index.")
+    epic_docs.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_docs.add_argument("--launch-set", type=Path, required=True)
+    epic_docs.add_argument("--epic", required=True)
+    epic_docs.add_argument("--json", action="store_true")
+    epic_docs.set_defaults(func=command_epic_tasks_reconcile_docs)
+    epic_lease = epic_task_subcommands.add_parser("merge-lease", help="Serialize default-branch mutation across ready Epic PRs.")
+    epic_lease_subcommands = epic_lease.add_subparsers(dest="epic_merge_lease_command", required=True)
+    epic_lease_acquire = epic_lease_subcommands.add_parser("acquire")
+    epic_lease_acquire.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_lease_acquire.add_argument("--launch-set", type=Path, required=True)
+    epic_lease_acquire.add_argument("--epic", required=True)
+    epic_lease_acquire.add_argument("--candidate-head", required=True)
+    epic_lease_acquire.add_argument("--verified-base", required=True)
+    epic_lease_acquire.add_argument("--json", action="store_true")
+    epic_lease_acquire.set_defaults(func=command_epic_tasks_merge_lease_acquire)
+    epic_lease_release = epic_lease_subcommands.add_parser("release")
+    epic_lease_release.add_argument("--git-root", type=Path, default=Path.cwd())
+    epic_lease_release.add_argument("--launch-set", type=Path, required=True)
+    epic_lease_release.add_argument("--epic", required=True)
+    epic_lease_release.add_argument("--candidate-head", required=True)
+    epic_lease_release.add_argument("--merged-head", required=True)
+    epic_lease_release.add_argument("--json", action="store_true")
+    epic_lease_release.set_defaults(func=command_epic_tasks_merge_lease_release)
