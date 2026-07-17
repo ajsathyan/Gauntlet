@@ -807,13 +807,13 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/progress/projection.py",
       "executable": false,
-      "sha256": "e686768b80f614fc34f8e50357ebbabe79156d177e4b4262ba7618442f6fa823",
+      "sha256": "a46c7b95198a82fd320b31ddf9f5fac1b1d4068e57c73afeaf323f5f6e9a047f",
       "source": "scripts/gauntletlib/progress/projection.py"
     },
     {
       "destination": "gauntlet/scripts/gauntletlib/progress/supervisor.py",
       "executable": false,
-      "sha256": "927c167e31dcd3db95145551cc534190e0e08504c85647e7dae9e81e5a39b5ae",
+      "sha256": "c95eec2b07cfb5996b997c95eb4f5aec5c819fbfc85d5ca513d228ce28776696",
       "source": "scripts/gauntletlib/progress/supervisor.py"
     },
     {
@@ -837,7 +837,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/run/controller.py",
       "executable": false,
-      "sha256": "4e0712b96463167117762ff549bd7e19af758b9ce94fe8d24adf676bd1f651f0",
+      "sha256": "6a11b8951ea6ec180c89ace75218a5ab691879ad31ef1efcd01e5b2eef88458b",
       "source": "scripts/gauntletlib/run/controller.py"
     },
     {
@@ -879,7 +879,7 @@
     {
       "destination": "gauntlet/scripts/progress-dashboard.py",
       "executable": false,
-      "sha256": "1423cd33a975dfd19fc7a4c2a5a65c57f6d9aa7d212ff8b1b06031996f50ab86",
+      "sha256": "d48d18af8576edebec7200c219f87f707df7abc839c76d0b2bf1c5135451aec8",
       "source": "scripts/progress-dashboard.py"
     },
     {
@@ -933,7 +933,7 @@
     {
       "destination": "gauntlet/scripts/subagent-audit.py",
       "executable": false,
-      "sha256": "6d5d81367b96a1d8eb0537b69207f64b3de3ec10e5b27955d4f2d36aeb030db8",
+      "sha256": "898cdfde0b42df7247cf5647c18d3bc74e3074711dd2d7da1289bd555f459537",
       "source": "scripts/subagent-audit.py"
     },
     {
@@ -1527,13 +1527,13 @@
     {
       "destination": "gauntlet/templates/progress-dashboard/assets/app.css",
       "executable": false,
-      "sha256": "a2b832058ea141538352cec49d270c7afd505fd617dbd9be4d1369df4cbffdac",
+      "sha256": "78b78762344ff0eab279ff2eb8aaad51939e577ba93c753a60d4afbbdb46a71d",
       "source": "templates/progress-dashboard/assets/app.css"
     },
     {
       "destination": "gauntlet/templates/progress-dashboard/assets/app.js",
       "executable": false,
-      "sha256": "0639c2f9d1d31e629128b62515d833a141c44a68e35a28b346b60ff207801aaf",
+      "sha256": "a838dc908fc5489a8221e0112fa9145bf1261d9365d62b325849c9e46584c4f3",
       "source": "templates/progress-dashboard/assets/app.js"
     },
     {
@@ -1656,7 +1656,7 @@
     },
     {
       "destination": "gauntlet/scripts/test-progress-projection.py",
-      "sha256": "801484bd9da4b2b0c2e8b881fea80c27485947d3dcaf6b335612f949ceb28b05",
+      "sha256": "b62bf77042a8c3610936e68f8fa513b0de861907e727dddfc4cd5c38aa5dea59",
       "type": "file"
     },
     {

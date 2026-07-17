@@ -41,7 +41,6 @@ export interface EpicProgress {
     started: string;
     current: string;
     elapsed: string;
-    updated: string;
   };
   presentation: {
     state: PresentationState;
@@ -64,24 +63,9 @@ export interface EpicProgress {
   agents: {
     activeCount: number;
     summary: string;
-    byPhase: Array<{
-      phase: PhaseKey;
-      count: number;
-    }>;
-    details: AgentProgress[];
   };
-  eta: EtaProgress;
   usage: UsageProgress;
   pricing: PricingProgress;
-  details: {
-    progressPolicy: string;
-    denominatorDigest?: string | null;
-    plannedProgress?: string | null;
-    units: ProgressUnit[];
-    timing: DetailFact[];
-    coverage: DetailFact[];
-    recovery: DetailFact[];
-  };
   actions: SafeAction[];
 }
 
@@ -100,65 +84,22 @@ export interface ProgressCopy {
   actionId?: string | null;
 }
 
-export interface AgentProgress {
-  id: string;
-  label: string;
-  phase: PhaseKey;
-  phaseLabel: string;
-  status: "active" | "waiting" | "complete";
-  elapsed?: string | null;
-  modelUsage?: string | null;
-}
-
-export interface EtaProgress {
-  status: "settling" | "available" | "waiting_on_user" | "unavailable";
-  likelyFinishAt?: string | null;
-  remainingSeconds?: number | null;
-  confidence?: "low" | "medium" | "high" | null;
-  estimatorVersion?: string | null;
-  label: string;
-  detail?: string | null;
-  reason?: string | null;
-}
-
 export interface UsageProgress {
   totalTokens: number;
   totalLabel: string;
-  observedThrough?: string | null;
   freshness: string;
   coverage: CoverageState;
   models: Array<{
     model: string;
     tokens: number;
-    label: string;
-    inputTokens?: number | null;
-    cachedInputTokens?: number | null;
-    outputTokens?: number | null;
-    reasoningOutputTokens?: number | null;
   }>;
 }
 
 export interface PricingProgress {
   status: "complete" | "lower_bound" | "unavailable";
-  registryVersion?: string | null;
-  effectiveDate?: string | null;
   amountUsd?: number | null;
   amountLabel: string;
   disclaimer: string;
-  components: DetailFact[];
-  unpricedReasons: string[];
-}
-
-export interface ProgressUnit {
-  id: string;
-  label: string;
-  phase: PhaseKey;
-  status: "waiting" | "running" | "passed" | "failed" | "invalidated";
-}
-
-export interface DetailFact {
-  label: string;
-  value: string;
 }
 
 export interface SafeAction {

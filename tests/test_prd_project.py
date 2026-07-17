@@ -853,6 +853,27 @@ class EpicProjectTests(unittest.TestCase):
             self.assertEqual("run-2", second["runs"]["APP-002"]["runId"])
             self.assertEqual(25, second["telemetry"]["APP-001"]["tokens"]["total_tokens"])
 
+            facts_with_owner = dict(facts, owners=[{
+                "ownerId": "root", "ownerKind": "parent", "ownerRef": "root",
+                "nativeChildId": "task-1", "requestedProfile": None,
+                "requestWindow": None,
+            }])
+            with mock.patch("gauntlet.run_facts_for_progress", return_value=facts_with_owner), mock.patch("gauntlet.telemetry_for_progress", return_value=None):
+                gauntlet.refresh_progress_source(launch_path, launch, root)
+            failed_refresh = json.loads(source_path.read_text())
+            stale = failed_refresh["telemetry"]["APP-001"]
+            self.assertEqual(25, stale["tokens"]["total_tokens"])
+            self.assertEqual("partial", stale["coverage"]["status"])
+            self.assertEqual("stale", stale["coverage"]["freshness"]["status"])
+            self.assertEqual(["telemetry-refresh-failed"], stale["coverage"]["limitations"])
+
+            source_path.unlink()
+            with mock.patch("gauntlet.run_facts_for_progress", return_value=facts_with_owner), mock.patch("gauntlet.telemetry_for_progress", return_value=None):
+                gauntlet.refresh_progress_source(launch_path, launch, root)
+            unavailable = json.loads(source_path.read_text())["telemetry"]["APP-001"]
+            self.assertIsNone(unavailable["tokens"])
+            self.assertEqual("unavailable", unavailable["coverage"]["status"])
+
     def test_dashboard_terminal_policy_waits_for_every_sibling_and_cleanup_is_idempotent(self):
         launch = {
             "targetEpicIds": ["ONE", "TWO"],

@@ -675,7 +675,10 @@ class PrdRunTests(unittest.TestCase):
 
     def test_zero_cohorts_materializes_bounded_context(self) -> None:
         self.compile_and_start()
-        self.command("claim", "--run", str(self.run), "--ticket", "T1", "--agent", "agent-a", "--attempt", "1")
+        self.command(
+            "claim", "--run", str(self.run), "--ticket", "T1", "--agent", "agent-a",
+            "--attempt", "1", "--native-child-id", "child-agent-a",
+        )
         bundle = self.command("materialize-ticket", "--run", str(self.run), "--ticket", "T1").stdout
         self.assertIn("# Cohort context\n\nNone.", bundle)
         self.assertIn("Cohort: None", bundle)
@@ -683,7 +686,10 @@ class PrdRunTests(unittest.TestCase):
 
     def test_parent_verification_uses_exact_identity_not_different_prose(self) -> None:
         self.compile_and_start()
-        self.command("claim", "--run", str(self.run), "--ticket", "T1", "--agent", "agent-a", "--attempt", "1")
+        self.command(
+            "claim", "--run", str(self.run), "--ticket", "T1", "--agent", "agent-a",
+            "--attempt", "1", "--native-child-id", "child-agent-a",
+        )
         evidence = self.run / "evidence" / "T1.r1.a1.md"
         evidence.write_text("# Shared evidence\n\nOne observation may support two fresh receipts.\n")
         child = self.root / "child.json"
@@ -822,6 +828,8 @@ class PrdRunTests(unittest.TestCase):
             "startedAt": "2026-07-16T12:00:00Z",
         }, root_owner["requestWindow"])
         delegated = [item for item in run_facts["owners"] if item["ownerKind"] == "delegated"]
+        self.assertTrue(all(item["ownerRef"] == item["ownerId"] for item in delegated))
+        self.assertNotIn("/root/", json.dumps(run_facts["owners"]))
         self.assertEqual({20}, {item["requestWindow"]["startOrdinal"] for item in delegated})
         self.assertEqual({25}, {item["requestWindow"]["endOrdinal"] for item in delegated})
         self.assertEqual("not-required", run_facts["review"]["status"])

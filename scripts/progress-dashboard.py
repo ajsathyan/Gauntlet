@@ -122,20 +122,9 @@ class ProjectionStore:
                     "actionRequired": False,
                 }
                 epic["presentation"]["state"] = "recovering"
-            epic["eta"] = {
-                "status": "unavailable",
-                "likelyFinishAt": None,
-                "remainingSeconds": None,
-                "confidence": None,
-                "estimatorVersion": "gauntlet-eta/v1",
-                "label": "Cannot estimate yet",
-                "detail": "The latest source refresh is invalid; showing last valid progress.",
-                "reason": "source-refresh-invalid",
-            }
             epic["presentation"]["transitionId"] = sha_bytes(
                 (epic["presentation"]["transitionId"] + ":source-refresh-invalid").encode()
             )[:16]
-            epic["details"]["recovery"] = [{"label": "Status", "value": "source-refresh-invalid"}]
         return value
 
     def refresh(self) -> tuple[bytes, str, bool]:

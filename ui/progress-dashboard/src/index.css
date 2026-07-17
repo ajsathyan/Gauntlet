@@ -17,7 +17,7 @@
   --faint: oklch(64% 0.015 145);
   --line: oklch(89% 0.014 135);
   --line-strong: oklch(84% 0.018 135);
-  --panel: oklch(99% 0.008 120);
+  --panel: #fff;
   --canvas: oklch(95% 0.012 120);
   --phase-waiting: oklch(91% 0.012 135);
   --action: oklch(50% 0.17 25);
@@ -35,7 +35,12 @@ body,
   margin: 0;
 }
 
-body { min-height: 100vh; }
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 0%, oklch(98% 0.025 145), transparent 42%),
+    var(--canvas);
+}
 
 .transportShell {
   display: grid;
@@ -68,29 +73,6 @@ a:focus-visible,
 summary:focus-visible {
   outline: 3px solid color-mix(in oklab, var(--green-600), white 28%);
   outline-offset: 3px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: oklch(90% 0.018 145);
-    background: oklch(20% 0.018 145);
-    --green-900: oklch(82% 0.08 145);
-    --green-850: oklch(82% 0.08 145);
-    --green-800: oklch(77% 0.09 145);
-    --green-700: oklch(73% 0.1 145);
-    --green-600: oklch(68% 0.11 145);
-    --green-100: oklch(30% 0.045 145);
-    --ink: oklch(90% 0.018 145);
-    --ink-soft: oklch(83% 0.018 145);
-    --muted: oklch(68% 0.014 145);
-    --faint: oklch(58% 0.012 145);
-    --line: oklch(34% 0.018 145);
-    --line-strong: oklch(42% 0.02 145);
-    --panel: oklch(25% 0.018 145);
-    --canvas: oklch(20% 0.018 145);
-    --phase-waiting: oklch(35% 0.015 145);
-    --action-ink: oklch(96% 0.01 25);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

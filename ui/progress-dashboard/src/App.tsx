@@ -27,7 +27,7 @@ const phaseLabels: Record<PhaseKey, string> = {
   prepare: "Prepare",
   build: "Build",
   integrate: "Integrate",
-  final_verify: "Final verify",
+  final_verify: "Verify",
   ship: "Ship",
 };
 
@@ -38,7 +38,7 @@ const phaseStatusLabels: Record<PhaseStatus, string> = {
   invalidated: "Invalidated",
 };
 
-type IconName = "agents" | "tokens" | "cost" | "arrow" | "check";
+type IconName = "agents" | "tokens" | "cost" | "arrow" | "check" | "sol" | "terra" | "luna";
 
 function Icon({ name }: { name: IconName }) {
   const common = {
@@ -74,6 +74,19 @@ function Icon({ name }: { name: IconName }) {
       )}
       {name === "arrow" && <path d="M5 12h13M13 7l5 5-5 5" />}
       {name === "check" && <path d="m6 12 4 4 8-9" />}
+      {name === "sol" && (
+        <>
+          <circle cx="12" cy="12" r="3.5" />
+          <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1" />
+        </>
+      )}
+      {name === "terra" && (
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M3.5 12h17M12 3.5c2.4 2.3 3.7 5.1 3.7 8.5S14.4 18.2 12 20.5M12 3.5C9.6 5.8 8.3 8.6 8.3 12s1.3 6.2 3.7 8.5" />
+        </>
+      )}
+      {name === "luna" && <path d="M19.5 15.2A8.5 8.5 0 0 1 8.8 4.5a8.5 8.5 0 1 0 10.7 10.7Z" />}
     </svg>
   );
 }
@@ -247,7 +260,13 @@ function PhaseRail({ epic }: { epic: EpicProgress }) {
     epic.health.status === "healthy" &&
     !epic.freshness.stale &&
     epic.freshness.coverage !== "unavailable";
-  const phaseColumns = epic.phases.map((phase) => `${phase.policyShare}fr`).join(" ");
+  const phaseColumns = epic.phases
+    .map((phase, index) => (
+      index === 0
+        ? `minmax(64px, ${phase.policyShare}fr)`
+        : `minmax(0, ${phase.policyShare}fr)`
+    ))
+    .join(" ");
 
   return (
     <section className={styles.phaseSection} aria-label="Planned execution progress">
@@ -296,32 +315,19 @@ function safeActionFor(epic: EpicProgress): SafeAction | null {
   return action;
 }
 
-function DetailFacts({
-  heading,
-  facts,
-}: {
-  heading: string;
-  facts: Array<{ label: string; value: string }>;
-}) {
-  if (facts.length === 0) return null;
-  return (
-    <section className={styles.detailSection}>
-      <h3>{heading}</h3>
-      <dl className={styles.factList}>
-        {facts.map((fact) => (
-          <div key={`${fact.label}:${fact.value}`}>
-            <dt>{fact.label}</dt>
-            <dd>{fact.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  );
-}
+const modelPresentation: Record<string, { label: string; icon: "sol" | "terra" | "luna"; order: number }> = {
+  "gpt-5.6-sol": { label: "Sol", icon: "sol", order: 0 },
+  "gpt-5.6-terra": { label: "Terra", icon: "terra", order: 1 },
+  "gpt-5.6-luna": { label: "Luna", icon: "luna", order: 2 },
+};
 
-function RunDetails({ epic }: { epic: EpicProgress }) {
+function UsageDetails({ epic }: { epic: EpicProgress }) {
   const [open, setOpen] = useState(false);
   const id = useId();
+  const models = [...epic.usage.models]
+    .filter((model) => modelPresentation[model.model])
+    .sort((left, right) => modelPresentation[left.model].order - modelPresentation[right.model].order);
+  const total = epic.usage.totalTokens;
 
   return (
     <details
@@ -330,7 +336,7 @@ function RunDetails({ epic }: { epic: EpicProgress }) {
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary aria-controls={id}>
-        Run details <Icon name="arrow" />
+        Usage details <Icon name="arrow" />
       </summary>
       <AnimatePresence initial={false}>
         {open && (
@@ -342,71 +348,38 @@ function RunDetails({ epic }: { epic: EpicProgress }) {
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className={styles.detailGrid}>
-              <section className={styles.detailSection}>
-                <h3>Agents</h3>
-                {epic.agents.details.length === 0 ? (
-                  <p className={styles.detailEmpty}>No active agents.</p>
-                ) : (
-                  <ul className={styles.agentList}>
-                    {epic.agents.details.map((agent) => (
-                      <li key={agent.id}>
-                        <span className={styles.agentGlyph}><Icon name="agents" /></span>
-                        <span>
-                          <strong>{agent.label}</strong>
-                          <small>{agent.phaseLabel}{agent.elapsed ? ` · ${agent.elapsed}` : ""}</small>
-                          {agent.modelUsage && <small>{agent.modelUsage}</small>}
-                        </span>
-                        <i className={styles.agentStatus}>{agent.status}</i>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-
-              <DetailFacts heading="Timing" facts={epic.details.timing} />
-              <DetailFacts heading="Coverage" facts={epic.details.coverage} />
-              <DetailFacts heading="Recovery" facts={epic.details.recovery} />
-              <DetailFacts heading="API comparison" facts={epic.pricing.components} />
-            </div>
-
-            <section className={styles.provenance}>
-              <h3>Planned execution progress</h3>
-              <p>
-                {epic.details.progressPolicy}
-                {epic.details.plannedProgress ? ` · ${epic.details.plannedProgress}` : ""}
-              </p>
-              {epic.details.units.length > 0 && (
+            <section className={styles.modelUsage}>
+              <h3>Model usage</h3>
+              {models.length > 0 ? (
+                <>
                 <ul>
-                  {epic.details.units.map((unit) => (
-                    <li key={unit.id}>
-                      <span>{unit.label}</span>
-                      <small>{phaseLabels[unit.phase]} · {unit.status}</small>
+                  {models.map((model) => {
+                    const presentation = modelPresentation[model.model];
+                    const share = total > 0 ? `${((model.tokens / total) * 100).toFixed(1)}%` : "—";
+                    return (
+                    <li key={model.model}>
+                      <span className={styles.modelIdentity}>
+                        <span className={styles.modelIcon} data-model-icon={presentation.icon}>
+                          <Icon name={presentation.icon} />
+                        </span>
+                        {presentation.label}
+                      </span>
+                      <strong>{formatTokens(model.tokens)}</strong>
+                      <small>{share}</small>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
+                <div className={styles.modelTotal}>
+                  <span>Total</span>
+                  <strong>{formatTokens(total)}</strong>
+                  <small>{total > 0 ? "100%" : "—"}</small>
+                </div>
+                </>
+              ) : (
+                <p className={styles.usageUnavailable}>Model usage is unavailable.</p>
               )}
             </section>
-
-            {epic.usage.models.length > 0 && (
-              <section className={styles.modelUsage}>
-                <h3>Model usage</h3>
-                <ul>
-                  {epic.usage.models.map((model) => (
-                    <li key={model.model}>
-                      <span>{model.model}</span>
-                      <strong>{model.label}</strong>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {epic.pricing.unpricedReasons.length > 0 && (
-              <p className={styles.coverageNote}>
-                Not priced: {epic.pricing.unpricedReasons.join(" · ")}
-              </p>
-            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -474,19 +447,6 @@ export function ProgressCard({ epic }: { epic: EpicProgress }) {
             <span className={`${styles.freshness} ${epic.freshness.stale ? styles.freshnessStale : ""}`}>
               {epic.freshness.label}
             </span>
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.div
-                key={`${epic.eta.status}:${epic.eta.label}`}
-                className={styles.eta}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -3 }}
-                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <strong>{epic.eta.label}</strong>
-                {epic.eta.detail && <span>{epic.eta.detail}</span>}
-              </motion.div>
-            </AnimatePresence>
           </div>
         </header>
 
@@ -559,46 +519,48 @@ export function ProgressCard({ epic }: { epic: EpicProgress }) {
 
       <footer className={styles.usage}>
         <span className={styles.usageLabel}>Usage</span>
-        <div className={styles.agentMetric}>
-          <span className={styles.metricIcon}><Icon name="agents" /></span>
-          <div>
+        <div className={styles.usageMetrics}>
+          <div className={styles.agentMetric}>
+            <span className={styles.metricIcon}><Icon name="agents" /></span>
+            <div>
+              <strong>
+                {epic.agents.activeCount} {epic.agents.activeCount === 1 ? "agent" : "agents"} active
+              </strong>
+              <small>{epic.agents.summary}</small>
+            </div>
+          </div>
+          <i className={styles.divider} aria-hidden="true" />
+          <div className={styles.metric}>
+            <span className={styles.metricIcon}><Icon name="tokens" /></span>
             <strong>
-              {epic.agents.activeCount} {epic.agents.activeCount === 1 ? "agent" : "agents"} active
+              {epic.usage.coverage === "unavailable" ? (
+                epic.usage.totalLabel
+              ) : (
+                <>
+                  <AnimatedNumber value={epic.usage.totalTokens} format={formatTokens} />
+                  <span> tokens used</span>
+                </>
+              )}
             </strong>
-            <small>{epic.agents.summary}</small>
-            <RunDetails epic={epic} />
+            <small>{epic.usage.coverage === "complete" ? epic.usage.freshness : `${epic.usage.coverage} coverage · ${epic.usage.freshness}`}</small>
+          </div>
+          <i className={styles.divider} aria-hidden="true" />
+          <div className={`${styles.metric} ${styles.costMetric}`}>
+            <span className={styles.metricIcon}><Icon name="cost" /></span>
+            <strong>
+              {epic.pricing.status === "unavailable" || epic.pricing.amountUsd == null ? (
+                epic.pricing.amountLabel
+              ) : (
+                <>
+                  {epic.pricing.status === "lower_bound" ? "Priced token subtotal ≥$" : "API equivalent ~$"}
+                  <AnimatedNumber value={epic.pricing.amountUsd} format={(value) => value.toFixed(2)} />
+                </>
+              )}
+            </strong>
+            <small>{epic.pricing.disclaimer}</small>
           </div>
         </div>
-        <i className={styles.divider} aria-hidden="true" />
-        <div className={styles.metric}>
-          <span className={styles.metricIcon}><Icon name="tokens" /></span>
-          <strong>
-            {epic.usage.coverage === "unavailable" ? (
-              epic.usage.totalLabel
-            ) : (
-              <>
-                <AnimatedNumber value={epic.usage.totalTokens} format={formatTokens} />
-                <span> tokens used</span>
-              </>
-            )}
-          </strong>
-          <small>{epic.usage.coverage === "complete" ? epic.usage.freshness : `${epic.usage.coverage} coverage · ${epic.usage.freshness}`}</small>
-        </div>
-        <i className={styles.divider} aria-hidden="true" />
-        <div className={styles.metric}>
-          <span className={styles.metricIcon}><Icon name="cost" /></span>
-          <strong>
-            {epic.pricing.status === "unavailable" || epic.pricing.amountUsd == null ? (
-              epic.pricing.amountLabel
-            ) : (
-              <>
-                {epic.pricing.status === "lower_bound" ? "Priced token subtotal ≥$" : "API equivalent ~$"}
-                <AnimatedNumber value={epic.pricing.amountUsd} format={(value) => value.toFixed(2)} />
-              </>
-            )}
-          </strong>
-          <small>{epic.pricing.disclaimer}</small>
-        </div>
+        <UsageDetails epic={epic} />
       </footer>
     </motion.article>
   );

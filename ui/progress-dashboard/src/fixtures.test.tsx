@@ -13,7 +13,7 @@ import {
 } from "./contract";
 
 const phaseOrder: PhaseKey[] = ["prepare", "build", "integrate", "final_verify", "ship"];
-const phaseNames = ["Prepare", "Build", "Integrate", "Final verify", "Ship"];
+const phaseNames = ["Prepare", "Build", "Integrate", "Verify", "Ship"];
 
 function phases(statuses: PhaseStatus[]) {
   return phaseOrder.map((key, index) => ({
@@ -67,7 +67,6 @@ function makeProjection(
         started: "10:00 AM",
         current: "11:15 AM",
         elapsed: "1h 15m",
-        updated: "Updated just now",
       },
       presentation: { state, transitionId: `transition-${state}` },
       health: {
@@ -87,64 +86,23 @@ function makeProjection(
       agents: {
         activeCount: activeAgents,
         summary: "4 building · 3 integrating · 4 verifying",
-        byPhase: [
-          { phase: "build", count: 4 },
-          { phase: "integrate", count: 3 },
-          { phase: "final_verify", count: 4 },
-        ],
-        details: Array.from({ length: activeAgents }, (_, index) => ({
-          id: `agent-${index + 1}`,
-          label: `Worker ${index + 1}`,
-          phase: index < 4 ? "build" : index < 7 ? "integrate" : "final_verify",
-          phaseLabel: index < 4 ? "Building" : index < 7 ? "Integrating" : "Verifying",
-          status: "active" as const,
-          elapsed: `${index + 2}m`,
-          modelUsage: "Model usage observed",
-        })),
-      },
-      eta: {
-        status: presentation.health === "needs_user" ? "waiting_on_user" : "available",
-        likelyFinishAt: "2030-01-02T16:45:00Z",
-        remainingSeconds: 1800,
-        confidence: "medium",
-        estimatorVersion: "eta-v1",
-        label: presentation.health === "needs_user" ? "Waiting on you" : "Likely done 11:45 AM",
-        detail: presentation.health === "needs_user" ? null : "~30 min left · medium confidence",
       },
       usage: {
         totalTokens: 1357900,
         totalLabel: "1.36M",
-        observedThrough: "request-cursor",
         freshness: "Observed just now",
         coverage: "complete",
-        models: [{
-          model: "model-alpha",
-          tokens: 1357900,
-          label: "1.36M",
-          inputTokens: 1000000,
-          cachedInputTokens: 200000,
-          outputTokens: 357900,
-          reasoningOutputTokens: 157900,
-        }],
+        models: [
+          { model: "gpt-5.6-sol", tokens: 925000 },
+          { model: "gpt-5.6-terra", tokens: 340000 },
+          { model: "gpt-5.6-luna", tokens: 92900 },
+        ],
       },
       pricing: {
         status: "complete",
-        registryVersion: "pricing-v1",
-        effectiveDate: "2030-01-01",
         amountUsd: 17.25,
         amountLabel: "API equivalent ~$17.25",
         disclaimer: "comparison only — not your bill or savings",
-        components: [{ label: "Registry", value: "pricing-v1" }],
-        unpricedReasons: [],
-      },
-      details: {
-        progressPolicy: "fixed-v1",
-        denominatorDigest: "sha256:test",
-        plannedProgress: "52%",
-        units: [{ id: "unit-1", label: "Integrate change", phase: "integrate", status: "running" }],
-        timing: [{ label: "Estimator", value: "eta-v1" }],
-        coverage: [{ label: "Lineage", value: "Complete" }],
-        recovery: [],
       },
       actions: [],
     }],
@@ -183,19 +141,24 @@ describe("production progress experience", () => {
     expect(container.textContent).toContain("Complete final verification");
   });
 
-  it("keeps the default card aggregate and discloses individual agents on demand", async () => {
+  it("keeps agent usage aggregate and never discloses individual agents", async () => {
     await render(makeProjection("parallel_work", 11));
     expect(container.textContent).toContain("11 agents active");
     expect(container.textContent).not.toContain("Worker 11");
-    expect(container.textContent).not.toContain("52%");
+    expect(container.textContent).not.toContain("Sol");
 
     const details = container.querySelector("details")!;
     await act(async () => {
       details.open = true;
       details.dispatchEvent(new Event("toggle"));
     });
-    expect(container.textContent).toContain("Worker 11");
-    expect(container.textContent).toContain("52%");
+    expect(container.textContent).not.toContain("Worker 11");
+    expect(container.textContent).toContain("Sol");
+    expect(container.textContent).toContain("Terra");
+    expect(container.textContent).toContain("Luna");
+    expect(container.textContent).not.toContain("Lineage");
+    expect(container.textContent).not.toContain("Integrate change");
+    expect(container.querySelectorAll("[data-model-icon]")).toHaveLength(3);
   });
 
   it("contains no preview controls or fixture shell copy", async () => {
@@ -213,12 +176,18 @@ describe("production progress experience", () => {
     }
     expect(container.querySelector("nav")).toBeNull();
     expect(container.querySelector("select")).toBeNull();
+    expect(text).not.toContain("Likely done");
+    expect(text).not.toContain("remaining");
   });
 
-  it("uses the locked phase policy for visual widths", async () => {
+  it("uses the phase policy with a readable Prepare minimum", async () => {
     await render(makeProjection());
-    const rail = container.querySelector('[aria-label="Planned execution progress"] > div') as HTMLElement;
-    expect(rail.style.gridTemplateColumns).toBe("0.05fr 0.35fr 0.25fr 0.2fr 0.15fr");
+    const phaseSection = container.querySelector('[aria-label="Planned execution progress"]')!;
+    const rail = phaseSection.querySelector("div") as HTMLElement;
+    const labels = phaseSection.querySelector("ol") as HTMLElement;
+    const expected = "minmax(64px, 0.05fr) minmax(0, 0.35fr) minmax(0, 0.25fr) minmax(0, 0.2fr) minmax(0, 0.15fr)";
+    expect(rail.style.gridTemplateColumns).toBe(expected);
+    expect(labels.style.gridTemplateColumns).toBe(expected);
   });
 
   it("does not turn unavailable usage into an observed zero", async () => {
@@ -235,16 +204,36 @@ describe("production progress experience", () => {
     expect(container.textContent).not.toContain("0 tokens used");
   });
 
+  it("retains last observed token usage while recovering", async () => {
+    const projection = makeProjection("recovering");
+    projection.epics[0].usage = {
+      ...projection.epics[0].usage,
+      coverage: "partial",
+      freshness: "Last observed 10:59 AM",
+    };
+    await render(projection);
+    expect(container.textContent).toContain("1.36M tokens used");
+    expect(container.textContent).toContain("Last observed 10:59 AM");
+    expect(container.textContent).not.toContain("Usage temporarily unavailable");
+  });
+
+  it("labels partial pricing as a lower bound", async () => {
+    const projection = makeProjection();
+    projection.epics[0].pricing = {
+      status: "lower_bound",
+      amountUsd: 14.2,
+      amountLabel: "$14.20",
+      disclaimer: "comparison only — not your bill or savings",
+    };
+    await render(projection);
+    expect(container.textContent).toContain("Priced token subtotal ≥$14.20");
+    expect(container.textContent).not.toContain("API equivalent ~$14.20");
+  });
+
   it.each(["failed", "stopped"] as const)("shows the exact %s terminal outcome without celebration", async (outcome) => {
     const projection = makeProjection("recovering");
     projection.epics[0].identity.terminalOutcome = outcome;
     projection.epics[0].now.label = outcome === "failed" ? "Implementation failed" : "Implementation stopped";
-    projection.epics[0].eta = {
-      ...projection.epics[0].eta,
-      status: "unavailable",
-      label: "No completion estimate",
-      detail: "This implementation run is terminal.",
-    };
     await render(projection);
     expect(container.textContent).toContain(outcome === "failed" ? "Failed" : "Stopped");
     expect(container.textContent).toContain(projection.epics[0].now.label);

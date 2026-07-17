@@ -2534,6 +2534,8 @@ def cmd_claim(args: argparse.Namespace) -> None:
     if item["status"] != "ready" and not retry:
         raise RunError(f"ticket {args.ticket} is {item['status']}, not ready")
     agent = require_string(args.agent, "agent")
+    if args.owner_kind == "delegated" and not args.native_child_id:
+        raise RunError("delegated ticket claims require --native-child-id for usage attribution")
     active = [ticket_id for ticket_id, other in manifest["tickets"].items() if ticket_id != args.ticket and other["status"] == "dispatched" and (other.get("lease") or {}).get("agent") == agent]
     if active:
         raise RunError(f"agent {agent} already owns active ticket {active[0]}")
@@ -2593,6 +2595,8 @@ def cmd_claim_lane(args: argparse.Namespace) -> None:
     if args.attempt < 1:
         raise RunError("attempt must be positive")
     agent = require_string(args.agent, "agent")
+    if args.owner_kind == "delegated" and not args.native_child_id:
+        raise RunError("delegated lane claims require --native-child-id for usage attribution")
     active = [
         ticket_id for ticket_id, item in manifest["tickets"].items()
         if item["status"] == "dispatched" and (item.get("lease") or {}).get("agent") == agent
@@ -2837,6 +2841,10 @@ def run_facts_projection(run: Path, manifest: dict[str, Any]) -> dict[str, Any]:
         if isinstance(request_owners, dict) and request_owners
         else [item["owner"] for _, item in sorted(manifest["tickets"].items()) if item.get("owner")]
     )
+    owners = [
+        {**owner, "ownerRef": owner.get("ownerId") or owner.get("ownerRef")}
+        for owner in owners
+    ]
     completion = completion_projection(manifest, observed_head=commit)
     return {
         "completion": completion,

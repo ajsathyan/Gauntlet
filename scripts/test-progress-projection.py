@@ -109,6 +109,11 @@ def source_fixture() -> dict:
                          "limitations": [], "totalsScope": "all-declared-owners"},
             "tokens": {"input_tokens": 1200, "cached_input_tokens": 200, "output_tokens": 300,
                        "reasoning_output_tokens": 100, "total_tokens": 1500},
+            "tokensByModel": {
+                "gpt-5.6-sol": 900,
+                "gpt-5.6-terra": 450,
+                "gpt-5.6-luna": 150,
+            },
             "pricing": {"status": "complete", "registryVersion": "gauntlet.model-api-pricing.v1",
                         "effectiveAt": "2026-07-01", "estimatedUsd": 0.12, "lowerBoundUsd": 0.12,
                         "components": {"inputUsd": 0.04, "cachedInputUsd": 0.01, "outputUsd": 0.07},
@@ -143,8 +148,9 @@ class ProgressProjectionTests(unittest.TestCase):
         self.assertEqual(1500, item["usage"]["totalTokens"])
         self.assertEqual("complete", item["usage"]["coverage"])
         self.assertEqual("complete", item["pricing"]["status"])
+        self.assertNotIn("eta", item)
 
-    def test_invalidation_moves_proved_progress_backward_without_denominator_change(self) -> None:
+    def test_invalidation_moves_proved_progress_backward(self) -> None:
         value = source_fixture()
         operation = next(
             item for item in value["runs"]["E1"]["facts"]["operations"]
@@ -165,15 +171,14 @@ class ProgressProjectionTests(unittest.TestCase):
         }]
         unit["status"] = "queued"
         after = epic(value)
-        invalidated = next(item for item in after["details"]["units"] if item["id"] == operation["id"])
+        invalidated = next(phase for phase in after["phases"] if phase["key"] == "integrate")
         self.assertEqual("invalidated", invalidated["status"])
-        self.assertEqual(before["details"]["denominatorDigest"], after["details"]["denominatorDigest"])
         self.assertLess(
             next(phase["provedShare"] for phase in after["phases"] if phase["key"] == "integrate"),
             next(phase["provedShare"] for phase in before["phases"] if phase["key"] == "integrate"),
         )
 
-    def test_old_timestampless_run_is_elapsed_and_eta_unavailable(self) -> None:
+    def test_old_timestampless_run_keeps_elapsed_unavailable(self) -> None:
         value = source_fixture()
         facts = value["runs"]["E1"]["facts"]
         facts["time"] = {"protocolVersion": None, "elapsedCoverage": "unavailable", "createdAt": None,
@@ -182,7 +187,6 @@ class ProgressProjectionTests(unittest.TestCase):
         facts["operations"] = []
         item = epic(value)
         self.assertEqual("Unavailable", item["time"]["elapsed"])
-        self.assertEqual("unavailable", item["eta"]["status"])
         self.assertIsNone(item["time"]["startedAt"])
         self.assertTrue(all(phase["status"] == "waiting" for phase in item["phases"]))
         self.assertTrue(all(phase["provedShare"] == 0 for phase in item["phases"]))
@@ -190,29 +194,28 @@ class ProgressProjectionTests(unittest.TestCase):
         value["launch"]["epics"]["E1"]["status"] = "implementation-complete"
         verified = epic(value)
         self.assertEqual("ready_to_merge", verified["presentation"]["state"])
-        self.assertEqual("Implementation complete", verified["eta"]["label"])
 
         value["runs"]["E1"]["facts"]["completion"] = {"complete": True, "exactState": "complete"}
         legacy_complete = epic(value)
         self.assertEqual("shipped", legacy_complete["presentation"]["state"])
         self.assertEqual("succeeded", legacy_complete["identity"]["terminalOutcome"])
-        self.assertEqual("Complete", legacy_complete["eta"]["label"])
         self.assertTrue(all(phase["status"] == "complete" for phase in legacy_complete["phases"]))
         self.assertTrue(all(phase["provedShare"] == 1.0 for phase in legacy_complete["phases"]))
 
-    def test_health_progress_freshness_and_eta_are_independent(self) -> None:
+    def test_health_progress_and_freshness_are_independent(self) -> None:
         value = source_fixture()
         item = epic(value)
         self.assertEqual("healthy", item["health"]["status"])
         self.assertFalse(item["freshness"]["stale"])
-        self.assertIn(item["eta"]["status"], {"settling", "available"})
 
         needs_user = copy.deepcopy(value)
         needs_user["launch"]["epics"]["E1"]["status"] = "needs-decision"
         blocked = epic(needs_user)
         self.assertEqual("needs_user", blocked["health"]["status"])
-        self.assertEqual("waiting_on_user", blocked["eta"]["status"])
-        self.assertEqual(item["details"]["plannedProgress"], blocked["details"]["plannedProgress"])
+        self.assertEqual(
+            [phase["provedShare"] for phase in item["phases"]],
+            [phase["provedShare"] for phase in blocked["phases"]],
+        )
 
         review_blocked = copy.deepcopy(value)
         review_blocked["runs"]["E1"]["facts"]["gapReview"].update({
@@ -221,11 +224,17 @@ class ProgressProjectionTests(unittest.TestCase):
         blocked_by_review = epic(review_blocked)
         self.assertEqual("needs_user", blocked_by_review["health"]["status"])
         self.assertEqual("review-decision-required", blocked_by_review["health"]["reason"])
-        self.assertEqual("waiting_on_user", blocked_by_review["eta"]["status"])
 
         stale = projection.build_projection(value, now="2026-07-16T17:00:00Z")["epics"][0]
         self.assertTrue(stale["freshness"]["stale"])
         self.assertEqual("recovering", stale["health"]["status"])
+        self.assertEqual(1500, stale["usage"]["totalTokens"])
+
+        value["telemetry"]["E1"]["coverage"]["status"] = "partial"
+        value["telemetry"]["E1"]["coverage"]["freshness"]["status"] = "stale"
+        stale_telemetry = epic(value)
+        self.assertEqual("Last observed Jul 16, 3:59 PM UTC", stale_telemetry["usage"]["freshness"])
+        self.assertEqual(1500, stale_telemetry["usage"]["totalTokens"])
 
     def test_canonical_presentation_states_cover_controller_outcomes(self) -> None:
         self.assertEqual({
@@ -297,12 +306,11 @@ class ProgressProjectionTests(unittest.TestCase):
             result = epic(value)
             self.assertEqual(launch_status, result["identity"]["terminalOutcome"])
             self.assertEqual(expected_now, result["now"]["label"])
-            self.assertEqual("unavailable", result["eta"]["status"])
             self.assertEqual("recovering", result["health"]["status"])
             self.assertEqual(0, result["agents"]["activeCount"])
             self.assertFalse(any(phase["status"] == "active" for phase in result["phases"]))
 
-    def test_next_gate_and_available_eta_are_derived_from_live_units(self) -> None:
+    def test_next_gate_is_derived_from_live_units_without_eta(self) -> None:
         value = source_fixture()
         first = epic(value)
         first_next = first["next"]["label"]
@@ -313,15 +321,8 @@ class ProgressProjectionTests(unittest.TestCase):
         self.assertEqual("parallel_work", second["presentation"]["state"])
         self.assertNotEqual(first_next, second["next"]["label"])
 
-        operation = value["runs"]["E1"]["facts"]["operations"][0]
-        operation["attempts"] = [{
-            "attempt": 1, "startedAt": "2026-07-16T15:40:00Z",
-            "finishedAt": "2026-07-16T15:42:00Z", "status": "pass",
-        }]
         result = epic(value)
-        self.assertEqual("available", result["eta"]["status"])
-        self.assertTrue(result["eta"]["label"].startswith("Likely done "))
-        self.assertIn("Low confidence", result["eta"]["detail"])
+        self.assertNotIn("eta", result)
 
     def test_next_never_selects_a_dependency_blocked_unit(self) -> None:
         value = source_fixture()
@@ -334,10 +335,30 @@ class ProgressProjectionTests(unittest.TestCase):
         self.assertIn("Build T2", result["next"]["label"])
         self.assertNotIn("Build T1", result["next"]["label"])
 
-    def test_pricing_registry_timestamp_preserves_effective_date(self) -> None:
+    def test_model_usage_remains_available_when_pricing_is_unavailable(self) -> None:
         value = source_fixture()
-        value["telemetry"]["E1"]["pricing"]["effectiveAt"] = "2026-07-09T00:00:00Z"
-        self.assertEqual("2026-07-09", epic(value)["pricing"]["effectiveDate"])
+        value["telemetry"]["E1"]["pricing"] = {"status": "unavailable"}
+        result = epic(value)
+        self.assertEqual("unavailable", result["pricing"]["status"])
+        self.assertEqual(
+            [
+                {"model": "gpt-5.6-luna", "tokens": 150},
+                {"model": "gpt-5.6-sol", "tokens": 900},
+                {"model": "gpt-5.6-terra", "tokens": 450},
+            ],
+            result["usage"]["models"],
+        )
+
+    def test_partial_pricing_is_exposed_only_as_a_lower_bound(self) -> None:
+        value = source_fixture()
+        value["telemetry"]["E1"]["pricing"].update({
+            "status": "partial",
+            "estimatedUsd": None,
+            "lowerBoundUsd": 0.08,
+        })
+        result = epic(value)
+        self.assertEqual("lower_bound", result["pricing"]["status"])
+        self.assertEqual(0.08, result["pricing"]["amountUsd"])
 
 
 if __name__ == "__main__":
