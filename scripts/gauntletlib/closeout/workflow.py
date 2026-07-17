@@ -748,11 +748,13 @@ def _execute_patch_closeout(args, repo, payload, handoff_path, handoff, default_
             _print_payload(payload, args.json)
             return EXIT_CODES[payload["status"]]
 
-        add_result = git(["add", "--", *commit_scope], repo)
-        if add_result.returncode != 0:
-            closeout_fail(payload, "git_add_failed", add_result.stderr.strip() or add_result.stdout.strip())
-            _print_payload(payload, args.json)
-            return EXIT_CODES[payload["status"]]
+        paths_to_add = [path for path in commit_scope if path in dirty_after_prepare]
+        if paths_to_add:
+            add_result = git(["add", "--", *paths_to_add], repo)
+            if add_result.returncode != 0:
+                closeout_fail(payload, "git_add_failed", add_result.stderr.strip() or add_result.stdout.strip())
+                _print_payload(payload, args.json)
+                return EXIT_CODES[payload["status"]]
         cached = git(["diff", "--cached", "--name-only"], repo)
         cached_paths = [line.strip() for line in cached.stdout.splitlines() if line.strip()]
         if cached.returncode != 0:
