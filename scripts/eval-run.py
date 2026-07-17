@@ -272,7 +272,7 @@ def validate_plan(raw: Any, core_registry: Any, adapter_registry: Any) -> dict[s
 
 def adapter_environment() -> dict[str, str]:
     allowed = {
-        "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "OPENAI_API_KEY",
+        "OPENAI_API_KEY",
         "PATH", "SYSTEMROOT", "TMPDIR", "TEMP", "TMP",
     }
     return {key: value for key, value in os.environ.items() if key in allowed}

@@ -73,7 +73,7 @@ def register_closeout(subparsers):
     execute.add_argument("--stage", action="append", default=[])
     execute.add_argument(
         "--install-target",
-        choices=["none", "codex", "claude"],
+        choices=["none", "codex"],
         default="none",
     )
     execute.add_argument("--agent-home", default=None)

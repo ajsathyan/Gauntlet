@@ -99,7 +99,7 @@ Human or agent judgment should remain conversational:
 
 ## Changelog And Closeout
 
-"Merge this," "land this," or "merge this to main" authorizes the complete safe closeout for the current scoped work: prepare the non-run handoff or run-backed Project PR projection, update `CHANGELOG.md`, commit coherent local changes, push the task branch, create or update the applicable PR, wait for required checks and blocking review state, merge, delete the remote branch, verify the default branch, and remove local branch/worktree state only when no unique work remains.
+"Merge this," "land this," or "merge this to main" authorizes the complete safe closeout for the current scoped work: prepare the non-run handoff or run-backed Project PR projection, update `CHANGELOG.md`, commit coherent local changes, push the task branch, create or update a ready PR, wait for required checks and blocking review state, merge, verify the accepted revision on the remote default branch, run established post-merge CI/deployment monitoring when it exists and is attributable to that revision, fast-forward the local default branch, delete the remote branch, then remove the isolated worktree and local branch only when no unique or dirty work remains. Preserve cleanup state on drift, another-worktree use, or failed monitoring. This authority does not install locally or archive the Codex task.
 
 "push to git" means push the current branch. It does not imply direct-push to `main` or merge.
 
@@ -123,7 +123,7 @@ python3 scripts/gauntlet.py closeout execute \
   --json
 ```
 
-Repeat `--stage` for every intended source path. The command rejects unlisted dirty work and invalid archive inputs before committing. It prepares the PR body and changelog, commits the named scope, pushes, creates or updates one PR, waits for checks, merges, cleans the local and remote task branches, fast-forwards the default branch, installs the merged Gauntlet version when requested, and returns `remainingAppActions`. The agent must execute those Codex app actions in order; a local process cannot rename or archive a Codex task directly.
+Repeat `--stage` for every intended source path. The command rejects unlisted dirty work and invalid archive inputs before committing. It prepares the PR body and changelog, commits the named scope, pushes, creates or updates one PR, waits for checks, merges, verifies and synchronizes the default branch, cleans safe local and remote task state, installs the merged Gauntlet version when requested, and returns `remainingAppActions`. If the repository defines a separate post-merge monitor, use the merge helper first, run the monitor against the landed revision, complete safe cleanup, and only then execute the archive actions. The agent must execute returned Codex app actions in order; a local process cannot rename or archive a Codex task directly.
 
 ## Commit And PR Framing
 

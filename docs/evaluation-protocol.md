@@ -1,6 +1,6 @@
 # Paired Evaluation Protocol
 
-`scripts/eval-run.py` runs deterministic paired development evaluations, records every launch, replays only independently invalid infrastructure attempts against unchanged state, checks adapter A/A equivalence, and reports total-package and matching-ablation estimands. It is Python-stdlib-only. `docs/evaluation-harnesses.md` defines the direct Codex CLI and Claude Code launch boundary.
+`scripts/eval-run.py` runs deterministic paired development evaluations, records every launch, replays only independently invalid infrastructure attempts against unchanged state, checks adapter A/A equivalence, and reports total-package and matching-ablation estimands. It is Python-stdlib-only. `docs/evaluation-harnesses.md` defines the direct Codex CLI launch boundary.
 
 The protocol consumes the task and hidden-oracle contract in `docs/evaluation-tasks.md`: task identity and starting state are versioned, scoring is automatic, implementation failures remain implementation failures, and verifier infrastructure is separately admitted. The runner does not inspect hidden verifier content.
 
@@ -15,7 +15,7 @@ A version 1 plan declares:
 - nested repetitions; and
 - cache states in canonical `cold`, `steady` order.
 
-When adapters declare a `harness_cell`, every condition in one paired plan must use the same harness version, model, provider-native reasoning setting, permission mode, and resource profile. Codex CLI and Claude Code or different models run as separate paired plans; cross-harness or cross-model results are not A/A observations.
+When adapters declare a `harness_cell`, every condition in one paired plan must use the same harness version, model, provider-native reasoning setting, permission mode, and resource profile. Different models run as separate paired plans; cross-harness or cross-model results are not A/A observations.
 
 The baseline package is rejected if it contains a Gauntlet artifact. It may declare native subagent use. Core tasks are rejected. `templates/evaluation/core-registry.json` contains exactly twelve `reserved-undefined` slots and no task identity or task content.
 
@@ -99,7 +99,7 @@ python3 scripts/eval-run.py adapter-equivalence \
   --output /trusted/adapter-equivalence.json
 ```
 
-`conformance` remains a compatibility alias. Conformance is the broader standard term for satisfying a contract; A/A equivalence is the more precise name for comparing two paths that are supposed to be behaviorally interchangeable. Direct Codex CLI and Claude Code are separate reference harness cells, not equivalent arms. Mastra and Harbor remain optional wrappers and must pass against the matching direct launcher before use.
+`conformance` remains a compatibility alias. Conformance is the broader standard term for satisfying a contract; A/A equivalence is the more precise name for comparing two paths that are supposed to be behaviorally interchangeable. Direct Codex CLI is the reference harness cell. Mastra and Harbor remain optional wrappers and must pass against the matching direct launcher before use.
 
 ## Proof
 

@@ -21,16 +21,15 @@ fi
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/install.sh [--target codex|claude] [--agent-home PATH] [--check] [--instructions-reviewed]
+Usage: scripts/install.sh [--target codex] [--agent-home PATH] [--check] [--instructions-reviewed]
                           [--response-style gauntlet|existing]
                           [--codex-preferences prompt|gauntlet|existing|skip] [--skip-git-hooks]
 
 Targets:
   codex   Install Gauntlet as AGENTS.md under the agent home. Default home: ~/.codex
-  claude  Install Gauntlet as a managed import block in CLAUDE.md. Default home: ~/.claude
 
 Environment:
-  GAUNTLET_INSTALL_TARGET  codex or claude
+  GAUNTLET_INSTALL_TARGET  codex
   AGENT_HOME              install destination override
   GAUNTLET_AGENT_HOME     install destination override when AGENT_HOME is unset
   GAUNTLET_INSTRUCTIONS_REVIEWED set to 1 after existing instructions were checked for conflicts
@@ -117,7 +116,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$TARGET" in
-  codex|claude)
+  codex)
     ;;
   *)
     echo "Unsupported install target: $TARGET" >&2
@@ -165,14 +164,7 @@ case "$RESPONSE_STYLE" in
 esac
 
 if [ -z "$AGENT_HOME" ]; then
-  case "$TARGET" in
-    codex)
-      AGENT_HOME="$HOME/.codex"
-      ;;
-    claude)
-      AGENT_HOME="$HOME/.claude"
-      ;;
-  esac
+  AGENT_HOME="$HOME/.codex"
 fi
 
 AGENT_HOME="$(python3 - "$AGENT_HOME" <<'PY'
@@ -887,27 +879,7 @@ PY
 }
 
 # Reject malformed target state before installing or removing any payload files.
-case "$TARGET" in
-  codex)
-    validate_managed_file "$AGENT_HOME/AGENTS.md"
-    ;;
-  claude)
-    validate_managed_file "$AGENT_HOME/CLAUDE.md"
-    ;;
-esac
-
-render_claude_adapter_block() {
-  local block_file="$1"
-  {
-    printf '%s\n' "$MANAGED_BEGIN"
-    printf '@%s/gauntlet/AGENTS.md\n\n' "$AGENT_HOME"
-    printf '%s\n\n' '## Gauntlet Adapter For Claude Code'
-    printf '%s\n' '- Imported Gauntlet AGENTS.md is the workflow source of truth.'
-    printf '%s\n' "- Gauntlet role skill files are installed in ${AGENT_HOME}/skills. When Gauntlet names a role skill, read that skill's SKILL.md before using it."
-    printf '%s\n' '- Codex-specific thread, app, or skill actions should be mapped to available Claude Code, Git, or GitHub equivalents when possible.'
-    printf '%s' "$MANAGED_END"
-  } > "$block_file"
-}
+validate_managed_file "$AGENT_HOME/AGENTS.md"
 
 render_codex_agents_block() {
   local block_file="$1"
@@ -924,7 +896,7 @@ candidate_block="$(mktemp)"
 instruction_review_log="$(mktemp)"
 codex_preference_log="$(mktemp)"
 legacy_installed_router=""
-if [ "$TARGET" = "codex" ] && [ -f "$AGENT_HOME/gauntlet/AGENTS.md" ]; then
+if [ -f "$AGENT_HOME/gauntlet/AGENTS.md" ]; then
   legacy_installed_router="$(mktemp)"
   cp "$AGENT_HOME/gauntlet/AGENTS.md" "$legacy_installed_router"
 fi
@@ -937,35 +909,17 @@ cleanup_install() {
 trap cleanup_install EXIT
 render_router "$rendered_router"
 
-case "$TARGET" in
-  codex)
-    render_codex_agents_block "$candidate_block" "$rendered_router"
-    ;;
-  claude)
-    render_claude_adapter_block "$candidate_block"
-    ;;
-esac
+render_codex_agents_block "$candidate_block" "$rendered_router"
 
 set +e
-case "$TARGET" in
-  codex)
-    require_instruction_review "$AGENT_HOME/AGENTS.md" "$candidate_block" "$rendered_router" 2>"$instruction_review_log"
-    instruction_review_status=$?
-    manage_codex_preferences check 2>"$codex_preference_log"
-    codex_preference_status=$?
-    ;;
-  claude)
-    require_instruction_review "$AGENT_HOME/CLAUDE.md" "$candidate_block" "$rendered_router" 2>"$instruction_review_log"
-    instruction_review_status=$?
-    codex_preference_status=0
-    ;;
-esac
+require_instruction_review "$AGENT_HOME/AGENTS.md" "$candidate_block" "$rendered_router" 2>"$instruction_review_log"
+instruction_review_status=$?
+manage_codex_preferences check 2>"$codex_preference_log"
+codex_preference_status=$?
 set -e
 
-if [ "$TARGET" = "codex" ]; then
-  python3 "$ROOT/scripts/install-codex-agents.py" check \
-    --source "$AGENTS_SRC" --agent-home "$AGENT_HOME"
-fi
+python3 "$ROOT/scripts/install-codex-agents.py" check \
+  --source "$AGENTS_SRC" --agent-home "$AGENT_HOME"
 
 if [ "$instruction_review_status" -ne 0 ] || [ "$codex_preference_status" -ne 0 ]; then
   cat "$instruction_review_log" "$codex_preference_log" >&2
@@ -975,9 +929,7 @@ if [ "$instruction_review_status" -ne 0 ] || [ "$codex_preference_status" -ne 0 
   exit 3
 fi
 
-if [ "$TARGET" = "codex" ]; then
-  preflight_codex_plugins
-fi
+preflight_codex_plugins
 
 if [ "$CHECK_ONLY" = "1" ]; then
   exit 0
@@ -997,26 +949,16 @@ PY
 cp "$rendered_router" "$AGENT_HOME/gauntlet/AGENTS.md"
 chmod 0644 "$AGENT_HOME/gauntlet/AGENTS.md"
 
-if [ "$TARGET" = "codex" ]; then
-  python3 "$ROOT/scripts/install-codex-agents.py" apply \
-    --source "$AGENTS_SRC" --agent-home "$AGENT_HOME"
-  python3 "$ROOT/scripts/install-codex-agents.py" verify \
-    --source "$AGENTS_SRC" --agent-home "$AGENT_HOME"
-fi
+python3 "$ROOT/scripts/install-codex-agents.py" apply \
+  --source "$AGENTS_SRC" --agent-home "$AGENT_HOME"
+python3 "$ROOT/scripts/install-codex-agents.py" verify \
+  --source "$AGENTS_SRC" --agent-home "$AGENT_HOME"
 
 # Activate the router only after the installed payload is complete.
-case "$TARGET" in
-  codex)
-    manage_codex_preferences apply
-    install_codex_plugins
-    write_managed_file "$AGENT_HOME/AGENTS.md" "$candidate_block" "$legacy_installed_router"
-    record_instruction_review "$AGENT_HOME/AGENTS.md" "$candidate_block" "$rendered_router"
-    ;;
-  claude)
-    write_managed_file "$AGENT_HOME/CLAUDE.md" "$candidate_block"
-    record_instruction_review "$AGENT_HOME/CLAUDE.md" "$candidate_block" "$rendered_router"
-    ;;
-esac
+manage_codex_preferences apply
+install_codex_plugins
+write_managed_file "$AGENT_HOME/AGENTS.md" "$candidate_block" "$legacy_installed_router"
+record_instruction_review "$AGENT_HOME/AGENTS.md" "$candidate_block" "$rendered_router"
 
 python3 "$AGENT_HOME/gauntlet/scripts/gauntlet.py" install verify \
   --target "$TARGET" --agent-home "$AGENT_HOME"

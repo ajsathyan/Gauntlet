@@ -1,6 +1,6 @@
 # Evaluation Harness Adapters
 
-`scripts/eval-harness.py` is the trusted boundary between Gauntlet's paired evaluation controller and a version-pinned Codex CLI or Claude Code process. It is Python-stdlib-only, keeps task prompts on standard input, materializes a fresh candidate workspace for every execution ID, runs the hidden scorer only after the coding process exits, and returns bounded metrics, artifact references, and telemetry without returning prompt or transcript content.
+`scripts/eval-harness.py` is the trusted boundary between Gauntlet's paired evaluation controller and a version-pinned Codex CLI process. It is Python-stdlib-only, keeps task prompts on standard input, materializes a fresh candidate workspace for every execution ID, runs the hidden scorer only after the coding process exits, and returns bounded metrics, artifact references, and telemetry without returning prompt or transcript content.
 
 The adapter infrastructure is complete without defining a core task. `templates/evaluation/harnesses/trusted-tasks.json` therefore has an empty task map. The later task-selection decision fills that trusted registry with each task's starting tree, prompt path, scorer command, state digest, and artifact allowlist. The adapter recomputes the starting-tree digest before use. Core identities remain rejected until the sealed twelve-task set is approved.
 
@@ -8,14 +8,11 @@ The adapter infrastructure is complete without defining a core task. `templates/
 
 ## Harness manifests
 
-Start from:
+Start from `templates/evaluation/harnesses/codex-cli.json.tmpl`.
 
-- `templates/evaluation/harnesses/codex-cli.json.tmpl`
-- `templates/evaluation/harnesses/claude-code.json.tmpl`
+A resolved manifest pins an absolute CLI executable, harness version, and model; records the provider-native reasoning and permission controls; declares every capability dimension; names environment variables to inherit without storing their values; and gives baseline and treatment separate `CODEX_HOME` paths. Other profile environment values must match. Prompt content is never placed in process arguments. Schema version 1 rejects untyped extra CLI arguments so they cannot silently override a matched field.
 
-A resolved manifest pins an absolute CLI executable, harness version, and model; records the provider-native reasoning and permission controls; declares every capability dimension; names environment variables to inherit without storing their values; and gives baseline and treatment separate `CODEX_HOME` or `CLAUDE_CONFIG_DIR` paths. Other profile environment values must match. Prompt content is never placed in process arguments. Schema version 1 rejects untyped extra CLI arguments so they cannot silently override a matched field. No turn limit is imposed unless the study protocol later freezes one explicitly.
-
-Codex CLI is launched through non-interactive `codex exec` JSON mode with ephemeral session persistence, an explicit model, sandbox, working directory, reasoning effort, and approval policy. Claude Code is launched through print mode with streaming JSON, verbose telemetry, an explicit model and permission mode, plus a maximum-turn cap only if a later protocol explicitly freezes one. These command surfaces are version-pinned because both CLIs can change.
+Codex CLI is launched through non-interactive `codex exec` JSON mode with ephemeral session persistence, an explicit model, sandbox, working directory, reasoning effort, and approval policy. This command surface is version-pinned because the CLI can change.
 
 ```sh
 python3 scripts/eval-harness.py validate --manifest /trusted/codex.json
@@ -29,7 +26,7 @@ python3 scripts/eval-harness.py probe --manifest /trusted/codex.json
 
 One paired plan is one harness/model cell. Baseline, treatment, and any ablation must use the same harness and harness version, model, provider-native reasoning setting, permission mode, and resource profile. `scripts/eval-run.py` rejects a mixed cell.
 
-Codex CLI and Claude Code may both be evaluated, including different models, but they are separate blocks. Within each block, Gauntlet and no-Gauntlet remain the only intended difference. Comparing Codex CLI to Claude Code, or one model to another, is a cross-harness/model comparison and is not an A/A test of Gauntlet.
+Different Codex models run as separate blocks. Within each block, Gauntlet and no-Gauntlet remain the only intended difference. Comparing one model to another is not an A/A test of Gauntlet.
 
 ## Harness capability contract and A/A equivalence
 
@@ -45,7 +42,7 @@ python3 scripts/eval-harness.py aa-compare \
 
 The comparator rejects cross-harness, cross-version, cross-model, or cross-resource inputs before producing an equivalence claim. A deliberate difference in any required dimension fails. The existing `eval-run.py adapter-equivalence` command performs the live command-boundary check across the same eleven neutral fixtures; `conformance` remains a compatibility alias.
 
-Direct Codex CLI and direct Claude Code launchers are reference adapters for their own study cells. Harbor, Mastra, or another wrapper must pass A/A equivalence against the direct launcher for the same cell before its results can be treated as the same execution path.
+Direct Codex CLI is the reference adapter. Harbor, Mastra, or another wrapper must pass A/A equivalence against it for the same cell before its results can be treated as the same execution path.
 
 ## Trusted task registry and execution
 
@@ -69,7 +66,7 @@ python3 scripts/eval-harness.py adapter \
 
 The adapter code and deterministic fake-CLI proof do not require provider credentials or model spend. A live harness/model cell still requires its CLI to be installed, authenticated, version-pinned, and available to `probe`. Live capability fixtures run only after the model and harness cells are selected; they do not depend on the twelve core tasks.
 
-Official command references: [Codex non-interactive mode](https://github.com/openai/codex/blob/main/codex-rs/README.md), [Claude Code CLI reference](https://docs.anthropic.com/en/docs/claude-code/cli-usage).
+Official command reference: [Codex non-interactive mode](https://github.com/openai/codex/blob/main/codex-rs/README.md).
 
 ## Proof
 

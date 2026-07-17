@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Explicit merge or land requests now carry required CI, landed-revision verification, applicable post-merge monitoring, local default-branch sync, and safe remote branch, isolated-worktree, and local-branch cleanup; `/Archive` performs task archival only after that closeout passes.
+
 - Gauntlet installs an exact manifest-declared runtime payload, excludes development tests and UI dependencies, safely reconciles previously managed stale files, and checks manifest drift in CI and pre-commit.
 
 - Gauntlet now packages the execution-run controller behind its unchanged CLI, calls the default controller in process, and preserves the trusted development override subprocess path.
@@ -42,7 +44,7 @@
 
 - Gauntlet now freezes each PRD run's review topology, supports parent-owned Review Unit PRs for large tightly coupled targets, and generates one schema v2 Project PR with deterministic Epic and Scope Area coverage.
 
-- Gauntlet now includes version-pinned Codex CLI and Claude Code evaluation adapters, same-cell enforcement, trusted automatic scoring, and same-harness/model A/A equivalence checks while leaving the twelve core tasks undefined.
+- Gauntlet now includes a version-pinned Codex CLI evaluation adapter, same-cell enforcement, trusted automatic scoring, and same-harness/model A/A equivalence checks while leaving the twelve core tasks undefined.
 
 - Gauntlet now uses a durable orchestration architecture for material work: deterministic generated context, per-child routing and model-request analytics, independent Ticket progress inside context-affine lanes, isolated automatic evaluation tasks, and condition-blind paired experiments with sealed core-study slots; Normal Requests remain lightweight.
 
@@ -62,9 +64,9 @@
 
 - Gauntlet now uses prose delegation tickets with proportional behavioral proof, treats child receipts and declared trace fields as evidence pointers instead of proof, and labels phrase-based skill checks as structural coverage only.
 
-- Gauntlet now ships one Codex and Claude Code plugin bundle from its shared skills tree, adds the `craft-customer-email` workflow, namespaces the vendored eval suite under `eval-`, and limits intake to three high-value questions.
+- Gauntlet now ships one Codex plugin bundle from its shared skills tree, adds the `craft-customer-email` workflow, namespaces the vendored eval suite under `eval-`, and limits intake to three high-value questions.
 
-- Gauntlet now installs one shared precision-preserving response style for Codex and Claude, applies conflict-aware Codex verbosity and personality defaults, and stops before layering over unreviewed user instructions.
+- Gauntlet now installs a precision-preserving response style for Codex, applies conflict-aware verbosity and personality defaults, and stops before layering over unreviewed user instructions.
 
 - Gauntlet now silently applies a conforming root-task title as soon as the goal is clear and no later than the third substantive user-authored message.
 
