@@ -46,3 +46,25 @@ def test_normal_requests_use_minimum_scope_before_lifecycle_routing():
         "stop when the requested result works",
     ]:
         assert_contains(router, marker, "normal-request minimum-scope routing")
+
+
+def test_merge_and_archive_authority_requires_complete_safe_closeout():
+    router = read(ROUTER_MD)
+    archive = read(SKILLS / "archive" / "SKILL.md")
+    for marker in [
+        "one complete Git closeout",
+        "wait for required CI",
+        "revision-attributable post-merge monitoring",
+        "fast-forward the local default branch",
+        "safely remove the isolated worktree and local branch",
+        "does not authorize local installation or task archival",
+    ]:
+        assert_contains(router, marker, "always-loaded merge closeout")
+    for marker in [
+        "## Land And Clean Up",
+        "Only after landed verification and applicable monitoring pass",
+        "remove a clean isolated worktree",
+        "Generic merge or land requests stop after Git closeout",
+        "Preserve the task branch/worktree",
+    ]:
+        assert_contains(archive, marker, "archive closeout")

@@ -16,6 +16,7 @@ from tests.workflow.lifecycle import (
     test_subagent_orchestration_v2_behavior,
 )
 from tests.workflow.policy import (
+    test_merge_and_archive_authority_requires_complete_safe_closeout,
     test_normal_requests_use_minimum_scope_before_lifecycle_routing,
     test_plugin_manifests_bundle_shared_skills,
 )
@@ -25,6 +26,7 @@ from tests.workflow.quality import test_skill_changes_are_guarded_by_pre_commit
 FULL_CASES = (
     test_plugin_manifests_bundle_shared_skills,
     test_normal_requests_use_minimum_scope_before_lifecycle_routing,
+    test_merge_and_archive_authority_requires_complete_safe_closeout,
     test_skill_changes_are_guarded_by_pre_commit,
     test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks,
     test_codex_install_merges_preferences_without_silent_overwrite,
@@ -38,6 +40,7 @@ FULL_CASES = (
 SMOKE_CASES = (
     test_plugin_manifests_bundle_shared_skills,
     test_normal_requests_use_minimum_scope_before_lifecycle_routing,
+    test_merge_and_archive_authority_requires_complete_safe_closeout,
 )
 
 

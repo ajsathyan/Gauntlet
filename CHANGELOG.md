@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Explicit merge or land requests now carry required CI, landed-revision verification, applicable post-merge monitoring, local default-branch sync, and safe remote branch, isolated-worktree, and local-branch cleanup; `/Archive` performs task archival only after that closeout passes.
+
 - Gauntlet installs an exact manifest-declared runtime payload, excludes development tests and UI dependencies, safely reconciles previously managed stale files, and checks manifest drift in CI and pre-commit.
 
 - Gauntlet now packages the execution-run controller behind its unchanged CLI, calls the default controller in process, and preserves the trusted development override subprocess path.
