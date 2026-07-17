@@ -3932,6 +3932,12 @@ def invoke(arguments: list[str], *, cwd: Path | str | None = None) -> Controller
                     returncode = main(arguments, prog="prd-run.py")
                 except SystemExit as exc:
                     returncode = int(exc.code or 0)
+                except Exception as exc:
+                    returncode = 1
+                    print(
+                        f"error: unexpected controller failure ({type(exc).__name__})",
+                        file=sys.stderr,
+                    )
         finally:
             os.chdir(previous_cwd)
     return ControllerResult(returncode=returncode, stdout=stdout.getvalue(), stderr=stderr.getvalue())

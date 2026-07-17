@@ -10,10 +10,13 @@ from pathlib import Path
 import runpy
 import re
 import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 
 from support import SCRIPTS
+from gauntletlib.run import controller
 
 
 SCRIPT = SCRIPTS / "prd-run.py"
@@ -38,6 +41,37 @@ def consequence_review(*triggers: str) -> dict:
             {"id": "black-box", "charter": "Review externally observable behavior."},
         ],
     }
+
+
+class ControllerInvokeTests(unittest.TestCase):
+    def test_unexpected_failure_is_contained_and_restores_process_state(self) -> None:
+        original_cwd = Path.cwd()
+        with tempfile.TemporaryDirectory() as tmp:
+            target_cwd = Path(tmp).resolve()
+
+            def fail(*args, **kwargs):
+                print("captured stdout")
+                print("captured stderr", file=sys.stderr)
+                self.assertEqual(target_cwd, Path.cwd())
+                raise OSError("sensitive internal detail")
+
+            with mock.patch.object(controller, "main", side_effect=fail):
+                result = controller.invoke(["completion"], cwd=target_cwd)
+
+        self.assertEqual(original_cwd, Path.cwd())
+        self.assertEqual(1, result.returncode)
+        self.assertEqual("captured stdout\n", result.stdout)
+        self.assertIn("captured stderr\n", result.stderr)
+        self.assertIn("unexpected controller failure (OSError)", result.stderr)
+        self.assertNotIn("sensitive internal detail", result.stderr)
+
+    def test_system_exit_keeps_its_controller_return_code(self) -> None:
+        with mock.patch.object(controller, "main", side_effect=SystemExit(7)):
+            result = controller.invoke(["completion"])
+
+        self.assertEqual(7, result.returncode)
+        self.assertEqual("", result.stdout)
+        self.assertEqual("", result.stderr)
 
 
 def graph(*, with_cohort: bool = False, review: dict | None = None) -> dict:
