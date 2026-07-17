@@ -1,42 +1,26 @@
-"""Shared construction and dispatch for the Gauntlet command-line entrypoint."""
+"""Public CLI facade with lazy application loading."""
 
-import argparse
-import json
-
-
-EXIT_CODES = {"pass": 0, "warn": 0, "review": 2, "fail": 1}
-
-
-def build_parser(register):
-    parser = argparse.ArgumentParser(description="Gauntlet workflow helper CLI.")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    register(subparsers)
-    return parser
+from gauntletlib.cli_support import EXIT_CODES as EXIT_CODES
+from gauntletlib.cli_support import build_parser as build_parser
+from gauntletlib.cli_support import dispatch as dispatch
+from gauntletlib.cli_support import print_json_or_brief as print_json_or_brief
 
 
-def dispatch(parser, argv=None, error_printer=None):
-    args = parser.parse_args(argv)
-    try:
-        return args.func(args)
-    except RuntimeError as error:
-        payload = {
-            "schemaVersion": "1.0",
-            "status": "fail",
-            "findings": [{"code": "command_failed", "severity": "fail", "message": str(error)}],
-        }
-        if error_printer is None:
-            if getattr(args, "json", False):
-                print(json.dumps(payload, indent=2))
-            else:
-                print("Gauntlet: fail")
-                print(f"- [fail] command_failed: {error}")
-        else:
-            error_printer(payload, getattr(args, "json", False))
-        return 1
+def _application():
+    from gauntletlib import cli_application
+
+    return cli_application
 
 
-def print_json_or_brief(payload, as_json, brief):
-    if as_json:
-        print(json.dumps(payload, indent=2))
-    else:
-        print(brief)
+def main(argv=None, *, compatibility=None):
+    return _application().main(argv, compatibility=compatibility)
+
+
+def install_compatibility_exports(namespace):
+    return _application().install_compatibility_exports(namespace)
+
+
+def __getattr__(name):
+    if name.startswith("__"):
+        raise AttributeError(name)
+    return getattr(_application(), name)
