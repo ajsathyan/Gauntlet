@@ -23,6 +23,7 @@ elif git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 
 changed_skill_names=()
+changed_python_files=()
 if [ "${#changed_files[@]}" -gt 0 ]; then
   for file in "${changed_files[@]}"; do
     case "$file" in
@@ -31,7 +32,30 @@ if [ "${#changed_files[@]}" -gt 0 ]; then
         changed_skill_names+=("${skill_name%%/*}")
         ;;
     esac
+    case "$file" in
+      *.py)
+        if [ -f "$ROOT/$file" ]; then
+          changed_python_files+=("$file")
+        fi
+        ;;
+    esac
   done
+fi
+
+if [ "$detect_only" -eq 0 ] && [ "${#changed_python_files[@]}" -gt 0 ]; then
+  if command -v ruff >/dev/null 2>&1; then
+    ruff_command=(ruff)
+  elif python3 -m ruff --version >/dev/null 2>&1; then
+    ruff_command=(python3 -m ruff)
+  else
+    echo "Changed Python files require Ruff. Install the dev tools with: python3 -m pip install '.[dev]'" >&2
+    exit 1
+  fi
+  echo "Changed Python files detected; running Ruff."
+  (
+    cd "$ROOT"
+    "${ruff_command[@]}" check --config "$ROOT/pyproject.toml" -- "${changed_python_files[@]}"
+  )
 fi
 
 if [ "${#changed_skill_names[@]}" -eq 0 ]; then

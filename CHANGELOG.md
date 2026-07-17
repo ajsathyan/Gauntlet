@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gauntlet now defines stdlib-only Python package scaffolding and runs conservative Ruff linting on changed Python files.
+
 - Implement GAUNTLET-005: Live Epic progress.
 
 - Gauntlet now automatically starts or recovers one launch-scoped live Epic progress dashboard, opens it through a secret-free Codex Browser action when available, refreshes run and usage facts continuously, and cleans it up only after every sibling reaches a terminal state.
