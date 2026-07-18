@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Name follow-up PRD drafts after their features and preserve a valid working directory after landed-worktree cleanup.
+
 - Gauntlet now provides `land execute` as one CLI flow for PR merge, exact-revision push monitoring, local default-branch synchronization, and preservation-safe branch and worktree cleanup.
 
 - Gauntlet CI now runs policy, installer, lifecycle, PRD, and orchestration checks as parallel matrix jobs behind one stable aggregate `gauntlet` result, while preserving the complete sequential local checker.

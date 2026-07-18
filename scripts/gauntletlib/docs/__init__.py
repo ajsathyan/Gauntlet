@@ -112,6 +112,13 @@ def register(subparsers):
         choices=["founding-hypothesis", "peter-yang"],
         required=True,
     )
+    docs_draft_create.add_argument(
+        "--title",
+        help=(
+            "Feature title used to name Peter Yang PRD drafts; required with "
+            "--template peter-yang."
+        ),
+    )
     docs_draft_create.add_argument("--dry-run", action="store_true")
     docs_draft_create.add_argument("--json", action="store_true")
     docs_draft_create.set_defaults(func=command_docs_draft_create)

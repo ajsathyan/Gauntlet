@@ -53,7 +53,7 @@ class FlexiblePrdTests(unittest.TestCase):
         self.cli("docs", "init", "--project-root", str(self.repo), "--epic-prefix", "APP", "--json")
         created = self.cli(
             "docs", "draft", "create", "--project-root", str(self.repo),
-            "--template", "peter-yang", "--json",
+            "--template", "peter-yang", "--title", "Machine labels", "--json",
         )
         draft = Path(json.loads(created.stdout)["draftPath"])
         draft.write_text(

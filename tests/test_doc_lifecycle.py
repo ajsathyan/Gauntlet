@@ -108,16 +108,41 @@ class DocumentLifecycleTests(unittest.TestCase):
 
         created = run([
             "docs", "draft", "create", "--project-root", str(repo),
-            "--template", "peter-yang", "--json",
+            "--template", "peter-yang",
+            "--title", "Repository workflow mode selection", "--json",
         ])
         data = json.loads(created.stdout)
         draft = Path(data["draftPath"])
         self.assertEqual("peter-yang", data["template"])
-        self.assertEqual((repo / "local-docs" / "drafts" / "PETER_YANG_PRD.md").resolve(), draft.resolve())
+        self.assertEqual(
+            (
+                repo
+                / "local-docs"
+                / "drafts"
+                / "REPOSITORY_WORKFLOW_MODE_SELECTION_PRD.md"
+            ).resolve(),
+            draft.resolve(),
+        )
         text = draft.read_text(encoding="utf-8")
         self.assertIn("# Feature PRD", text)
         self.assertIn("*Guidance:", text)
         self.assertNotIn("## Meeting Notes", text)
+
+    def test_followup_draft_requires_a_feature_title(self):
+        repo = self.root / "untitled-followup"
+        init_repo(repo)
+        run(["docs", "init", "--project-root", str(repo), "--epic-prefix", "FOLLOWUP", "--json"])
+
+        created = run([
+            "docs", "draft", "create", "--project-root", str(repo),
+            "--template", "peter-yang", "--json",
+        ], check=False)
+
+        self.assertNotEqual(0, created.returncode)
+        self.assertEqual("missing_draft_title", json.loads(created.stdout)["findings"][0]["code"])
+        self.assertFalse(
+            (repo / "local-docs" / "drafts" / "PETER_YANG_PRD.md").exists()
+        )
 
     def test_promotion_preserves_exact_bytes_and_updates_the_index_once(self):
         repo = self.root / "promotion"
@@ -125,7 +150,7 @@ class DocumentLifecycleTests(unittest.TestCase):
         run(["docs", "init", "--project-root", str(repo), "--epic-prefix", "PROMOTE", "--json"])
         created = run([
             "docs", "draft", "create", "--project-root", str(repo),
-            "--template", "peter-yang", "--json",
+            "--template", "peter-yang", "--title", "User-owned launch", "--json",
         ])
         draft = Path(json.loads(created.stdout)["draftPath"])
         user_bytes = (
@@ -166,7 +191,7 @@ class DocumentLifecycleTests(unittest.TestCase):
         ])
         created = run([
             "docs", "draft", "create", "--project-root", str(repo),
-            "--template", "peter-yang", "--json",
+            "--template", "peter-yang", "--title", "Rollback proof", "--json",
         ])
         draft = Path(json.loads(created.stdout)["draftPath"])
         draft_bytes = draft.read_bytes()
