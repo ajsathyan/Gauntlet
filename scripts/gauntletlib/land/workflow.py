@@ -197,6 +197,7 @@ def clean_task_checkout(repo, main_worktree, branch, default_branch, task_head, 
     """Remove the landed checkout and branch only after preservation checks."""
     repo = Path(repo).resolve()
     main_worktree = Path(main_worktree).resolve()
+    previous_cwd = Path.cwd()
     if dirty_paths(repo):
         return {"worktreeRemoved": False, "branchDeleted": False}, "Task worktree became dirty after merge; preserving it."
     represented = default_represents_candidate(repo, task_head, landed_sha)
@@ -205,21 +206,25 @@ def clean_task_checkout(repo, main_worktree, branch, default_branch, task_head, 
 
     os.chdir(main_worktree)
     cleanup = {"worktreeRemoved": False, "branchDeleted": False}
-    if repo != main_worktree:
-        removed = git(["worktree", "remove", str(repo)], main_worktree)
-        if removed.returncode != 0:
-            return cleanup, removed.stderr.strip() or removed.stdout.strip()
-        cleanup["worktreeRemoved"] = True
-    else:
-        switched = git(["switch", default_branch], main_worktree)
-        if switched.returncode != 0:
-            return cleanup, switched.stderr.strip() or switched.stdout.strip()
+    try:
+        if repo != main_worktree:
+            removed = git(["worktree", "remove", str(repo)], main_worktree)
+            if removed.returncode != 0:
+                return cleanup, removed.stderr.strip() or removed.stdout.strip()
+            cleanup["worktreeRemoved"] = True
+        else:
+            switched = git(["switch", default_branch], main_worktree)
+            if switched.returncode != 0:
+                return cleanup, switched.stderr.strip() or switched.stdout.strip()
 
-    deleted = git(["branch", "-D", branch], main_worktree)
-    if deleted.returncode != 0:
-        return cleanup, deleted.stderr.strip() or deleted.stdout.strip()
-    cleanup["branchDeleted"] = True
-    return cleanup, None
+        deleted = git(["branch", "-D", branch], main_worktree)
+        if deleted.returncode != 0:
+            return cleanup, deleted.stderr.strip() or deleted.stdout.strip()
+        cleanup["branchDeleted"] = True
+        return cleanup, None
+    finally:
+        if previous_cwd.exists():
+            os.chdir(previous_cwd)
 
 
 def merge_command(args):
