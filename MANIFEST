@@ -291,7 +291,7 @@
     {
       "destination": "gauntlet/docs/local-documentation.md",
       "executable": false,
-      "sha256": "7ffc967c1a342342a45ec1d6e5728ee6fdecf49d1a1bd8c70e7cc0af13946ba7",
+      "sha256": "db90f5265c88b204c6d65487323f33b7a63a29a3bc13388b3a4b286c79d5540e",
       "source": "docs/local-documentation.md"
     },
     {
@@ -759,13 +759,13 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/docs/__init__.py",
       "executable": false,
-      "sha256": "0ba0b399dae14ecb3ffde1c5360e44d9c2d8fc361f42fa731510a53df73a17c0",
+      "sha256": "9675f899fb73c8540ff4408d83a5a9f2dca1cf21ae71cc507aeabde5377d4486",
       "source": "scripts/gauntletlib/docs/__init__.py"
     },
     {
       "destination": "gauntlet/scripts/gauntletlib/docs/lifecycle.py",
       "executable": false,
-      "sha256": "de57c5bb2690f68ef401d3aea2106875ae8c98bd96eed5a40d1666714fafa791",
+      "sha256": "a1e63a40127bf96af209c370a0fa6114626d9373d6f30ffc2ee3fde98382a9df",
       "source": "scripts/gauntletlib/docs/lifecycle.py"
     },
     {

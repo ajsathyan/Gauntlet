@@ -524,20 +524,26 @@ def local_product_document_paths(context):
     return sorted(paths)
 
 
-def guided_draft_destination(context, template):
+def guided_draft_destination(context, template, title=None):
     templates = {
         "founding-hypothesis": (
             "FOUNDING_HYPOTHESIS.md.tmpl",
             "FOUNDING_HYPOTHESIS.md",
         ),
-        "peter-yang": ("PETER_YANG_PRD.md.tmpl", "PETER_YANG_PRD.md"),
     }
-    template_name, filename = templates[template]
+    if template == "peter-yang":
+        if not title or not title.strip():
+            raise ValueError("A feature title is required for a Peter Yang PRD draft.")
+        slug = epic_title_slug(title)
+        filename = f"{slug}.md" if slug.endswith("_PRD") else f"{slug}_PRD.md"
+        template_name = "PETER_YANG_PRD.md.tmpl"
+    else:
+        template_name, filename = templates[template]
     return template_name, context["docsRoot"] / "drafts" / filename
 
 
-def create_guided_draft(context, template, dry_run=False):
-    template_name, draft_path = guided_draft_destination(context, template)
+def create_guided_draft(context, template, title=None, dry_run=False):
+    template_name, draft_path = guided_draft_destination(context, template, title)
     drafts_root = context["docsRoot"] / "drafts"
     findings = []
     if drafts_root.is_symlink() or (
@@ -1068,7 +1074,25 @@ def command_docs_epic_create(args):
 
 def command_docs_draft_create(args):
     context = local_docs_context(args.project_root)
-    _, draft_candidate = guided_draft_destination(context, args.template)
+    title = getattr(args, "title", None)
+    if args.template == "peter-yang" and (not title or not title.strip()):
+        return local_docs_payload(
+            args,
+            context,
+            [
+                {
+                    "code": "missing_draft_title",
+                    "severity": "fail",
+                    "message": (
+                        "Peter Yang PRD drafts require --title so the filename "
+                        "describes the feature."
+                    ),
+                }
+            ],
+            template=args.template,
+            dryRun=args.dry_run,
+        )
+    _, draft_candidate = guided_draft_destination(context, args.template, title)
     if draft_candidate.exists() or draft_candidate.is_symlink():
         return local_docs_payload(
             args,
@@ -1118,7 +1142,7 @@ def command_docs_draft_create(args):
             args, context, findings, template=args.template, dryRun=args.dry_run
         )
     draft_findings, draft_path = create_guided_draft(
-        context, args.template, dry_run=args.dry_run
+        context, args.template, title=title, dry_run=args.dry_run
     )
     findings.extend(draft_findings)
     return local_docs_payload(

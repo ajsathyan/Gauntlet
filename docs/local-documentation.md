@@ -67,14 +67,16 @@ Create a follow-up draft:
 
 ```sh
 python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs draft create \
-  --project-root "$PROJECT_ROOT" --template peter-yang
+  --project-root "$PROJECT_ROOT" --template peter-yang \
+  --title "Message surfaces"
 ```
 
 Promote exact draft bytes after the title is clear:
 
 ```sh
 python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs draft promote \
-  --project-root "$PROJECT_ROOT" --draft PETER_YANG_PRD.md --title "Message surfaces"
+  --project-root "$PROJECT_ROOT" --draft MESSAGE_SURFACES_PRD.md \
+  --title "Message surfaces"
 ```
 
 Accept the exact promoted version after the user reviews its semantics:
