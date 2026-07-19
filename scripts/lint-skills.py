@@ -21,7 +21,6 @@ ROLE_SKILLS = {
     "product-architect",
     "promotion-scanner",
     "researcher",
-    "run-log-builder",
 }
 
 

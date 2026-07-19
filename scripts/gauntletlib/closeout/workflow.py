@@ -1,4 +1,4 @@
-"""Closeout, archive, follow-up, memory, and changelog workflows."""
+"""Closeout, archive, follow-up, and changelog workflows."""
 
 import argparse
 import json
@@ -10,29 +10,36 @@ import tempfile
 from pathlib import Path
 
 from gauntletlib.cli import EXIT_CODES
-from gauntletlib.contracts import validate_merge_handoff, validate_run_merge_handoff
+from gauntletlib.contracts import validate_merge_handoff
 from gauntletlib.core.findings import add_finding as _add_finding, status_for as _status_for
 from gauntletlib.core.proc import gh, git, run_cmd
 from gauntletlib.core.redact import has_secret, redact_secrets
-from gauntletlib.merge import (acquire_run_merge_lease, branch_name, build_merge_payload, checks_state, current_pr, dirty_paths, ensure_unreleased_changelog, execute_merge_plan, load_merge_handoff, merge_input_path, pending_run_merge_gates, persisted_run_merge_lease, projection_changelog_entry, recorded_run_merge_head, release_run_merge_lease, render_pr_body, repository_merge_settings, run_binding_findings, run_project_pr, upstream_counts)
+from gauntletlib.merge import (
+    branch_name,
+    build_merge_payload,
+    checks_state,
+    current_pr,
+    dirty_paths,
+    ensure_unreleased_changelog,
+    execute_merge_plan,
+    load_merge_handoff,
+    merge_input_path,
+    render_pr_body,
+    repository_merge_settings,
+    upstream_counts,
+)
 from thread_titles import parse_thread_title
 
 ROOT = Path(__file__).resolve().parents[3]
 CHECKER = ROOT / "scripts" / "check-workflow-etiquette.py"
 DEFERRED_AGENT_ACTIONS = {"set_thread_title", "present_archive_summary", "archive_thread", "create_thread", "open_browser"}
-SECTION_REQUIRED = [("goal", ["goal"]), ("scope", ["scope"]), ("non_goals", ["non-goals", "non goals", "non-goal", "non goal"]), ("scan_index", ["scan index"]), ("source_of_truth_files", ["source-of-truth files", "source of truth files", "source files", "read first"]), ("edge_cases_and_invariants", ["edge cases and invariants", "edge cases", "invariants"]), ("verification", ["verification", "proof"]), ("follow_ups", ["follow-ups", "follow ups", "followup", "followups"]), ("stale_context_warning", ["stale context warning", "stale-context warning", "stale context"]), ("redaction_notes", ["redaction notes", "redaction", "secrets"])]
 ARCHIVE_SUMMARY_ALIASES = ["archive summary", "what changed", "change summary"]
 
-_gap_review_text = None
-_run_authority_granted = None
-_run_prd_controller = None
 _print_payload = None
 
-def configure(*, gap_review_text, run_authority_granted, run_prd_controller, print_payload):
-    global _gap_review_text, _run_authority_granted, _run_prd_controller, _print_payload
-    _gap_review_text = gap_review_text
-    _run_authority_granted = run_authority_granted
-    _run_prd_controller = run_prd_controller
+
+def configure(*, print_payload):
+    global _print_payload
     _print_payload = print_payload
 
 def add_finding(payload, code, severity, message, **details):
@@ -43,10 +50,6 @@ def status_for(payload):
 
 def read_text(path):
     return Path(path).read_text(encoding="utf-8", errors="ignore")
-
-def completion_allows_archive(completion):
-    return isinstance(completion, dict) and completion.get("complete") is True
-
 
 def display_path(root, path):
     path = Path(path)
@@ -142,29 +145,6 @@ def archive_summary_from_content(path):
     return {"source": "content", "path": str(path), "bullets": bullets}, []
 
 
-def archive_summary_from_run(repo, run_path):
-    output, error = _run_prd_controller(repo, ["completion", "--run", str(Path(run_path).resolve())])
-    if error:
-        return None, [{"code": "run_completion_unavailable", "severity": "fail", "message": error}]
-    try:
-        completion = json.loads(output)
-        lock = json.loads((Path(run_path).resolve() / "source-lock.json").read_text(encoding="utf-8"))
-        epic_id = lock["target_epic_ids"][0]
-        epic = lock["epics"][epic_id]
-    except (KeyError, IndexError, json.JSONDecodeError, OSError) as exc:
-        return None, [{"code": "invalid_run_completion", "severity": "fail", "message": str(exc)}]
-    bullets = [
-        f"{epic_id}: {epic['title']} — {completion['exactState']}.",
-        f"Final Epic verification revision: {completion.get('exactRevision') or 'unavailable'}.",
-    ]
-    pending = completion.get("pendingGates") or []
-    bullets.append(
-        "Pending gates: " + (", ".join(pending) if pending else "none")
-        + "; deferred, omitted, or guidance gaps: " + _gap_review_text(completion) + "."
-    )
-    return {"source": "completion-projection", "run": Path(run_path).resolve().name, "bullets": bullets}, []
-
-
 def parse_followups(text):
     followups = []
     lines = (text or "").splitlines()
@@ -191,47 +171,6 @@ def parse_followups(text):
             followups.append(block)
         index += 1
     return followups
-
-
-def memory_lint_payload(path):
-    root = Path.cwd().resolve()
-    path = Path(path)
-    payload = {
-        "schemaVersion": "1.0",
-        "status": "pass",
-        "path": str(path),
-        "findings": [],
-        "sections": {},
-    }
-    if not path.exists():
-        add_finding(payload, "missing_memory_file", "fail", f"Implementation Memory file does not exist: {path}")
-        payload["status"] = status_for(payload)
-        return payload
-
-    text = read_text(path)
-    sections = markdown_sections(text)
-    found = {}
-    for code, aliases in SECTION_REQUIRED:
-        value = find_section(sections, aliases)
-        found[code] = bool(value)
-        if not value:
-            add_finding(
-                payload,
-                "missing_memory_section",
-                "fail",
-                f"Implementation Memory is missing required section: {aliases[0]}.",
-            )
-    if has_secret(text):
-        add_finding(
-            payload,
-            "secret_like_memory_content",
-            "fail",
-            "Implementation Memory contains secret-like content; redact it before using workflow helpers.",
-        )
-    payload["sections"] = found
-    payload["path"] = display_path(root, path)
-    payload["status"] = status_for(payload)
-    return payload
 
 
 def pr_for_changelog(repo):
@@ -365,243 +304,6 @@ def closeout_install_command(repo, args, check=False):
     return command
 
 
-def advance_run_release_state(repo, run_path):
-    """Close only controller-provable release state; never invent live evidence."""
-    transitions = []
-    while True:
-        manifest_path = Path(run_path) / "manifest.json"
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        state = manifest.get("state")
-        release = manifest.get("release", {})
-        applicability = release.get("applicability", {})
-        if state == "merged":
-            expected = "pass" if applicability.get("deployment") else "skipped"
-            record = release.get("deployment", {})
-            if expected == "skipped" and record.get("result") != "skipped":
-                _, error = _run_prd_controller(repo, [
-                    "record-release", "--run", str(run_path), "--stage", "deployment",
-                    "--result", "skipped", "--summary", "Deployment is not applicable to this Epic.",
-                    "--evidence", "locked release applicability excludes deployment",
-                ])
-                if error:
-                    return transitions, error
-                transitions.append("deployment:not-applicable")
-                continue
-            if record.get("result") != expected:
-                return transitions, None
-            _, error = _run_prd_controller(repo, ["transition", "--run", str(run_path), "--to", "deployed"])
-            if error:
-                return transitions, error
-            transitions.append("deployed")
-            continue
-        if state == "deployed":
-            expected = "pass" if applicability.get("production-verification") else "skipped"
-            record = release.get("production-verification", {})
-            if expected == "skipped" and record.get("result") != "skipped":
-                _, error = _run_prd_controller(repo, [
-                    "record-release", "--run", str(run_path), "--stage", "production-verification",
-                    "--result", "skipped", "--summary", "Production verification is not applicable to this Epic.",
-                    "--evidence", "locked release applicability excludes production verification",
-                ])
-                if error:
-                    return transitions, error
-                transitions.append("production-verification:not-applicable")
-                continue
-            if record.get("result") != expected:
-                return transitions, None
-            _, error = _run_prd_controller(repo, ["transition", "--run", str(run_path), "--to", "production_verified"])
-            if error:
-                return transitions, error
-            transitions.append("production_verified")
-            continue
-        if state == "production_verified":
-            _, error = _run_prd_controller(repo, ["transition", "--run", str(run_path), "--to", "complete"])
-            if error:
-                return transitions, error
-            transitions.append("complete")
-            continue
-        return transitions, None
-
-
-def finalize_run_closeout(args, repo, payload, run_path, install_env):
-    transitions, transition_error = advance_run_release_state(repo, run_path)
-    payload["releaseTransitions"] = transitions
-    if transition_error:
-        closeout_fail(payload, "run_release_transition_failed", transition_error)
-        _print_payload(payload, args.json)
-        return EXIT_CODES[payload["status"]]
-    completion_output, completion_error = _run_prd_controller(repo, ["completion", "--run", str(run_path)])
-    try:
-        completion = json.loads(completion_output) if not completion_error else None
-    except json.JSONDecodeError:
-        completion = None
-    if not completion_allows_archive(completion):
-        payload["releasePending"] = completion or {"error": completion_error or "completion projection unavailable"}
-        payload["remainingAppActions"] = []
-        payload["localCleanup"] = {"branch": branch_name(repo), "safeAfterTaskExit": False}
-        add_finding(payload, "run_release_stages_pending", "review", "The Epic merged, but required release stages remain open; closeout will not install or archive the task.")
-        payload["status"] = status_for(payload)
-        _print_payload(payload, args.json)
-        return EXIT_CODES[payload["status"]]
-
-    if args.install_target != "none":
-        install_result = subprocess.run(
-            closeout_install_command(repo, args), cwd=repo, text=True,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=install_env,
-        )
-        payload["install"] = {"target": args.install_target, "applied": install_result.returncode == 0, "preflight": True}
-        if install_result.returncode != 0:
-            closeout_fail(payload, "local_install_failed", install_result.stderr.strip() or install_result.stdout.strip())
-            _print_payload(payload, args.json)
-            return EXIT_CODES[payload["status"]]
-    else:
-        payload["install"] = {"target": "none", "applied": False}
-
-    archive_args = argparse.Namespace(
-        title=args.title, suggested_title=args.suggested_title, content=None, run=run_path,
-        git_root=repo, require_kickoff=False, require_assumptions=False,
-        archive_anyway=False, confirm_git_risk=False, allow_dirty=[], json=True,
-    )
-    archive_payload = build_archive_payload(archive_args)
-    if archive_payload["status"] in {"pass", "warn"}:
-        archive_payload = execute_archive_actions(archive_payload, repo)
-    payload["archive"] = archive_payload
-    payload["archiveSummary"] = archive_payload.get("archiveSummary")
-    payload["findings"].extend(archive_payload.get("findings", []))
-    payload["status"] = status_for(payload)
-    payload["remainingAppActions"] = archive_payload.get("remainingAppActions", []) if payload["status"] in {"pass", "warn"} else []
-    payload["localCleanup"] = {"branch": branch_name(repo), "safeAfterTaskExit": True}
-    _print_payload(payload, args.json)
-    return EXIT_CODES[payload["status"]]
-
-
-def command_run_closeout_execute(args, repo, payload):
-    run_path = merge_input_path(repo, args.run)
-    handoff, error = run_project_pr(repo, run_path)
-    if error:
-        closeout_fail(payload, "project_pr_projection_failed", error)
-        _print_payload(payload, args.json)
-        return EXIT_CODES[payload["status"]]
-    payload["findings"].extend(validate_run_merge_handoff(handoff))
-    payload["findings"].extend(run_binding_findings(repo, run_path, handoff))
-    pending_merge_gates = pending_run_merge_gates(handoff)
-    if pending_merge_gates:
-        add_finding(
-            payload, "run_merge_safeguard_pending", "fail",
-            "Run-backed merge has pending controller safeguards: " + ", ".join(gate.get("id", "unknown") for gate in pending_merge_gates),
-        )
-    if payload["findings"]:
-        payload["status"] = status_for(payload)
-        _print_payload(payload, args.json)
-        return EXIT_CODES[payload["status"]]
-    parsed_title = parse_thread_title(args.title)
-    parsed_suggestion = parse_thread_title(args.suggested_title) if args.suggested_title else None
-    if parsed_title["format"] != "current" and (not parsed_suggestion or parsed_suggestion["format"] != "current"):
-        closeout_fail(payload, "invalid_archive_title", "Provide a current 'p#: four word goal' title or a valid --suggested-title before closeout begins.")
-        _print_payload(payload, args.json)
-        return EXIT_CODES[payload["status"]]
-    if dirty_paths(repo):
-        closeout_fail(payload, "uncommitted_merge_work", "Run-backed closeout requires a clean, exactly verified Epic branch.")
-        _print_payload(payload, args.json)
-        return EXIT_CODES[payload["status"]]
-    changelog_entry = projection_changelog_entry(handoff)
-    changelog_bullet = f"- {changelog_entry}"
-    changelog_text = (repo / "CHANGELOG.md").read_text(encoding="utf-8") if (repo / "CHANGELOG.md").is_file() else ""
-    if changelog_bullet not in changelog_text.splitlines():
-        closeout_fail(payload, "run_changelog_not_prepared", "Prepare and commit the deterministic run changelog entry before final Epic verification.")
-        _print_payload(payload, args.json)
-        return EXIT_CODES[payload["status"]]
-
-    install_env = os.environ.copy()
-    if args.agent_home:
-        install_env["GAUNTLET_AGENT_HOME"] = str(Path(args.agent_home).expanduser())
-    if args.install_target != "none":
-        preflight = subprocess.run(
-            closeout_install_command(repo, args, check=True), cwd=repo, text=True,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=install_env,
-        )
-        payload["install"] = {"target": args.install_target, "applied": False, "preflight": preflight.returncode == 0}
-        if preflight.returncode != 0:
-            closeout_fail(payload, "local_install_preflight_failed", preflight.stderr.strip() or preflight.stdout.strip())
-            _print_payload(payload, args.json)
-            return EXIT_CODES[payload["status"]]
-
-    if handoff.get("completion", {}).get("merged") is True:
-        try:
-            persisted = persisted_run_merge_lease(run_path, handoff)
-            if persisted:
-                release_run_merge_lease(repo, persisted[0], persisted[1], recorded_run_merge_head(run_path))
-                payload["mergeLeaseReleased"] = True
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            closeout_fail(payload, "epic_merge_lease_recovery_failed", str(exc))
-            _print_payload(payload, args.json)
-            return EXIT_CODES[payload["status"]]
-        payload["merge"] = {
-            "schemaVersion": "1.0", "status": "pass", "findings": [],
-            "alreadyRecorded": True, "runBinding": handoff.get("binding"),
-        }
-        return finalize_run_closeout(args, repo, payload, run_path, install_env)
-
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, suffix="-gauntlet-epic-pr.md") as handle:
-        handle.write(render_pr_body(handoff))
-        body_path = Path(handle.name)
-    try:
-        merge_args = argparse.Namespace(git_root=repo, handoff=None, run=run_path, body=body_path, json=True)
-        merge_payload = build_merge_payload(merge_args)
-        if merge_payload["status"] in {"pass", "warn"}:
-            granted, authority_error = _run_authority_granted(repo, run_path, "merge-to-default")
-            if not granted:
-                add_finding(merge_payload, "merge_to_default_authority_missing", "fail", authority_error)
-                merge_payload["status"] = status_for(merge_payload)
-            else:
-                try:
-                    merge_lease = acquire_run_merge_lease(repo, run_path, handoff)
-                    merge_payload = execute_merge_plan(
-                        merge_payload, repo, handoff, body_path,
-                        run_path=run_path, merge_lease=merge_lease,
-                    )
-                except (OSError, ValueError, json.JSONDecodeError) as exc:
-                    add_finding(merge_payload, "epic_merge_lease_failed", "fail", str(exc))
-                    merge_payload["status"] = status_for(merge_payload)
-        payload["merge"] = merge_payload
-        payload["findings"].extend(merge_payload.get("findings", []))
-        payload["status"] = status_for(payload)
-        if payload["status"] not in {"pass", "warn"}:
-            _print_payload(payload, args.json)
-            return EXIT_CODES[payload["status"]]
-        default_branch = merge_payload.get("defaultBranch") or "main"
-        main_result = git(["rev-parse", f"origin/{default_branch}"], repo)
-        if main_result.returncode != 0:
-            closeout_fail(payload, "record_merge_head_failed", main_result.stderr.strip() or main_result.stdout.strip())
-            _print_payload(payload, args.json)
-            return EXIT_CODES[payload["status"]]
-        main_sha = main_result.stdout.strip()
-        pr = merge_payload.get("pr") or {}
-        pr_reference = str(pr.get("url") or pr.get("number") or "run-backed-project-pr")
-        _, record_error = _run_prd_controller(repo, [
-            "record-merge", "--run", str(run_path), "--pr", pr_reference,
-            "--merged-sha", main_sha, "--main-sha", main_sha,
-            "--evidence", f"origin/{default_branch} contains verified head {handoff['binding']['headSha']}",
-        ])
-        _, transition_error = _run_prd_controller(repo, ["transition", "--run", str(run_path), "--to", "merged"]) if not record_error else (None, None)
-        if record_error or transition_error:
-            closeout_fail(payload, "record_merge_failed", record_error or transition_error)
-            _print_payload(payload, args.json)
-            return EXIT_CODES[payload["status"]]
-        payload["runMergeRecorded"] = {"mainSha": main_sha, "pr": pr_reference}
-        try:
-            release_run_merge_lease(repo, merge_lease[0], merge_lease[1], main_sha)
-            payload["mergeLeaseReleased"] = True
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            closeout_fail(payload, "epic_merge_lease_release_failed", str(exc))
-            _print_payload(payload, args.json)
-            return EXIT_CODES[payload["status"]]
-
-        return finalize_run_closeout(args, repo, payload, run_path, install_env)
-    finally:
-        body_path.unlink(missing_ok=True)
-
-
 def _closeout_patch_preflight(args):
     repo = Path(args.git_root).resolve()
     payload = {
@@ -619,19 +321,12 @@ def _closeout_patch_preflight(args):
         _print_payload(payload, args.json)
         return EXIT_CODES[payload["status"]]
 
-    if getattr(args, "run", None):
-        if getattr(args, "handoff", None):
-            closeout_fail(payload, "run_handoff_downgrade_rejected", "Run-backed closeout accepts --run only, not a caller-authored handoff.")
-            _print_payload(payload, args.json)
-            return EXIT_CODES[payload["status"]]
-        return command_run_closeout_execute(args, repo, payload)
-
     if not getattr(args, "handoff", None):
-        closeout_fail(payload, "missing_handoff_file", "Non-run Patch closeout requires --handoff.")
+        closeout_fail(payload, "missing_handoff_file", "Closeout requires --handoff.")
         _print_payload(payload, args.json)
         return EXIT_CODES[payload["status"]]
     if not args.stage:
-        closeout_fail(payload, "missing_stage_scope", "Non-run Patch closeout requires at least one --stage path.")
+        closeout_fail(payload, "missing_stage_scope", "Closeout requires at least one --stage path.")
         _print_payload(payload, args.json)
         return EXIT_CODES[payload["status"]]
 
@@ -646,8 +341,6 @@ def _closeout_patch_preflight(args):
         closeout_fail(payload, "invalid_handoff_file", str(error))
         _print_payload(payload, args.json)
         return EXIT_CODES[payload["status"]]
-    if isinstance(handoff, dict) and handoff.get("schemaVersion") == "3.0":
-        add_finding(payload, "run_projection_requires_run", "fail", "Schema 3.0 must be projected by merge --run and cannot be supplied to closeout as a file.")
     payload["findings"].extend(validate_merge_handoff(handoff))
     if payload["findings"]:
         payload["status"] = status_for(payload)
@@ -664,7 +357,8 @@ def _closeout_patch_preflight(args):
             payload,
             "invalid_archive_title",
             "fail",
-            "Provide a current 'p#: four word goal' title or a valid --suggested-title before closeout begins.",
+            "Provide a descriptive one-to-four-word title or a valid "
+            "--suggested-title before closeout begins.",
         )
     if payload["findings"]:
         payload["status"] = status_for(payload)
@@ -1111,10 +805,9 @@ def build_archive_payload(args):
 
     try:
         payload = run_checker(args)
-        if getattr(args, "run", None):
-            summary, findings = archive_summary_from_run(args.git_root, args.run)
-        else:
-            summary, findings = archive_summary_from_content(getattr(args, "content", None))
+        summary, findings = archive_summary_from_content(
+            getattr(args, "content", None)
+        )
         for finding in findings:
             add_finding(payload, finding["code"], finding["severity"], finding["message"])
         payload["archiveSummary"] = summary or {
@@ -1192,22 +885,8 @@ def command_followup_note(args):
     return 0
 
 
-def command_memory_lint(args):
-    payload = memory_lint_payload(args.path)
-    if args.json:
-        print(json.dumps(payload, indent=2))
-    else:
-        print(f"Implementation Memory lint: {payload['status']}")
-        for finding in payload.get("findings", []):
-            print(f"- [{finding['severity']}] {finding['code']}: {finding['message']}")
-    return EXIT_CODES[payload["status"]]
-
-
 def command_changelog_pr(args):
     source_paths = [path for path in [args.accepted_spec, args.plan] if path]
-    legacy_memory = getattr(args, "implementation_memory", None)
-    if not source_paths and legacy_memory:
-        source_paths = [legacy_memory]
     payload = {
         "schemaVersion": "1.0",
         "status": "pass",
@@ -1222,8 +901,6 @@ def command_changelog_pr(args):
     missing_paths = [Path(path) for path in source_paths if not Path(path).exists()]
     for path in missing_paths:
         add_finding(payload, "missing_changelog_source", "fail", f"Changelog source does not exist: {path}")
-    if legacy_memory and not args.accepted_spec and not args.plan:
-        add_finding(payload, "legacy_implementation_memory", "warn", "--implementation-memory is deprecated; use --accepted-spec and --plan.")
     if payload["findings"] and any(item["severity"] == "fail" for item in payload["findings"]):
         payload["status"] = status_for(payload)
         payload["markdown"] = build_changelog_markdown(", ".join(str(path) for path in source_paths) or "missing", {}, None, [], payload["findings"])
@@ -1308,7 +985,7 @@ def command_followup_thread(args):
                 payload,
                 "title_goal_word_count",
                 "fail",
-                "Thread title goal must contain exactly four whitespace-delimited words; "
+                "Thread title must contain one to four words; "
                 f"found {parsed_title['actualWordCount']}.",
                 actualWordCount=parsed_title["actualWordCount"],
                 requiredWordCount=parsed_title["requiredWordCount"],
@@ -1318,7 +995,7 @@ def command_followup_thread(args):
                 payload,
                 "malformed_thread_title",
                 "fail",
-                "Thread title must use 'p#: four word goal' or 'p#-auto: four word goal'.",
+                "Thread title must be a plain descriptive one-to-four-word title.",
             )
 
     followup, findings = followup_from_args(args)

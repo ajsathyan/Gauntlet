@@ -1,61 +1,39 @@
-# Workflow Speedup Helpers
+# Workflow Helpers
 
-Use these helpers when the matching manual loop appears. They are advisory unless a command explicitly performs an accepted action.
+Use a helper only when its mechanical loop saves more attention than it costs.
+Helper output is an evidence pointer, never product truth or proof by itself.
 
-## Commands
-
-| Manual loop | Command |
+| Need | Helper |
 | --- | --- |
 | Changed-surface discovery | `scripts/diff-intel.py "$PROJECT_ROOT"` |
-| Test selection | `scripts/test-plan.py "$PROJECT_ROOT"` |
-| Reviewer/child context pack | `scripts/review-pack.py "$PROJECT_ROOT"` |
-| Review packet with accepted context | `scripts/review-pack.py "$PROJECT_ROOT" --accepted-spec "$SPEC_PATH" --plan "$PLAN_PATH"` |
-| Local analytics event | `scripts/gauntlet.py analytics emit --project-root "$PROJECT_ROOT" --run-id "$RUN_ID" --event-type "$EVENT_TYPE"` |
-| Local closeout facts | `scripts/gauntlet.py analytics closeout --project-root "$PROJECT_ROOT" --run-id "$RUN_ID" --file-changed "$PATH" --proof "$COMMAND" --risk "$RISK"` |
-| Release-candidate impact summary | `scripts/gauntlet.py analytics summarize --project-root "$PROJECT_ROOT" --baseline "$BASELINE" --candidate "$CANDIDATE"` |
-| Bounded attempt memory | `scripts/gauntlet.py attempt-memory add --project-root "$PROJECT_ROOT" --run-id "$RUN_ID" --kind proof_failure --fingerprint "$FINGERPRINT" --summary "$SUMMARY"` |
-| PR/changelog draft | `scripts/gauntlet.py changelog pr --accepted-spec "$SPEC_PATH" --plan "$PLAN_PATH" --git-root "$PROJECT_ROOT"` |
-| Local document profile | `scripts/gauntlet.py docs ensure --project-root "$PROJECT_ROOT" --epic-prefix "$PREFIX"` |
-| Local document check | `scripts/gauntlet.py docs check --project-root "$PROJECT_ROOT"` |
-| Stable local epic | `scripts/gauntlet.py docs epic create --project-root "$PROJECT_ROOT" --title "$TITLE"` |
-| Epic in an existing PRD | Add `--prd "epics/<home>/<file>_PRD.md"` to `docs epic create` |
-| PRD execution contract | `docs/prd-execution.md` |
-| Epic launch planning | `scripts/gauntlet.py epic-tasks plan --git-root "$PROJECT_ROOT" --launch-set "$LAUNCH_SET" --json` |
-| Epic launch reconciliation | `scripts/gauntlet.py epic-tasks reconcile --git-root "$PROJECT_ROOT" --launch-set "$LAUNCH_SET" --json` |
-| Run-backed Project PR | `scripts/prd-run.py project-pr --run "$RUN_PATH"` |
-| Run-backed merge preparation | `scripts/gauntlet.py merge prepare --git-root "$PROJECT_ROOT" --run "$RUN_PATH" --json` |
-| Run-backed merge preflight | `scripts/gauntlet.py merge plan --git-root "$PROJECT_ROOT" --run "$RUN_PATH" --json` |
-| Run-backed authorized merge | `scripts/gauntlet.py merge execute --git-root "$PROJECT_ROOT" --run "$RUN_PATH" --json` |
-| Non-run merge preparation | `scripts/gauntlet.py merge prepare --git-root "$PROJECT_ROOT" --handoff "$HANDOFF_PATH" --json` |
-| Archive Summary display | `scripts/gauntlet.py archive plan --content "$CHANGELOG_OR_CLOSEOUT" --title "$THREAD_TITLE" --git-root "$PROJECT_ROOT"` |
-| Follow-up note | `scripts/gauntlet.py followup note ...` |
-| Follow-up thread packet | `scripts/gauntlet.py followup thread --content "$FOLLOWUP_FILE" --title "$THREAD_TITLE" --json` |
+| Proportional test selection | `scripts/test-plan.py "$PROJECT_ROOT"` |
+| Bounded reviewer context | `scripts/review-pack.py "$PROJECT_ROOT"` |
+| Durable Design profile | `scripts/gauntlet.py docs ensure --project-root "$PROJECT_ROOT"` |
+| Create a Design | `scripts/gauntlet.py docs design create --project-root "$PROJECT_ROOT" --title "$TITLE"` |
+| Accept a Design | `scripts/gauntlet.py docs design accept --project-root "$PROJECT_ROOT" --design "$DESIGN_ID"` |
+| Fast sensor pass | `scripts/gauntlet.py sensors run --project-root "$PROJECT_ROOT" --workflow-mode feature --phase fast --json` |
+| Integrated sensor pass | `scripts/gauntlet.py sensors run --project-root "$PROJECT_ROOT" --workflow-mode feature --phase integrated --json` |
+| Current-base integration queue | `scripts/gauntlet.py workstreams snapshot --repo "$PROJECT_ROOT" --state "$QUEUE_FILE"` |
+| Pull-request preparation | `scripts/gauntlet.py merge prepare --git-root "$PROJECT_ROOT" --handoff "$HANDOFF" --json` |
+| Read-only merge preflight | `scripts/gauntlet.py merge plan --git-root "$PROJECT_ROOT" --handoff "$HANDOFF" --body "$PR_BODY" --json` |
+| Explicitly authorized landing | `scripts/gauntlet.py land execute --git-root "$PROJECT_ROOT" --handoff "$HANDOFF" --body "$PR_BODY" --json` |
 
 ## Boundaries
 
-- Honor confidence and `Cannot verify`; helper output and child receipts are evidence pointers, not proof. Resolve commands or artifacts against the relevant oracle.
-- Preserve unrelated dirty worktree changes.
-- The accepted spec and canonical plan remain the sources for intent, scope, edge cases, verification expectations, and follow-ups.
-- For PRD-backed work, the PRD is the human source and the generated Ticket Graph is the run plan. Compile only the explicit build-ready target.
-- Unless `.gauntlet/doc-org.disabled` opts the project out, local canonical documents are default-on and live in the primary worktree; linked worktrees must not create alternate copies.
-- `memory lint` and `--implementation-memory` remain deprecated compatibility inputs for one migration window; new work must not create a third intent artifact.
-- Local analytics writes only under `.gauntlet/analytics/` by default, using local salted hashes for repo, branch, file, command, and fingerprint details.
-- Release-candidate summaries require explicit `--baseline` and `--candidate` labels; if either is missing, the helper asks for them instead of guessing.
-- Closeout facts are deliberately small: files changed, proof/tests completed, unresolved risks, and optional attempt-memory expiry. They do not commit, push, merge, generate changelogs, publish release notes, or archive threads.
-- Attempt memory is a local bounded scratchpad. Repeated fingerprints are summarized, old entries can be pruned with `--max-age-days`, and run-scoped entries can be expired with `analytics closeout --expire-attempt-memory`.
-- PR/changelog output should carry the agent-authored Archive Summary; archive planning reuses that short block instead of replaying the transcript.
-- Archive planning fails closed when that content or section is missing and emits `present_archive_summary` immediately before `archive_thread`.
-- GitHub metadata verifies objective PR facts only.
-- Follow-up thread helpers emit `create_thread` app-action packets; create the actual Codex thread with app tools after checking the packet.
-- Child implementation lanes should use separate git worktrees by default when they write code, edit multiple files, or have uncertain ownership. Read-only review, exploration, summarization, and log-analysis lanes do not need worktrees by default.
-- Native Codex state owns child progress; use stable lane ids rather than title/status churn.
-- The main chat owns user questions, the oracle, independent evidence verification, merge decisions, Review Unit topology, and final synthesis. Small runs open one complete Project PR; large tightly coupled runs may open parent-owned Review Unit PRs into the integration branch before the same complete Project PR. Independently shippable outcomes use separate runs. Child chats return compact reports and archive after integration.
-- The product task starts every dependency-ready Epic in its own visible task. Inside one Epic, schedule Tickets by critical path, preserve useful affinity, integrate continuously, use Cohorts only for shared invariants, and finish with one exact-revision Epic verification.
-- Materialize bounded child context from stable instructions, one ticket, relevant versioned shared context, named dependencies, and owned source. Stable prefixes can improve cache reuse, but no helper may claim a guaranteed cache hit.
-- After an Execution Run starts, recover from its source lock, manifest, and resume file; use the append-only event stream only for debugging.
-- Run-backed merge consumes schema 3.0 Epic facts through `--run`; caller-authored schema v1 `--handoff` remains only for non-run Patches.
-- Use `scripts/generated_context.py` for repeated Gauntlet-owned machine context instead of rebuilding prompts in each workflow. Keep prompt-family templates minimal and separate.
-- Reconcile routing start metadata asynchronously and stop only new affected dispatches when a profile/version circuit opens; do not add a model handshake to healthy dispatch.
-- Persist and integrate constituent Tickets independently inside a context-affine lane so a stalled sibling never blocks downstream work.
-- Cache immutable evaluation admission checks, run one cheap current-liveness probe, and activate triage only after failure.
-- Keep `quality-check --surface ...`, `.gitignore` suggestions, broad worktree dependency classification, Mermaid rendering, and multi-repo attribution deferred until repeated runs prove a low-risk mechanical loop.
+- The accepted Design and its exact `Acceptance` section own product intent.
+- Build planning and workstream assignments stay ephemeral.
+- Native Codex task state owns live coordination. Use a worktree for disjoint
+  write-heavy lanes when isolation earns its cost.
+- The parent keeps user decisions, shared contracts, integration, publication,
+  merge, release, and rollback.
+- Integrate one current-base candidate at a time. Base drift invalidates stale
+  proof.
+- Keep stable instructions first and volatile workstream values last. Omit
+  unrelated history, empty fields, and repeated contract text.
+- Sensor handoffs contain only compact attention items. Open referenced raw logs
+  only when a finding requires them.
+- Preserve unrelated dirty work.
+- Confidence labels, receipts, green commands, and pull-request checks do not
+  replace an observable oracle.
+- Deferred helper ideas stay deferred until repeated evidence shows a low-risk
+  mechanical loop.

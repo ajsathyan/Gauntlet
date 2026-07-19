@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from .evidence import command_normalize, command_validate_rewrite
-from .planner import SENSOR_IDS, command_plan
+from .planner import PROOF_PHASES, SENSOR_IDS, command_plan
 from .runner import command_run, command_verify
 
 
@@ -29,6 +29,7 @@ def register(subparsers):
     plan.add_argument("--durable-change", action="store_true")
     plan.add_argument("--architecture-change", action="store_true")
     plan.add_argument("--request-sensor", action="append", choices=SENSOR_IDS, default=[])
+    plan.add_argument("--phase", choices=PROOF_PHASES)
     plan.add_argument("--json", action="store_true")
     plan.set_defaults(func=command_plan)
 
@@ -44,12 +45,14 @@ def register(subparsers):
     run.add_argument("--changed-path", action="append", default=[])
     run.add_argument("--consequence", action="append", default=[])
     run.add_argument("--request-sensor", action="append", choices=SENSOR_IDS, default=[])
+    run.add_argument("--phase", choices=PROOF_PHASES)
     run.add_argument("--json", action="store_true")
     run.set_defaults(func=command_run)
 
     verify = commands.add_parser("verify")
     verify.add_argument("--project-root", type=Path, required=True)
     verify.add_argument("--evidence", type=Path, required=True)
+    verify.add_argument("--phase", choices=PROOF_PHASES)
     verify.add_argument("--json", action="store_true")
     verify.set_defaults(func=command_verify)
 

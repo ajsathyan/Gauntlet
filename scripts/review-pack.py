@@ -64,62 +64,6 @@ def test_plan_section(root, test_plan, test_plan_path):
     ]
 
 
-def epic_run_facts_section(run_facts, phase):
-    if not run_facts:
-        return []
-    if run_facts.get("schemaVersion") != "gauntlet/epic-run-facts/v1":
-        raise ValueError("unsupported Epic Run facts schemaVersion")
-    epic_id = run_facts.get("epicId")
-    title = run_facts.get("epicTitle")
-    revision = run_facts.get("exactRevision") or run_facts.get("verificationIdentity", {}).get("commit")
-    review = run_facts.get("review", {})
-    gap_review = run_facts.get("gapReview", {})
-    if not all(isinstance(value, str) and value.strip() for value in (epic_id, title)):
-        raise ValueError("Epic Run facts require epicId and epicTitle")
-    if phase == "integrated" and not (isinstance(revision, str) and revision.strip()):
-        raise ValueError("integrated Epic Run facts require a candidate revision")
-    if not isinstance(review, dict) or not isinstance(review.get("required", False), bool):
-        raise ValueError("Epic Run facts review must declare required as a boolean")
-    if gap_review and (
-        gap_review.get("schemaVersion") != "gauntlet.epic-gap-review-status.v1"
-        or not isinstance(gap_review.get("passes"), list)
-        or not isinstance(gap_review.get("blockedWork"), list)
-    ):
-        raise ValueError("Epic Run gapReview facts are incomplete")
-    triggers = review.get("triggers", [])
-    lenses = review.get("lenses", [])
-    if not isinstance(triggers, list) or not all(isinstance(item, str) and item.strip() for item in triggers):
-        raise ValueError("Epic Run review triggers must be strings")
-    if not isinstance(lenses, list):
-        raise ValueError("Epic Run review lenses must be a list")
-    lens_lines = []
-    for index, lens in enumerate(lenses):
-        if not isinstance(lens, dict) or not all(
-            isinstance(lens.get(field), str) and lens[field].strip() for field in ("id", "charter")
-        ):
-            raise ValueError(f"Epic Run review lens {index + 1} is incomplete")
-        lens_lines.append(f"`{lens['id']}` — {redact_secrets(lens['charter'])}")
-    if not review.get("required") and lenses:
-        raise ValueError("ordinary Epic Run facts cannot attach review lenses")
-    return [
-        "## Locked Epic Run",
-        f"Epic: `{epic_id}` — {redact_secrets(title)}",
-        f"Candidate revision: `{revision or 'not applicable before build'}`",
-        "Controller facts supplement the bounded source, plan, diff, and proof context.",
-        f"Recorded gap-review passes: `{len(gap_review.get('passes', []))}/3`",
-        "Gap-review blocked work: " + (
-            ", ".join(f"`{item}`" for item in gap_review.get("blockedWork", [])) or "None."
-        ),
-        "",
-        "Consequence triggers:",
-        bullets([f"`{item}`" for item in triggers], "None."),
-        "",
-        "Locked consequence specialist lenses:" if review.get("required") else "Consequence specialist review:",
-        bullets(lens_lines, "Not triggered for this ordinary Epic gap review."),
-        "",
-    ]
-
-
 def context_section(root, path_value, label):
     if not path_value:
         return [], []
@@ -189,8 +133,6 @@ def build_review_pack(
     test_plan_path=None,
     accepted_spec_path=None,
     plan_path=None,
-    legacy_memory_path=None,
-    run_facts=None,
     *,
     phase="integrated",
     maturity="not supplied",
@@ -207,7 +149,7 @@ def build_review_pack(
     if intel.get("confidence") != "high":
         cannot_verify.append("Diff classification is advisory; confirm surfaces and tests against local repo conventions.")
     accepted_spec_lines, accepted_spec_cannot_verify = context_section(root, accepted_spec_path, "Accepted Spec")
-    plan_lines, plan_cannot_verify = context_section(root, plan_path, "Canonical Plan")
+    plan_lines, plan_cannot_verify = context_section(root, plan_path, "Ephemeral Implementation Plan")
     cannot_verify.extend(accepted_spec_cannot_verify + plan_cannot_verify)
     proof_context_paths = list(proof_context_paths or [])
     if len(proof_context_paths) > MAX_PROOF_CONTEXTS:
@@ -217,14 +159,8 @@ def build_review_pack(
         lines, missing = context_section(root, proof_path, f"Proof Context {index}")
         proof_context_lines.extend(lines)
         cannot_verify.extend(missing)
-    legacy_lines = []
-    if legacy_memory_path and not accepted_spec_path:
-        legacy_lines, legacy_cannot_verify = context_section(root, legacy_memory_path, "Legacy Implementation Memory")
-        cannot_verify.extend(legacy_cannot_verify)
-        cannot_verify.append("Deprecated --implementation-memory input used; migrate this context into the accepted spec or canonical plan.")
-
     sections = [
-        "# Epic Gap Review Pack",
+        "# Integrated Review Pack",
         "",
         f"Generated: {now_iso()}",
         f"Project root: `{root}`",
@@ -257,11 +193,9 @@ def build_review_pack(
         "- Treat missing or low-confidence test mappings as `Cannot verify`, not as proof of safety.",
         "",
         *test_plan_section(root, test_plan, test_plan_path),
-        *epic_run_facts_section(run_facts, phase),
         *accepted_spec_lines,
         *plan_lines,
         *proof_context_lines,
-        *legacy_lines,
         "## Cannot verify",
         bullets(cannot_verify, "None from the generator; reviewer should still report missing proof."),
         "",
@@ -274,7 +208,7 @@ def build_review_pack(
     sections.extend([
         "",
         "## Expected Return Format",
-        "- Return at most three findings in this pass; the Epic permits at most three total passes.",
+        "- Return at most three material findings in this pass.",
         "- For each finding: ID, concrete missed behavior/regression/failure path, practical effect, smallest response, affected accepted work, and one terminal disposition.",
         "- Terminal disposition must be exactly `fixed`, `ask-user`, `deferred`, or `omitted`.",
         "- `ask-user` blocks only the affected work. `deferred` and `omitted` close the finding but are not fixes.",
@@ -291,15 +225,10 @@ def main():
     parser.add_argument("--test-plan", type=Path, default=None, help="test-plan JSON to summarize; defaults to .gauntlet/test-plan.json when present")
     parser.add_argument("--no-test-plan", action="store_true", help="do not include an existing test-plan summary")
     parser.add_argument("--accepted-spec", type=Path, default=None, help="accepted spec/context file")
-    parser.add_argument("--plan", type=Path, default=None, help="canonical implementation plan file")
-    parser.add_argument("--phase", choices=GAP_REVIEW_PHASES, default="integrated", help="Epic gap review phase")
+    parser.add_argument("--plan", type=Path, default=None, help="optional ephemeral implementation-plan file")
+    parser.add_argument("--phase", choices=GAP_REVIEW_PHASES, default="integrated", help="review phase")
     parser.add_argument("--maturity", default="not supplied", help="declared product maturity for proportional review")
     parser.add_argument("--proof-context", type=Path, action="append", default=[], help="bounded proof context file; repeat up to four times")
-    parser.add_argument(
-        "--run-facts", type=Path, default=None,
-        help="JSON emitted by the Epic Run controller's run-facts --run projection",
-    )
-    parser.add_argument("--implementation-memory", type=Path, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
 
@@ -313,13 +242,11 @@ def main():
             test_plan = read_json(test_plan_path)
     accepted_spec_path = project_relative_path(project_root, args.accepted_spec)
     plan_path = project_relative_path(project_root, args.plan)
-    run_facts = read_json(project_relative_path(project_root, args.run_facts)) if args.run_facts else None
     proof_context_paths = [project_relative_path(project_root, path) for path in args.proof_context]
-    legacy_memory_path = project_relative_path(project_root, args.implementation_memory)
     try:
         packet = build_review_pack(
             project_root, intel, test_plan, test_plan_path, accepted_spec_path,
-            plan_path, legacy_memory_path, run_facts,
+            plan_path,
             phase=args.phase, maturity=args.maturity, proof_context_paths=proof_context_paths,
         )
     except ValueError as exc:

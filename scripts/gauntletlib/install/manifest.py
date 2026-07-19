@@ -15,6 +15,22 @@ GENERATED_DESTINATIONS = (
     "gauntlet/.install-manifest.json",
 )
 RECEIPT = Path(GENERATED_DESTINATIONS[-1])
+CONTROLLER_ERA_DESTINATIONS = {
+    "gauntlet/scripts/prd-run.py",
+    "gauntlet/scripts/gauntletlib/run/controller.py",
+    "gauntlet/scripts/progress-dashboard.py",
+}
+LIVE_CONTROLLER_STATES = {
+    "discussing",
+    "accepted",
+    "compiled",
+    "executing",
+    "integrating",
+    "epic_verified",
+    "merged",
+    "deployed",
+    "production_verified",
+}
 
 
 def _sha256(path: Path) -> str:
@@ -182,6 +198,106 @@ def _receipt_destinations(receipt: dict, agent_home: Path) -> set[str]:
     return destinations
 
 
+def _generated_receipt_entries(receipt: dict, agent_home: Path) -> list[dict]:
+    entries = receipt.get("generatedEntries", [])
+    if not isinstance(entries, list):
+        raise ValueError("Invalid install ownership receipt generated entries")
+    prepared = []
+    destinations = set()
+    for row in entries:
+        if not isinstance(row, dict):
+            raise ValueError("Invalid install ownership receipt generated entry")
+        value = _relative_path(row.get("destination"), "generated receipt destination")
+        if value not in GENERATED_DESTINATIONS[:-1]:
+            raise ValueError(f"Unsupported generated receipt destination: {value}")
+        _generated_destination_path(agent_home, value)
+        if value in destinations:
+            raise ValueError("Duplicate generated install ownership receipt destination")
+        destinations.add(value)
+        if not isinstance(row.get("sha256"), str) or len(row["sha256"]) != 64:
+            raise ValueError(f"Invalid generated install ownership receipt hash: {value}")
+        prepared.append(row)
+    return prepared
+
+
+def _is_controller_era_receipt(receipt: dict | None, agent_home: Path) -> bool:
+    if receipt is None:
+        return False
+    destinations = _receipt_destinations(receipt, agent_home)
+    return bool(destinations & CONTROLLER_ERA_DESTINATIONS)
+
+
+def preflight_product_cutover(
+    agent_home: Path,
+    project_roots: list[Path],
+    *,
+    confirmed_no_unscanned_live_work: bool = False,
+) -> list[str]:
+    """Reject a controller-era upgrade when detectable execution work is live.
+
+    Detection is intentionally bounded to explicitly supplied project roots. Each
+    root is inspected at local-docs/executions/*/manifest.json. Historical runs
+    whose state is ``complete`` and legacy manifests with an unknown state are
+    never changed.
+    """
+
+    receipt = _load_receipt(agent_home)
+    if not _is_controller_era_receipt(receipt, agent_home):
+        return []
+    if not project_roots and not confirmed_no_unscanned_live_work:
+        raise ValueError(
+            "Controller-era Gauntlet is installed. Product-cut installation requires "
+            "at least one --cutover-project-root to inspect, or "
+            "--confirm-no-live-controller-work after checking every other project. "
+            "The installer can only detect local-docs/executions/*/manifest.json "
+            "under project roots you explicitly provide."
+        )
+
+    live = []
+    findings = []
+    seen = set()
+    for supplied in project_roots:
+        root = supplied.expanduser().absolute()
+        if root in seen:
+            continue
+        seen.add(root)
+        if root.is_symlink() or not root.is_dir():
+            raise ValueError(f"Cutover project root must be a real directory: {root}")
+        executions = root / "local-docs" / "executions"
+        if not executions.exists():
+            continue
+        if executions.is_symlink() or not executions.is_dir():
+            raise ValueError(f"Unsafe controller execution directory: {executions}")
+        for manifest_path in sorted(executions.glob("*/manifest.json")):
+            if manifest_path.is_symlink() or not manifest_path.is_file():
+                raise ValueError(f"Unsafe controller run manifest: {manifest_path}")
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise ValueError(
+                    f"Cannot determine controller run state from {manifest_path}: {error}"
+                ) from error
+            if not isinstance(manifest, dict) or not isinstance(manifest.get("state"), str):
+                raise ValueError(
+                    f"Cannot determine controller run state from {manifest_path}"
+                )
+            state = manifest["state"]
+            if state in LIVE_CONTROLLER_STATES:
+                live.append(f"{manifest_path.parent.name} ({state})")
+            elif state != "complete":
+                findings.append(
+                    f"preserved historical controller run with legacy state {state}: "
+                    f"{manifest_path.parent}"
+                )
+    if live:
+        raise ValueError(
+            "Refusing product cut while controller-era work is live: "
+            + ", ".join(live)
+            + ". Complete or explicitly close those runs before installing."
+        )
+    return findings
+
+
 def _remove_empty_parents(path: Path, stop: Path) -> None:
     parent = path.parent
     while parent != stop and stop in parent.parents:
@@ -281,6 +397,79 @@ def sync_payload(root: Path, agent_home: Path) -> list[str]:
             if os.path.exists(temporary):
                 os.unlink(temporary)
     return findings
+
+
+def record_generated_payload(agent_home: Path, destination: str) -> None:
+    """Add an installer-rendered file to the ownership receipt after it is written."""
+
+    receipt = _load_receipt(agent_home)
+    if receipt is None:
+        raise ValueError("Cannot record generated payload without an ownership receipt")
+    path = _generated_destination_path(agent_home, destination)
+    if not path.is_file():
+        raise ValueError(f"Missing generated payload: {destination}")
+    entries = {
+        row["destination"]: row
+        for row in _generated_receipt_entries(receipt, agent_home)
+    }
+    entries[destination] = {"destination": destination, "sha256": _sha256(path)}
+    receipt["generatedEntries"] = [entries[key] for key in sorted(entries)]
+    receipt_path = agent_home / RECEIPT
+    rendered = (json.dumps(receipt, indent=2, sort_keys=True) + "\n").encode()
+    fd, temporary = tempfile.mkstemp(prefix=f".{receipt_path.name}.", dir=receipt_path.parent)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(rendered)
+        os.chmod(temporary, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+        os.replace(temporary, receipt_path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def uninstall_payload(agent_home: Path) -> list[str]:
+    """Remove only byte-identical files named by the installation receipt."""
+
+    receipt = _load_receipt(agent_home)
+    if receipt is None:
+        return ["no Gauntlet payload ownership receipt found; preserved installed files"]
+    prepared, manifest_path, manifest_sha = preflight_uninstall_payload(agent_home)
+    findings: list[str] = []
+
+    for path, expected_sha in prepared:
+        _safe_stale_file(path, expected_sha, findings)
+        _remove_empty_parents(path, agent_home)
+    _safe_stale_file(manifest_path, manifest_sha, findings)
+
+    receipt_path = agent_home / RECEIPT
+    receipt_path.unlink()
+    _remove_empty_parents(receipt_path, agent_home)
+    return findings
+
+
+def preflight_uninstall_payload(
+    agent_home: Path,
+) -> tuple[list[tuple[Path, str]], Path, str]:
+    """Validate every receipt-owned path without changing installed state."""
+
+    receipt = _load_receipt(agent_home)
+    if receipt is None:
+        return [], _generated_destination_path(agent_home, "gauntlet/MANIFEST"), ""
+    _receipt_destinations(receipt, agent_home)
+    generated = _generated_receipt_entries(receipt, agent_home)
+    rows = list(receipt["entries"]) + generated
+    prepared = [
+        (
+            _destination_path(agent_home, row["destination"], "receipt destination"),
+            row["sha256"],
+        )
+        for row in rows
+    ]
+    return (
+        prepared,
+        _generated_destination_path(agent_home, "gauntlet/MANIFEST"),
+        receipt["manifestSha256"],
+    )
 
 
 def verify_payload(root: Path, agent_home: Path) -> list[str]:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compatibility wrapper for the domain-split development workflow suite."""
+"""Run the controller-free Gauntlet development workflow suite."""
 
 import importlib
 from pathlib import Path

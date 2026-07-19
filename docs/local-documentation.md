@@ -1,92 +1,105 @@
-# Local Product Documentation
+# Local Design Documentation
 
-Gauntlet keeps private product working documents and execution state in the primary checkout. The profile is default-on but materializes only for an explicit covered document action.
+Gauntlet keeps private product designs in the primary checkout. The profile is
+default-on, but it materializes only for an explicit covered document action.
 
 ```text
 doc_org.md
 local-docs/
   INDEX.md
-  drafts/
-  epics/
+  designs/
   research/
-  executions/
+  decisions/
+  epics/        # optional legacy files, preserved as-is
+  executions/   # optional legacy files, preserved as-is
 ```
 
-These paths are added to the repository's local Git exclude file. They are not a security boundary and must not contain credentials, secret values, personal data, or sensitive resource identifiers. Documentation required by another checkout, contributor, CI process, or operator remains tracked in the repository's normal documentation location.
+These paths are added to the repository's local Git exclude file. They are not a
+security boundary and must not contain credentials, secret values, personal data,
+or sensitive resource identifiers. Documentation needed by another checkout,
+contributor, CI process, or operator remains tracked in the repository's normal
+documentation location.
 
-## User-owned workflow
+## What the lifecycle keeps
 
-Discussion does not write a document. On an explicit create request:
+A bounded Normal Request does not create a durable design. For non-trivial product
+or implementation work, one permanent Design preserves the accepted product
+meaning. Before acceptance, the conversation explicitly considers material
+alternatives, assumptions, completeness, edge cases, observable outcomes, and
+required non-effects.
 
-- a new repository receives the guided Founding Hypothesis;
-- a follow-up feature receives the guided Peter Yang PRD without Meeting Notes.
+The template contains prompts, not decisions. Users may add, remove, or rename
+sections. Agents write only stated or explicitly requested content and keep
+unaccepted suggestions outside the document. Empty prompts never create non-goals,
+security boundaries, rollout constraints, quality gates, or other product limits.
 
-Both templates keep useful source guidance but no product-specific answer. Users may add, remove, or rename sections. Agents write only stated or explicitly requested product content and keep suggestions outside the document until accepted. Non-goals, security boundaries, rollout, quality gates, and other product limits are never inferred from empty fields.
+`docs design create` creates the durable Design directly. There is no separate
+draft promotion, implementation-plan document, Epic compilation, or controller
+run. Direct user edits and arbitrary sections remain untouched.
 
-Drafts live in `local-docs/drafts/`. Explicit promotion allocates the stable Epic ID, chooses the final filename, moves the exact draft bytes under `local-docs/epics/`, and updates the index atomically. Promotion does not imply acceptance.
+Explicit acceptance requires one answered exact `## Acceptance` section. Gauntlet
+stores the whole-file digest and the Acceptance-section digest in an adjacent
+acceptance record, updates only the navigational index, and does not edit the
+Design. The exact section is the Build Contract. A later semantic edit requires a
+new explicit acceptance.
 
-Explicit acceptance requires an answered `Acceptance`, `Done when`, or legacy `Product Acceptance` section. The controller binds the document digest and compact mechanical launch facts in a sidecar without modifying product content. A later edit invalidates that acceptance until the user accepts the revised version.
-
-Legacy accepted PRDs with machine-readable Epic fields remain launchable. They are not rewritten merely to adopt the new templates.
+Legacy PRD, Epic, and execution files remain readable at their existing paths.
+Profile initialization and Design commands do not rewrite them.
 
 ## Artifact ownership
 
-- Product documents own user-authorized intent and observable done behavior.
+- The accepted Design owns user-authorized intent and observable outcomes.
+- Its exact `## Acceptance` section owns the Build Contract.
 - Research owns evidence and uncertainty; it does not authorize implementation.
+- Decisions preserve reasoning that would otherwise be lost.
+- Architecture and Sensor Contracts remain separate from product acceptance.
 - The index is navigational, not proof.
-- Accepted-Epic records own the exact source digest and compact launch facts.
-- Launch sets and Execution Runs own task IDs, dependencies, review dispositions, proof, resume state, and dashboard projections.
+- Build plans and workstream assignments are ephemeral implementation aids.
 
-Canonical local documents exist only in the primary worktree. Linked implementation worktrees read them and return durable results to the parent task. Private-document changes are not committed or deployed.
-
-## Implementation
-
-An explicit `implement the PRD` request freezes the accepted target and creates one visible task and one Execution Run per independently shippable Epic. The visible task receives a compact launch envelope. Its bootstrap command verifies the immutable source and returns the complete relevant Epic once before run creation; the task prompt does not contain a second copy.
-
-Children receive bounded Tickets, accepted source slices, and dependency contracts. The complete product document, manifest, event history, unrelated receipts, and parent-owned pull-request state stay out of child context.
-
-Proof uses focused changed-behavior checks and one final Epic verification on the exact integrated revision. A bounded Epic gap review may run before build and after integration, with at most three findings per pass and three passes. Every finding ends as `fixed`, `ask-user`, `deferred`, or `omitted`. Consequence-specific specialists run only for explicit accepted triggers.
-
-See `docs/prd-execution.md` for controller commands and release behavior.
+Before Build, product-completeness, engineering-shape, and proof/consequence lenses
+inspect the same Design. Material findings receive terminal dispositions. Independent
+Verify reads the accepted Design and exact integrated revision and returns separate
+Build, Architecture, and Sensor verdicts. Green sensors cannot compensate for a
+missing accepted outcome.
 
 ## Commands
 
 Check without writing:
 
 ```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs check --project-root "$PROJECT_ROOT"
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs check \
+  --project-root "$PROJECT_ROOT"
 ```
 
-Materialize the profile. A repository with no product document also receives the founding draft:
+Materialize the default profile:
 
 ```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs ensure --project-root "$PROJECT_ROOT"
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs ensure \
+  --project-root "$PROJECT_ROOT"
 ```
 
-Create a follow-up draft:
+Create one durable Design:
 
 ```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs draft create \
-  --project-root "$PROJECT_ROOT" --template peter-yang \
-  --title "Message surfaces"
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs design create \
+  --project-root "$PROJECT_ROOT" --title "Message surfaces"
 ```
 
-Promote exact draft bytes after the title is clear:
+After editing and explicit user review, accept its exact bytes:
 
 ```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs draft promote \
-  --project-root "$PROJECT_ROOT" --draft MESSAGE_SURFACES_PRD.md \
-  --title "Message surfaces"
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs design accept \
+  --project-root "$PROJECT_ROOT" --design PROJECT-001
 ```
 
-Accept the exact promoted version after the user reviews its semantics:
+Opt out or return to the default:
 
 ```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs epic accept \
-  --project-root "$PROJECT_ROOT" --epic PROJECT-001 \
-  --prd "epics/001/001_MESSAGE_SURFACES_PRD.md"
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs disable \
+  --project-root "$PROJECT_ROOT"
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs enable \
+  --project-root "$PROJECT_ROOT"
 ```
 
-`docs draft create`, `docs draft promote`, and `docs epic accept` support `--dry-run`. Acceptance defaults mechanical release applicability to merge and consequence triggers to none; pass explicit command options when the user accepted different facts.
-
-Explicit initialization, project opt-out, and re-enable remain available through `docs init`, `docs disable`, and `docs enable`. The legacy `docs epic create` command remains available for existing comprehensive PRD workflows.
+Canonical documents exist only in the primary worktree. Linked worktrees resolve
+there and must not create alternate copies.

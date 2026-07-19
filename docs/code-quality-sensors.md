@@ -17,10 +17,31 @@ The command family has five public operations:
 - `sensors validate-rewrite` checks a
   `gauntlet.readability-rewrite-evidence/v1` receipt.
 
-The runner does not edit code or contain an autonomous repair controller. Codex
+The runner does not edit or repair code. Codex
 uses the handoff's attention items, opens raw logs only when necessary, repairs
 the source, and invokes `sensors run` again. Any required failed, unavailable,
-not-run, or stale result blocks completion.
+not-run, incomplete, or stale result blocks completion.
+
+## Proof phases
+
+`sensors plan`, `sensors run`, and `sensors verify` accept
+`--phase fast|integrated`. Omitting the option retains the existing
+`integrated` behavior.
+
+- `fast` is the edit-loop phase. It runs only commands whose repository
+  configuration opts into `fast`; the bundled configuration uses cheap
+  changed-surface checks and coverage of the workflow smoke suite.
+- `integrated` is the final sensor phase. It runs the retained full coverage
+  suite and every applicable configured command. A command with no `phases`
+  field defaults to integrated-only, so adding phases cannot silently weaken an
+  existing repository's final proof.
+
+The phase appears in plan facts, the compact handoff, and private evidence. It
+also participates in both source and plan fingerprints. Verification defaults
+to integrated, so fast evidence is rejected unless the verifier explicitly
+requests `--phase fast`; integrated verification never accepts smoke evidence.
+Required failures, unavailable commands, not-run results, incomplete evidence,
+and stale evidence block in either phase.
 
 ## Proportional planning
 
@@ -63,12 +84,19 @@ tests, which prevents duplicate execution. Identical command arrays are
 deduplicated. Mutation remains consequence-triggered and runs after cheaper
 checks in repository configuration.
 
+Each command may declare `phases` as a non-empty array containing `fast`,
+`integrated`, or both. The optional `{phase}` and `{suite}` argv placeholders
+expand without a shell; `{suite}` becomes `smoke` for fast proof and `full` for
+integrated proof. `scripts/run-coverage-sensor.py --suite smoke|full` routes
+those values to the existing workflow smoke or full suite and defaults to
+`full` for older callers.
+
 Missing optional configuration is reported rather than invented. The normal
-Gauntlet install ships adapters and configuration but does not download external
-tools. `scripts/install.sh --with-sensor-tools` installs pinned Semgrep,
-coverage.py, and Gitleaks versions into an isolated
-`~/.codex/gauntlet-tools/` generation. Its receipt owns only that directory;
-tool failure does not invalidate the core Gauntlet install.
+Codex install includes pinned Semgrep, coverage.py, and Gitleaks versions in an
+isolated `~/.codex/gauntlet-tools/` generation. Add
+`--without-sensor-tools` to install only the core workflow. The tool receipt owns
+only its isolated generation; an unavailable repository command is reported
+explicitly and cannot be represented as executed proof.
 
 An unsupported repository still receives a valid plan with an explicit
 limitation. The planner does not guess an ecosystem or invent a command. Add the
@@ -83,9 +111,10 @@ commands, working directories, tool versions, and raw pass output. Full evidence
 retains the argument array, working directory, exit status, duration, tool
 identity, source and plan fingerprints, raw-output digest, and raw-log reference.
 
-Evidence is bound to the current Git revision, changed-file content, and sensor
-configuration. Editing relevant source or configuration invalidates earlier
-evidence. A caller-supplied result cannot establish a pass.
+Evidence is bound to the current Git revision, changed-file content, sensor
+configuration, and proof phase. Editing relevant source or configuration, or
+requesting a different proof phase, invalidates earlier evidence. A
+caller-supplied result cannot establish a pass.
 
 ## Readability rewrites
 

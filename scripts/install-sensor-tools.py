@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install pinned optional sensor tools into a Codex-owned generation."""
+"""Install pinned sensor tools into a machine-local Codex-owned generation."""
 
 from __future__ import annotations
 
@@ -332,6 +332,11 @@ def remove(args):
         raise ToolInstallError("refusing to remove a changed sensor tool activation")
     shutil.rmtree(generation, ignore_errors=True)
     receipt_path.unlink()
+    for directory in (root / "generations", root):
+        try:
+            directory.rmdir()
+        except OSError:
+            pass
     return {"action": "removed", "generation": generation_name}
 
 

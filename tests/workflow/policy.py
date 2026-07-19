@@ -28,15 +28,16 @@ def test_plugin_manifests_bundle_shared_skills():
         raise AssertionError("Codex marketplace must expose the Gauntlet plugin")
 
 
-def test_normal_requests_use_minimum_scope_before_lifecycle_routing():
+def test_normal_requests_use_minimum_scope_before_design():
     router = read(ROUTER_MD)
     for marker in [
         "## Minimum scope",
-        "bounded, low-consequence, reversible, and directly checkable",
-        "deliver the requested artifact directly",
+        "bounded, low-consequence, reversible, directly checkable",
+        "deliver the artifact directly",
+        "run its smoke check",
         "keep work in the main task",
-        "do not create plans, Tickets, subagents",
-        "stop when the requested result works",
+        "do not create a durable design",
+        "stop when it works",
     ]:
         assert_contains(router, marker, "normal-request minimum-scope routing")
 
@@ -47,17 +48,17 @@ def test_merge_and_archive_authority_requires_complete_safe_closeout():
     land = read(SKILLS / "land" / "SKILL.md")
     for marker in [
         "invokes the installed `land` skill",
-        "Default to local `git` and `gh`",
-        "Generic merge authority does not authorize local installation or task archival",
+        "Opening a PR does not authorize merge",
+        "local installation, and task archival require their own accepted authority",
     ]:
         assert_contains(router, marker, "always-loaded merge closeout")
     for marker in [
-        "Use local `git` and `gh` by default",
-        "wait for required CI",
-        "verify it contains the accepted head",
-        "Run established push-to-default CI",
-        "Fast-forward the checkout that owns the local default branch",
-        "Remove a clean isolated worktree",
+        "Use local `git` and authenticated `gh` by default",
+        "waits for required CI",
+        "tree-equivalent merge",
+        "Run established post-merge CI",
+        "fast-forward the checkout that owns the local default branch",
+        "remove a clean isolated worktree",
     ]:
         assert_contains(land, marker, "land closeout")
     for marker in [

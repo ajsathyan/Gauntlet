@@ -1,17 +1,13 @@
-"""Closeout, archive, follow-up, memory, and changelog support."""
+"""Closeout, archive, follow-up, and changelog support."""
 
-import argparse
 from pathlib import Path
 
-from .workflow import advance_run_release_state as advance_run_release_state
-from .workflow import completion_allows_archive as completion_allows_archive
 from .workflow import command_archive_execute
 from .workflow import command_archive_plan
 from .workflow import command_changelog_pr
 from .workflow import command_closeout_execute
 from .workflow import command_followup_note
 from .workflow import command_followup_thread
-from .workflow import command_memory_lint
 from .workflow import configure as configure
 from .workflow import closeout_install_command as closeout_install_command
 
@@ -20,15 +16,6 @@ def _add_archive_args(parser):
     parser.add_argument("--title", default=None)
     parser.add_argument("--suggested-title", default=None)
     parser.add_argument("--content", type=Path, default=None)
-    parser.add_argument(
-        "--run",
-        type=Path,
-        default=None,
-        help=(
-            "Use a deterministic Epic completion projection instead of an "
-            "authored Archive Summary."
-        ),
-    )
     parser.add_argument("--git-root", type=Path, default=Path.cwd())
     parser.add_argument("--require-kickoff", action="store_true")
     parser.add_argument("--require-assumptions", action="store_true")
@@ -68,8 +55,7 @@ def register_closeout(subparsers):
     )
     execute = commands.add_parser("execute")
     execute.add_argument("--git-root", type=Path, default=Path.cwd())
-    execute.add_argument("--handoff", type=Path, default=None)
-    execute.add_argument("--run", type=Path, default=None)
+    execute.add_argument("--handoff", type=Path, required=True)
     execute.add_argument("--stage", action="append", default=[])
     execute.add_argument(
         "--install-target",
@@ -96,7 +82,7 @@ def register_closeout(subparsers):
 
 
 
-def register_followup_memory(subparsers):
+def register_followup(subparsers):
     followup = subparsers.add_parser(
         "followup", help="Follow-up helpers."
     )
@@ -131,19 +117,6 @@ def register_followup_memory(subparsers):
     thread.add_argument("--json", action="store_true")
     thread.set_defaults(func=command_followup_thread)
 
-    memory = subparsers.add_parser(
-        "memory", help="Implementation Memory helpers."
-    )
-    memory_commands = memory.add_subparsers(
-        dest="memory_command", required=True
-    )
-    lint = memory_commands.add_parser("lint")
-    lint.add_argument("--path", type=Path, required=True)
-    lint.add_argument("--json", action="store_true")
-    lint.set_defaults(func=command_memory_lint)
-
-
-
 def register_changelog(subparsers):
     changelog = subparsers.add_parser(
         "changelog", help="Changelog generation helpers."
@@ -154,12 +127,6 @@ def register_changelog(subparsers):
     pr = changelog_commands.add_parser("pr")
     pr.add_argument("--accepted-spec", type=Path, default=None)
     pr.add_argument("--plan", type=Path, default=None)
-    pr.add_argument(
-        "--implementation-memory",
-        type=Path,
-        default=None,
-        help=argparse.SUPPRESS,
-    )
     pr.add_argument("--git-root", type=Path, default=Path.cwd())
     pr.add_argument("--output", type=Path, default=None)
     pr.add_argument("--json", action="store_true")

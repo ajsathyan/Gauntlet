@@ -1,23 +1,15 @@
 #!/usr/bin/env python3
-import argparse
-import contextlib
-import importlib.util
-import io
+import hashlib
 import json
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from support import ROOT
-from gauntletlib.docs import lifecycle as docs_lifecycle
 
 
 CLI = ROOT / "scripts" / "gauntlet.py"
-SPEC = importlib.util.spec_from_file_location("gauntlet_cli", CLI)
-GAUNTLET = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(GAUNTLET)
 
 
 def run(args, *, check=True):
@@ -29,15 +21,20 @@ def run(args, *, check=True):
     )
     if check and result.returncode != 0:
         raise AssertionError(
-            f"command failed ({result.returncode}): {args}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            f"command failed ({result.returncode}): {args}\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
     return result
 
 
 def git(repo, *args):
     return subprocess.run(
-        ["git", *args], cwd=repo, text=True, check=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        ["git", *args],
+        cwd=repo,
+        text=True,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
 
 
@@ -59,194 +56,332 @@ class DocumentLifecycleTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def test_ensure_creates_only_an_unanswered_founding_draft_for_a_new_profile(self):
+    def test_ensure_is_lazy_idempotent_and_creates_no_controller_artifacts(self):
         repo = self.root / "new-product"
         init_repo(repo)
 
-        dry_run = run(["docs", "ensure", "--project-root", str(repo), "--dry-run", "--json"])
-        dry_data = json.loads(dry_run.stdout)
-        self.assertEqual("pass", dry_data["status"])
-        self.assertFalse((repo / "local-docs").exists())
+        dry = run(
+            [
+                "docs",
+                "ensure",
+                "--project-root",
+                str(repo),
+                "--dry-run",
+                "--json",
+            ]
+        )
+        self.assertEqual("pass", json.loads(dry.stdout)["status"])
         self.assertFalse((repo / "doc_org.md").exists())
-
-        ensured = run(["docs", "ensure", "--project-root", str(repo), "--json"])
-        data = json.loads(ensured.stdout)
-        draft = repo / "local-docs" / "drafts" / "FOUNDING_HYPOTHESIS.md"
-        self.assertEqual(draft.resolve(), Path(data["foundingDraftPath"]).resolve())
-        self.assertTrue(draft.is_file())
-        text = draft.read_text(encoding="utf-8")
-        self.assertIn("*Guidance:", text)
-        self.assertIn("## Founding hypothesis", text)
-        self.assertNotIn("## Meeting Notes", text)
-        self.assertNotIn("Customer answer:", text)
-
-        before = draft.read_bytes()
-        repeated = run(["docs", "ensure", "--project-root", str(repo), "--json"])
-        self.assertEqual("pass", json.loads(repeated.stdout)["status"])
-        self.assertEqual(before, draft.read_bytes())
-
-    def test_ensure_does_not_add_a_founding_draft_to_an_existing_product_profile(self):
-        repo = self.root / "existing-product"
-        init_repo(repo)
-        run(["docs", "init", "--project-root", str(repo), "--epic-prefix", "EXISTING", "--json"])
-        legacy = run([
-            "docs", "epic", "create", "--project-root", str(repo),
-            "--title", "Existing feature", "--json",
-        ])
-        legacy_path = Path(json.loads(legacy.stdout)["prdPath"])
-        legacy_before = legacy_path.read_bytes()
-
-        ensured = run(["docs", "ensure", "--project-root", str(repo), "--json"])
-        self.assertEqual("pass", json.loads(ensured.stdout)["status"])
-        self.assertFalse((repo / "local-docs" / "drafts" / "FOUNDING_HYPOTHESIS.md").exists())
-        self.assertEqual(legacy_before, legacy_path.read_bytes())
-
-    def test_followup_draft_explicitly_selects_the_peter_yang_template(self):
-        repo = self.root / "followup"
-        init_repo(repo)
-        run(["docs", "init", "--project-root", str(repo), "--epic-prefix", "FOLLOWUP", "--json"])
-
-        created = run([
-            "docs", "draft", "create", "--project-root", str(repo),
-            "--template", "peter-yang",
-            "--title", "Repository workflow mode selection", "--json",
-        ])
-        data = json.loads(created.stdout)
-        draft = Path(data["draftPath"])
-        self.assertEqual("peter-yang", data["template"])
-        self.assertEqual(
-            (
-                repo
-                / "local-docs"
-                / "drafts"
-                / "REPOSITORY_WORKFLOW_MODE_SELECTION_PRD.md"
-            ).resolve(),
-            draft.resolve(),
-        )
-        text = draft.read_text(encoding="utf-8")
-        self.assertIn("# Feature PRD", text)
-        self.assertIn("*Guidance:", text)
-        self.assertNotIn("## Meeting Notes", text)
-
-    def test_followup_draft_requires_a_feature_title(self):
-        repo = self.root / "untitled-followup"
-        init_repo(repo)
-        run(["docs", "init", "--project-root", str(repo), "--epic-prefix", "FOLLOWUP", "--json"])
-
-        created = run([
-            "docs", "draft", "create", "--project-root", str(repo),
-            "--template", "peter-yang", "--json",
-        ], check=False)
-
-        self.assertNotEqual(0, created.returncode)
-        self.assertEqual("missing_draft_title", json.loads(created.stdout)["findings"][0]["code"])
-        self.assertFalse(
-            (repo / "local-docs" / "drafts" / "PETER_YANG_PRD.md").exists()
-        )
-
-    def test_promotion_preserves_exact_bytes_and_updates_the_index_once(self):
-        repo = self.root / "promotion"
-        init_repo(repo)
-        run(["docs", "init", "--project-root", str(repo), "--epic-prefix", "PROMOTE", "--json"])
-        created = run([
-            "docs", "draft", "create", "--project-root", str(repo),
-            "--template", "peter-yang", "--title", "User-owned launch", "--json",
-        ])
-        draft = Path(json.loads(created.stdout)["draftPath"])
-        user_bytes = (
-            b"# A title the user controls\r\n\r\n"
-            b"## Bespoke heading\r\n\r\nUser bytes stay unchanged.\r\n"
-            b"\r\n## Another arbitrary section\r\n\r\n\xe2\x98\x83\r\n"
-        )
-        draft.write_bytes(user_bytes)
-
-        preview = run([
-            "docs", "draft", "promote", "--project-root", str(repo),
-            "--draft", draft.name, "--title", "User-owned launch", "--dry-run", "--json",
-        ])
-        preview_data = json.loads(preview.stdout)
-        self.assertEqual("PROMOTE-001", preview_data["epicId"])
-        self.assertTrue(draft.is_file())
-        self.assertFalse(Path(preview_data["prdPath"]).exists())
-
-        promoted = run([
-            "docs", "draft", "promote", "--project-root", str(repo),
-            "--draft", draft.name, "--title", "User-owned launch", "--json",
-        ])
-        data = json.loads(promoted.stdout)
-        prd = Path(data["prdPath"])
-        self.assertFalse(draft.exists())
-        self.assertEqual(user_bytes, prd.read_bytes())
-        index = (repo / "local-docs" / "INDEX.md").read_text(encoding="utf-8")
-        self.assertEqual(1, index.count("PROMOTE-001"))
-        self.assertEqual(1, index.count("User-owned launch"))
-
-    def test_collision_and_index_failure_leave_the_draft_and_index_unchanged(self):
-        repo = self.root / "rollback"
-        init_repo(repo)
-        run(["docs", "init", "--project-root", str(repo), "--epic-prefix", "ROLLBACK", "--json"])
-        run([
-            "docs", "epic", "create", "--project-root", str(repo),
-            "--title", "Allocated", "--number", "1", "--json",
-        ])
-        created = run([
-            "docs", "draft", "create", "--project-root", str(repo),
-            "--template", "peter-yang", "--title", "Rollback proof", "--json",
-        ])
-        draft = Path(json.loads(created.stdout)["draftPath"])
-        draft_bytes = draft.read_bytes()
-        index = repo / "local-docs" / "INDEX.md"
-        index_before = index.read_bytes()
-
-        collision = run([
-            "docs", "draft", "promote", "--project-root", str(repo),
-            "--draft", draft.name, "--title", "Collision", "--number", "1", "--json",
-        ], check=False)
-        self.assertNotEqual(0, collision.returncode)
-        self.assertEqual(draft_bytes, draft.read_bytes())
-        self.assertEqual(index_before, index.read_bytes())
-
-        args = argparse.Namespace(
-            project_root=repo,
-            draft=draft.name,
-            title="Rollback proof",
-            number=2,
-            dry_run=False,
-            json=True,
-        )
-        original_atomic_write = docs_lifecycle._atomic_write_text
-
-        def fail_index_write(path, content, mode=0o600):
-            if Path(path).resolve() == index.resolve():
-                raise OSError("injected index failure")
-            return original_atomic_write(path, content, mode=mode)
-
-        with mock.patch.object(
-            docs_lifecycle,
-            "_atomic_write_text",
-            side_effect=fail_index_write,
-        ):
-            with self.assertRaisesRegex(OSError, "injected index failure"):
-                with contextlib.redirect_stdout(io.StringIO()):
-                    GAUNTLET.command_docs_draft_promote(args)
-
-        self.assertEqual(draft_bytes, draft.read_bytes())
-        self.assertEqual(index_before, index.read_bytes())
-        self.assertFalse((repo / "local-docs" / "epics" / "002").exists())
-
-    def test_read_only_and_non_command_paths_do_not_create_documents(self):
-        repo = self.root / "discussion"
-        init_repo(repo)
-        before = sorted(path.relative_to(repo) for path in repo.rglob("*") if path.is_file())
-
-        checked = run(["docs", "check", "--project-root", str(repo), "--json"])
-        self.assertEqual("pass", json.loads(checked.stdout)["status"])
-        no_command = run(["docs", "--help"], check=False)
-        self.assertEqual(0, no_command.returncode)
-
-        after = sorted(path.relative_to(repo) for path in repo.rglob("*") if path.is_file())
-        self.assertEqual(before, after)
         self.assertFalse((repo / "local-docs").exists())
+
+        run(["docs", "ensure", "--project-root", str(repo), "--json"])
+        expected = {
+            "INDEX.md",
+            "designs",
+            "research",
+            "decisions",
+        }
+        self.assertEqual(
+            expected,
+            {path.name for path in (repo / "local-docs").iterdir()},
+        )
+        for forbidden in [
+            "drafts",
+            "epics",
+            "executions",
+            "launch.json",
+            "tickets",
+            "runs",
+            "journal",
+            "dashboard",
+        ]:
+            self.assertFalse((repo / "local-docs" / forbidden).exists())
+
+        policy = repo / "doc_org.md"
+        index = repo / "local-docs" / "INDEX.md"
+        policy.write_text(policy.read_text() + "\nUser policy note.\n", encoding="utf-8")
+        index.write_text(index.read_text() + "\nUser index note.\n", encoding="utf-8")
+        before = (policy.read_bytes(), index.read_bytes())
+        run(["docs", "ensure", "--project-root", str(repo), "--json"])
+        self.assertEqual(before, (policy.read_bytes(), index.read_bytes()))
+
+    def test_linked_worktree_resolves_to_primary_and_preserves_user_edits(self):
+        repo = self.root / "primary"
+        init_repo(repo)
+        linked = self.root / "linked"
+        git(repo, "worktree", "add", "-b", "feature/docs", str(linked))
+
+        created = run(
+            [
+                "docs",
+                "design",
+                "create",
+                "--project-root",
+                str(linked),
+                "--title",
+                "User owned flow",
+                "--json",
+            ]
+        )
+        data = json.loads(created.stdout)
+        design = Path(data["designPath"])
+        self.assertTrue(design.is_relative_to((repo / "local-docs").resolve()))
+        self.assertFalse((linked / "local-docs").exists())
+        self.assertFalse((linked / "doc_org.md").exists())
+
+        user_bytes = (
+            b"# User-owned title\r\n\r\n"
+            b"## Bespoke section\r\n\r\nKeep this exact text.\r\n\r\n"
+            b"## Acceptance\r\n\r\n- The whole flow completes.\r\n"
+            b"- Existing records do not change.\r\n"
+        )
+        design.write_bytes(user_bytes)
+        accepted = run(
+            [
+                "docs",
+                "design",
+                "accept",
+                "--project-root",
+                str(linked),
+                "--design",
+                data["designId"],
+                "--json",
+            ]
+        )
+        accepted_data = json.loads(accepted.stdout)
+        self.assertEqual(user_bytes, design.read_bytes())
+        record = json.loads(Path(accepted_data["acceptedRecord"]).read_text())
+        self.assertEqual(hashlib.sha256(user_bytes).hexdigest(), record["sourceSha256"])
+        self.assertNotIn("criteria", record)
+        self.assertNotIn("acceptance", record.keys() - {"acceptanceSha256"})
+
+    def test_create_allocates_once_and_template_prompts_do_not_count_as_acceptance(self):
+        repo = self.root / "create"
+        init_repo(repo)
+        preview = run(
+            [
+                "docs",
+                "design",
+                "create",
+                "--project-root",
+                str(repo),
+                "--title",
+                "Sensor execution",
+                "--dry-run",
+                "--json",
+            ]
+        )
+        preview_data = json.loads(preview.stdout)
+        self.assertEqual("CREATE-001", preview_data["designId"])
+        self.assertFalse(Path(preview_data["designPath"]).exists())
+
+        created = run(
+            [
+                "docs",
+                "design",
+                "create",
+                "--project-root",
+                str(repo),
+                "--title",
+                "Sensor execution",
+                "--json",
+            ]
+        )
+        data = json.loads(created.stdout)
+        design = Path(data["designPath"])
+        self.assertEqual("CREATE-001", data["designId"])
+        self.assertIn("## Acceptance", design.read_text())
+        self.assertNotIn("implementation plan", design.read_text().lower())
+
+        rejected = run(
+            [
+                "docs",
+                "design",
+                "accept",
+                "--project-root",
+                str(repo),
+                "--design",
+                str(design),
+                "--json",
+            ],
+            check=False,
+        )
+        self.assertNotEqual(0, rejected.returncode)
+        self.assertIn("missing_exact_acceptance", rejected.stdout)
+        self.assertFalse(design.with_suffix(".accepted.json").exists())
+
+        duplicate = run(
+            [
+                "docs",
+                "design",
+                "create",
+                "--project-root",
+                str(repo),
+                "--title",
+                "Duplicate",
+                "--number",
+                "1",
+                "--json",
+            ],
+            check=False,
+        )
+        self.assertNotEqual(0, duplicate.returncode)
+        self.assertIn("design_id_exists", duplicate.stdout)
+
+    def test_accept_requires_exact_acceptance_heading_and_binds_whole_file(self):
+        repo = self.root / "accept"
+        init_repo(repo)
+        created = run(
+            [
+                "docs",
+                "design",
+                "create",
+                "--project-root",
+                str(repo),
+                "--title",
+                "Outcome contract",
+                "--json",
+            ]
+        )
+        data = json.loads(created.stdout)
+        design = Path(data["designPath"])
+        design.write_text(
+            "# Outcome contract\n\n"
+            "## Done when\n\nPlanning is deterministic.\n",
+            encoding="utf-8",
+        )
+        rejected = run(
+            [
+                "docs",
+                "design",
+                "accept",
+                "--project-root",
+                str(repo),
+                "--design",
+                data["designId"],
+                "--json",
+            ],
+            check=False,
+        )
+        self.assertNotEqual(0, rejected.returncode)
+
+        design.write_text(
+            "# Outcome contract\n\n"
+            "## Acceptance\n\n"
+            "- The sensor command actually runs.\n"
+            "- Planning does not run external commands.\n\n"
+            "## Architecture Contract\n\nUse an explicit process adapter.\n",
+            encoding="utf-8",
+        )
+        before = design.read_bytes()
+        accepted = run(
+            [
+                "docs",
+                "design",
+                "accept",
+                "--project-root",
+                str(repo),
+                "--design",
+                str(design.relative_to((repo / "local-docs").resolve())),
+                "--json",
+            ]
+        )
+        record = json.loads(
+            Path(json.loads(accepted.stdout)["acceptedRecord"]).read_text()
+        )
+        self.assertEqual(before, design.read_bytes())
+        self.assertEqual(hashlib.sha256(before).hexdigest(), record["sourceSha256"])
+        self.assertRegex(record["acceptanceSha256"], r"^[0-9a-f]{64}$")
+        self.assertIn(
+            "| Accepted |",
+            (repo / "local-docs" / "INDEX.md").read_text(encoding="utf-8"),
+        )
+
+    def test_legacy_files_are_never_rewritten(self):
+        repo = self.root / "legacy"
+        init_repo(repo)
+        run(
+            [
+                "docs",
+                "init",
+                "--project-root",
+                str(repo),
+                "--prefix",
+                "LEGACY",
+                "--json",
+            ]
+        )
+        epic = repo / "local-docs" / "epics" / "009" / "009_OLD_PRD.md"
+        execution = repo / "local-docs" / "executions" / "OLD-RUN" / "state.json"
+        epic.parent.mkdir(parents=True)
+        execution.parent.mkdir(parents=True)
+        epic.write_bytes(b"# Legacy PRD\r\n\r\nDo not migrate me.\r\n")
+        execution.write_bytes(b'{ "status": "historical" }\\n')
+        before = (epic.read_bytes(), execution.read_bytes())
+
+        run(["docs", "ensure", "--project-root", str(repo), "--json"])
+        run(
+            [
+                "docs",
+                "design",
+                "create",
+                "--project-root",
+                str(repo),
+                "--title",
+                "New design",
+                "--json",
+            ]
+        )
+        self.assertEqual(before, (epic.read_bytes(), execution.read_bytes()))
+
+    def test_collision_symlink_and_opt_out_fail_without_partial_writes(self):
+        collision = self.root / "collision"
+        init_repo(collision)
+        (collision / "doc_org.md").write_text("# tracked\n")
+        git(collision, "add", "doc_org.md")
+        git(collision, "commit", "-m", "tracked collision")
+        refused = run(
+            [
+                "docs",
+                "ensure",
+                "--project-root",
+                str(collision),
+                "--json",
+            ],
+            check=False,
+        )
+        self.assertNotEqual(0, refused.returncode)
+        self.assertFalse((collision / "local-docs").exists())
+
+        symlink_repo = self.root / "symlink"
+        init_repo(symlink_repo)
+        outside = self.root / "outside"
+        outside.mkdir()
+        (symlink_repo / "local-docs").symlink_to(outside, target_is_directory=True)
+        symlink = run(
+            [
+                "docs",
+                "ensure",
+                "--project-root",
+                str(symlink_repo),
+                "--json",
+            ],
+            check=False,
+        )
+        self.assertNotEqual(0, symlink.returncode)
+        self.assertEqual([], list(outside.iterdir()))
+
+        opted_out = self.root / "optout"
+        init_repo(opted_out)
+        run(["docs", "disable", "--project-root", str(opted_out), "--json"])
+        ensured = run(
+            ["docs", "ensure", "--project-root", str(opted_out), "--json"]
+        )
+        self.assertEqual("opted-out", json.loads(ensured.stdout)["mode"])
+        self.assertFalse((opted_out / "local-docs").exists())
+        run(["docs", "enable", "--project-root", str(opted_out), "--json"])
+        run(["docs", "ensure", "--project-root", str(opted_out), "--json"])
+        self.assertTrue((opted_out / "local-docs" / "designs").is_dir())
 
 
 if __name__ == "__main__":

@@ -1,94 +1,76 @@
 # Skill Quality Bar
 
-Use this reference when creating or revising Gauntlet skills, role skills, workflow guidance, or skill-like checklists. The bar answers one practical question: will this change make future agents behave better in a way the user can understand and verify?
+Use this reference when creating or revising Gauntlet skills or workflow guidance. The practical question is whether the change makes future behavior more predictable and verifiable without adding needless context.
 
-This is Gauntlet's applied standard, not a fork of Matt Pocock's skill-writing skill. It uses Gauntlet's product/workflow harness lessons and credits Matt Pocock's `writing-great-skills` vocabulary where it helps explain why skill changes succeed or fail.
+## Baseline
 
-## Baseline Bar
+Every meaningful change states:
 
-Run this cheap check for every meaningful skill or workflow-guidance change. It belongs in the main workflow because it should not add much token or runtime cost.
+| Check | Requirement |
+| --- | --- |
+| Behavior delta | Name what the agent will do differently. |
+| Trigger | Say when the skill or guidance applies. |
+| Completion | End steps with a checkable done condition. |
+| Output | Define the returned artifact, verdict, or decision. |
+| Positive steering | Describe the desired behavior directly. |
+| Negative case | Include a plausible wrong action or false-green path when behavior is material. |
+| Proof layer | Distinguish text coverage, scorer smoke, execution-backed behavior, and judgment. |
+| Authority | Keep external effects inside accepted permission. |
+| Context | Remove no-ops, duplication, unrelated history, and empty fields. |
+| User value | Explain the practical effect in familiar language. |
 
-| Check | Practical Benefit | What Changes Versus Today |
+If the change cannot pass this baseline, simplify it before adding more process.
+
+## Structure and efficiency
+
+Keep each meaning in one authoritative place. Inline what every branch needs and disclose branch-specific reference material behind a clear pointer.
+
+Keep stable repeated instructions first, preserve canonical order and whitespace, and place volatile task details last. Treat cache reuse as an optimization; do not claim it without host evidence.
+
+Use deterministic scripts for repeated mechanical facts. Do not turn a prose field or self-report into an authority or completion oracle.
+
+Delegate only when independent ownership or evidence beats the context cost. A delegated skill supplies one objective, one ownership boundary, explicit dependencies, a checkable return contract, and an ask-parent policy. Custom agent profiles are optional and chosen directly when they clearly help.
+
+## Escalation
+
+Use the following only when consequence or repeated failure earns the cost:
+
+| Check | Trigger | Artifact |
 | --- | --- | --- |
-| Behavior delta | Names what the agent will do differently in plain language. | Prevents skill edits that sound thoughtful but do not change runtime behavior. |
-| Trigger clarity | Makes it obvious when the skill should load or when the guidance applies. | Reduces missed invocation and accidental overuse. |
-| Completion criterion | States the condition that proves the step or review is done. | Reduces premature "looks good" completion. |
-| Output contract | Defines the artifact, report slots, or decision the agent must return. | Makes downstream roles and final summaries easier to trust. |
-| Positive steering | Describes the target behavior directly. | Avoids prohibition-heavy wording that keeps the unwanted behavior in context. |
-| No-op pruning | Removes sentences that the model would already follow by default. | Keeps Gauntlet lean instead of slowly accumulating process prose. |
-| Progressive disclosure | Keeps always-loaded guidance short and points to heavier references only when needed. | Protects token budget while preserving deeper help for complex edits. |
-| Practical explanation | Explains the user-facing value of the change, not just the internal mechanism. | Helps AJS and future users decide whether the process earns its cost. |
-| Cheap harness mechanics | Prefer checkable schemas, bounded attempt notes, resolvable proof commands, and `Cannot verify` slots where useful. | Makes failures easier to debug without confusing structural validity with behavior. |
-| Eval claim scope | Labels text coverage, scorer smoke, execution-backed outcomes, and subjective judgment as separate proof layers. | Prevents phrase checks from being reported as agent behavior. |
+| Independent plan review | Concrete release harm or explicit user request | Short comparison of missed blockers, dependency order, and proof |
+| Forward scenario | New or rewritten workflow behavior | Minimal scenario showing the desired action |
+| Negative outcome canary | Reliability or completion claim | Wrong action that must fail despite plausible structure |
+| Trigger overlap | Skill routing changes | Paired boundary cases |
+| Authority trace | Autonomous or delegated behavior changes | Required and forbidden effects |
+| Adversarial review | Safety, release, privacy, data integrity, broad workflow, or repeated miss | Findings with severity and terminal disposition |
+| Impact proof | Reliability, speed, or autonomy claim | Measured proof path or explicit `Cannot verify` |
 
-If a proposed skill change cannot pass the baseline bar, rewrite it before adding more process.
+Name the trigger, cap, artifact, and exit condition. Ordinary patches do not pay for these checks.
 
-## Efficiency, Assignment, And Drift Pass
+## Proof layers
 
-Before finalizing a skill or skill-like workflow, ask:
+Use the cheapest layer that supports the claim:
 
-- **Is this cache-hit friendly in every step?** Review each repeated or delegated context handoff. Keep stable instructions first, preserve canonical order and whitespace, and move volatile values to the end. Treat cache reuse as an optimization; report `Cannot verify` unless the host exposes cache telemetry.
-- **Are there ways to improve token efficiency?** Remove no-ops and duplicated context, disclose branch-specific reference material only when needed, use deterministic scripts for repeated mechanics, and pass artifacts or bounded source slices instead of replaying history.
-- **Is this being assigned to the right custom agent?** Ask only when the skill delegates. Classify the Ticket through `scripts/route-codex-agent.py`, verify the started profile against `docs/custom-agent-routing.md`, and keep the work in the parent when delegation does not beat its context cost.
-- **How should this skill be structured to avoid response drift from its instructions?** Give each branch one clear path, co-locate rules with the step they govern, end steps with checkable completion criteria, and keep one authoritative copy of each instruction. Use a schema, deterministic guard, or negative canary when prose alone cannot reliably constrain the output.
+1. **Text coverage** proves required guidance exists.
+2. **Scorer smoke** proves deterministic scoring behavior on synthetic responses.
+3. **Structured-fixture smoke** proves schema and matcher logic on authored data.
+4. **Execution-backed outcome proof** resolves commands, artifacts, native traces, or external state.
+5. **Calibrated judgment** handles subjective quality and must be checked against human labels before it is treated as reliable.
 
-Complete this pass when the skill reflects every material improvement or the unchanged choice is supported by an existing control. Do not add a user-facing checklist or a permanent no-op field merely to record that the questions were asked.
+A phrase-echo fixture is never behavioral proof. A receipt points to evidence; it does not independently establish the outcome. Paired comparisons use the same contract and record their baseline provenance.
 
-## Escalation Bar
+## Skill mechanics
 
-Use this section only when the work is high-impact: new Gauntlet role skills, major workflow changes, Release guidance, repeated failures, eval infrastructure, or user-approved Deep work. These checks can spend meaningful tokens, so they must name their trigger, cap, artifact, and exit condition.
+Use only mechanics that help the skill’s job:
 
-| Escalation | Use When | Artifact |
-| --- | --- | --- |
-| Independent second plan | Concrete Release-class harm could be missed, or the user explicitly requests an independent plan. Normal Deep work compares alternatives inside one bounded pass. | A short comparison of missed blockers, dependency order, proof requirements, first ready task, deferrals, and rejected alternatives. |
-| Forward-test scenario | The skill is new, rewritten, or correcting an observed failure mode. | A minimal pressure scenario showing the desired behavior and the proof that the skill now steers it. |
-| Negative outcome canary | The change claims behavioral or orchestration improvement. | A wrong action, missing proof, authority violation, or other observable failure that contains expected language and must still fail. |
-| Trigger-overlap check | The change alters skill or mode routing. | Paired cases at the routing boundary, including the expected choice and a plausible wrong choice. |
-| Completion and authority trace | The change alters autonomous execution or delegation. | Observable required/forbidden actions, proof, authority, and quiet-output budgets; claimed completion alone is insufficient. |
-| Baseline provenance | A current-versus-candidate comparison informs a durable decision. | The release, commit, fixture-pack version, and shared contract used by both arms. |
-| Adversarial skill review | The skill touches safety, release, privacy, data integrity, broad orchestration, or repeated prior misses. | Findings by severity, `Cannot verify`, and the one next action. |
-| Impact proof review | The skill claims to improve reliability, speed, autonomy, or review quality. | A concrete proof path or a deferred analytics question, not invented certainty. |
-| Parallel reviewer lanes | Review dimensions are independent and the expected value beats context cost. | Bounded tickets and role reports using the shared report contract. |
+- schema retry for machine-parsed output;
+- invalidation triggers for changed requirements, evidence, or source;
+- read-only defaults for inspection roles;
+- compact exact-revision evidence;
+- consequence-triggered specialist proof.
 
-Do not run the escalation bar for ordinary Patch work, copy edits, local-only docs, or accepted narrow skill tweaks unless the user asks.
+## Provenance
 
-## Eval Layers
+Gauntlet adapts useful brainstorming, test-first, verification-before-completion, review, and skill-writing techniques while owning its runtime behavior. Upstream sources and licenses are tracked in `docs/upstream-superpowers.md` and `docs/upstream-superpowers.json`.
 
-Use the cheapest layer that can support the claim, and name that layer in the result:
-
-1. **Text coverage** checks whether required guidance exists in the skill. It does not show that an agent followed it.
-2. **Scorer smoke** feeds synthetic responses through a scorer. A phrase-echo fixture may pass here because this layer proves scorer wiring only.
-3. **Synthetic structured-trace smoke** checks deterministic scorer logic against authored fixtures. It does not prove that an agent took the recorded actions or produced the claimed evidence.
-4. **Execution-backed outcome traces** resolve commands, artifacts, native traces, or external state to score observable outcomes, actions, authority, routing, output budget, cost, or latency. Include a negative canary for the failure being prevented.
-5. **Calibrated judgment** is required for subjective criteria such as product quality or trust. Until its judgments are calibrated against human labels, return `Cannot verify`; never treat deterministic success or expected phrases as a substitute.
-
-Paired current-versus-candidate traces must use the same contract. Record baseline provenance before using the comparison for release or workflow policy. A machine receipt is an evidence pointer, not independent proof; resolve it against commands, artifacts, native traces, or external state. Follow `docs/meaningful-proof.md` for claim, oracle, negative-control, non-effect, and parent-verification rules.
-
-## Harness Mechanics For Skills
-
-Use these mechanics when they directly help the skill's job:
-
-- Schema retry: if a skill expects structured output, define the shape and retry malformed output before handing it downstream.
-- Invalidation trigger: name the facts that force the plan or review to be refreshed, such as changed score, failing proof, changed user requirement, or conflicting file state.
-- Bounded attempt memory: record compact fingerprints of failed attempts, rejected alternatives, and useful observations during a run; summarize repeated items and expire the scratchpad at closeout unless it becomes a run-log decision, follow-up, or coverage gap.
-- Read-only analyzer default: when a role is meant to inspect, keep it read-only unless the ticket explicitly gives it write authority.
-- Cost-aware delegation: use subagents only when files, state, and proof are independent enough to beat the context cost.
-
-These mechanics are not etiquette-specific. They sit above individual roles as harness behavior. A role skill may own one mechanic when it is central to that role, but the quality bar asks whether the mechanic belongs in the skill at all.
-
-## External Technique Provenance
-
-Gauntlet should not silently absorb third-party skill text. Use this pattern instead:
-
-- Keep Gauntlet's portable behavior in this reference and the relevant role skills.
-- Attribute the source when Gauntlet uses concepts from Matt Pocock's `writing-great-skills`.
-- If Gauntlet vendors exact or adapted third-party files later, include the upstream license/notice and source path in the repo.
-- Treat upstream material as review input, not a runtime workflow dependency. Gauntlet owns the adapted behavior and maps it to exact upstream versions/hashes so future updates can be reviewed selectively.
-
-Source checked for this run: `mattpocock/skills` tag `v1.1.0`, commit `d574778f94cf620fcc8ce741584093bc650a61d3`, MIT license.
-
-Superpowers technique provenance and update checks live in `docs/upstream-superpowers.md` and `docs/upstream-superpowers.json`.
-
-## Deferred
-
-Analytics event schemas, release effectiveness summaries, engineering productivity metrics, and library choices are intentionally not specified here yet. They need a separate decision pass before they become Gauntlet behavior.
+Matt Pocock’s `writing-great-skills` vocabulary informs no-op pruning, progressive disclosure, leading words, and completion criteria. External material remains review input rather than a runtime dependency.

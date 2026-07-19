@@ -1,4 +1,0 @@
-interface:
-  display_name: "Maintain PRD"
-  short_description: "Guide a user-owned product document"
-  default_prompt: "Use $maintain-prd to create or edit the guided product document only where I explicitly ask, preserve unanswered guidance, and do not implement it."

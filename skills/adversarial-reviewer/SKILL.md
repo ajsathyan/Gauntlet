@@ -1,33 +1,47 @@
 ---
 name: adversarial-reviewer
-description: Use when an accepted Epic plan or integrated revision needs a bounded gap review for concrete misses, regressions, or failure paths.
+description: Use when one independent pre-build design lens or a bounded exact-revision gap review must find concrete misses, regressions, or failure paths.
 ---
 
 # Adversarial Reviewer
 
-Find obvious gaps in the accepted Epic without upgrading the product's scope or maturity.
+Find material gaps inside the accepted design without upgrading the product's scope or maturity.
 
 ## Output Contract
 
-Return no more than three findings. Each finding contains:
+Return the material findings from the assigned lens. Each finding contains:
 
+- verdict and evidence;
 - missed behavior, regression, or failure path;
-- practical effect;
-- smallest proportionate response;
-- affected accepted work;
-- disposition: `fixed`, `ask-user`, `deferred`, or `omitted`.
+- practical impact;
+- recommended fix and test idea;
+- affected Build Contract item;
+- disposition: `accepted`, `rejected`, `deferred`, `omitted`, or unresolved.
 
-Return `Cannot verify` when the bounded source, plan, diff, or proof cannot establish a claim. Optional example: read `examples/adversarial-report.md` only when the output shape is ambiguous.
+The parent may show at most three recommendations per user round, but the reviewer returns every material finding so none disappears behind the display cap. Return `Cannot verify` when the bounded design, diff, or proof cannot establish a claim, and end with one concrete Agent next.
 
-## Review
+## Pre-Build Lenses
 
-- Review the accepted Epic and compiled plan before build, then the exact integrated revision and proof. Use a third pass only when review-driven fixes materially change the surface; never run a fourth.
+Run three independent reviews against the same accepted design:
+
+- **Product completeness:** accepted outcomes, feature states, assumptions, and feature-level edge cases.
+- **Engineering shape:** system boundaries, dependencies, migrations, compatibility, and parallel ownership conflicts.
+- **Proof and consequence:** observable oracles, false-green paths, required non-effects, and concrete consequence triggers.
+
+Keep lens findings distinct until the parent deduplicates them. A clean result from one lens cannot clear another.
+
+## Review Rules
+
+- Review the accepted design before Build, then the exact integrated revision and proof when assigned a final gap pass.
 - Treat existing behavior and accepted scope as the boundary. A finding may expose a miss inside that boundary; it cannot add a plausible product requirement.
-- Use `ask-user` when the response changes product behavior, scope, authority, cost, or maturity. It blocks only affected work.
-- Use `deferred` for a real later-Epic or unavailable-proof item. Use `omitted` for irrelevant, speculative, or disproportionate advice. Neither is a fix.
+- Use `accepted` when the finding changes the accepted design or Build scope with user authority.
+- Use `rejected` when the user explicitly declines the recommendation. Use `deferred` for accepted later work. Use `omitted` with a reason for irrelevant, speculative, or disproportionate advice.
+- A finding that needs a user decision remains unresolved and blocks only affected Build work. It cannot be converted into a narrower worker checklist.
 - Do not run external-practice, compliance, enterprise-hardening, or state-of-the-art research unless the user requests it or an accepted external constraint requires it.
-- Consequence-specific security, recovery, or black-box review remains separate and runs only for an explicitly locked trigger.
+- Consequence-specific security, recovery, production, or black-box review remains separate and runs only for a concrete accepted trigger.
+
+When the accepted design explicitly activates the Production Quality Bar, review its concrete threat model, redaction policy, trust boundaries, destructive effects, recovery, and rollback evidence. Otherwise mark that lens `Not relevant because...`; do not turn it into a universal gate.
 
 ## Completion
 
-Complete when every finding has a terminal disposition and the remaining `Cannot verify` limit is explicit.
+Complete when every material finding has one terminal disposition—`accepted`, `rejected`, `deferred`, or `omitted` with a reason—and the remaining `Cannot verify` limit is explicit.

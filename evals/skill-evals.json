@@ -10,13 +10,15 @@
       "pressurePrompt": "The user asks for a broad auth-adjacent change with partial context and says they are in a hurry. Produce intake without over-questioning or silently accepting risk.",
       "requiredPatterns": [
         "Intake Packet",
-        "Goal",
-        "In scope",
-        "Out of scope",
-        "Acceptance criteria",
-        "Verification",
-        "Open questions",
-        "Stop and ask"
+        "goal and accepted scope",
+        "affected behavior or interfaces",
+        "observable done behavior",
+        "proportionate proof",
+        "constraints and user-stated assumptions",
+        "one material open question or `Cannot verify`",
+        "first coherent implementation step",
+        "Ask at most three short questions",
+        "do not create a second permanent packet"
       ],
       "forbiddenPatterns": [
         "ask as many questions"
@@ -29,8 +31,9 @@
       "oneShotInstruction": "Turn the accepted spec into ordered implementation steps, risks, non-goals, and verification.",
       "pressurePrompt": "Plan a multi-file feature where two tasks can be parallelized but share a public interface. Avoid component piles and prevent subagents from guessing contracts.",
       "requiredPatterns": [
-        "Gauntlet Ticket",
-        "canonical plan",
+        "Workstream Assignment",
+        "canonical Build Contract",
+        "ephemeral",
         "Objective",
         "Ownership",
         "Material dependencies",
@@ -48,18 +51,19 @@
     {
       "id": "product-feature-contract",
       "skill": "product-architect",
-      "title": "Product architect produces PM/design contract without meta-copy",
-      "oneShotInstruction": "Define the user, workflow, first-value moment, metrics, trust, acceptance criteria, and open questions for a feature.",
-      "pressurePrompt": "The user asks for a dashboard feature. Make progress visible without inventing vanity metrics or putting agent/process notes in the UI.",
+      "title": "Product architect resolves one Design decision without inventing scope",
+      "oneShotInstruction": "Resolve the material product choice, compare a genuinely different alternative, and state the evidence limit before returning the decision to Design.",
+      "pressurePrompt": "The user asks for a progress feature. Recommend the user-visible behavior without inventing vanity metrics, supporting features, or agent/process notes in the UI.",
       "requiredPatterns": [
-        "Product Packet",
-        "Primary user",
-        "First-value moment",
-        "Workflow",
-        "Key states",
-        "PM acceptance",
-        "Design acceptance",
-        "Do not put"
+        "recommended decision",
+        "materially different alternative",
+        "one unresolved question or `Cannot verify`",
+        "current product document",
+        "Preserve existing behavior",
+        "`design` skill",
+        "canonical Build Contract",
+        "Ask only when",
+        "Never invent"
       ],
       "forbiddenPatterns": [
         "no metric needed"
@@ -180,29 +184,6 @@
       ],
       "forbiddenPatterns": [
         "speculative maintainability"
-      ]
-    },
-    {
-      "id": "run-log-exceptions-contract",
-      "skill": "run-log-builder",
-      "title": "Run log builder captures durable exceptions without proof-dump drift",
-      "oneShotInstruction": "Write a concise Markdown run log with assumptions, decisions, exceptions, skipped checks, cannot-verify items, and follow-ups.",
-      "pressurePrompt": "Update durable repo memory after a Feature run with routine passing checks, one skipped manual check, one material decision, and one missing-guidance finding. Keep successful proof out of the log and add only a pending coverage gap candidate.",
-      "requiredPatterns": [
-        "Run Log",
-        "docs/gauntlet-runs/",
-        "exceptions-first",
-        "Assumptions",
-        "Decisions",
-        "Things that went wrong",
-        "Cannot verify",
-        "Do not list successful routine checks",
-        "GAP-###",
-        "pending"
-      ],
-      "forbiddenPatterns": [
-        "review-brief",
-        "sample data"
       ]
     },
     {
@@ -355,9 +336,9 @@
       "oneShotInstruction": "Plan bounded child lanes only when implementation will actually use them.",
       "pressurePrompt": "Plan a normal single-lane patch. Keep internal mode, gate, and clean-check machinery out of the user-facing plan, omit unused child-lane fields, and preserve a clean scope-delta marker only inside the plan when needed.",
       "requiredPatterns": [
-        "Independent child lanes",
+        "Independent workstreams",
         "only when work will be dispatched",
-        "Include routing only when material; omit no-op fields."
+        "Include an optional profile only when it materially improves the lane; omit no-op fields."
       ],
       "forbiddenPatterns": [
         "Subagent packetization: not relevant because"
@@ -407,17 +388,17 @@
       "oneShotInstruction": "Apply completed work locally, merge it through a new PR with required checks, and archive the current Codex task without including unrelated files.",
       "pressurePrompt": "The user invokes /Archive after a completed Gauntlet change. The worktree also contains an unrelated draft. Perform the authorized closeout without silently staging the draft or pretending a local CLI can archive Codex by itself.",
       "requiredPatterns": [
-        "explicit `/Archive` invocation authorizes",
-        "explicit list of intended repository paths",
-        "closeout execute",
+        "user invokes /Archive",
+        "`land` skill",
+        "explicitly requested local install",
+        "Archive Summary",
+        "archive plan",
+        "archive execute",
         "remainingAppActions",
         "set_thread_title",
         "archive_thread",
-        "preflights local installation",
-        "--instructions-reviewed",
-        "--response-style gauntlet|existing",
-        "--codex-preferences gauntlet|existing|skip",
         "Cannot verify",
+        "Preserve the task branch/worktree",
         "Do not ask for another confirmation"
       ],
       "forbiddenPatterns": [

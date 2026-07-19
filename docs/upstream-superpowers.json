@@ -15,7 +15,7 @@
       "sourcePath": "skills/brainstorming/SKILL.md",
       "reviewedSha256": "bba47904a7f6bbee3bf8a107ebbe84e65d392be683bbb898ded736b29e415f90",
       "disposition": "adapted",
-      "destinations": ["skills/product-architect/SKILL.md", "skills/planner/SKILL.md"]
+      "destinations": ["skills/design/SKILL.md", "skills/product-architect/SKILL.md"]
     },
     {
       "sourceSkill": "systematic-debugging",
@@ -50,7 +50,7 @@
       "sourcePath": "skills/requesting-code-review/SKILL.md",
       "reviewedSha256": "5a3a44a3667800e2dc836829c6b92fada51e6dc58ac144ec05fe59f47d6bcd84",
       "disposition": "adapted",
-      "destinations": ["skills/adversarial-reviewer/SKILL.md", "skills/deep-code-reviewer/SKILL.md"]
+      "destinations": ["skills/adversarial-reviewer/SKILL.md", "skills/deep-code-reviewer/SKILL.md", "skills/verify/SKILL.md"]
     },
     {
       "sourceSkill": "using-git-worktrees",
@@ -71,21 +71,21 @@
       "sourcePath": "skills/writing-plans/SKILL.md",
       "reviewedSha256": "4fd4627d2c02367879c0307d7249270bed633317ff9be82e926a6d57bf5d331b",
       "disposition": "adapted",
-      "destinations": ["skills/planner/SKILL.md"]
+      "destinations": ["skills/build/SKILL.md", "skills/planner/SKILL.md"]
     },
     {
       "sourceSkill": "executing-plans",
       "sourcePath": "skills/executing-plans/SKILL.md",
       "reviewedSha256": "e2102f11631433939f162d383d769f8257d859d6639e0e14969cda3ef0a95eca",
       "disposition": "adapted",
-      "destinations": ["skills/planner/SKILL.md", "skills/implementer/SKILL.md"]
+      "destinations": ["skills/build/SKILL.md", "skills/planner/SKILL.md", "skills/implementer/SKILL.md"]
     },
     {
       "sourceSkill": "finishing-a-development-branch",
       "sourcePath": "skills/finishing-a-development-branch/SKILL.md",
       "reviewedSha256": "5c8d4b59aedb14c94e2f5d787a3265e858e8f53d4ceffe7ff1c15878a52b0e91",
       "disposition": "adapted",
-      "destinations": ["docs/github-discipline.md"]
+      "destinations": ["skills/verify/SKILL.md", "skills/ship/SKILL.md", "docs/github-discipline.md"]
     },
     {
       "sourceSkill": "writing-skills",

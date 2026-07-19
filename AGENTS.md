@@ -1,196 +1,132 @@
 # Gauntlet Contributor Guide
 
-Gauntlet v2.0.2 is a product-thinking and proof harness for coding agents. This repository file governs work on Gauntlet itself. The portable workflow installed into agent homes lives in `router/AGENTS.md`; do not make the repository guide and global router byte-identical.
+Gauntlet is a product-thinking and proof harness for coding agents. This file governs work on Gauntlet itself. The compact workflow installed into agent homes lives in `router/AGENTS.md`.
 
 ## Sources of truth
 
-- `AGENTS.md`: repository contribution, implementation, proof, and release rules.
-- `router/AGENTS.md`: compact always-loaded global router installed by `scripts/install.sh`.
-- `skills/*/SKILL.md`: triggered role behavior and output contracts.
-- `docs/workflow-etiquette.md`: detailed execution, delegation, continuity, and archive guidance.
-- `docs/github-discipline.md`: branches, worktrees, commits, PRs, merge commits, and cleanup.
-- `docs/meaningful-proof.md`: behavioral claims, observable oracles, evidence boundaries, and delegated proof.
-- `docs/skill-quality-bar.md`: requirements for meaningful skill and workflow changes.
-- `docs/production-quality-bar.md`: bounded launch/hardening checks when production risk triggers them.
-- `docs/local-documentation.md`: default-on lazy local product-document organization, explicit project opt-out, tracked/private boundaries, and scaffolding behavior.
-- `docs/prd-execution.md`: PRD terminology, Ticket Graph compilation, durable execution state, scheduling, and end-to-end implementation authority.
-- `docs/custom-agent-routing.md`: deterministic Ticket classification, named Codex profile selection, bounded context, and audit requirements.
-- `scripts/check-gauntlet-workflow.py`: end-to-end workflow regression suite.
+- `router/AGENTS.md`: compact always-loaded workflow router.
+- `skills/design`, `skills/build`, `skills/verify`, and `skills/ship`: public workflow responsibilities.
+- `docs/design-build-verify.md`: contract ownership and semantic gates.
+- `docs/parallel-workstreams.md`: bounded native delegation and integration.
+- `docs/workflow-etiquette.md`: collaboration, titles, questions, and authority.
+- `docs/meaningful-proof.md`: observable oracles and evidence boundaries.
+- `docs/code-quality-sensors.md`: fast and integrated sensor cadence.
+- `docs/github-discipline.md`: generic branch, commit, PR, merge, and cleanup behavior.
+- `docs/skill-quality-bar.md`: requirements for skill and workflow changes.
+- `docs/local-documentation.md`: durable design-document organization.
 
-Use repository-relative `docs/...` and `scripts/...` paths only for work inside this repository. Portable guidance must use the installed-path contract rendered by the installer.
+Repository guidance uses repository-relative paths. Portable guidance uses the installed-path placeholders rendered by the installer.
 
-## Normal requests and minimum scope
+## Use the lightest responsible path
 
-Before invoking Gauntlet's lifecycle, route bounded, low-consequence, readily reversible, directly checkable work through the Normal Request path when it uses existing inputs or only a direct lookup and does not alter durable schemas, contracts, methodology, architecture, production state, or safety boundaries. Direct presentation and formatting changes, copying existing results into an existing UI, simple lookups, and routine administration normally qualify.
+A Normal Request is bounded, low-consequence, reversible, directly checkable, and does not change a durable schema, contract, methodology, architecture, production system, or safety boundary. Deliver it directly, run its smoke check, and stop. Keep it in the main task.
 
-Deliver the requested artifact first. Add no validation, refactoring, research, documentation, review panel, lifecycle ceremony, or methodological improvement unless the result needs it to work. A corrected assumption authorizes correcting that premise and its direct effects, not a redesign. Use a direct outcome or smoke check, keep small work in the main task, and stop when the artifact is delivered and checked. Ask before materially expanding scope. Explicit narrow user scope controls unless a real safety or authority boundary requires stopping or routing only the consequential part.
+For other work, choose internally among Research, Patch, Feature, and Release. Use Deep only for an explicit audit, optimization, benchmark, hardening request, repeated material failure, or consequential decision that needs alternatives. Surface routing only when it changes scope, authority, cost, proof, or a user decision.
 
-## Choose the lightest responsible path
+Set the root task title silently once the goal is clear. Use plain descriptive text with at most four words. Do not add priority, size, or autonomy metadata.
 
-```text
-Path: Research | Patch | Feature | Release
-Depth: Standard | Deep
-Proof scope: smoke | delta | full | not relevant
-Execution mode: review | autonomous
-Decision gate: none | before unsafe side effect | before merge | before production change | custom
+## Design
+
+Use existing context first. Ask at most three short questions, only when an answer materially changes behavior, scope, acceptance, authority, risk, cost, or an external effect.
+
+Before non-trivial implementation:
+
+1. Read existing product documents, behavior, evidence, and user decisions.
+2. Brainstorm materially different approaches and record the chosen tradeoff.
+3. Resolve assumptions, feature-completeness questions, user-visible states, edge cases, observable acceptance, and required non-effects.
+4. Preserve one durable design document with explicit user authority.
+5. Obtain explicit acceptance. The exact `Acceptance` section is the canonical Build Contract.
+
+Discussion does not modify a design. Unaccepted suggestions remain outside it. Preserve direct user edits, arbitrary sections, and legacy accepted PRDs as valid designs.
+
+Three independent pre-build lenses inspect the same accepted design:
+
+- product completeness and feature-level edge cases;
+- engineering shape, boundaries, dependencies, migrations, compatibility, and parallel conflicts;
+- proof, false-green paths, required non-effects, and concrete consequence triggers.
+
+Show at most three recommendations per user round without dropping material findings. Every material finding reaches `accepted`, `rejected`, `deferred`, or `omitted` with a reason before affected Build work starts.
+
+## Build
+
+Read before editing, match repository patterns, preserve unrelated work, and avoid unrelated cleanup. Use a branch for persisted changes and an isolated worktree for broad, consequential, dirty-worktree, or write-heavy delegated changes.
+
+Build reads the accepted design directly and uses an internal ephemeral plan. Stop planning when the first coherent implementation step and proof path are clear.
+
+When behavior changes, observe the relevant failure when a practical harness exists, implement the smallest source fix, and rerun focused proof. Diagnose unexpected behavior at its earliest divergence before fixing it.
+
+Use native subagents only when independent ownership or evidence makes parallelism worth its context cost. Each child receives a compact workstream assignment containing:
+
+- accepted outcome slice;
+- owned files or state;
+- dependency and consumes/produces contracts;
+- constraints and authority;
+- proportional proof and return contract;
+- ask-parent policy.
+
+The parent owns product meaning, shared contracts, user decisions, integration, publication, and the final oracle. Children return changed artifacts, compact proof, and risk. Use custom agent profiles only when a profile clearly improves the bounded work; no classifier or audit layer is required.
+
+Keep stable instructions first and volatile assignment details last. Omit empty fields, unrelated history, and duplicate contract text.
+
+## Verify
+
+Evidence precedes completion claims. For material behavior, name an observable oracle and use a plausible wrong case or required non-effect when it discriminates the intended result. Fields, phrases, statuses, receipts, and self-reports prove structure, not behavior.
+
+Independent Verify receives:
+
+- the accepted design and canonical Build Contract;
+- the exact integrated revision;
+- the Architecture Contract;
+- the Sensor Contract.
+
+It reports separate Build, Architecture, and Sensor verdicts. The Build verdict independently covers every accepted product outcome. Applicable Architecture and Sensor failures also block completion. A green sensor result cannot substitute for an absent accepted outcome.
+
+Run focused tests first. When `gauntlet-sensors.json` exists, run fast sensors during the edit loop and integrated sensors on the final candidate. Treat a nonzero required sensor result as a completion blocker. Keep compact attention items in active context and open raw logs only when a finding requires them.
+
+Run `scripts/run-skill-change-checks.sh` for skill or workflow-guidance changes. Run `python3 scripts/check-gauntlet-workflow.py` for broad workflow, installer, router, or release changes. Use temporary agent homes for install proof.
+
+Consequence-specific security, failure, recovery, black-box, production, TypeScript, UI, or release checks run only when a concrete accepted trigger applies. Triggered security review uses:
+
+```sh
+python3 scripts/security-review.py \
+  --workspace "$WORKTREE" \
+  --ticket-file "$SECURITY_TICKET"
 ```
 
-- Research: bounded investigation, comparison, audit, recommendation, or implementation discovery without requested code changes.
-- Patch: small, clear, low-risk changes with an obvious proof path.
-- Feature: user-facing workflow, product, IA, onboarding, activation, retention, growth, or design-heavy work.
-- Release: broad, production-bound, weakly tested, destructive, security/privacy-sensitive, billing, auth, migration, concurrency, public API, or data-integrity work.
-- Deep: the user asks for the best, fastest, most secure, hardened, audited, optimized, benchmarked, or regression-resistant result, or a small code delta has large consequences.
+The dedicated runner is read-only. It does not grant authority for external effects.
 
-Classify internally. Surface the classification only when it changes scope, cost, authority, proof, or a decision AJS should make.
+## Ship and Git
 
-## Intake and planning
+Preserve unrelated dirty work. Commit coherent atomic changes. Serialize candidates that share an integration base, reject stale proof after base drift, and verify the exact integrated or landed revision.
 
-Before substantial implementation, establish one accepted source and one canonical plan with:
+“Push to git” authorizes only the current branch. Opening a PR does not authorize merge. “Merge this,” “land this,” or “merge this to main” invokes the `land` skill for the current scoped change. Deployment, production changes, destructive actions, migrations, credentials, paid actions, rollback, local installation, and task archival each require their own accepted authority.
 
-- goal, scope, non-goals, affected interfaces, and acceptance criteria;
-- meaningful proof, constraints, assumptions, and material open questions;
-- critical invariants and integration boundaries;
-- ordered tasks, exact file/state ownership, and the first ready task;
-- explicit deferrals and `Cannot verify` where proof is unavailable.
+Keep `Unreleased` for future work when cutting a version. Preserve released changelog history.
 
-Use an 80/20 question rule across every Gauntlet skill. Start from existing context and make safe assumptions explicit. Ask only when the answer could materially change the result, scope, acceptance, authority, data/money/privacy/security risk, cost, or external effect. When clarification is necessary, ask at most three short questions in one message, preferably one or two, with each question focused on one decision. Do not send a generic questionnaire. Otherwise provide a provisional result.
+Implemented, committed, pushed, published, merged, deployed, and production-proved are separate claims.
 
-For genuine scope additions, check the added scope and its boundary with accepted work. Update the plan and proof when the addition is material; do not emit a no-op scope phrase when it is clean.
+## Skills and policy quality
 
-Unless the primary worktree contains `.gauntlet/doc-org.disabled`, the global router's default local-document profile applies before creating or changing covered documents; read `doc_org.md` and `local-docs/INDEX.md` after the router materializes it. Canonical local documents stay in the primary worktree; tracked documentation stays in the repository's established documentation location.
+Use the narrowest role skill that adds concrete value:
 
-An accepted multi-Epic PRD is the human product source. Keep shaping independently shippable Epics until the user authorizes one launch set. Every target Epic declares closed high-consequence trigger IDs or `none`; its Ticket Graph copies that locked declaration exactly. At implementation time, create one visible task and one Execution Run for each build-ready Epic, start dependency-ready Epics in parallel, and keep proposed, deferred, or materially unresolved work out of execution. Follow `docs/prd-execution.md` for terminology, durable artifacts, resumption, scheduling, and release authority.
-
-For material Gauntlet workflows, use one durable control pattern: human-readable sources own intent; versioned deterministic controllers own mechanically checkable rules and canonical state; bounded machine projections carry only relevant context; replaceable adapters cannot redefine Gauntlet acceptance; and local evidence survives compaction and restart. Use `docs/generated-context.md` for generated prompts and `docs/evaluation-tasks.md`, `docs/evaluation-protocol.md`, plus `docs/evaluation-harnesses.md` for automatic comparative evaluation. Keep these controls out of the Normal Request path.
-
-## Quiet autonomous execution
-
-- Routine execution stays in tools and machine artifacts, not user-facing narration.
-- User-facing chat is reserved for a required decision, an unrecoverable failure, a host-required terse heartbeat, or a concise final outcome and proof.
-- Implementation children return a compact machine receipt: `status`, `changedFiles`, evidence pointers, and `blocker`. Research and review children return the requested artifact or findings compactly. Neither form is proof by itself.
-- Retry silently only when the next attempt is safe and materially different.
-- Stop when recovery would repeat the same failure fingerprint, require new authority, risk destructive external state, or exceed the accepted appetite.
-- Do not ask AJS to inspect tickets, reports, ledgers, traces, or progress prose.
-
-After an Execution Run starts, its source lock, manifest, and resume artifact own execution state. Recover from those local artifacts after compaction or restart instead of reconstructing progress from chat.
-
-## Subagents and bounded dispatch
-
-Standing authorization: automatically use subagents when two or more useful lanes have independent file or evidence ownership, mutable state, and proof, and the speed or independent-evidence gain clearly beats the context cost. Do not wait for the user to request delegation, and do not require Release classification. Keep execution in the main task when the split would serialize on shared state, duplicate substantial context, or weaken proof.
-
-- The product task owns the accepted launch set, cross-Epic decisions, lifecycle copy, and aggregate synthesis. Each Epic task owns its run, branch, integration, PR, and Epic result.
-- Write-heavy lanes use isolated worktrees unless a tiny disjoint patch clearly does not need one.
-- A Gauntlet Ticket is a generated execution assignment within the current plan or Execution Run, not an issue-tracker record.
-- Each Epic task compiles its own Ticket Graph and uses a dynamic ready queue: prioritize critical-path and interface-first work, preserve useful agent affinity, integrate completed tickets continuously, and use Cohort Verification only where tickets share an invariant or interface.
-- Dispatch each child directly from one bounded ticket. Include only the material objective, ownership, dependencies, constraints, proof expectations, return contract, and ask-parent policy; proof fields are optional and proportional.
-- Native Codex state and main-chat messages own live coordination.
-- Codex children must be started by calling native `spawn_agent` with `agent_name` equal to the explicit `gauntlet_*` profile returned by `scripts/route-codex-agent.py` under `docs/custom-agent-routing.md`. The classifier's `codex-cli` security route is the exception: execute it with `scripts/security-review.py`, never native `spawn_agent`. Do not wait before spawn returns a child ID, and do not perform a rejected child Ticket in the parent. A profile mismatch is a routing failure, not permission to substitute silently.
-- After a Gauntlet child reaches a terminal state, sync the privacy-bounded local audit with `scripts/subagent-audit.py`; Codex native state remains the immediate source of truth.
-- Keep files, mutable state, and proof targets disjoint. Avoid splitting one tightly coupled decision tree across lanes.
-- Children report `Needs decision` to the orchestrator instead of asking AJS directly.
-- The Epic parent owns the oracle, independently reruns or resolves child evidence, integrates commits as results arrive, runs targeted checks, uses shared integration checks only where a cohort earns them, and runs one final Epic verification after all required tickets finish.
-- Materialize one bounded child context with named dependency contracts and outputs. Children do not load the whole PRD, manifest, event stream, or unrelated receipts by default.
-- Keep delegation, child progress, completion, and receipts out of user-facing narration. All applicable etiquette and gates still run internally; surface only the user-facing action or material exception they require.
-
-## Implementation
-
-- Read before editing and match local patterns.
-- Use `apply_patch` for hand-edited files; bulk mechanical formatting may use the relevant formatter.
-- Preserve unrelated dirty work. Use a separate worktree for p0-p2, broad, risky, or dirty-workspace changes.
-- Add or update tests when behavior changes. Use red-green-refactor when a credible harness exists.
-- Keep interfaces narrow, behavior explicit, and scope bounded.
-- Do not add speculative abstractions, compatibility shims without consumers, generated boilerplate, or unrelated cleanup.
-- Do not make durable external changes, live installs, pushes, merges, releases, or production mutations beyond the user's accepted scope.
-
-## Proof and review
-
-Prove changed behavior proportionally. For Normal Requests, the direct outcome or smoke check is sufficient. Expand proof only when risk, blast radius, weak tests, or release intent earns it.
-
-Use `docs/meaningful-proof.md` for every material behavior claim. Define the claim or invariant and observable oracle before choosing checks. When proportionate, include a plausible wrong case or negative control, required non-effects, independent parent verification, and `Cannot verify` limits. Phrase presence, populated fields, schema validity, status labels, receipts, and self-reported results are structural evidence or evidence pointers, not behavioral proof. A child may write regression tests, but must not weaken or tailor the oracle; the parent independently reviews and reruns or resolves the evidence after integration.
-
-- Run targeted tests first, then the smallest relevant broader suite.
-- Use `scripts/diff-intel.py`, `scripts/test-plan.py`, and `scripts/review-pack.py` for changed-surface and review setup.
-- Run `python3 scripts/check-gauntlet-workflow.py` for broad workflow, installer, router, orchestration, or release changes.
-- Run `scripts/run-skill-change-checks.sh` when skills, skill evals, or skill-quality guidance changes.
-- Use temporary agent homes for install verification; do not mutate a real global home during tests.
-- Preserve archive merge behavior unless AJS explicitly requests a change.
-
-Feature, Release, Tier 2/3, or broad multi-file work requires an architecture hygiene delta pass. Check current-change dead code, unused exports/files/dependencies, stale samples/TODOs, duplicated logic, mismatched docs/tests, unnecessary abstractions, invisible scope creep, and compatibility code without a consumer.
-
-Use the Production Quality Bar only for near-launch, private-beta, production-bound, deploy-sensitive, hardened, or audited work. State its trigger, cap, artifact, and exit condition. Do not turn speculative concerns into blockers.
-
-## Skills and workflow guidance
-
-Use the narrowest Gauntlet role skill that adds value:
-
-- `intake`, `product-architect`, `maintain-prd`, `planner`, `issue-triager`, `implementer`, `implement-prd`;
+- `design`, `build`, `verify`, `ship`;
+- `intake`, `product-architect`, `planner`, `issue-triager`, `implementer`;
 - `researcher`, `debugger`;
 - `adversarial-reviewer`, `black-box-tester`, `experience-reviewer`, `deep-code-reviewer`;
-- `run-log-builder`, `promotion-scanner`, and `ian-xiaohei-illustrations` when their triggers apply.
+- consequence-triggered specialist and domain skills.
 
-Domain/tool skills may add concrete capability without imposing a second planning or execution lifecycle.
+Meaningful skill or router changes must name the behavior delta, trigger, completion criterion, output contract, negative case, and proof layer. Remove no-ops and duplication, disclose branch-specific detail only when needed, and keep one authoritative copy of each instruction.
 
-Create every Gauntlet-owned skill under this repository's `skills/` directory with the installed `skill-creator`. The Codex plugin manifest bundles that directory automatically; do not maintain a separate installed copy as source. Use family prefixes such as `craft-` and `eval-` only when they make a coherent capability family easier to discover.
+## Installer safety
 
-Before finalizing a skill with `skill-creator`, ask: **Is this cache-hit friendly in every step? Are there ways to improve token efficiency? Is this being assigned to the right custom agent? How should this skill be structured to avoid response drift from its instructions?** Apply the detailed, trigger-bounded review in `docs/skill-quality-bar.md`; do not add delegation fields when the skill never delegates.
-
-Selected techniques adapted from Jesse Vincent's Superpowers are tracked in `docs/upstream-superpowers.md`; Gauntlet owns the runtime behavior and Superpowers remains disabled as a lifecycle.
-
-For meaningful skill, router, eval, or workflow changes, apply `docs/skill-quality-bar.md`: behavior delta, trigger clarity, completion criterion, output contract, positive steering, no-op pruning, progressive disclosure, practical explanation, cheap harness mechanics, negative cases, authority/completion checks, and baseline provenance.
-
-Keep deterministic coverage, scorer plumbing, and behavioral outcome evidence distinct. A fixture that echoes required phrases is scorer smoke, not behavioral proof.
-
-## Installer and router safety
-
-- `router/AGENTS.md` must stay below Codex's documented default `project_doc_max_bytes` budget.
-- The Codex installer owns only one marked Gauntlet block and preserves every byte outside it.
-- Reject partial, reversed, duplicated, or nested managed markers before changing the target; an unmarked file is a valid first install.
-- Repeated installs must be idempotent.
-- Installed guidance must not execute downstream-relative `scripts/...` or read downstream-relative `docs/...` as Gauntlet sources.
-- Test clean, legacy, managed, malformed, conflicting-downstream-path, and repeat-install cases in temporary homes.
-
-## Git, contextual merge, and PR discipline
-
-- Branch from `main`; use isolated worktrees when the workspace is dirty, the work is p0-p2, the change is broad, or child lanes write files.
-- Keep `main` clean and give each Epic Run one parent integration branch and one complete Project PR. Tickets and optional cohorts integrate into that branch; independently shippable Epics never share a run or PR.
-- Commit coherent checkpoints. Preserve useful commits; do not squash or rebase unless AJS or the repository asks.
-- Treat the PR as the proof and decision bundle: changed files, execution-backed checks, review context, run log, changelog, and residual risk.
-- Automated merges use merge commits. Direct push to `main` is an explicit tiny-change shortcut, not the default.
-- Child lanes commit to their branches and return receipts; the main chat integrates and owns the PR.
-
-“Merge this,” “land this,” or “merge this to main” invokes the Gauntlet `land` skill for the complete safe closeout. Default to local `git` and authenticated `gh`; use a GitHub connector only when explicitly requested or the CLI cannot perform a required operation. Ask only for a new material decision or preservation risk.
-
-“Implement the PRD” authorizes one frozen launch set. The product task creates one visible Epic task per independently shippable Epic, reconciles dependency-ready starts, and gives the user concise start, blocker, Epic-finish, and aggregate-finish copy. Each Epic task owns branch/worktree creation, Ticket Graph execution, proof, one Project PR, merge, specified deployment and production changes, verification, required rollback, durable updates, and safe cleanup. It excludes proposed, deferred, and materially unresolved work. Stop only for a material blocker such as missing authority or credentials, an unsafe or destructive effect absent from the PRD, invalid rollout or rollback, or required production proof that cannot be obtained.
-
-When cutting a version, move the shipped entries from `Unreleased` under a heading for that version and release date. Keep the `Unreleased` heading for future work, and never delete released changelog history.
-
-“Push to git” means push the current branch; it does not authorize direct-pushing or merging `main`. Use `scripts/gauntlet.py merge prepare|plan|execute --run <run>` for an Execution Run's controller-owned schema 3.0 Project PR projection. Use `--handoff <schema-v1.json>` only for a non-run Patch. A branch bound to a run must not downgrade to `--handoff`. Run `execute` only with merge authority; a request to open a PR does not authorize merging it.
-
-When AJS asks to apply Gauntlet locally, merge it through a new PR, and then archive the task, complete `land`, install and verify the landed default branch, then run the archive planner and execute its returned Codex app actions in order. A local CLI cannot mutate Codex task state.
-
-## Run logs and coverage gaps
-
-For Feature, Release, or Tier 2/3 work with material decisions or exceptions, maintain the default profile's canonical run log unless the project has explicitly opted out. Opted-out projects use:
-
-```text
-docs/gauntlet-runs/YYYY-MM-DD-<slug>.md
-```
-
-Keep it exceptions-first: material assumptions, non-obvious decisions, deviations, skipped/failed/unavailable proof, `Cannot verify`, and follow-ups. Routine passing checks belong in the final summary and PR.
-
-Add or update `docs/coverage-gaps.md` only when reusable Gauntlet guidance is genuinely missing. Remove a pending gap when the same run resolves it.
+- Keep `router/AGENTS.md` below Codex’s default `project_doc_max_bytes` budget.
+- The installer owns only the marked Gauntlet block and preserves every byte outside it.
+- Reject malformed or duplicated markers before mutation.
+- Repeated installation is idempotent.
+- Test clean, legacy, managed, malformed, upgrade, uninstall, conflicting-path, and repeat-install cases in temporary homes.
 
 ## Stop conditions
 
-Stop and ask only when:
+Stop for a material unresolved product decision, data loss, billing, privacy or security ambiguity, missing required credentials, preservation conflict, unsafe external action, unavailable required proof, or a repeated failure fingerprint with no safe materially different attempt.
 
-- a decision materially changes product behavior or acceptance criteria;
-- data loss, migration, billing, security, privacy, or destructive external risk is ambiguous;
-- the request conflicts with architecture, policy, or authority;
-- the likely cost exceeds the accepted appetite;
-- credentials, permissions, external state, or required proof are unavailable;
-- safe recovery is exhausted and continuing would repeat the same failure.
-
-## Completion
-
-Work is complete only when acceptance criteria are met, relevant checks pass or limitations are explicit, blocking findings are resolved or rejected with evidence, required run logs/gaps are updated, architecture hygiene is complete or not applicable, and the final handoff names changed files, proof, and residual risk concisely.
+Work is complete when accepted behavior is met, the exact revision is proved, applicable findings have terminal dispositions, unrelated work is preserved, and required durable updates are made.

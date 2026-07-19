@@ -18,6 +18,7 @@ from gauntletlib.core.jsonio import canonical_json
 from .config import load_sensor_config
 from .planner import (
     LANGUAGE_BY_SUFFIX,
+    PROOF_PHASES,
     SENSOR_IDS,
     SUPPORTED_LANGUAGES,
 )
@@ -152,7 +153,12 @@ def discover_changed_paths(
     return sorted(path for path in paths if not _ignored_path(path))
 
 
-def _source_fingerprint(project_root: Path, changed_paths, config_sha256):
+def _source_fingerprint(
+    project_root: Path,
+    changed_paths,
+    config_sha256,
+    proof_phase,
+):
     files = []
     for relative in changed_paths:
         path = project_root / relative
@@ -176,6 +182,7 @@ def _source_fingerprint(project_root: Path, changed_paths, config_sha256):
         "head": head,
         "files": files,
         "configSha256": config_sha256,
+        "proofPhase": proof_phase,
     }
     return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
 
@@ -226,12 +233,15 @@ def _selected_commands(
     workflow_mode,
     consequences,
     requested,
+    proof_phase,
 ):
     languages = _languages(changed_paths)
     selected = []
     for sensor in SENSOR_IDS:
         command = config["commands"].get(sensor)
         if not command:
+            continue
+        if proof_phase not in command["phases"]:
             continue
         if sensor in requested or _relevant(
             sensor,
@@ -246,7 +256,14 @@ def _selected_commands(
                 if item == "{changed_paths}":
                     argv.extend(changed_paths)
                 else:
-                    argv.append(item.replace("{project_root}", str(project_root)))
+                    argv.append(
+                        item.replace("{project_root}", str(project_root))
+                        .replace("{phase}", proof_phase)
+                        .replace(
+                            "{suite}",
+                            "smoke" if proof_phase == "fast" else "full",
+                        )
+                    )
             expanded["argv"] = argv
             expanded["sensors"] = [sensor]
             selected.append(expanded)
@@ -512,6 +529,7 @@ def command_run(args):
     if not project_root.is_dir():
         raise RuntimeError(f"project root is not a directory: {project_root}")
     config = load_sensor_config(project_root, args.config)
+    proof_phase = getattr(args, "phase", None) or "integrated"
     changed_paths = discover_changed_paths(
         project_root,
         supplied_paths=args.changed_path,
@@ -521,6 +539,7 @@ def command_run(args):
         project_root,
         changed_paths,
         config["sha256"],
+        proof_phase,
     )
     commands = _selected_commands(
         config,
@@ -529,9 +548,11 @@ def command_run(args):
         workflow_mode=args.workflow_mode,
         consequences=set(args.consequence),
         requested=set(args.request_sensor),
+        proof_phase=proof_phase,
     )
     plan_value = {
         "workflowMode": args.workflow_mode,
+        "proofPhase": proof_phase,
         "changedPaths": changed_paths,
         "sourceFingerprint": source_fingerprint,
         "commands": commands,
@@ -563,6 +584,7 @@ def command_run(args):
         "schema": EVIDENCE_SCHEMA,
         "projectRoot": str(project_root),
         "workflowMode": args.workflow_mode,
+        "proofPhase": proof_phase,
         "baseRef": args.base_ref,
         "suppliedChangedPaths": sorted(set(args.changed_path)),
         "consequences": sorted(set(args.consequence)),
@@ -597,6 +619,7 @@ def command_run(args):
     handoff = {
         "schema": HANDOFF_SCHEMA,
         "status": "fail" if blocking else "pass",
+        "proofPhase": proof_phase,
         "sourceFingerprint": source_fingerprint,
         "passed": passed,
         "attention": attention,
@@ -647,7 +670,7 @@ def _evidence_results_match(
         if result.get("cwd") != str(project_root):
             return False
         outcome = result.get("result")
-        if outcome not in {"pass", "fail", "unavailable"}:
+        if outcome not in {"pass", "fail", "not-run", "unavailable"}:
             return False
         if outcome == "pass" and result.get("exitCode") != 0:
             return False
@@ -679,6 +702,11 @@ def command_verify(args):
     workflow_mode = evidence.get("workflowMode")
     if workflow_mode not in {"scratch", "research", "patch", "feature", "release"}:
         raise RuntimeError("sensor evidence has an invalid workflow mode")
+    evidence_phase = evidence.get("proofPhase", "integrated")
+    if evidence_phase not in PROOF_PHASES:
+        raise RuntimeError("sensor evidence has an invalid proof phase")
+    requested_phase = getattr(args, "phase", None) or "integrated"
+    phase_mismatch = evidence_phase != requested_phase
     sequence_fields = (
         "suppliedChangedPaths",
         "consequences",
@@ -704,6 +732,7 @@ def command_verify(args):
         project_root,
         current_paths,
         current_config["sha256"],
+        requested_phase,
     )
     stale = (
         current_paths != evidence["changedPaths"]
@@ -716,9 +745,11 @@ def command_verify(args):
         workflow_mode=workflow_mode,
         consequences=set(evidence["consequences"]),
         requested=set(evidence["requestedSensors"]),
+        proof_phase=requested_phase,
     )
     plan_value = {
         "workflowMode": workflow_mode,
+        "proofPhase": requested_phase,
         "changedPaths": current_paths,
         "sourceFingerprint": current_fingerprint,
         "commands": expected_commands,
@@ -743,22 +774,25 @@ def command_verify(args):
     ] if isinstance(results, list) else [None]
     valid = (
         not stale
+        and not phase_mismatch
         and complete
         and not blocking
         and evidence.get("verdict") == "pass"
     )
+    if valid:
+        reason = "Current source matches passing sensor evidence."
+    elif phase_mismatch:
+        reason = "Sensor evidence proof phase does not match the requested phase."
+    elif stale:
+        reason = "Sensor evidence is stale for the current source."
+    elif not complete:
+        reason = "Sensor evidence is incomplete or does not match the selected commands."
+    else:
+        reason = "Required sensor evidence did not pass."
     payload = {
         "schema": VERDICT_SCHEMA,
         "status": "pass" if valid else "fail",
-        "reason": (
-            "Current source matches passing sensor evidence."
-            if valid
-            else "Sensor evidence is stale for the current source."
-            if stale
-            else "Sensor evidence is incomplete or does not match the selected commands."
-            if not complete
-            else "Required sensor evidence did not pass."
-        ),
+        "reason": reason,
         "sourceFingerprint": current_fingerprint,
         "evidenceRef": _public_evidence_ref(project_root, evidence_path),
     }

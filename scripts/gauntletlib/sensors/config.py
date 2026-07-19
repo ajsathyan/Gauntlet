@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from .planner import SENSOR_IDS
+from .planner import PROOF_PHASES, SENSOR_IDS
 
 
 CONFIG_SCHEMA = "gauntlet.sensor-config/v1"
@@ -83,12 +83,28 @@ def load_sensor_config(project_root: Path, supplied: Optional[Path] = None):
             raise RuntimeError(
                 f"sensor config command {sensor}.timeoutSeconds must be 1..7200"
             )
+        phases = entry.get("phases", ["integrated"])
+        phases = _string_list(
+            phases,
+            f"sensor config command {sensor}.phases",
+        )
+        unknown_phases = sorted(set(phases) - set(PROOF_PHASES))
+        if unknown_phases:
+            raise RuntimeError(
+                f"sensor config command {sensor}.phases has unknown phases: "
+                + ", ".join(unknown_phases)
+            )
         commands[sensor] = {
             "sensor": sensor,
             "argv": argv,
             "required": required,
             "covers": sorted(set(covers)),
             "timeoutSeconds": timeout,
+            "phases": [
+                phase
+                for phase in PROOF_PHASES
+                if phase in set(phases)
+            ],
         }
     return {
         "path": path,

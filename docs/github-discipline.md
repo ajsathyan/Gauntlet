@@ -1,132 +1,103 @@
 # GitHub Discipline
 
-Gauntlet's default Git strategy is for builders who are new to Git, working quickly, and relying on agents to do the disciplined parts that people often skip. Advanced users can override it, but the default should be boring, professional, and easy to adopt.
+Gauntlet keeps the Git path simple enough for a solo builder and strict enough
+to preserve evidence.
 
-## Default Opinion
-
-Use the startup-safe path for real repository changes:
-
-```text
-branch from main -> commit coherent checkpoints -> open a PR -> verify -> merge with a merge commit -> delete the branch
-```
-
-For one Epic Run, the parent branch is the integration boundary. The run freezes one of two review topologies at initialization:
+## Default path
 
 ```text
-small target:
-main <- complete Project PR <- parent integration branch <- child checkpoints
-
-large, tightly coupled target:
-main <- complete Project PR <- parent integration branch <- parent-owned Review Unit PRs <- child checkpoints
+branch from the current default head
+  -> coherent atomic commits
+  -> one current-base integration candidate
+  -> independent exact-revision verification
+  -> one coherent pull request
+  -> merge only with explicit authority
 ```
 
-Independently shippable outcomes belong in separate Execution Runs. Review Unit PRs target only the integration branch and never replace the complete Project PR to `main`.
+`main` is the product line. A branch is a bounded side lane. A worktree is an
+isolated folder for a branch and is useful when the current checkout is dirty or
+parallel work needs separate files. A commit is one reviewable behavior or
+invariant. A pull request preserves the problem, resulting behavior, proof, and
+landing boundary.
 
-This gives solo builders and AI-assisted teams a durable trail: what changed, who or which agent did it, what proof ran, what review happened, and why the work landed.
+## Parent and workstreams
 
-## Beginner Mental Model
+The parent owns the integration branch, shared contracts, user decisions,
+publication, merge, release, and rollback.
 
-- `main` is the clean product line. Do not do real work directly there unless the user has chosen that shortcut.
-- A branch is a safe side lane for one task.
-- A worktree is a separate folder for a branch. Use it when the current folder has unrelated dirty files or parallel child work needs isolation.
-- A commit is a checkpoint with a meaningful reason to exist.
-- A PR is the memory and proof bundle for landing the work.
-- A merge commit keeps the branch's checkpoint commits visible after the PR lands.
+Implementation children own disjoint files or state and return changed artifacts,
+compact proof, and risk. Read-only children return findings. Children do not push
+to the default branch or decide to merge.
 
-## Defaults By Work Type
+Integrate coherent atomic candidates as they arrive. When candidates share a
+base, serialize them through the generic workstream queue:
 
-| Work | Branch/worktree default | Commit default | PR default | Merge default |
-| --- | --- | --- | --- | --- |
-| `p4` brainstorm, research, admin | No branch unless creating a repo artifact | No commit unless preserving an artifact | No PR unless files should land in the repo | Not relevant |
-| `p3` Patch | Branch from `main`; use a worktree if the workspace is dirty | One small, coherent commit with proof | Yes for any persisted code, docs, or policy change | Merge commit |
-| `p2` Deep or high-consequence Patch | Branch or worktree | Atomic commits by fix, invariant, or test boundary | Required | Merge commit after checks |
-| `p1` Feature | Worktree or branch | Checkpoint commits per coherent slice | Required, with proof and run-log context when relevant | Merge commit |
-| `p0` Release or risky work | Isolated worktree or branch | Checkpointed, reviewable commits | Required, with an explicit decision gate | Merge commit only after gate and checks |
+1. enqueue against the source commit;
+2. claim the oldest ready candidate against the current default head;
+3. bind the exact candidate commit and tree;
+4. release only after integration or a terminal failure;
+5. reconcile interrupted attempts from observable Git state.
 
-## Main Chats And Child Chats
+A changed base invalidates stale candidate proof. Rebase or re-integrate, then
+rerun the affected checks against the new exact revision.
 
-The main chat owns the final Git story:
+## Commits and pull requests
 
-- Selects or creates the task branch.
-- For one Epic Run, selects or creates its parent integration branch and freezes `single-final-pr` or `review-prs-plus-final`; child branches do not target `main`.
-- Tracks child-lane decisions and integration state without printing a routine lane ledger.
-- Integrates child implementation work.
-- Opens or updates parent-owned Review Unit PRs when the compiled graph requires them, then opens the complete Project PR.
-- Decides whether checks and review are enough to merge.
+Prefer one pull request for one coherent accepted scope. Use additional pull
+requests only for independently shippable outcomes, not as a substitute for
+clear workstream ownership.
 
-Child chats should stay bounded:
+Keep commits coherent rather than artificially tiny. Preserve useful checkpoints
+when each can be understood and verified on its own. Default to a merge commit
+unless repository policy or the user requires squash or rebase.
 
-- Read-only review, research, summarization, and log-analysis lanes return reports, not commits.
-- Implementation child chats use separate branches or worktrees when they write code, touch multiple files, or have uncertain ownership.
-- Child chats do not direct-push to `main`.
-- Implementation children return compact machine receipts with status, changed files, evidence pointers, and any blocker. Research and review children return their requested result compactly.
+Use `<area>: <imperative behavioral outcome>` for commit subjects and pull-request
+titles.
 
-## Solo Builder Rules
+A useful pull-request body contains:
 
-Gauntlet should make the disciplined path cheap enough that solo builders use it by default:
+1. **Problem:** who is affected and what was insufficient.
+2. **Solution:** resulting behavior, important boundaries, and preserved behavior.
+3. **Changelog:** the exact `Unreleased` entry when the repository uses one.
+4. **Testing:** commands, the claim each supports, and any limitation.
+5. **Security / Risk:** only for a concrete material risk.
 
-- Prefer a PR even when nobody else will review it. The PR still records proof, context, and the merge boundary.
-- Preserve useful agent checkpoint commits instead of squashing them away.
-- Keep commits coherent rather than perfectly tiny. A good commit should explain one useful step in the work.
-- Direct push to `main` is an explicit shortcut for tiny, low-risk solo changes, not the default taught path.
-- If the workspace is dirty, first decide whether the dirty files belong to this task. If not, isolate new work in a worktree or ask before touching them.
+The diff fact-checks this story; it does not define product intent.
 
-## Merge Method
+## Authority
 
-Gauntlet's automation default is merge commit.
+- “Commit this” authorizes only scoped local commits.
+- “Push this branch” authorizes only the current branch push.
+- “Open a PR” authorizes publication but not merge.
+- “Merge,” “land,” or “ship to main” authorizes the verified merge flow.
+- Installation, deployment, production changes, migration, destructive or paid
+  actions, credential use, rollback, and task archival remain separate.
 
-Use merge commits because they preserve the branch's checkpoint commits and keep the PR as a visible boundary in history. This is especially useful for AI-assisted work, where the intermediate commits can show which agent or lane made a change and which proof happened before merge.
+Use local `git` and authenticated `gh` by default. Use a GitHub connector only
+when the user requests it or the CLI cannot perform the required operation.
 
-Use squash only when the user or repository explicitly prefers a linear history. Use rebase only when the repository's contribution rules require it or a maintainer asks.
+The generic merge path consumes a source-bound handoff:
 
-## What Belongs In Automation
+```sh
+python3 scripts/gauntlet.py merge prepare \
+  --git-root "$PROJECT_ROOT" --handoff "$HANDOFF" --json
 
-CLI helpers should own objective Git and GitHub facts:
+python3 scripts/gauntlet.py merge plan \
+  --git-root "$PROJECT_ROOT" --handoff "$HANDOFF" --body "$PR_BODY" --json
+```
 
-- Dirty files and whether they are allowlisted.
-- Current branch and upstream ahead/behind state.
-- Whether the branch is the default branch.
-- Whether a PR exists, is open, is mergeable, has passing checks, and has no blocking review state.
-- The exact safe merge command for accepted automation.
+After explicit merge authority, the `land` skill may use `land execute` with the
+same handoff and body. It waits for required checks and blocking review state,
+merges through the PR, verifies default-branch reachability, and performs only
+safe cleanup. Repository-owned post-merge monitoring runs only when it exists
+and can be attributed to the landed revision.
 
-Human or agent judgment should remain conversational:
+## Preservation
 
-- Whether a solo repo wants to opt out of branch protection.
-- Whether a specific dirty file belongs to the task.
-- Whether to abandon, park, or preserve uncommitted work.
-- Whether a repo's history preference should override Gauntlet's merge-commit default.
-- Whether a task is too risky to merge without human review.
+Never stage the entire worktree by default. Name intended paths and preserve
+unrelated dirty or untracked work. Stop cleanup when unique commits, modified
+files, branch drift, another worktree, or failed monitoring makes deletion
+unsafe.
 
-## Changelog And Closeout
-
-"Merge this," "land this," or "merge this to main" authorizes the complete safe closeout for the current scoped work: prepare the non-run handoff or run-backed Project PR projection, update `CHANGELOG.md`, commit coherent local changes, push the task branch, create or update a ready PR, wait for required checks and blocking review state, merge, verify the accepted revision on the remote default branch, run established post-merge CI/deployment monitoring when it exists and is attributable to that revision, fast-forward the local default branch, delete the remote branch, then remove the isolated worktree and local branch only when no unique or dirty work remains. Preserve cleanup state on drift, another-worktree use, or failed monitoring. This authority does not install locally or archive the Codex task.
-
-Use the Gauntlet `land` skill for this flow. Default to local `git` and authenticated `gh` commands because they share the checkout and local credential state. Use a GitHub connector only when the user explicitly asks for it or the CLI cannot perform a required operation. Do not edit or shadow a bundled publishing skill to change this policy.
-
-"push to git" means push the current branch. It does not imply direct-push to `main` or merge.
-
-Use `scripts/gauntlet.py merge prepare` before committing the changelog and `scripts/gauntlet.py merge plan` for a read-only preflight. Once the worktree is clean and the user has authorized landing, use `scripts/gauntlet.py land execute` to merge, monitor exact-revision push CI, fast-forward the local default branch, and safely remove the landed branch and isolated worktree. For an Epic Run, pass `--run <run>` so the helper consumes schema 3.0 facts and verifies the locked Epic, graph, repository, branch, exact head, and final Epic verification binding. For a non-run Patch, pass schema v1 `--handoff <handoff.json>`. Never downgrade a run-bound branch to `--handoff`.
-
-With `review-prs-plus-final`, the parent uses `scripts/gauntlet.py review-unit prepare|plan|execute --run <run> --unit <id>` to bind each frozen unit PR to the current integration base and exact GitHub head, wait for checks, merge serially, and verify the tested tree before preparing the Epic's Project PR. In both strategies, `merge ... --run` creates or updates that Project PR, requires distinct `merge-to-default` authority, binds the merge to the verified head, verifies default-branch reachability, records the merge in the run, and cleans with leases. Run-backed commands use the installed controller; candidate repositories cannot substitute their own verifier.
-
-For explicit standalone drafts, use `scripts/gauntlet.py changelog pr --accepted-spec "$SPEC_PATH" --plan "$PLAN_PATH" --git-root "$PROJECT_ROOT"`. The hidden `--implementation-memory` alias remains migration-only.
-
-For the combined instruction “apply it locally, merge it to main with a new PR, then archive this task,” complete the `land` skill first. Install and verify the landed default branch, then run `archive plan` and `archive execute` with the Archive Summary. Execute returned Codex app actions in order; a local process cannot rename or archive a Codex task directly.
-
-## Commit And PR Framing
-
-Use `<area>: <imperative behavioral outcome>` for commit subjects and PR titles, such as `workflow: generate contextual merge handoffs`. A quick task normally has one behavioral commit with its tests and changelog; preserve multiple commits only when each is independently reviewable.
-
-The contextual PR body is reviewer memory, not a file tour:
-
-1. `## Problem`: who is affected, what was insufficient, and why it matters.
-2. `## Solution`: resulting behavior, important invariants/design choices, preserved behavior, and meaningful non-goals.
-3. `## Changelog`: one release-note bullet copied exactly into `CHANGELOG.md` under `Unreleased`.
-4. `## Testing`: reported commands/results, the behavioral claim each check is intended to support, and any limitation or `Cannot verify` item. These records are evidence pointers, not independent proof; required merge checks or the integrating parent must rerun or resolve them before treating the claim as verified.
-5. `## Security / Risk`: include only for a concrete material risk; omit empty boilerplate.
-
-Build this framing from the user goal and accepted decisions. Use the diff only to fact-check completeness.
-
-## Version Changelog
-
-When cutting a version, move the shipped entries from `Unreleased` under a heading for that version and release date. Keep the `Unreleased` heading at the top for future work. Leave behind any entries that are not part of the release, and never delete released changelog history.
+When cutting a version, move only shipped entries beneath the version heading
+and keep `Unreleased` for future work. Released history is immutable.

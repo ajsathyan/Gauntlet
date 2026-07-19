@@ -20,6 +20,7 @@ SENSOR_IDS = (
     "jscpd",
     "mutation",
 )
+PROOF_PHASES = ("fast", "integrated")
 
 BASELINE_IDS = frozenset(SENSOR_IDS[:5])
 OPTIONAL_PACKAGES = {
@@ -207,6 +208,7 @@ def command_plan(args):
     has_package, declared_packages, package_error = _package_facts(project_root)
     commands = _commands(args.repo_command)
     consequences = sorted(set(args.consequence))
+    proof_phase = getattr(args, "phase", None) or "integrated"
 
     payload = {
         "schema": "gauntlet.sensor-plan/v1",
@@ -228,6 +230,7 @@ def command_plan(args):
             "architectureChange": bool(args.architecture_change),
             "durableChange": bool(args.durable_change),
             "consequences": consequences,
+            "proofPhase": proof_phase,
         },
         "sensors": [
             _entry(

@@ -1,16 +1,23 @@
-"""Adaptive code-quality sensor workflow case."""
+"""Fast and integrated sensor workflow case."""
 
-from tests.workflow.fixtures import SCRIPTS, run
+import sys
+
+from tests.workflow.fixtures import ROOT, run
 
 
-def test_adaptive_code_quality_sensor_contracts():
-    for test in ("test_sensors.py", "test_sensor_tools.py"):
+def test_sensor_execution_and_cadence():
+    for test in (
+        "test_sensors.py",
+        "test_sensor_cadence.py",
+        "test_sensor_tools.py",
+    ):
         result = run(
-            ["python3", str(SCRIPTS.parent / "tests" / test)],
+            [sys.executable, str(ROOT / "tests" / test)],
+            cwd=ROOT,
             check=False,
         )
-        if result.returncode != 0 or "OK" not in result.stderr:
+        if result.returncode != 0:
             raise AssertionError(
-                f"Adaptive sensor behavior failed ({test}):\n"
+                f"Sensor behavior failed ({test}):\n"
                 f"{result.stdout}\n{result.stderr}"
             )

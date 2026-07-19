@@ -15,19 +15,19 @@ Gauntlet contains adapted concepts, not vendored text. The Superpowers plugin an
 
 | Superpowers source | Adapted Gauntlet behavior | Destination |
 | --- | --- | --- |
-| `brainstorming` | Compare material alternatives; ask for approval only for real user decisions | `product-architect`, `planner` |
+| `brainstorming` | Gate non-trivial implementation on explicit material alternatives, assumptions, edge cases, and one accepted durable design; Normal Requests bypass | `design`, `product-architect` |
 | `systematic-debugging` | Reproduce, trace to earliest divergence, test a falsifiable hypothesis | `debugger` |
 | `test-driven-development` | Practical RED-GREEN-REFACTOR for behavior changes | `implementer` |
 | `verification-before-completion` | Evidence before completion claims | `implementer`, global completion rule |
 | `receiving-code-review` | Verify feedback against spec/code/tests before applying | `implementer` |
-| `requesting-code-review` | Purpose-specific review with severity and proof | Gauntlet reviewer skills |
+| `requesting-code-review` | Three independent pre-build lenses plus purpose-specific exact-revision review | `adversarial-reviewer`, `verify`, specialist reviewers |
 | `using-git-worktrees` | Isolate broad, risky, dirty, or delegated writes | global workflow, `github-discipline.md` |
 | `dispatching-parallel-agents` | Parallelize only independent domains whose speedup beats context cost | global delegation and `planner` |
-| `writing-plans`, `executing-plans` | End-to-end task sizing, explicit contracts, meaningful checkpoints | `planner`, `implementer` |
-| `finishing-a-development-branch` | Verify, choose merge/PR/keep, and clean up intentionally | `github-discipline.md` |
+| `writing-plans`, `executing-plans` | Internal ephemeral Build planning, bounded workstream assignments, and meaningful checkpoints | `build`, `planner`, `implementer` |
+| `finishing-a-development-branch` | Separate exact-revision Verify from authorized Git and external effects | `verify`, `ship`, `github-discipline.md` |
 | `writing-skills` | Trigger clarity, output contracts, positive steering, and forward tests | `skill-quality-bar.md` |
 
-Gauntlet intentionally rejects the universal brainstorming gate, permanent design documents, 2–5 minute implementation steps, prewritten production code, fresh-subagent-per-task execution, mandatory two-stage review for every task, and the `using-superpowers` meta-gate.
+Gauntlet applies explicit brainstorming and one permanent accepted design to non-trivial implementation while allowing Normal Requests to remain direct. It intentionally rejects a universal gate for trivial work, 2–5 minute implementation steps, prewritten production code, fresh-subagent-per-task execution, mandatory two-stage review for every task, and the `using-superpowers` meta-gate.
 
 ## Reviewing A Superpowers Update
 

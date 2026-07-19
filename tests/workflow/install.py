@@ -7,7 +7,11 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from scripts.gauntletlib.install.manifest import sync_payload
+from scripts.gauntletlib.install.manifest import (
+    preflight_product_cutover,
+    sync_payload,
+    uninstall_payload,
+)
 from tests.workflow.fixtures import (
     ROOT,
     SCRIPTS,
@@ -56,14 +60,48 @@ def fake_codex_plugin_cli(agent_home, available=True):
     return path
 
 
-def run_install(agent_home, target="codex", extra_args=None, check=True, plugins_available=True):
+def fake_sensor_tools_installer(agent_home):
+    path = agent_home.parent / f".fake-sensor-tools-{agent_home.name}.py"
+    if path.exists():
+        return path
+    path.write_text(
+        "#!/usr/bin/env python3\n"
+        "from pathlib import Path\n"
+        "import sys\n"
+        "args = sys.argv[1:]\n"
+        "home = Path(args[args.index('--agent-home') + 1])\n"
+        "home.mkdir(parents=True, exist_ok=True)\n"
+        "(home / 'sensor-tools-install.log').write_text(' '.join(args) + '\\n')\n"
+    )
+    path.chmod(0o755)
+    return path
+
+
+def run_install(
+    agent_home,
+    target="codex",
+    extra_args=None,
+    check=True,
+    plugins_available=True,
+    sensor_tools=False,
+):
     env = os.environ.copy()
     env["AGENT_HOME"] = str(agent_home)
     env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
     if target == "codex":
         env["GAUNTLET_CODEX_BIN"] = str(fake_codex_plugin_cli(agent_home, plugins_available))
+    if sensor_tools:
+        env["GAUNTLET_SENSOR_TOOLS_INSTALLER"] = str(
+            fake_sensor_tools_installer(agent_home)
+        )
     args = [str(SCRIPTS / "install.sh"), "--target", target]
     args.extend(extra_args or [])
+    if (
+        not sensor_tools
+        and "--with-sensor-tools" not in args
+        and "--without-sensor-tools" not in args
+    ):
+        args.append("--without-sensor-tools")
     result = subprocess.run(
         args,
         cwd=ROOT,
@@ -87,10 +125,9 @@ def test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks():
         agent_home = Path(tmp) / "agent-home"
         (agent_home / "gauntlet").mkdir(parents=True)
         legacy = "# Legacy Gauntlet Router\n\nLegacy managed workflow body.\n"
-        personal = "<!-- BEGIN PERSONAL HOUSE VOICE -->\nKeep my voice.\n<!-- END PERSONAL HOUSE VOICE -->\n"
+        personal = "Keep this user-owned instruction exactly.\n"
         (agent_home / "gauntlet" / "AGENTS.md").write_text(legacy)
-        first_line_end = legacy.index("\n") + 1
-        (agent_home / "AGENTS.md").write_text(legacy[:first_line_end] + "\n" + personal + legacy[first_line_end:])
+        (agent_home / "AGENTS.md").write_text(personal + legacy)
 
         run_install(agent_home, target="codex", extra_args=["--instructions-reviewed"])
         migrated = read(agent_home / "AGENTS.md")
@@ -379,6 +416,10 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
     test_manifest_install_syncs_runtime_and_preserves_unmanaged_or_modified_stale_files()
     test_manifest_sync_rejects_unsafe_paths_symlinks_and_skill_collisions()
     test_manifest_preflight_rejects_bad_ancestors_and_fixed_generated_paths()
+    test_product_cutover_guard_has_an_explicit_portable_detection_boundary()
+    test_receipt_upgrade_and_uninstall_remove_only_unchanged_owned_files()
+    test_default_install_requests_machine_local_sensor_tools_without_network()
+    test_codex_uninstall_preserves_user_bytes_config_and_modified_payload()
 
 
 def test_codex_hook_install_preserves_user_state_and_fails_closed():
@@ -631,7 +672,12 @@ def test_manifest_install_syncs_runtime_and_preserves_unmanaged_or_modified_stal
         copied_env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
         copied_env["GAUNTLET_CODEX_BIN"] = str(fake_codex_plugin_cli(agent_home))
         copied_reinstall = subprocess.run(
-            [str(installed / "scripts" / "install.sh"), "--target", "codex"],
+            [
+                str(installed / "scripts" / "install.sh"),
+                "--target",
+                "codex",
+                "--without-sensor-tools",
+            ],
             cwd=installed,
             env=copied_env,
             text=True,
@@ -910,3 +956,248 @@ def test_manifest_preflight_rejects_bad_ancestors_and_fixed_generated_paths():
         assert_rejected(metadata_root, metadata_home)
         if stale.read_bytes() != stale_payload:
             raise AssertionError("malformed generated metadata must reject before stale deletion")
+
+
+def test_product_cutover_guard_has_an_explicit_portable_detection_boundary():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        agent_home = root / "agent-home"
+        receipt = agent_home / "gauntlet" / ".install-manifest.json"
+        receipt.parent.mkdir(parents=True)
+        receipt.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "entries": [
+                        {
+                            "destination": "gauntlet/scripts/gauntletlib/run/controller.py",
+                            "sha256": "0" * 64,
+                        }
+                    ],
+                    "manifestSha256": "1" * 64,
+                }
+            )
+        )
+
+        try:
+            preflight_product_cutover(agent_home, [])
+        except ValueError as error:
+            assert_contains(
+                str(error),
+                "local-docs/executions/*/manifest.json",
+                "cutover detection boundary",
+            )
+        else:
+            raise AssertionError("controller-era upgrade must require a scan root or confirmation")
+
+        project = root / "project"
+        complete = project / "local-docs" / "executions" / "DONE" / "manifest.json"
+        complete.parent.mkdir(parents=True)
+        complete.write_text(json.dumps({"state": "complete"}))
+        if preflight_product_cutover(agent_home, [project]):
+            raise AssertionError("complete historical runs should not block product cutover")
+
+        live = project / "local-docs" / "executions" / "LIVE" / "manifest.json"
+        live.parent.mkdir(parents=True)
+        live.write_text(json.dumps({"state": "executing"}))
+        try:
+            preflight_product_cutover(agent_home, [project])
+        except ValueError as error:
+            assert_contains(str(error), "LIVE (executing)", "live controller run rejection")
+        else:
+            raise AssertionError("detectable live controller work must block product cutover")
+        wired = run_install(
+            agent_home,
+            extra_args=[
+                "--check",
+                "--codex-preferences",
+                "skip",
+                "--cutover-project-root",
+                str(project),
+            ],
+            check=False,
+        )
+        if wired.returncode == 0:
+            raise AssertionError("install.sh must enforce the live controller cutover guard")
+        assert_contains(wired.stderr, "LIVE (executing)", "installer cutover guard wiring")
+
+        live.write_text(json.dumps({"state": "prd_verified"}))
+        findings = preflight_product_cutover(agent_home, [project])
+        if len(findings) != 1 or "preserved historical controller run" not in findings[0]:
+            raise AssertionError("legacy controller history should be preserved and reported")
+
+
+def test_receipt_upgrade_and_uninstall_remove_only_unchanged_owned_files():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source_root = root / "source"
+        source = source_root / "scripts" / "new.py"
+        source.parent.mkdir(parents=True)
+        source.write_bytes(b"new runtime\n")
+        source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
+        (source_root / "MANIFEST").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "entries": [
+                        {
+                            "destination": "gauntlet/scripts/new.py",
+                            "executable": False,
+                            "sha256": source_sha,
+                            "source": "scripts/new.py",
+                        }
+                    ],
+                    "generatedDestinations": [
+                        "gauntlet/AGENTS.md",
+                        "gauntlet/MANIFEST",
+                        "gauntlet/.install-manifest.json",
+                    ],
+                    "legacyManaged": [],
+                }
+            )
+        )
+        upgrade_home = root / "upgrade-home"
+        upgrade_scripts = upgrade_home / "gauntlet" / "scripts"
+        upgrade_scripts.mkdir(parents=True)
+        exact_stale = upgrade_scripts / "old.py"
+        exact_stale.write_bytes(b"old owned\n")
+        modified_stale = upgrade_scripts / "changed.py"
+        modified_stale.write_bytes(b"user edit\n")
+        (upgrade_home / "gauntlet" / ".install-manifest.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "entries": [
+                        {
+                            "destination": "gauntlet/scripts/old.py",
+                            "sha256": hashlib.sha256(b"old owned\n").hexdigest(),
+                        },
+                        {
+                            "destination": "gauntlet/scripts/changed.py",
+                            "sha256": hashlib.sha256(b"old changed\n").hexdigest(),
+                        },
+                    ],
+                    "manifestSha256": "0" * 64,
+                }
+            )
+        )
+        upgrade_findings = sync_payload(source_root, upgrade_home)
+        if exact_stale.exists():
+            raise AssertionError("upgrade must retire byte-identical files from the prior receipt")
+        if modified_stale.read_bytes() != b"user edit\n":
+            raise AssertionError("upgrade must preserve modified files from the prior receipt")
+        if (upgrade_scripts / "new.py").read_bytes() != b"new runtime\n":
+            raise AssertionError("upgrade must install the current payload")
+        if (
+            len(upgrade_findings) != 1
+            or "preserved modified stale managed file" not in upgrade_findings[0]
+        ):
+            raise AssertionError("upgrade must report modified stale preservation")
+
+        agent_home = root / "agent-home"
+        gauntlet = agent_home / "gauntlet"
+        scripts = gauntlet / "scripts"
+        scripts.mkdir(parents=True)
+        unchanged = scripts / "retired.py"
+        unchanged.write_bytes(b"owned unchanged\n")
+        modified = scripts / "modified.py"
+        modified.write_bytes(b"user changed this\n")
+        unmanaged = scripts / "user-tool.py"
+        unmanaged.write_bytes(b"user owned\n")
+        generated_router = gauntlet / "AGENTS.md"
+        generated_router.write_bytes(b"rendered router\n")
+        installed_manifest = gauntlet / "MANIFEST"
+        installed_manifest.write_bytes(b"old manifest\n")
+
+        def sha(path):
+            return hashlib.sha256(path.read_bytes()).hexdigest()
+
+        receipt = gauntlet / ".install-manifest.json"
+        receipt.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "entries": [
+                        {
+                            "destination": "gauntlet/scripts/retired.py",
+                            "sha256": sha(unchanged),
+                        },
+                        {
+                            "destination": "gauntlet/scripts/modified.py",
+                            "sha256": hashlib.sha256(b"owned original\n").hexdigest(),
+                        },
+                    ],
+                    "generatedEntries": [
+                        {
+                            "destination": "gauntlet/AGENTS.md",
+                            "sha256": sha(generated_router),
+                        }
+                    ],
+                    "manifestSha256": sha(installed_manifest),
+                }
+            )
+        )
+        findings = uninstall_payload(agent_home)
+        if unchanged.exists() or generated_router.exists() or installed_manifest.exists():
+            raise AssertionError("uninstall should remove unchanged receipt-owned files")
+        if modified.read_bytes() != b"user changed this\n":
+            raise AssertionError("uninstall must preserve a modified formerly managed file")
+        if unmanaged.read_bytes() != b"user owned\n":
+            raise AssertionError("uninstall must preserve unowned payload paths")
+        if receipt.exists():
+            raise AssertionError("uninstall should retire the ownership receipt")
+        if len(findings) != 1 or "preserved modified stale managed file" not in findings[0]:
+            raise AssertionError("modified managed preservation must be explicit")
+
+
+def test_default_install_requests_machine_local_sensor_tools_without_network():
+    if not (ROOT / ".git").exists():
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        agent_home = Path(tmp) / "agent-home"
+        run_install(agent_home, sensor_tools=True)
+        log = read(agent_home / "sensor-tools-install.log")
+        assert_contains(log, "install --agent-home", "default sensor tool installation")
+
+
+def test_codex_uninstall_preserves_user_bytes_config_and_modified_payload():
+    if not (ROOT / ".git").exists():
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        agent_home = Path(tmp) / "agent-home"
+        agent_home.mkdir()
+        agents_path = agent_home / "AGENTS.md"
+        agents_path.write_bytes(b"User-owned instruction.\r\n")
+        config_path = agent_home / "config.toml"
+        config_path.write_text('[features]\nunknown_future_key = "keep"\n')
+        run_install(agent_home, extra_args=["--instructions-reviewed"])
+
+        installed = agents_path.read_bytes()
+        begin = b"<!-- BEGIN GAUNTLET MANAGED BLOCK -->"
+        end = b"<!-- END GAUNTLET MANAGED BLOCK -->"
+        start = installed.index(begin)
+        finish = installed.index(end, start) + len(end)
+        outside_before = installed[:start] + installed[finish:]
+
+        modified_payload = agent_home / "gauntlet" / "README.md"
+        modified_payload.write_text("user-modified installed file\n")
+        result = run_install(
+            agent_home,
+            extra_args=["--uninstall"],
+            check=False,
+        )
+        if result.returncode != 0:
+            raise AssertionError(
+                f"Codex uninstall failed:\n{result.stdout}\n{result.stderr}"
+            )
+        if agents_path.read_bytes() != outside_before:
+            raise AssertionError("uninstall must preserve every byte outside the managed block")
+        assert_contains(
+            config_path.read_text(),
+            'unknown_future_key = "keep"',
+            "unknown Codex config preservation",
+        )
+        if modified_payload.read_text() != "user-modified installed file\n":
+            raise AssertionError("uninstall must preserve modified receipt-owned payload")
+        if (agent_home / "gauntlet" / ".install-manifest.json").exists():
+            raise AssertionError("uninstall should remove the payload ownership receipt")

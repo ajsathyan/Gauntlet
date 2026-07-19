@@ -217,18 +217,61 @@ def verify(source, agent_home):
     print("Verified {} Gauntlet custom-agent profiles.".format(len(expected_hashes)))
 
 
+def inspect_remove(agent_home):
+    manifest_path = agent_home / "gauntlet" / "install-agents-codex.json"
+    pending_path = agent_home / "gauntlet" / "install-agents-codex.pending.json"
+    if pending_path.exists():
+        fail("Cannot uninstall during an incomplete custom-agent transaction")
+    manifest = load_manifest(manifest_path)
+    destination = agent_home / "agents"
+    if destination.is_symlink() or (destination.exists() and not destination.is_dir()):
+        fail("Refusing unsafe custom-agent destination: {}".format(destination))
+    return manifest_path, manifest, destination
+
+
+def remove(agent_home):
+    manifest_path, manifest, destination = inspect_remove(agent_home)
+    for name, recorded_hash in manifest["files"].items():
+        target = destination / name
+        if not target.exists():
+            continue
+        if target.is_symlink() or not target.is_file() or digest(target.read_bytes()) != recorded_hash:
+            print(
+                "Gauntlet installer finding: preserved modified managed custom-agent profile: {}".format(
+                    target
+                ),
+                file=sys.stderr,
+            )
+            continue
+        target.unlink()
+    if manifest_path.exists():
+        manifest_path.unlink()
+    try:
+        destination.rmdir()
+    except OSError:
+        pass
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("check", "apply", "verify"))
-    parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument(
+        "action", choices=("check", "apply", "verify", "check-remove", "remove")
+    )
+    parser.add_argument("--source", type=Path)
     parser.add_argument("--agent-home", type=Path, required=True)
     args = parser.parse_args()
+    if args.action not in {"check-remove", "remove"} and args.source is None:
+        parser.error("--source is required for check, apply, and verify")
     if args.action == "check":
         inspect(args.source, args.agent_home)
     elif args.action == "apply":
         apply(args.source, args.agent_home)
-    else:
+    elif args.action == "verify":
         verify(args.source, args.agent_home)
+    elif args.action == "check-remove":
+        inspect_remove(args.agent_home)
+    else:
+        remove(args.agent_home)
 
 
 if __name__ == "__main__":

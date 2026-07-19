@@ -734,19 +734,37 @@ class SensorCliTests(unittest.TestCase):
 
     def test_completion_consumer_rejects_the_gauntlet_009_planner_only_wrong_case(self):
         router = (ROOT / "router" / "AGENTS.md").read_text(encoding="utf-8")
-        implementer = (
-            ROOT / "skills" / "implementer" / "SKILL.md"
+        verifier = (
+            ROOT / "skills" / "verify" / "SKILL.md"
         ).read_text(encoding="utf-8")
+        semantic_cases = json.loads(
+            (ROOT / "evals" / "design-build-verify-fixtures.json").read_text(
+                encoding="utf-8"
+            )
+        )
         documentation = (
             ROOT / "docs" / "code-quality-sensors.md"
         ).read_text(encoding="utf-8")
         repository_config = json.loads(
             (ROOT / "gauntlet-sensors.json").read_text(encoding="utf-8")
         )
-        for value in (router, implementer):
+        for value in (router, verifier):
             self.assertIn("sensors run", value)
             self.assertIn("completion", value)
             self.assertIn("block", value)
+        wrong_case = next(
+            case
+            for case in semantic_cases["cases"]
+            if case["id"] == "gauntlet-009-green-sensors-narrow-checklist"
+        )
+        self.assertEqual(wrong_case["sensorVerdict"], "pass")
+        self.assertEqual(wrong_case["expectedBuildVerdict"], "fail")
+        self.assertNotEqual(
+            set(wrong_case["acceptedOutcomes"]),
+            set(wrong_case["claimedOutcomes"]),
+        )
+        self.assertIn("Build Verdict is authoritative", verifier)
+        self.assertIn("narrowed", verifier)
         self.assertIn("executes", documentation)
         self.assertIn("A sensor plan or normalized result without execution is not proof", router)
         self.assertNotIn("does not install tools, change dependencies, or run", documentation)
