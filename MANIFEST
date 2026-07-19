@@ -867,7 +867,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/run/controller.py",
       "executable": false,
-      "sha256": "6a11b8951ea6ec180c89ace75218a5ab691879ad31ef1efcd01e5b2eef88458b",
+      "sha256": "0edd8c8323b06bb42ea0cfd7d624bb0a3ea0549d47768257d3e26b4aa1fe0287",
       "source": "scripts/gauntletlib/run/controller.py"
     },
     {
