@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .evidence import command_normalize, command_validate_rewrite
 from .planner import SENSOR_IDS, command_plan
+from .runner import command_run, command_verify
 
 
 def register(subparsers):
@@ -31,6 +32,27 @@ def register(subparsers):
     plan.add_argument("--json", action="store_true")
     plan.set_defaults(func=command_plan)
 
+    run = commands.add_parser("run")
+    run.add_argument("--project-root", type=Path, required=True)
+    run.add_argument(
+        "--workflow-mode",
+        choices=["scratch", "research", "patch", "feature", "release"],
+        required=True,
+    )
+    run.add_argument("--config", type=Path)
+    run.add_argument("--base-ref")
+    run.add_argument("--changed-path", action="append", default=[])
+    run.add_argument("--consequence", action="append", default=[])
+    run.add_argument("--request-sensor", action="append", choices=SENSOR_IDS, default=[])
+    run.add_argument("--json", action="store_true")
+    run.set_defaults(func=command_run)
+
+    verify = commands.add_parser("verify")
+    verify.add_argument("--project-root", type=Path, required=True)
+    verify.add_argument("--evidence", type=Path, required=True)
+    verify.add_argument("--json", action="store_true")
+    verify.set_defaults(func=command_verify)
+
     normalize = commands.add_parser("normalize")
     normalize.add_argument("--sensor", choices=SENSOR_IDS, required=True)
     normalize.add_argument(
@@ -49,4 +71,3 @@ def register(subparsers):
     rewrite.add_argument("--input", type=Path, required=True)
     rewrite.add_argument("--json", action="store_true")
     rewrite.set_defaults(func=command_validate_rewrite)
-

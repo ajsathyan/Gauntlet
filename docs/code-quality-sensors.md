@@ -1,16 +1,26 @@
 # Adaptive code-quality sensors
 
-`gauntlet sensors` turns repository facts and the changed surface into a small,
-explained evidence plan. It does not install tools, change dependencies, or run
-the planned commands.
+`gauntlet sensors` discovers changed repository content, selects configured
+quality checks, executes them without a shell, and returns a compact completion
+verdict. Raw output and full command evidence stay in Git-private evidence
+storage rather than recurring model context.
 
-The V1 command family has three public operations:
+The command family has five public operations:
 
 - `sensors plan` returns a deterministic `gauntlet.sensor-plan/v1` document.
+- `sensors run` discovers changes, executes applicable configured commands once,
+  writes `gauntlet.sensor-evidence/v1`, and returns a compact
+  `gauntlet.sensor-handoff/v1`.
+- `sensors verify` rejects failing or stale evidence for the current source.
 - `sensors normalize` converts a tool result into
   `gauntlet.sensor-result/v1` evidence.
 - `sensors validate-rewrite` checks a
   `gauntlet.readability-rewrite-evidence/v1` receipt.
+
+The runner does not edit code or contain an autonomous repair controller. Codex
+uses the handoff's attention items, opens raw logs only when necessary, repairs
+the source, and invokes `sensors run` again. Any required failed, unavailable,
+not-run, or stale result blocks completion.
 
 ## Proportional planning
 
@@ -30,12 +40,13 @@ Scratch work selects no sensors unless the caller explicitly opts in for that
 request. An opt-in affects only the returned plan; it does not become repository
 configuration.
 
-For configured TypeScript application logic, the baseline covers formatting,
-type checking, linting, and focused tests. The planner can add evidence when the
+For configured application logic, the baseline covers formatting, type
+checking, linting, focused tests, and coverage. The planner can add evidence when the
 changed surface and existing configuration support it:
 
 - app logic can select complexity and dead-code/dependency evidence;
-- semantic or data-flow changes can select an architecture/dependency sensor;
+- durable source changes can select explicit Semgrep rules;
+- durable repository changes can select Gitleaks;
 - browser-facing behavior can select a browser sensor;
 - accessible UI behavior can select an accessibility sensor;
 - high-consequence logic can select a mutation sensor;
@@ -46,10 +57,18 @@ order of changed paths does not change the plan.
 
 ## Configuration and unsupported repositories
 
-Optional tools are discovery-only. Missing `dependency-cruiser` or `jscpd`
-configuration is reported as `not-configured`; a configured command that is not
-usable is reported as `unavailable`. Planning never adds either package, rewrites
-`package.json` or a lockfile, or changes Git state.
+Repository commands are declared in `gauntlet-sensors.json` as argument arrays,
+never shell strings. A coverage command may declare that it also covers focused
+tests, which prevents duplicate execution. Identical command arrays are
+deduplicated. Mutation remains consequence-triggered and runs after cheaper
+checks in repository configuration.
+
+Missing optional configuration is reported rather than invented. The normal
+Gauntlet install ships adapters and configuration but does not download external
+tools. `scripts/install.sh --with-sensor-tools` installs pinned Semgrep,
+coverage.py, and Gitleaks versions into an isolated
+`~/.codex/gauntlet-tools/` generation. Its receipt owns only that directory;
+tool failure does not invalidate the core Gauntlet install.
 
 An unsupported repository still receives a valid plan with an explicit
 limitation. The planner does not guess an ecosystem or invent a command. Add the
@@ -58,14 +77,15 @@ plan again.
 
 ## Normalized evidence
 
-Normalization keeps the stable facts needed by later workflow steps and a
-reference to the raw output. It does not copy the full raw output into the
-normalized result. Keep the referenced artifact for debugging and detailed
-review.
+The handoff contains pass IDs, counts, and only non-passing attention items with
+bounded summaries and evidence references. It deliberately omits repeated
+commands, working directories, tool versions, and raw pass output. Full evidence
+retains the argument array, working directory, exit status, duration, tool
+identity, source and plan fingerprints, raw-output digest, and raw-log reference.
 
-The `gauntlet.sensor-result/v1` schema is tool-neutral: consumers should use its
-sensor ID, result, evidence references, and optional command and summary rather
-than parse a tool's console format.
+Evidence is bound to the current Git revision, changed-file content, and sensor
+configuration. Editing relevant source or configuration invalidates earlier
+evidence. A caller-supplied result cannot establish a pass.
 
 ## Readability rewrites
 

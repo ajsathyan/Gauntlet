@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Adaptive sensors now discover changed code, execute repository-owned checks, block completion on required failures or stale evidence, and hand Codex compact attention items while preserving full raw evidence by reference. The optional Codex-only tool bootstrap installs pinned Semgrep, coverage.py, and Gitleaks versions in an isolated owned generation.
+
 - Reconcile completion metadata into flexible accepted PRDs without requiring legacy Epic headings.
 
 - Implement GAUNTLET-009: Adaptive code quality sensors.

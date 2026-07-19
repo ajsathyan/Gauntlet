@@ -1,0 +1,47 @@
+{
+  "commands": {
+    "coverage": {
+      "argv": [
+        "python3",
+        "scripts/run-coverage-sensor.py"
+      ],
+      "covers": [
+        "focused-tests"
+      ],
+      "required": true,
+      "timeoutSeconds": 1800
+    },
+    "gitleaks": {
+      "argv": [
+        "python3",
+        "scripts/run-gitleaks-sensor.py"
+      ],
+      "required": true
+    },
+    "linter": {
+      "argv": [
+        "uv",
+        "run",
+        "--no-project",
+        "--with",
+        "ruff>=0.12,<1",
+        "ruff",
+        "check",
+        "scripts",
+        "tests"
+      ],
+      "required": true
+    },
+    "semgrep": {
+      "argv": [
+        "python3",
+        "scripts/run-semgrep-sensor.py",
+        "--config",
+        "config/semgrep.yml",
+        "{changed_paths}"
+      ],
+      "required": true
+    }
+  },
+  "schema": "gauntlet.sensor-config/v1"
+}

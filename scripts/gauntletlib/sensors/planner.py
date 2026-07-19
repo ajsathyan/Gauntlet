@@ -9,17 +9,19 @@ SENSOR_IDS = (
     "type-checker",
     "linter",
     "focused-tests",
+    "coverage",
     "complexity",
     "dead-code-dependency",
-    "semantic-data-flow",
+    "semgrep",
+    "gitleaks",
     "browser",
     "accessibility",
-    "mutation",
     "dependency-cruiser",
     "jscpd",
+    "mutation",
 )
 
-BASELINE_IDS = frozenset(SENSOR_IDS[:4])
+BASELINE_IDS = frozenset(SENSOR_IDS[:5])
 OPTIONAL_PACKAGES = {
     "dependency-cruiser": "dependency-cruiser",
     "jscpd": "jscpd",
@@ -96,11 +98,13 @@ def _relevant(sensor, args):
         return True, "baseline evidence for a supported changed language"
     if sensor in {"complexity", "dead-code-dependency"}:
         return args.app_surface, "changed application logic"
-    if sensor == "semantic-data-flow":
+    if sensor == "semgrep":
         return (
             args.architecture_change or bool(args.consequence),
             "architecture, data-flow, or consequential logic changed",
         )
+    if sensor == "gitleaks":
+        return args.durable_change, "durable repository content changed"
     if sensor in {"browser", "accessibility"}:
         return args.frontend_surface, "frontend behavior changed"
     if sensor == "mutation":

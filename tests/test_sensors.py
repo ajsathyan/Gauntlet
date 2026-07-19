@@ -16,14 +16,16 @@ SENSOR_IDS = [
     "type-checker",
     "linter",
     "focused-tests",
+    "coverage",
     "complexity",
     "dead-code-dependency",
-    "semantic-data-flow",
+    "semgrep",
+    "gitleaks",
     "browser",
     "accessibility",
-    "mutation",
     "dependency-cruiser",
     "jscpd",
+    "mutation",
 ]
 
 
@@ -252,7 +254,9 @@ class SensorCliTests(unittest.TestCase):
             "type-checker",
             "linter",
             "focused-tests",
-            "semantic-data-flow",
+            "coverage",
+            "semgrep",
+            "gitleaks",
             "browser",
             "accessibility",
             "mutation",
@@ -411,6 +415,345 @@ class SensorCliTests(unittest.TestCase):
         self.assertEqual(invalid["status"], "fail")
         self.assertIs(invalid["valid"], False)
         self.assertTrue(invalid["findings"])
+
+    def write_sensor_command(self):
+        command = self.repo / "sensor-command.py"
+        command.write_text(
+            "\n".join(
+                [
+                    "import pathlib",
+                    "import sys",
+                    "sensor = sys.argv[1]",
+                    "root = pathlib.Path.cwd()",
+                    "output = root / '.gauntlet' / 'sensor-fixture'",
+                    "output.mkdir(parents=True, exist_ok=True)",
+                    "(output / f'{sensor}.executed').write_text('executed\\n')",
+                    "cache = root / '__pycache__'",
+                    "cache.mkdir(exist_ok=True)",
+                    "(cache / 'sensor-fixture.pyc').write_bytes(b'generated')",
+                    "failure = root / f'{sensor}.fail'",
+                    "print(f'{sensor} concise output')",
+                    "raise SystemExit(9 if failure.exists() else 0)",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return command
+
+    def evidence_path(self, reference):
+        prefix = "git:gauntlet-sensors/"
+        if reference.startswith(prefix):
+            git_path = git(
+                self.repo,
+                "rev-parse",
+                "--git-path",
+                "gauntlet-sensors",
+            ).stdout.strip()
+            root = Path(git_path)
+            if not root.is_absolute():
+                root = self.repo / root
+            return root / reference[len(prefix) :]
+        return Path(reference)
+
+    def write_sensor_config(self, commands, *, required=None):
+        required_ids = set(required or commands)
+        rendered_commands = {}
+        for sensor, command in commands.items():
+            entry = dict(command) if isinstance(command, dict) else {"argv": command}
+            entry.setdefault("required", sensor in required_ids)
+            rendered_commands[sensor] = entry
+        payload = {
+            "schema": "gauntlet.sensor-config/v1",
+            "commands": rendered_commands,
+        }
+        (self.repo / "gauntlet-sensors.json").write_text(
+            json.dumps(payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+    def run_sensors(self, *args, check=True):
+        return self.cli(
+            "run",
+            "--project-root",
+            str(self.repo),
+            "--workflow-mode",
+            "feature",
+            *args,
+            check=check,
+        )
+
+    def test_run_executes_selected_commands_and_returns_compact_handoff(self):
+        command = self.write_sensor_command()
+        self.write_sensor_config(
+            {
+                "linter": ["python3", str(command), "linter"],
+                "focused-tests": ["python3", str(command), "tests"],
+                "coverage": {
+                    "argv": ["python3", str(command), "tests"],
+                    "covers": ["focused-tests"],
+                },
+                "semgrep": ["python3", str(command), "semgrep"],
+                "gitleaks": ["python3", str(command), "gitleaks"],
+            }
+        )
+        source = self.repo / "app.py"
+        source.write_text("print('ready')\n", encoding="utf-8")
+
+        result = self.run_sensors()
+        handoff = json.loads(result.stdout)
+
+        self.assertEqual(handoff["schema"], "gauntlet.sensor-handoff/v1")
+        self.assertEqual(handoff["status"], "pass")
+        self.assertEqual(handoff["attention"], [])
+        self.assertIn("linter", handoff["passed"])
+        self.assertIn("coverage", handoff["passed"])
+        self.assertIn("semgrep", handoff["passed"])
+        self.assertIn("gitleaks", handoff["passed"])
+        self.assertNotIn("focused-tests", handoff["passed"])
+        self.assertNotIn("concise output", result.stdout)
+        self.assertNotIn(str(self.repo), result.stdout)
+        self.assertLess(len(result.stdout), 1600)
+        fixture_output = self.repo / ".gauntlet" / "sensor-fixture"
+        self.assertTrue((fixture_output / "linter.executed").is_file())
+        self.assertTrue((fixture_output / "tests.executed").is_file())
+        self.assertTrue((fixture_output / "semgrep.executed").is_file())
+        self.assertTrue((fixture_output / "gitleaks.executed").is_file())
+
+        evidence_path = self.evidence_path(handoff["evidenceRef"])
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        self.assertEqual(evidence["schema"], "gauntlet.sensor-evidence/v1")
+        self.assertEqual(evidence["sourceFingerprint"], handoff["sourceFingerprint"])
+        by_id = {item["sensor"]: item for item in evidence["results"]}
+        self.assertEqual(by_id["linter"]["exitCode"], 0)
+        self.assertEqual(by_id["linter"]["argv"][0], "python3")
+        self.assertEqual(by_id["linter"]["cwd"], str(self.repo.resolve()))
+        self.assertIn("rawOutputSha256", by_id["linter"])
+        self.assertIn("rawLogRef", by_id["linter"])
+        self.assertIn("durationMs", by_id["linter"])
+
+    def test_failure_blocks_completion_then_repair_rerun_passes_and_stale_evidence_fails(self):
+        command = self.write_sensor_command()
+        self.write_sensor_config(
+            {"linter": ["python3", str(command), "linter"]}
+        )
+        source = self.repo / "app.py"
+        source.write_text("print('broken')\n", encoding="utf-8")
+        (self.repo / "linter.fail").write_text("fail\n", encoding="utf-8")
+
+        failed_result = self.run_sensors(check=False)
+        failed = json.loads(failed_result.stdout)
+        self.assertNotEqual(failed_result.returncode, 0)
+        self.assertEqual(failed["status"], "fail")
+        self.assertEqual([item["sensor"] for item in failed["attention"]], ["linter"])
+        self.assertEqual(failed["attention"][0]["result"], "fail")
+        self.assertLessEqual(
+            len(failed["attention"][0]["summary"]),
+            420,
+        )
+
+        old_evidence = self.evidence_path(failed["evidenceRef"])
+        (self.repo / "linter.fail").unlink()
+        source.write_text("print('repaired')\n", encoding="utf-8")
+
+        stale = self.cli(
+            "verify",
+            "--project-root",
+            str(self.repo),
+            "--evidence",
+            str(old_evidence),
+            check=False,
+        )
+        stale_payload = json.loads(stale.stdout)
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertEqual(stale_payload["status"], "fail")
+        self.assertIn("stale", stale_payload["reason"].lower())
+
+        passed_result = self.run_sensors()
+        passed = json.loads(passed_result.stdout)
+        self.assertEqual(passed["status"], "pass")
+        self.assertNotEqual(
+            passed["sourceFingerprint"],
+            failed["sourceFingerprint"],
+        )
+        current = self.cli(
+            "verify",
+            "--project-root",
+                str(self.repo),
+                "--evidence",
+                str(self.evidence_path(passed["evidenceRef"])),
+        )
+        self.assertEqual(json.loads(current.stdout)["status"], "pass")
+
+    def test_verify_rejects_incomplete_private_evidence(self):
+        command = self.write_sensor_command()
+        self.write_sensor_config(
+            {"linter": ["python3", str(command), "linter"]}
+        )
+        (self.repo / "app.py").write_text("print('ready')\n", encoding="utf-8")
+        passed = json.loads(self.run_sensors().stdout)
+        evidence_path = self.evidence_path(passed["evidenceRef"])
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        evidence["results"] = []
+        evidence["verdict"] = "pass"
+        evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+
+        result = self.cli(
+            "verify",
+            "--project-root",
+            str(self.repo),
+            "--evidence",
+            str(evidence_path),
+            check=False,
+        )
+
+        payload = json.loads(result.stdout)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["status"], "fail")
+        self.assertIn("incomplete", payload["reason"].lower())
+
+    def test_deduplication_preserves_required_sensor_status(self):
+        command = self.write_sensor_command()
+        shared = ["python3", str(command), "shared"]
+        self.write_sensor_config(
+            {
+                "formatter": shared,
+                "linter": shared,
+            },
+            required=["linter"],
+        )
+        (self.repo / "app.py").write_text("print('broken')\n", encoding="utf-8")
+        (self.repo / "shared.fail").write_text("fail\n", encoding="utf-8")
+
+        result = self.run_sensors(check=False)
+        handoff = json.loads(result.stdout)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(handoff["status"], "fail")
+        self.assertEqual(
+            handoff["attention"][0]["sensors"],
+            ["formatter", "linter"],
+        )
+        evidence = json.loads(
+            self.evidence_path(handoff["evidenceRef"]).read_text(encoding="utf-8")
+        )
+        self.assertEqual(len(evidence["results"]), 1)
+        self.assertIs(evidence["results"][0]["required"], True)
+        self.assertEqual(
+            evidence["results"][0]["sensors"],
+            ["formatter", "linter"],
+        )
+
+    def test_failure_handoff_excludes_output_and_caps_raw_log_while_running(self):
+        command = self.repo / "noisy-sensor.py"
+        command.write_text(
+            "\n".join(
+                [
+                    "import sys",
+                    "if '--version' in sys.argv:",
+                    "    print('noisy fixture 1.0')",
+                    "    raise SystemExit(0)",
+                    "sys.stdout.write('x' * (3 * 1024 * 1024))",
+                    "print('\\ntoken=TOPSECRET')",
+                    "raise SystemExit(7)",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        self.write_sensor_config(
+            {"linter": ["python3", str(command)]}
+        )
+        (self.repo / "app.py").write_text("print('broken')\n", encoding="utf-8")
+
+        result = self.run_sensors(check=False)
+        handoff = json.loads(result.stdout)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("TOPSECRET", result.stdout)
+        self.assertEqual(
+            handoff["attention"][0]["summary"],
+            "Exited with code 7; inspect the referenced raw log.",
+        )
+        evidence_path = self.evidence_path(handoff["evidenceRef"])
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        raw_path = evidence_path.parent / evidence["results"][0]["rawLogRef"]
+        self.assertLessEqual(raw_path.stat().st_size, 2 * 1024 * 1024)
+        self.assertIn(
+            b"[Gauntlet truncated raw sensor output]",
+            raw_path.read_bytes(),
+        )
+
+    def test_renamed_source_uses_current_destination_path(self):
+        command = self.write_sensor_command()
+        self.write_sensor_config(
+            {"semgrep": ["python3", str(command), "semgrep"]}
+        )
+        old_path = self.repo / "old.py"
+        old_path.write_text("print('old')\n", encoding="utf-8")
+        git(self.repo, "add", ".")
+        git(self.repo, "commit", "-qm", "rename fixture")
+        git(self.repo, "mv", "old.py", "new.py")
+
+        handoff = json.loads(self.run_sensors().stdout)
+        evidence = json.loads(
+            self.evidence_path(handoff["evidenceRef"]).read_text(encoding="utf-8")
+        )
+
+        self.assertIn("new.py", evidence["changedPaths"])
+        self.assertNotIn("old.py", evidence["changedPaths"])
+        self.assertIn("semgrep", handoff["passed"])
+
+    def test_run_derives_changed_paths_and_does_not_need_manual_sensor_flags(self):
+        command = self.write_sensor_command()
+        self.write_sensor_config(
+            {
+                "coverage": ["python3", str(command), "coverage"],
+                "semgrep": ["python3", str(command), "semgrep"],
+                "gitleaks": ["python3", str(command), "gitleaks"],
+            }
+        )
+        source = self.repo / "service.py"
+        source.write_text("def service():\n    return True\n", encoding="utf-8")
+
+        payload = json.loads(self.run_sensors().stdout)
+
+        self.assertEqual(payload["status"], "pass")
+        self.assertEqual(
+            sorted(payload["passed"]),
+            ["coverage", "gitleaks", "semgrep"],
+        )
+        evidence = json.loads(
+            self.evidence_path(payload["evidenceRef"]).read_text(encoding="utf-8")
+        )
+        self.assertIn("service.py", evidence["changedPaths"])
+        fixture_output = self.repo / ".gauntlet" / "sensor-fixture"
+        self.assertTrue((fixture_output / "coverage.executed").is_file())
+        self.assertTrue((fixture_output / "semgrep.executed").is_file())
+        self.assertTrue((fixture_output / "gitleaks.executed").is_file())
+
+    def test_completion_consumer_rejects_the_gauntlet_009_planner_only_wrong_case(self):
+        router = (ROOT / "router" / "AGENTS.md").read_text(encoding="utf-8")
+        implementer = (
+            ROOT / "skills" / "implementer" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        documentation = (
+            ROOT / "docs" / "code-quality-sensors.md"
+        ).read_text(encoding="utf-8")
+        repository_config = json.loads(
+            (ROOT / "gauntlet-sensors.json").read_text(encoding="utf-8")
+        )
+        for value in (router, implementer):
+            self.assertIn("sensors run", value)
+            self.assertIn("completion", value)
+            self.assertIn("block", value)
+        self.assertIn("executes", documentation)
+        self.assertIn("A sensor plan or normalized result without execution is not proof", router)
+        self.assertNotIn("does not install tools, change dependencies, or run", documentation)
+        self.assertIn(
+            "--no-project",
+            repository_config["commands"]["linter"]["argv"],
+        )
 
 
 if __name__ == "__main__":

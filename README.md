@@ -60,7 +60,7 @@ The workflow is built around Research, Patch, Feature, and Release paths; Standa
 | Live Epic progress | Automatically starts one private loopback dashboard per PRD launch, opens it in the Codex in-app Browser when available, and refreshes run, agent, token, cost, and release facts without blocking implementation. |
 | Subagent orchestration | Renders cache-oriented bounded context, audits model requests and routing, bundles compatible Tickets without head-of-line blocking, and preserves parent-only consequential authority. |
 | Comparative evaluation | Admits isolated automatic-oracle tasks and runs condition-blind paired Gauntlet-versus-baseline experiments with replay, ablations, sealed core slots, and replaceable harness adapters. |
-| Adaptive code-quality sensors | Produces deterministic, language-aware plans from repository-configured checks, records compact normalized evidence, and validates behavior-preserving readability rewrites without installing optional tools. |
+| Adaptive code-quality sensors | Discovers changed code, executes repository-owned checks, blocks completion on required failures or stale evidence, and hands agents compact findings while retaining full raw evidence by reference. |
 | Skill quality bar | Gives future skill and workflow edits a practical behavior-delta, trigger, completion, proof, and token-cost bar without making every Patch heavier. |
 | Coverage gaps | Captures pending candidates when missing reusable guidance forced a material assumption or repeated review finding. |
 | Workflow speedup helpers | Classifies changed surfaces, recommends bounded tests, and generates redacted review packets without making every Patch run a heavy quality gate. |
@@ -269,6 +269,13 @@ Already cloned the repo?
 
 ```sh
 ./scripts/install.sh --target codex
+```
+
+Install the pinned optional Semgrep, coverage.py, and Gitleaks tools into an
+isolated Codex-owned generation:
+
+```sh
+./scripts/install.sh --target codex --with-sensor-tools
 ```
 
 If the target already contains global instructions, the first install stops before changing files. Later installs stop again when either the user-owned instructions or Gauntlet's candidate guidance has changed since the last acknowledged review. Review the two, resolve or confirm compatibility, then rerun with:

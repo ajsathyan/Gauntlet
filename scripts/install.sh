@@ -10,6 +10,7 @@ CODEX_PREFERENCES="${GAUNTLET_CODEX_PREFERENCES:-prompt}"
 CHECK_ONLY="${GAUNTLET_INSTALL_CHECK_ONLY:-0}"
 RESPONSE_STYLE="${GAUNTLET_RESPONSE_STYLE:-gauntlet}"
 CODEX_BIN_OVERRIDE="${GAUNTLET_CODEX_BIN:-}"
+WITH_SENSOR_TOOLS="${GAUNTLET_WITH_SENSOR_TOOLS:-0}"
 SKILLS_SRC="$ROOT/skills"
 if [ ! -d "$SKILLS_SRC" ] && [ -d "$ROOT/../skills" ]; then
   SKILLS_SRC="$ROOT/../skills"
@@ -24,6 +25,7 @@ usage() {
 Usage: scripts/install.sh [--target codex] [--agent-home PATH] [--check] [--instructions-reviewed]
                           [--response-style gauntlet|existing]
                           [--codex-preferences prompt|gauntlet|existing|skip] [--skip-git-hooks]
+                          [--with-sensor-tools]
 
 Targets:
   codex   Install Gauntlet as AGENTS.md under the agent home. Default home: ~/.codex
@@ -38,6 +40,7 @@ Environment:
   GAUNTLET_RESPONSE_STYLE   gauntlet or existing (default: gauntlet)
   GAUNTLET_CODEX_BIN       Codex executable override used to install required bundled plugins
   GAUNTLET_SKIP_GIT_HOOKS set to 1 to skip this repo's pre-commit hook install
+  GAUNTLET_WITH_SENSOR_TOOLS set to 1 to install pinned optional sensor tools
 USAGE
 }
 
@@ -69,6 +72,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --skip-git-hooks)
       SKIP_GIT_HOOKS="1"
+      shift
+      ;;
+    --with-sensor-tools)
+      WITH_SENSOR_TOOLS="1"
       shift
       ;;
     --instructions-reviewed)
@@ -139,6 +146,15 @@ case "$CHECK_ONLY" in
     ;;
   *)
     echo "GAUNTLET_INSTALL_CHECK_ONLY must be 0 or 1" >&2
+    exit 2
+    ;;
+esac
+
+case "$WITH_SENSOR_TOOLS" in
+  0|1)
+    ;;
+  *)
+    echo "GAUNTLET_WITH_SENSOR_TOOLS must be 0 or 1" >&2
     exit 2
     ;;
 esac
@@ -972,6 +988,13 @@ record_instruction_review "$AGENT_HOME/AGENTS.md" "$candidate_block" "$rendered_
 
 python3 "$AGENT_HOME/gauntlet/scripts/gauntlet.py" install verify \
   --target "$TARGET" --agent-home "$AGENT_HOME"
+
+if [ "$WITH_SENSOR_TOOLS" = "1" ]; then
+  if ! python3 "$AGENT_HOME/gauntlet/scripts/install-sensor-tools.py" install \
+    --agent-home "$AGENT_HOME"; then
+    echo "Gauntlet installer finding: optional sensor tools are unavailable; the core installation remains valid." >&2
+  fi
+fi
 
 if [ "$SKIP_GIT_HOOKS" != "1" ] && [ -d "$ROOT/.git" ]; then
   "$ROOT/scripts/install-git-hooks.sh" --repo "$ROOT" --gauntlet-root "$ROOT" >/dev/null

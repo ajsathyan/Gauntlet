@@ -3,7 +3,7 @@
     {
       "destination": "gauntlet/README.md",
       "executable": false,
-      "sha256": "bc15eb42c41e00a405df8e636ca998e2a9849c2b70c43ff2405ffd9454344dff",
+      "sha256": "1932418616ddb46e1faf90fd5b7778410250f32d8ec70f456aaf584b8acc676a",
       "source": "README.md"
     },
     {
@@ -49,9 +49,21 @@
       "source": "agents/codex/gauntlet_standard_worker.toml"
     },
     {
+      "destination": "gauntlet/config/semgrep.yml",
+      "executable": false,
+      "sha256": "21c681ba7bb2c455018e76e715aa0337cbc19bc113533246f240230c38c084cc",
+      "source": "config/semgrep.yml"
+    },
+    {
+      "destination": "gauntlet/config/sensor-tools.json",
+      "executable": false,
+      "sha256": "620f5d14d992cd7bb83434882041a3ef6a64023e7c3fc07a25c1e76775b62eef",
+      "source": "config/sensor-tools.json"
+    },
+    {
       "destination": "gauntlet/docs/code-quality-sensors.md",
       "executable": false,
-      "sha256": "cf19f64acbc8d8717c361ca5fef5f5d22061672bf4075cc731811a3379cfb62b",
+      "sha256": "9bf72b29311640270a731055c4d0b713012e091267a117f4120d5957010f6195",
       "source": "docs/code-quality-sensors.md"
     },
     {
@@ -555,7 +567,7 @@
     {
       "destination": "gauntlet/router/AGENTS.md",
       "executable": false,
-      "sha256": "15c75adae6105d39753bbbfffbfb4143ff4db4d6886baf7bd66d5f2fc7447517",
+      "sha256": "7b6487f5da7a2fccb7d4b6ed7e60d7d2d7e8cc7b2e20a01710d5637639cfe768",
       "source": "router/AGENTS.md"
     },
     {
@@ -879,8 +891,14 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/sensors/__init__.py",
       "executable": false,
-      "sha256": "41cfddd8098b55bf3433dcc3575e374182fc67966a78d5139f10c726e6876901",
+      "sha256": "3886f8b9e61e1fe89ab3e00963341a9b926ec6ae6643f35817aafb4159d34161",
       "source": "scripts/gauntletlib/sensors/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/sensors/config.py",
+      "executable": false,
+      "sha256": "6037d2902aadf4a89ff0ad0b3f71600be0aec43cb8902842f12ba1d459b09201",
+      "source": "scripts/gauntletlib/sensors/config.py"
     },
     {
       "destination": "gauntlet/scripts/gauntletlib/sensors/evidence.py",
@@ -891,8 +909,14 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/sensors/planner.py",
       "executable": false,
-      "sha256": "f6867811ac0846cc1c6e2998deef04dde4253ce7a4d5d686269549928cb066f3",
+      "sha256": "330d5556a638c8ad9d7e00d8b7b6f9c8d0151348158902021913993d79ed5d68",
       "source": "scripts/gauntletlib/sensors/planner.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/sensors/runner.py",
+      "executable": false,
+      "sha256": "0b93488599530155a57f5ec50ab77cc769d8037f4d51aa279afd0541eb665d16",
+      "source": "scripts/gauntletlib/sensors/runner.py"
     },
     {
       "destination": "gauntlet/scripts/generated_context.py",
@@ -919,9 +943,15 @@
       "source": "scripts/install-git-hooks.sh"
     },
     {
+      "destination": "gauntlet/scripts/install-sensor-tools.py",
+      "executable": true,
+      "sha256": "2d16378dc5c304acace8091dd75628d5961d81f6077f1ca4b15486b635d6b1a5",
+      "source": "scripts/install-sensor-tools.py"
+    },
+    {
       "destination": "gauntlet/scripts/install.sh",
       "executable": true,
-      "sha256": "86aa57fc077015fd70466c1bae00a2064ced03748fd2f4e1b70af1100d7ec507",
+      "sha256": "aabf023f9fbf0d5d157ec317c9089ce148c19a29dbf2eb469fd02ddeb7ba5ba9",
       "source": "scripts/install.sh"
     },
     {
@@ -967,10 +997,28 @@
       "source": "scripts/route-codex-agent.py"
     },
     {
+      "destination": "gauntlet/scripts/run-coverage-sensor.py",
+      "executable": true,
+      "sha256": "8ac9d5e2c9bdb89532b4c2a1d9fdad2e3cbf109b6cc65d79f1fc947beeb6fd00",
+      "source": "scripts/run-coverage-sensor.py"
+    },
+    {
+      "destination": "gauntlet/scripts/run-gitleaks-sensor.py",
+      "executable": true,
+      "sha256": "155f4d9739b1a3ef9452bec95eed02b0bfbc9fe2009535a20aced3f30f238289",
+      "source": "scripts/run-gitleaks-sensor.py"
+    },
+    {
       "destination": "gauntlet/scripts/run-orchestration-evals.py",
       "executable": true,
       "sha256": "ab8b42db92d3050419704e6e640b15fe24978f791eb8a5aae720f789e1d9e9ed",
       "source": "scripts/run-orchestration-evals.py"
+    },
+    {
+      "destination": "gauntlet/scripts/run-semgrep-sensor.py",
+      "executable": true,
+      "sha256": "d47e2b33f5fac8dcbf1ffc8431bc28a833cf249c193e24215ee8860ec7e24709",
+      "source": "scripts/run-semgrep-sensor.py"
     },
     {
       "destination": "gauntlet/scripts/run-skill-change-checks.sh",
@@ -1185,7 +1233,7 @@
     {
       "destination": "skills/implementer/SKILL.md",
       "executable": false,
-      "sha256": "f2053293ed136ee2ffc8cd20f7e10cc31efdba087a083acd19421708076e2c27",
+      "sha256": "a875570dcf8e3ef395baa87bdfb51126a7b1484be604cad60e5b32bb426a14ef",
       "source": "skills/implementer/SKILL.md"
     },
     {

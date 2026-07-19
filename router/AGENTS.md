@@ -51,6 +51,8 @@ When behavior changes, observe the relevant failure when a practical harness exi
 
 Evidence precedes completion claims. For material behavior, name an observable oracle. Use a plausible wrong case or required non-effect only when it distinguishes the intended result. Fields, phrases, statuses, receipts, and self-reports prove structure, not behavior. A child may write tests but cannot weaken the oracle; the parent independently inspects or reruns the proof.
 
+For code changes, run `python3 {{GAUNTLET_ROOT}}/scripts/gauntlet.py sensors run --project-root "$PROJECT_ROOT" --workflow-mode <scratch|patch|feature|release> --json` when the repository supplies sensor configuration. Treat its nonzero result as a completion blocker: inspect only the compact attention items, fix the code, and rerun. Keep referenced raw logs out of recurring model context unless a finding requires them. A sensor plan or normalized result without execution is not proof.
+
 For an accepted product launch:
 
 - freeze the accepted target once;

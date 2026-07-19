@@ -35,6 +35,7 @@ Optional example: read `examples/implementation-report.md` only when the output 
 - Resolve material added-scope deltas by updating affected ownership, dependencies, and proof. Keep no-op checks silent.
 - Child tests are evidence, not sole acceptance. A ticket may authorize edits to assertions, graders, fixtures, or oracles, but an edited oracle cannot establish acceptance until the parent independently reviews or redefines it.
 - Make tests behavior-sensitive: establish the intended failure when practical, include a plausible wrong case or required non-effect, and state what the result proves. Phrases, fields, and green commands alone do not prove semantics.
+- When `gauntlet-sensors.json` exists, run `gauntlet sensors run` before completion. A nonzero verdict blocks completion; use its compact attention items, open referenced raw logs only as needed, repair the code, and rerun. Planning or normalization alone is not sensor proof.
 - The parent reruns or inspects proof; consequential work may need independent black-box or hidden checks.
 - Retry silently only when safe, materially different, and authorized. Stop before repeating a failure fingerprint or risking destructive state.
 - Avoid broad rewrites, speculative abstractions, unrelated cleanup, and silent behavior changes.
