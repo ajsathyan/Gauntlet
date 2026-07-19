@@ -1375,6 +1375,38 @@ def test_generated_router_preflight_preserves_collisions_and_allows_upgrade():
             candidate,
             legacy_container=legacy_container,
         )
+        legacy_container.write_bytes(
+            b"user-owned prefix\n"
+            b"<!-- BEGIN GAUNTLET MANAGED BLOCK -->\n"
+            + legacy_router.read_bytes()
+            + b"<!-- END GAUNTLET MANAGED BLOCK -->\n"
+            b"user-owned suffix\n"
+        )
+        preflight_generated_payload(
+            legacy_home,
+            "gauntlet/AGENTS.md",
+            candidate,
+            legacy_container=legacy_container,
+        )
+        legacy_container.write_bytes(
+            legacy_router.read_bytes()
+            + b"<!-- BEGIN GAUNTLET MANAGED BLOCK -->\n"
+            b"different managed bytes\n"
+            b"<!-- END GAUNTLET MANAGED BLOCK -->\n"
+        )
+        try:
+            preflight_generated_payload(
+                legacy_home,
+                "gauntlet/AGENTS.md",
+                candidate,
+                legacy_container=legacy_container,
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(
+                "router bytes outside a managed block are not managed evidence"
+            )
         legacy_container.write_bytes(b"personal instructions only\n")
         try:
             preflight_generated_payload(

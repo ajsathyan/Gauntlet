@@ -369,7 +369,7 @@
     {
       "destination": "gauntlet/docs/thin-contract-assessment.md",
       "executable": false,
-      "sha256": "64a671fc1613403785986a7b31fbc0b9fda729ba36fae4434e20e78ce69b3d3b",
+      "sha256": "b3443cdec8d7ed61267d013b9ac9735e2b859a9ff38ff706470d75ed4c2c210c",
       "source": "docs/thin-contract-assessment.md"
     },
     {
@@ -729,7 +729,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/install/manifest.py",
       "executable": false,
-      "sha256": "c32cdf78fcfd0b4868f69831ec42dd0c000d131cc46f50af2a95f3e49188b202",
+      "sha256": "d77e3f3b1a1080870eedace44a0923cbf7735950edfebed33830645e1e651190",
       "source": "scripts/gauntletlib/install/manifest.py"
     },
     {

@@ -564,12 +564,44 @@ def preflight_generated_payload(
     elif legacy_container is not None and legacy_container.is_file():
         installed_bytes = installed.read_bytes()
         container_bytes = legacy_container.read_bytes()
-        if (
-            installed_bytes
-            and b"<!-- BEGIN GAUNTLET MANAGED BLOCK -->" not in container_bytes
-            and b"<!-- END GAUNTLET MANAGED BLOCK -->" not in container_bytes
+        begin = b"<!-- BEGIN GAUNTLET MANAGED BLOCK -->"
+        end = b"<!-- END GAUNTLET MANAGED BLOCK -->"
+        begin_count = container_bytes.count(begin)
+        end_count = container_bytes.count(end)
+        exact_single_copy = (
+            bool(installed_bytes)
             and container_bytes.count(installed_bytes) == 1
-        ):
+        )
+        marker_free_legacy = begin_count == 0 and end_count == 0
+        valid_managed_legacy = False
+        if begin_count == 1 and end_count == 1:
+            begin_at = container_bytes.find(begin)
+            end_at = container_bytes.find(end)
+            begin_after = begin_at + len(begin)
+            end_after = end_at + len(end)
+            router_at = container_bytes.find(installed_bytes)
+            begin_is_line = (
+                begin_at == 0 or container_bytes[begin_at - 1 : begin_at] == b"\n"
+            ) and (
+                begin_after == len(container_bytes)
+                or container_bytes[begin_after : begin_after + 1] == b"\n"
+                or container_bytes[begin_after : begin_after + 2] == b"\r\n"
+            )
+            end_is_line = (
+                end_at == 0 or container_bytes[end_at - 1 : end_at] == b"\n"
+            ) and (
+                end_after == len(container_bytes)
+                or container_bytes[end_after : end_after + 1] == b"\n"
+                or container_bytes[end_after : end_after + 2] == b"\r\n"
+            )
+            valid_managed_legacy = (
+                begin_at < end_at
+                and begin_is_line
+                and end_is_line
+                and begin_after <= router_at
+                and router_at + len(installed_bytes) <= end_at
+            )
+        if exact_single_copy and (marker_free_legacy or valid_managed_legacy):
             return
     raise ValueError(f"Refusing unowned generated destination collision: {destination}")
 
