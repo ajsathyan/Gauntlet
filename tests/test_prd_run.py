@@ -811,6 +811,16 @@ class PrdRunTests(unittest.TestCase):
         self.assertNotIn("problem", facts)
         self.assertNotIn("substantialChanges", facts)
 
+        lock = json.loads((self.run / "source-lock.json").read_text())
+        acceptance = lock["epics"]["E1"]["acceptance"]
+        acceptance["Design Acceptance"] = []
+        acceptance["Engineering Acceptance"] = []
+        projected = controller.project_pr_accepted_criteria(acceptance)
+        self.assertEqual(
+            {"Product Acceptance": ["The public balance is correct."]},
+            projected,
+        )
+
         run_facts = json.loads(self.command("run-facts", "--run", str(self.run)).stdout)
         self.assertEqual("gauntlet/epic-run-facts/v1", run_facts["schemaVersion"])
         self.assertEqual("E1", run_facts["epicId"])

@@ -2164,6 +2164,16 @@ def release_gates(manifest: dict[str, Any], completion: dict[str, Any]) -> list[
     return gates
 
 
+def project_pr_accepted_criteria(acceptance: Any) -> Any:
+    if not isinstance(acceptance, dict):
+        return acceptance
+    return {
+        group: criteria
+        for group, criteria in acceptance.items()
+        if criteria
+    }
+
+
 def cmd_project_pr(args: argparse.Namespace) -> None:
     run = run_path(args.run)
     manifest = load_manifest(run)
@@ -2227,7 +2237,7 @@ def cmd_project_pr(args: argparse.Namespace) -> None:
             "headSha": head, "epicVerificationSha256": sha_file(run / verification["receipt"]), "repository": repository,
             "runId": manifest["run_id"], "sourceLockSha256": manifest["source_lock_sha256"],
         },
-        "acceptedCriteria": epic["acceptance"],
+        "acceptedCriteria": project_pr_accepted_criteria(epic["acceptance"]),
         "changedPaths": changed_paths,
         "completion": completion,
         "deferrals": {"cannotVerify": epic["cannot_verify"], "nonGoals": epic["non_goals"]},
