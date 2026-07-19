@@ -69,7 +69,7 @@
     {
       "destination": "gauntlet/docs/coverage-gaps.md",
       "executable": false,
-      "sha256": "f5bb0ccf05dced1b9a4f93222dffee1f48ceded3f06f9e65964421cc3894a1d4",
+      "sha256": "a1c9469db42d5c81e876a7a86c12fcc09136eb79a60ec4dea404eaa7ed0b6a29",
       "source": "docs/coverage-gaps.md"
     },
     {
@@ -113,174 +113,6 @@
       "executable": false,
       "sha256": "1d756c7f733136e5a3820dd290edab3fa09cad3121e5ae26de3a7c46f7af7693",
       "source": "docs/gauntlet-diagrams/index.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-06-28-frontend-quality-gates.md",
-      "executable": false,
-      "sha256": "bb64ab67952b0a12cf7f3cfe1402b89293ba76ca41822fd3f3bfe15be7077714",
-      "source": "docs/gauntlet-runs/2026-06-28-frontend-quality-gates.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-06-28-gauntlet-v201-run-log.md",
-      "executable": false,
-      "sha256": "3d169ee3764c16ddb6d9ad6986966310706679c4c29a24325956799e02a3bff1",
-      "source": "docs/gauntlet-runs/2026-06-28-gauntlet-v201-run-log.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-06-28-product-thinking-proof-scope.md",
-      "executable": false,
-      "sha256": "4d35e2a57f217042047e32e8a13aa6f57c52addeabb01e8d99485aeb523d99ab",
-      "source": "docs/gauntlet-runs/2026-06-28-product-thinking-proof-scope.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-06-29-gauntlet-v202-product-thinking-proof-scope.md",
-      "executable": false,
-      "sha256": "b226762f32206bc4996904d7fefe62f213d0d4dc16596105afe23692a1c3b8cb",
-      "source": "docs/gauntlet-runs/2026-06-29-gauntlet-v202-product-thinking-proof-scope.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-06-30-production-quality-bar.md",
-      "executable": false,
-      "sha256": "dfe680723522105e310526f19c8efa2b8558b9ecb63dcd47678450dbab791152",
-      "source": "docs/gauntlet-runs/2026-06-30-production-quality-bar.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-06-30-workflow-speedup-helpers.md",
-      "executable": false,
-      "sha256": "42fdfa1d2707251c8c44cbcd9c9687a39ca3cb1c42978022fe714c97491ffe2c",
-      "source": "docs/gauntlet-runs/2026-06-30-workflow-speedup-helpers.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-01-promotion-scanner.md",
-      "executable": false,
-      "sha256": "ac796d973cffbefaf05ec50ef7caf58bd9d14e7d77c79f362710b0ce020f4a60",
-      "source": "docs/gauntlet-runs/2026-07-01-promotion-scanner.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-02-gap-007-reference-doc-paths.md",
-      "executable": false,
-      "sha256": "f46e8d541195f55aee514daedc2304ce64c80e6126bb52a33177b22b0714113a",
-      "source": "docs/gauntlet-runs/2026-07-02-gap-007-reference-doc-paths.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-04-archive-execution-cli.md",
-      "executable": false,
-      "sha256": "6b9fc9647bbab90691f1473dfd29033aae5d8e30e1ca68de4e9e9d4e99201a57",
-      "source": "docs/gauntlet-runs/2026-07-04-archive-execution-cli.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-04-thread-changelog.md",
-      "executable": false,
-      "sha256": "51618f056db5926e2a439427d6889924336797dd55ca88627792539b7c7f5bbb",
-      "source": "docs/gauntlet-runs/2026-07-04-thread-changelog.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-04-workflow-etiquette-checker.md",
-      "executable": false,
-      "sha256": "aab6ca0ea0a7ca8c768422725f3045c9af292c5a64b67fc744fdbfe56da95821",
-      "source": "docs/gauntlet-runs/2026-07-04-workflow-etiquette-checker.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-08-changelog-followup-helpers.md",
-      "executable": false,
-      "sha256": "18e014929b341787cd3035010e00137a3bb8875277bb5290d6e9890a27a8deac",
-      "source": "docs/gauntlet-runs/2026-07-08-changelog-followup-helpers.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-08-github-discipline-defaults.md",
-      "executable": false,
-      "sha256": "c999f2c61184128c3914648f9b62e297ba63ca58ee212c954b2eff2db9e17214",
-      "source": "docs/gauntlet-runs/2026-07-08-github-discipline-defaults.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-08-skill-writing-harness-lessons.md",
-      "executable": false,
-      "sha256": "9bc8397ba12fa47b507f8deca081a20630f864c30a9b1a5df0a036dc843d1a99",
-      "source": "docs/gauntlet-runs/2026-07-08-skill-writing-harness-lessons.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-09-quiet-workflow-guaranteed-merge.md",
-      "executable": false,
-      "sha256": "e5c39955f7a1954ae6e01f6d21491b55b2e67f09f0934a94f6ebad55a7a78cea",
-      "source": "docs/gauntlet-runs/2026-07-09-quiet-workflow-guaranteed-merge.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-10-deterministic-workflow-enforcement.md",
-      "executable": false,
-      "sha256": "6dbf59b5c1385b73a0b0d2b280d356aa0e13807c058754a140e1768b76a92b2b",
-      "source": "docs/gauntlet-runs/2026-07-10-deterministic-workflow-enforcement.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-10-single-workflow-planning.md",
-      "executable": false,
-      "sha256": "7ca1c8e672858ce6e7ea04ab240073ffa7413965544dbc5455ff4e1b4e5d1693",
-      "source": "docs/gauntlet-runs/2026-07-10-single-workflow-planning.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-11-single-closeout-command.md",
-      "executable": false,
-      "sha256": "ed796a8d752f65c3a9bb723646e4648315468c8415bcbbede9638a236761c00a",
-      "source": "docs/gauntlet-runs/2026-07-11-single-closeout-command.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-13-gauntlet-skill-bundle.md",
-      "executable": false,
-      "sha256": "83b2810e6a91337e6e80a9b01e5284b63464f44c424fa2d7a5ff36486cc2ac90",
-      "source": "docs/gauntlet-runs/2026-07-13-gauntlet-skill-bundle.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-13-local-document-profile.md",
-      "executable": false,
-      "sha256": "80264775f472365a8b17e11d796413ff029e8015a824bad1dd2c9762e95b398b",
-      "source": "docs/gauntlet-runs/2026-07-13-local-document-profile.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-13-meaningful-proof-policy.md",
-      "executable": false,
-      "sha256": "930e458854107d8789e7b396aa927c1c98e7523eee5b8e6a81f2fe6c6c7c567a",
-      "source": "docs/gauntlet-runs/2026-07-13-meaningful-proof-policy.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-13-response-style-install.md",
-      "executable": false,
-      "sha256": "4ba4d259b02de8ca4267c1190989986e978a79df939e8a54ec7ed51ce912ef1b",
-      "source": "docs/gauntlet-runs/2026-07-13-response-style-install.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-14-auditable-custom-agents.md",
-      "executable": false,
-      "sha256": "440468b570372e704f21444e8dd01552e495a21ad3e78cafcbc95a88f86e2f10",
-      "source": "docs/gauntlet-runs/2026-07-14-auditable-custom-agents.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-14-autonomous-epic-execution.md",
-      "executable": false,
-      "sha256": "30b6c5124c7c3e261ce0a9cc49f5071ac026b1aba82ed665ca43b145b5029051",
-      "source": "docs/gauntlet-runs/2026-07-14-autonomous-epic-execution.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-14-default-on-local-docs.md",
-      "executable": false,
-      "sha256": "838924337a8574f74e087fb5520c8a2498819d81977233698a8ba7b2da2f74e1",
-      "source": "docs/gauntlet-runs/2026-07-14-default-on-local-docs.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-14-parent-integration-branch.md",
-      "executable": false,
-      "sha256": "0b6bac72c14af9841ddaa73fa01e6208f1e92edec825af6669d5f3405dc1e757",
-      "source": "docs/gauntlet-runs/2026-07-14-parent-integration-branch.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-14-prd-project-pr-review-units.md",
-      "executable": false,
-      "sha256": "b3e2dd3c15f8edb535b269eac8b6a371f901b72b67828fff351d32d02307363b",
-      "source": "docs/gauntlet-runs/2026-07-14-prd-project-pr-review-units.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-runs/2026-07-14-prd-ticket-execution.md",
-      "executable": false,
-      "sha256": "a6eb0fa4c3971ee3dae596e33f3be083f740400f588b1366d1fb5620fe95879e",
-      "source": "docs/gauntlet-runs/2026-07-14-prd-ticket-execution.md"
     },
     {
       "destination": "gauntlet/docs/generated-context.md",
@@ -1203,7 +1035,7 @@
     {
       "destination": "skills/promotion-scanner/examples/promotion-brief.md",
       "executable": false,
-      "sha256": "636571a6cf4c9d6223ed83930190655706abd86ec4a502d21a4e268b0fffb602",
+      "sha256": "7b8aecd0822dadbe98c3d049e02710f8e592a32de125395f3a50f75bb49b5c8b",
       "source": "skills/promotion-scanner/examples/promotion-brief.md"
     },
     {
@@ -1473,7 +1305,7 @@
     {
       "destination": "gauntlet/templates/local-docs/doc_org.md.tmpl",
       "executable": false,
-      "sha256": "0aa61ee648cfde8ba2a71581315800b532c13b5ffd41ada30b4e9308ed72230f",
+      "sha256": "6a865e6a3e11a83aa83f13ae8d982efc40a9046d3dcf7b29c409f16d165ae345",
       "source": "templates/local-docs/doc_org.md.tmpl"
     },
     {

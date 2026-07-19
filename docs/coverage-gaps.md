@@ -12,7 +12,7 @@ Do not treat this file as standards. A gap means "we noticed missing guidance," 
 Status: pending
 Surface:
 Seen in:
-- docs/gauntlet-runs/YYYY-MM-DD-slug.md
+- docs/workflow-etiquette.md
 
 Gap:
 

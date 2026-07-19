@@ -3,7 +3,7 @@
 Verdict: Candidates found
 
 Evidence reviewed:
-- `docs/gauntlet-runs/2026-07-01-live-ops.md`
+- `docs/workflow-etiquette.md`
 - monitor tail excerpts from 2026-07-01 14:05-14:30
 - subagent report `ops-auth-cap-review`
 - changed code under `scripts/ops/cleanup.py`

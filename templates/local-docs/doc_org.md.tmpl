@@ -8,8 +8,6 @@ file with `local-docs/INDEX.md` before changing those documents.
 - Durable product designs: `local-docs/designs/`
 - Research: `local-docs/research/`
 - Decisions whose reasoning must survive: `local-docs/decisions/`
-- Legacy PRD, Epic, and execution files: their existing paths, read-only unless the
-  user explicitly asks to edit the owning document
 - Tracked maintainer documentation: the repository's established documentation path
 
 `doc_org.md` and `local-docs/` are ignored locally. They are not a security
@@ -44,9 +42,9 @@ Independent Verify reads the accepted design and exact integrated revision and
 returns separate Build, Architecture, and Sensor verdicts. The Build verdict is
 authoritative for accepted outcomes; green sensors cannot replace missing behavior.
 
-The default path creates no implementation plan document, Epic, Ticket Graph,
-Execution Run, journal, dashboard, telemetry, or analytics state. Existing legacy
-files remain readable and are not rewritten merely to adopt this lifecycle.
+The local-document profile stores product intent and durable reasoning only.
+Implementation plans and child workstream assignments remain task-temporary, and
+runtime coordination state stays outside the document tree.
 
 ## Secrets
 
