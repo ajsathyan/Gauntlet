@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reconcile completion metadata into flexible accepted PRDs without requiring legacy Epic headings.
+
 - Implement GAUNTLET-009: Adaptive code quality sensors.
 
 - Omit empty named acceptance groups from generated run-backed Project PR facts.
