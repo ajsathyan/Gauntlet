@@ -108,6 +108,17 @@ class WorkflowModeRuntimeTests(unittest.TestCase):
                 )
                 self.assertIn("intended to be committed", context)
                 self.assertIn("shared with collaborators", context)
+                self.assertIn(
+                    "apply the chosen mode immediately to this active task", context
+                )
+                self.assertIn(
+                    "Gauntlet means follow the inherited Gauntlet workflow", context
+                )
+                self.assertIn(
+                    "Scratch means perform only the explicitly requested work", context
+                )
+                self.assertIn("run no test, lint, build, smoke", context)
+                self.assertIn("clearly disclose unverified changes", context)
                 self.assertIn("supplements all applicable AGENTS.md", context)
                 self.assertIn("continue to follow them", context)
                 self.assertIn("do not replace or ignore them", context)
@@ -194,11 +205,32 @@ class WorkflowModeRuntimeTests(unittest.TestCase):
 
         read = self.run_hook(
             self.pre_tool_fixture(
-                "mcp__filesystem__read_file", {"path": str(self.agents)}
+                "read_file", {"path": str(self.agents)}
             )
         )
         self.assertEqual(read.returncode, 0)
         self.assertEqual(read.stdout, b"")
+        mcp_read = self.decode_json(
+            self.run_hook(
+                self.pre_tool_fixture(
+                    "mcp__filesystem__read_file", {"path": str(self.agents)}
+                )
+            )
+        )
+        self.assertEqual(
+            mcp_read["hookSpecificOutput"]["permissionDecision"], "deny"
+        )
+        misleading = self.decode_json(
+            self.run_hook(
+                self.pre_tool_fixture(
+                    "mcp__filesystem__read_and_write_file",
+                    {"path": "changed", "content": "x"},
+                )
+            )
+        )
+        self.assertEqual(
+            misleading["hookSpecificOutput"]["permissionDecision"], "deny"
+        )
         ask = self.run_hook(
             self.pre_tool_fixture(
                 "request_user_input", {"questions": [{"question": "Choose a mode"}]}

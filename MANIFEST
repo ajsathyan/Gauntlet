@@ -1011,7 +1011,7 @@
     {
       "destination": "gauntlet/scripts/workflow-mode.py",
       "executable": true,
-      "sha256": "4ffce5e386bc33412c4989764aaddbc54dde1d3cb42f3401f0df3e6dbbb9cc51",
+      "sha256": "1e6338b674cd8beb380542be87c072020022d772ecd1780e19e3a6c93bc902df",
       "source": "scripts/workflow-mode.py"
     },
     {

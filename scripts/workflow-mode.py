@@ -39,26 +39,34 @@ SCRATCH_CONTEXT = (
     + ADDITIVE_CONTEXT
 )
 
-READ_ONLY_TOOL_VERBS = {
-    "fetch",
+READ_ONLY_TOOL_NAMES = {
     "find",
-    "finance",
-    "get",
-    "inspect",
+    "get_file_info",
+    "get_goal",
     "list",
+    "list_agents",
+    "list_allowed_directories",
+    "list_directory",
+    "list_directory_with_sizes",
+    "list_mcp_resource_templates",
+    "list_mcp_resources",
     "open",
-    "query",
     "read",
+    "read_file",
+    "read_mcp_resource",
+    "read_multiple_files",
+    "read_text_file",
+    "read_thread_terminal",
     "screenshot",
     "search",
-    "sports",
+    "search_files",
     "stat",
-    "time",
     "view",
-    "weather",
+    "view_image",
 }
-NON_REPOSITORY_WRITE_TOOLS = {
+NON_REPOSITORY_TOOLS = {
     "request_user_input",
+    "tool_search",
     "wait_agent",
 }
 
@@ -128,7 +136,12 @@ def session_context(mode: str | None, declaration_exists: bool) -> str:
         'or Scratch?" After the user chooses, use only '
         f"`{script} bootstrap gauntlet` or `{script} bootstrap scratch` to persist "
         "the exact repository-owned declaration. It is intended to be committed and "
-        "shared with collaborators. Read-only inspection may continue while waiting. "
+        "shared with collaborators. After bootstrap succeeds, apply the chosen mode "
+        "immediately to this active task: Gauntlet means follow the inherited "
+        "Gauntlet workflow; Scratch means perform only the explicitly requested work, "
+        "run no test, lint, build, smoke, or Gauntlet workflow step unless explicitly "
+        "requested, and clearly disclose unverified changes. Read-only inspection may "
+        "continue while waiting. "
         + ADDITIVE_CONTEXT
     )
 
@@ -161,11 +174,12 @@ def is_read_only_tool(tool_name: object) -> bool:
     if not isinstance(tool_name, str) or not tool_name:
         return False
     normalized = tool_name.casefold()
-    if normalized in NON_REPOSITORY_WRITE_TOOLS:
+    if normalized in NON_REPOSITORY_TOOLS:
         return True
+    if normalized.startswith("mcp__"):
+        return False
     leaf = normalized.rsplit("__", 1)[-1]
-    verb = leaf.split("_", 1)[0]
-    return verb in READ_ONLY_TOOL_VERBS
+    return leaf in READ_ONLY_TOOL_NAMES
 
 
 def is_exact_bootstrap(tool_name: object, tool_input: object) -> bool:
