@@ -21,6 +21,7 @@ from tests.workflow.policy import (
     test_plugin_manifests_bundle_shared_skills,
 )
 from tests.workflow.quality import test_skill_changes_are_guarded_by_pre_commit
+from tests.workflow.sensors import test_adaptive_code_quality_sensor_contracts
 from tests.test_land import test_land_workflow_behavior
 
 
@@ -41,6 +42,7 @@ LIFECYCLE_CASES = (
     test_local_document_profile_preserves_tracked_docs_and_primary_canonical_copy,
     test_document_draft_lifecycle_behavior,
     test_live_progress_projection_dashboard_and_production_assets,
+    test_adaptive_code_quality_sensor_contracts,
 )
 
 PRD_CASES = (test_prd_execution_run_controller_behavior,)
