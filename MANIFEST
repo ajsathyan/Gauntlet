@@ -3,7 +3,7 @@
     {
       "destination": "gauntlet/README.md",
       "executable": false,
-      "sha256": "915960e1037a81caa88cc8dd7229d78953668a728c3bb29b85630ca71f89c5fc",
+      "sha256": "bc15eb42c41e00a405df8e636ca998e2a9849c2b70c43ff2405ffd9454344dff",
       "source": "README.md"
     },
     {
@@ -789,7 +789,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/install/verify.py",
       "executable": false,
-      "sha256": "9de701a186e68e79fb56063e563cadfc055f7cbca9d0733bf8097a00451d3b3d",
+      "sha256": "842bb9c02d4a42b54ec3aa0e49719f1ebca444c7fdf0f47502dba4ecc09a4277",
       "source": "scripts/gauntletlib/install/verify.py"
     },
     {
@@ -907,6 +907,12 @@
       "source": "scripts/install-codex-agents.py"
     },
     {
+      "destination": "gauntlet/scripts/install-codex-hooks.py",
+      "executable": true,
+      "sha256": "ef03e90a155acd06e3f2e16d7fb3e9a851d7e80878aafb9cea7c8bfcdadc58cd",
+      "source": "scripts/install-codex-hooks.py"
+    },
+    {
       "destination": "gauntlet/scripts/install-git-hooks.sh",
       "executable": true,
       "sha256": "32471de6272fee76b7d56abd97e0c8a5430228d470a9b755665849095c85475f",
@@ -915,7 +921,7 @@
     {
       "destination": "gauntlet/scripts/install.sh",
       "executable": true,
-      "sha256": "bffd76d703c6c150b53e240919cec2e875efb6fe1e5a9b6d99c4f7fa53e0199c",
+      "sha256": "86aa57fc077015fd70466c1bae00a2064ced03748fd2f4e1b70af1100d7ec507",
       "source": "scripts/install.sh"
     },
     {
@@ -1001,6 +1007,12 @@
       "executable": false,
       "sha256": "7d13660b0549556ccfb2c804cb3a03d205e498909ee31fc171ca22a56c11993a",
       "source": "scripts/thread_titles.py"
+    },
+    {
+      "destination": "gauntlet/scripts/workflow-mode.py",
+      "executable": true,
+      "sha256": "1e6338b674cd8beb380542be87c072020022d772ecd1780e19e3a6c93bc902df",
+      "source": "scripts/workflow-mode.py"
     },
     {
       "destination": "skills/adversarial-reviewer/SKILL.md",

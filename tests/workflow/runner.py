@@ -6,6 +6,7 @@ import argparse
 
 from tests.workflow.install import (
     test_codex_install_merges_preferences_without_silent_overwrite,
+    test_codex_hook_install_preserves_user_state_and_fails_closed,
     test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks,
 )
 from tests.workflow.lifecycle import (
@@ -36,6 +37,7 @@ POLICY_CASES = (
 INSTALL_CASES = (
     test_install_migrates_exact_legacy_layout_and_rejects_malformed_blocks,
     test_codex_install_merges_preferences_without_silent_overwrite,
+    test_codex_hook_install_preserves_user_state_and_fails_closed,
 )
 
 LIFECYCLE_CASES = (
