@@ -15,6 +15,10 @@ from .application import (
     verify_entry,
 )
 from .contracts import ContractError
+from .git_repository import GitRepository
+
+
+GIT_REPOSITORY = GitRepository()
 
 
 def _read_json(path, label):
@@ -88,6 +92,7 @@ def command_bind_candidate(args):
                 commit=args.commit,
                 tree=args.tree,
                 accepted_design_reader=load_accepted_design,
+                git_repository=GIT_REPOSITORY,
             )
         },
     )
@@ -117,6 +122,7 @@ def command_record_verdict(args):
                 verdict=args.verdict,
                 evidence=_read_json(args.evidence, "verdict evidence"),
                 accepted_design_reader=load_accepted_design,
+                git_repository=GIT_REPOSITORY,
             )
         },
     )

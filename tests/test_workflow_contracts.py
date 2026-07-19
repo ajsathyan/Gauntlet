@@ -38,6 +38,10 @@ OUTCOMES = [
         "sha256": "sha256:" + hashlib.sha256(b"2. Dashboard is published.").hexdigest(),
     },
 ]
+CONTRACT_APPLICABILITY = {
+    "architecture": {"applicable": False, "sha256": None},
+    "sensor": {"applicable": False, "sha256": None},
+}
 
 
 class WorkflowContractTests(unittest.TestCase):
@@ -48,6 +52,7 @@ class WorkflowContractTests(unittest.TestCase):
             design_sha256=DESIGN_SHA256,
             acceptance_sha256=ACCEPTANCE_SHA256,
             outcomes=OUTCOMES,
+            contract_applicability=CONTRACT_APPLICABILITY,
         )
         return bind_candidate_revision(
             contract,
@@ -104,6 +109,7 @@ class WorkflowContractTests(unittest.TestCase):
                 "sha256": DESIGN_SHA256,
                 "acceptanceSha256": ACCEPTANCE_SHA256,
                 "outcomes": OUTCOMES,
+                "contractApplicability": CONTRACT_APPLICABILITY,
             },
         )
         keys = set()
@@ -129,6 +135,7 @@ class WorkflowContractTests(unittest.TestCase):
             design_sha256=DESIGN_SHA256,
             acceptance_sha256=ACCEPTANCE_SHA256,
             outcomes=OUTCOMES,
+            contract_applicability=CONTRACT_APPLICABILITY,
         )
         self.assertIsNone(accepted["candidateRevision"])
         self.assertNotIn("commit", accepted["acceptedDesign"])
@@ -183,6 +190,17 @@ class WorkflowContractTests(unittest.TestCase):
                 "build",
                 verdict="not-applicable",
             )
+
+    def test_present_architecture_or_sensor_contract_rejects_not_applicable(self):
+        for area in ("architecture", "sensor"):
+            with self.subTest(area=area):
+                contract = self.contract()
+                contract["acceptedDesign"]["contractApplicability"][area] = {
+                    "applicable": True,
+                    "sha256": "sha256:" + "a" * 64,
+                }
+                with self.assertRaisesRegex(ContractError, "cannot be not-applicable"):
+                    self.verdict(contract, area, verdict="not-applicable")
 
     def test_cannot_verify_blocks_each_area(self):
         for area in ("build", "architecture", "sensor"):
@@ -302,8 +320,18 @@ class WorkflowContractTests(unittest.TestCase):
             "sha256": DESIGN_SHA256,
             "acceptanceSha256": ACCEPTANCE_SHA256,
             "outcomes": OUTCOMES,
+            "contractApplicability": CONTRACT_APPLICABILITY,
         }
         calls = []
+
+        class Repository:
+            def resolve_candidate(self, project_root, commit, tree):
+                return {"commit": commit, "tree": tree}
+
+            def resolve_evidence(self, project_root, commit, locator):
+                return f"revision:{commit}#{locator}"
+
+        repository = Repository()
 
         def reader(project_root, design):
             calls.append((project_root, design))
@@ -339,6 +367,7 @@ class WorkflowContractTests(unittest.TestCase):
             commit=COMMIT,
             tree=TREE,
             accepted_design_reader=reader,
+            git_repository=repository,
         )
         recorded = record_verification_verdict(
             project_root="adapter-root",
@@ -348,6 +377,7 @@ class WorkflowContractTests(unittest.TestCase):
             verdict="pass",
             evidence={"directEvidence": ["sensor evidence"]},
             accepted_design_reader=reader,
+            git_repository=repository,
         )
         self.assertEqual(recorded["verdicts"]["sensor"]["verdict"], "pass")
         self.assertEqual(calls, [("adapter-root", "adapter-design")] * 3)

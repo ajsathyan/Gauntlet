@@ -193,12 +193,25 @@ class SensorToolInstallTests(unittest.TestCase):
         self.assertIn("bin/coverage", failed.stdout)
 
         generation = current.resolve()
-        preserved_coverage = generation / "bin" / "coverage"
+        generation_name = generation.name
         removed = json.loads(self.cli("remove").stdout)
+        preserved_coverage = (
+            self.agent_home
+            / "gauntlet-tools"
+            / "preserved-generations"
+            / generation_name
+            / "bin"
+            / "coverage"
+        )
         self.assertEqual(removed["action"], "removed")
         self.assertTrue(preserved_coverage.exists())
         self.assertTrue(
             any("bin/coverage" in finding for finding in removed["findings"])
+        )
+        self.cli("install")
+        self.assertNotIn(
+            "user-modified",
+            (current / "bin" / "coverage").read_text(encoding="utf-8"),
         )
 
     def test_remove_preserves_and_reports_an_unknown_generation_file(self):
@@ -209,12 +222,42 @@ class SensorToolInstallTests(unittest.TestCase):
         unknown.write_text("preserve me\n", encoding="utf-8")
 
         removed = json.loads(self.cli("remove").stdout)
+        preserved_unknown = (
+            self.agent_home
+            / "gauntlet-tools"
+            / "preserved-generations"
+            / generation.name
+            / "user-owned.txt"
+        )
 
         self.assertEqual(removed["action"], "removed")
-        self.assertEqual(unknown.read_text(encoding="utf-8"), "preserve me\n")
+        self.assertEqual(
+            preserved_unknown.read_text(encoding="utf-8"),
+            "preserve me\n",
+        )
         self.assertTrue(
             any("user-owned.txt" in finding for finding in removed["findings"])
         )
+
+    def test_direct_install_migrates_a_predecessor_receipt(self):
+        installed = json.loads(self.cli("install").stdout)
+        root = self.agent_home / "gauntlet-tools"
+        receipt_path = root / "receipt.json"
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt.pop("contents")
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+        upgraded = json.loads(self.cli("install").stdout)
+
+        preserved = (
+            root
+            / "preserved-generations"
+            / installed["currentGeneration"]
+        )
+        self.assertTrue((preserved / "bin" / "coverage").is_file())
+        self.assertIn("contents", upgraded)
+        self.assertTrue(upgraded["findings"])
+        self.assertTrue((root / "current" / "bin" / "coverage").is_file())
 
     def test_predecessor_receipt_uninstall_preserves_then_reinstalls(self):
         installed = json.loads(self.cli("install").stdout)

@@ -29,9 +29,13 @@ against the bound temporary contract and accepted design.
    - **Build Verdict:** `Pass`, `Fail`, or `Cannot verify` for every accepted product outcome and required non-effect.
    - **Architecture Verdict:** `Pass`, `Fail`, `Not applicable`, or `Cannot verify`.
    - **Sensor Verdict:** `Pass`, `Fail`, `Not applicable`, or `Cannot verify`.
+   `Not applicable` is valid only when the accepted source has no nonempty exact
+   section for that Architecture or Sensor Contract.
 6. Use `workflow record-verdict` to record each of those three verdicts, passing
    the updated temporary contract forward each time. Build outcome evidence uses
-   a distinct `revision:<commit>#<locator>` reference for every accepted outcome.
+   a distinct `revision:<commit>#path:<candidate-relative-file>` reference for
+   every accepted outcome. The referenced file must exist in that exact Git
+   revision.
 7. Run `workflow completion-check`. A failed command blocks completion. Remove
    the task-temporary workflow files after the handoff; never preserve them as
    product documents or controller state.

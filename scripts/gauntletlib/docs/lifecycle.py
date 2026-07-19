@@ -819,7 +819,17 @@ def _indexed_design(context, supplied):
 
 
 def exact_acceptance_section(source_text):
-    matches = list(re.finditer(r"^## Acceptance[ \t]*\r?$", source_text, re.MULTILINE))
+    return exact_named_section(source_text, "Acceptance")
+
+
+def exact_named_section(source_text, title):
+    matches = list(
+        re.finditer(
+            rf"^## {re.escape(title)}[ \t]*\r?$",
+            source_text,
+            re.MULTILINE,
+        )
+    )
     if len(matches) != 1:
         return ""
     start = matches[0].start()
@@ -835,6 +845,21 @@ def exact_acceptance_section(source_text):
         and not line.strip().lower().startswith(("*guidance:", "_guidance:"))
     ]
     return section if visible_lines else ""
+
+
+def _optional_contract_binding(source_text, title):
+    headings = re.findall(
+        rf"^## {re.escape(title)}[ \t]*\r?$",
+        source_text,
+        re.MULTILINE,
+    )
+    if len(headings) > 1:
+        raise RuntimeError(f"Accepted design has multiple exact '{title}' sections.")
+    section = exact_named_section(source_text, title)
+    return {
+        "applicable": bool(section),
+        "sha256": "sha256:" + sha256(section.encode("utf-8")) if section else None,
+    }
 
 
 def acceptance_outcome_bindings(acceptance):
@@ -996,6 +1021,13 @@ def load_accepted_design(project_root, supplied):
         "sha256": "sha256:" + record["sourceSha256"],
         "acceptanceSha256": "sha256:" + current_acceptance,
         "outcomes": outcomes,
+        "contractApplicability": {
+            "architecture": _optional_contract_binding(
+                source_text,
+                "Architecture Contract",
+            ),
+            "sensor": _optional_contract_binding(source_text, "Sensor Contract"),
+        },
     }
 
 

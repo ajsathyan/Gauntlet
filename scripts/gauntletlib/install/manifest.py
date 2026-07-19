@@ -529,6 +529,51 @@ def sync_payload(root: Path, agent_home: Path) -> list[str]:
     return findings
 
 
+def preflight_generated_payload(
+    agent_home: Path,
+    destination: str,
+    candidate: Path,
+    *,
+    legacy_container: Path | None = None,
+) -> None:
+    """Reject replacement of modified or unowned installer-rendered bytes."""
+
+    installed = _generated_destination_path(agent_home, destination)
+    if candidate.is_symlink() or not candidate.is_file():
+        raise ValueError(f"Generated payload candidate is not a real file: {candidate}")
+    if not installed.exists():
+        return
+    candidate_sha = _sha256(candidate)
+    installed_sha = _sha256(installed)
+    if installed_sha == candidate_sha:
+        return
+    receipt = _load_receipt(agent_home)
+    if receipt is not None:
+        generated = {
+            row["destination"]: row
+            for row in _generated_receipt_entries(receipt, agent_home)
+        }
+        owned = generated.get(destination)
+        if owned is not None and installed_sha == owned["sha256"]:
+            return
+        if owned is not None:
+            raise ValueError(
+                f"Refusing modified prior-receipt-owned generated destination: "
+                f"{destination}"
+            )
+    elif legacy_container is not None and legacy_container.is_file():
+        installed_bytes = installed.read_bytes()
+        container_bytes = legacy_container.read_bytes()
+        if (
+            installed_bytes
+            and b"<!-- BEGIN GAUNTLET MANAGED BLOCK -->" not in container_bytes
+            and b"<!-- END GAUNTLET MANAGED BLOCK -->" not in container_bytes
+            and container_bytes.count(installed_bytes) == 1
+        ):
+            return
+    raise ValueError(f"Refusing unowned generated destination collision: {destination}")
+
+
 def record_generated_payload(agent_home: Path, destination: str) -> None:
     """Add an installer-rendered file to the ownership receipt after it is written."""
 

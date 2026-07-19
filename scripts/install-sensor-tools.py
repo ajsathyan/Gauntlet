@@ -343,14 +343,11 @@ def _remove_owned_generation(generation, receipt):
     return findings
 
 
-def _preserve_predecessor_generation(root, generation_name, generation):
-    """Move an unverifiable predecessor generation out of the install namespace."""
+def _preserve_generation(root, generation_name, generation, description):
+    """Move preserved generation content out of the active install namespace."""
 
     if not generation.exists() and not generation.is_symlink():
-        return [
-            "predecessor receipt generation is already missing; "
-            "no generation content was removed"
-        ]
+        return None, [f"{description} is already missing; no content was removed"]
     preserved_root = root / "preserved-generations"
     if preserved_root.is_symlink() or (
         preserved_root.exists() and not preserved_root.is_dir()
@@ -365,10 +362,17 @@ def _preserve_predecessor_generation(root, generation_name, generation):
         preserved = preserved_root / f"{generation_name}-{suffix}"
         suffix += 1
     os.replace(generation, preserved)
-    return [
-        "preserved predecessor receipt generation without deleting unverifiable "
-        f"content: {preserved}"
-    ]
+    return preserved, [f"preserved {description}: {preserved}"]
+
+
+def _retarget_activation(current, generation):
+    temporary = current.with_name(".current.migration")
+    temporary.unlink(missing_ok=True)
+    try:
+        os.symlink(generation, temporary)
+        os.replace(temporary, current)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _atomic_json(path, value):
@@ -418,6 +422,39 @@ def install(args):
     generation_name = manifest_sha[:16]
     generation = root / "generations" / generation_name
     receipt_path = root / "receipt.json"
+    migration_findings = []
+    predecessor_original = None
+    predecessor_preserved = None
+    if receipt_path.is_file():
+        predecessor = json.loads(receipt_path.read_text(encoding="utf-8"))
+        if (
+            predecessor.get("schema") == RECEIPT_SCHEMA
+            and "contents" not in predecessor
+        ):
+            predecessor_name, predecessor_generation = _owned_generation(
+                root,
+                predecessor,
+            )
+            current = root / "current"
+            active_predecessor = (
+                current.is_symlink()
+                and current.resolve() == predecessor_generation.resolve()
+            )
+            if not active_predecessor and (current.exists() or current.is_symlink()):
+                raise ToolInstallError(
+                    "refusing to migrate a predecessor receipt with a changed activation"
+                )
+            preserved, findings = _preserve_generation(
+                root,
+                predecessor_name,
+                predecessor_generation,
+                "predecessor receipt generation without deleting unverifiable content",
+            )
+            predecessor_original = predecessor_generation
+            predecessor_preserved = preserved
+            migration_findings.extend(findings)
+            if active_predecessor and preserved is not None:
+                _retarget_activation(current, preserved)
     if generation.is_dir() and receipt_path.is_file():
         existing = json.loads(receipt_path.read_text(encoding="utf-8"))
         if (
@@ -469,6 +506,8 @@ def install(args):
         receipt = _receipt(root, generation_name, manifest_sha, versions)
         receipt["contents"] = _generation_contents(generation)
         _activate(root, generation, receipt)
+        if migration_findings:
+            return {**receipt, "findings": migration_findings}
         return receipt
     except BaseException:
         current = root / "current"
@@ -478,6 +517,20 @@ def install(args):
         )
         if not active_generation:
             shutil.rmtree(generation, ignore_errors=True)
+        if (
+            predecessor_preserved is not None
+            and predecessor_original is not None
+            and predecessor_preserved.exists()
+            and not predecessor_original.exists()
+        ):
+            current = root / "current"
+            restore_activation = (
+                current.is_symlink()
+                and current.resolve() == predecessor_preserved.resolve()
+            )
+            os.replace(predecessor_preserved, predecessor_original)
+            if restore_activation:
+                _retarget_activation(current, predecessor_original)
         raise
 
 
@@ -535,13 +588,22 @@ def remove(args):
     if not active_owned_generation and (current.exists() or current.is_symlink()):
         raise ToolInstallError("refusing to remove a changed sensor tool activation")
     if predecessor_receipt:
-        findings = _preserve_predecessor_generation(
+        _, findings = _preserve_generation(
             root,
             generation_name,
             generation,
+            "predecessor receipt generation without deleting unverifiable content",
         )
     else:
         findings = _remove_owned_generation(generation, receipt)
+        if generation.exists() or generation.is_symlink():
+            _, preserved_findings = _preserve_generation(
+                root,
+                generation_name,
+                generation,
+                "modified or unknown sensor tool removal remnants",
+            )
+            findings.extend(preserved_findings)
     if active_owned_generation:
         current.unlink()
     receipt_path.unlink()
@@ -593,7 +655,7 @@ def main(argv=None):
     print(json.dumps(payload, indent=2) if args.json else f"Sensor tools: {payload['status']}")
     if not args.json:
         for finding in payload.get("findings", []):
-            print(f"Sensor tool removal finding: {finding}", file=sys.stderr)
+            print(f"Sensor tool finding: {finding}", file=sys.stderr)
     return 0
 
 

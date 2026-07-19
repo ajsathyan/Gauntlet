@@ -94,6 +94,11 @@ class FlexibleDesignTests(unittest.TestCase):
         path.write_text(json.dumps(value), encoding="utf-8")
         return path
 
+    def revision(self):
+        commit = git(self.repo, "rev-parse", "HEAD").stdout.strip()
+        tree = git(self.repo, "rev-parse", "HEAD^{tree}").stdout.strip()
+        return commit, tree
+
     def reviews(self, design_binding, fourth_disposition="omitted"):
         lenses = (
             "product-completeness",
@@ -268,6 +273,7 @@ class FlexibleDesignTests(unittest.TestCase):
             "1. External command runs.\n"
         )
         record = json.loads(design.with_suffix(".accepted.json").read_text())
+        commit, tree = self.revision()
         built = self.cli(
             "workflow",
             "build-entry",
@@ -296,9 +302,9 @@ class FlexibleDesignTests(unittest.TestCase):
             "--reviews",
             str(self.write_json("bind-reviews.json", self.reviews(record))),
             "--commit",
-            "1" * 40,
+            commit,
             "--tree",
-            "2" * 40,
+            tree,
             "--json",
         )
         contract = json.loads(bound.stdout)["contract"]
@@ -330,6 +336,7 @@ class FlexibleDesignTests(unittest.TestCase):
             "2. Dashboard is published.\n"
         )
         record = json.loads(design.with_suffix(".accepted.json").read_text())
+        commit, tree = self.revision()
         built = self.cli(
             "workflow",
             "build-entry",
@@ -354,9 +361,9 @@ class FlexibleDesignTests(unittest.TestCase):
             "--reviews",
             str(self.write_json("bind-reviews.json", self.reviews(record))),
             "--commit",
-            "1" * 40,
+            commit,
             "--tree",
-            "2" * 40,
+            tree,
             "--json",
         )
         contract = json.loads(bound.stdout)["contract"]
@@ -371,7 +378,7 @@ class FlexibleDesignTests(unittest.TestCase):
                     "directEvidence": ["external command observed"],
                     "outcomeEvidence": {
                         outcomes[0]["identity"]: [
-                            f"revision:{'1' * 40}#proof/external-command"
+                            f"revision:{commit}#path:README.md"
                         ]
                     },
                 },
@@ -457,6 +464,131 @@ class FlexibleDesignTests(unittest.TestCase):
             ],
         )
 
+    def test_bind_candidate_resolves_commit_and_derived_tree(self):
+        design_id, design = self.create_accepted_design(
+            "The external command remains available.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        reviews_path = self.write_json("git-reviews.json", self.reviews(record))
+        built = self.cli(
+            "workflow", "build-entry",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--json",
+        )
+        contract_path = self.write_json(
+            "git-contract.json",
+            json.loads(built.stdout)["contract"],
+        )
+        commit, tree = self.revision()
+        missing = self.cli(
+            "workflow", "bind-candidate",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--contract", str(contract_path),
+            "--commit", "f" * 40,
+            "--tree", tree,
+            "--json",
+            check=False,
+        )
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn("candidate commit", missing.stdout)
+
+        mismatched = self.cli(
+            "workflow", "bind-candidate",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--contract", str(contract_path),
+            "--commit", commit,
+            "--tree", "a" * 40,
+            "--json",
+            check=False,
+        )
+        self.assertNotEqual(mismatched.returncode, 0)
+        self.assertIn("does not match", mismatched.stdout)
+
+        valid = self.cli(
+            "workflow", "bind-candidate",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--contract", str(contract_path),
+            "--commit", commit,
+            "--tree", tree,
+            "--json",
+        )
+        self.assertEqual(
+            json.loads(valid.stdout)["contract"]["candidateRevision"],
+            {"commit": commit, "tree": tree},
+        )
+
+    def test_build_evidence_locator_must_resolve_in_candidate_revision(self):
+        design_id, design = self.create_accepted_design(
+            "The external command remains available.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        reviews_path = self.write_json("locator-reviews.json", self.reviews(record))
+        built = self.cli(
+            "workflow", "build-entry",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--json",
+        )
+        commit, tree = self.revision()
+        bound = self.cli(
+            "workflow", "bind-candidate",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--contract", str(
+                self.write_json(
+                    "locator-contract.json",
+                    json.loads(built.stdout)["contract"],
+                )
+            ),
+            "--commit", commit,
+            "--tree", tree,
+            "--json",
+        )
+        contract = json.loads(bound.stdout)["contract"]
+        outcome = contract["acceptedDesign"]["outcomes"][0]["identity"]
+
+        def verdict(locator, name):
+            return self.cli(
+                "workflow", "record-verdict",
+                "--project-root", str(self.repo),
+                "--design", design_id,
+                "--contract", str(
+                    self.write_json(f"{name}-contract.json", contract)
+                ),
+                "--area", "build",
+                "--verdict", "pass",
+                "--evidence", str(
+                    self.write_json(
+                        f"{name}-evidence.json",
+                        {
+                            "directEvidence": ["command observed"],
+                            "outcomeEvidence": {
+                                outcome: [f"revision:{commit}#{locator}"]
+                            },
+                        },
+                    )
+                ),
+                "--json",
+                check=False,
+            )
+
+        unresolved = verdict("path:missing-proof.txt", "unresolved")
+        self.assertNotEqual(unresolved.returncode, 0)
+        self.assertIn("could not be resolved by Git", unresolved.stdout)
+
+        valid = verdict("path:README.md", "valid")
+        self.assertEqual(valid.returncode, 0, valid.stdout + valid.stderr)
+
     def test_legacy_accepted_epic_is_a_read_only_design_source(self):
         self.cli("docs", "ensure", "--project-root", str(self.repo), "--json")
         docs = self.repo / "local-docs"
@@ -465,7 +597,11 @@ class FlexibleDesignTests(unittest.TestCase):
         source = (
             "# Thin Contract Workflow\n\n"
             "## Acceptance\n\n"
-            "The old accepted Epic remains directly readable.\n"
+            "The old accepted Epic remains directly readable.\n\n"
+            "## Architecture Contract\n\n"
+            "Application services own workflow sequencing.\n\n"
+            "## Sensor Contract\n\n"
+            "Configured checks execute against the candidate revision.\n"
         )
         epic.write_text(source, encoding="utf-8")
         (docs / "INDEX.md").write_text(
@@ -503,6 +639,19 @@ class FlexibleDesignTests(unittest.TestCase):
         )
         accepted = json.loads(built.stdout)["contract"]["acceptedDesign"]
         self.assertEqual(accepted["identity"], "GAUNTLET-011")
+        self.assertEqual(
+            {
+                area: binding["applicable"]
+                for area, binding in accepted["contractApplicability"].items()
+            },
+            {"architecture": True, "sensor": True},
+        )
+        self.assertTrue(
+            all(
+                binding["sha256"].startswith("sha256:")
+                for binding in accepted["contractApplicability"].values()
+            )
+        )
         self.assertEqual(before, (epic.read_bytes(), sidecar.read_bytes(), (docs / "INDEX.md").read_bytes()))
 
     def test_public_cli_rejects_one_evidence_reference_reused_for_two_outcomes(self):
@@ -510,6 +659,7 @@ class FlexibleDesignTests(unittest.TestCase):
             "1. External command runs.\n2. Dashboard is published.\n"
         )
         record = json.loads(design.with_suffix(".accepted.json").read_text())
+        commit, tree = self.revision()
         reviews_path = self.write_json("duplicate-reviews.json", self.reviews(record))
         built = self.cli(
             "workflow", "build-entry",
@@ -525,12 +675,12 @@ class FlexibleDesignTests(unittest.TestCase):
             "--design", design_id,
             "--reviews", str(reviews_path),
             "--contract", str(self.write_json("duplicate-contract.json", contract)),
-            "--commit", "1" * 40,
-            "--tree", "2" * 40,
+            "--commit", commit,
+            "--tree", tree,
             "--json",
         )
         contract = json.loads(bound.stdout)["contract"]
-        reused = f"revision:{'1' * 40}#proof/reused"
+        reused = f"revision:{commit}#path:README.md"
         evidence = {
             "directEvidence": ["two outcomes claimed"],
             "outcomeEvidence": {

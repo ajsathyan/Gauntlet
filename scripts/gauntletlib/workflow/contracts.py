@@ -31,6 +31,15 @@ class ContractError(ValueError):
     """The design or verification value violates the workflow contract."""
 
 
+def parse_revision_evidence(reference):
+    """Return the exact commit and locator from a mechanical evidence reference."""
+
+    if not isinstance(reference, str):
+        return None
+    match = _REVISION_EVIDENCE(reference.strip())
+    return (match.group(1), match.group(2)) if match else None
+
+
 def _object_id(value, label):
     if not isinstance(value, str) or _OBJECT_ID(value) is None:
         raise ContractError(f"{label} must be an exact 40- or 64-character Git object ID")
@@ -66,6 +75,32 @@ def _outcome_bindings(value):
         )
     if not result:
         raise ContractError("accepted design outcomes must not be empty")
+    return result
+
+
+def _contract_applicability(value):
+    value = _closed_object(
+        value,
+        ("architecture", "sensor"),
+        "contract applicability",
+    )
+    result = {}
+    for area, binding in value.items():
+        binding = _closed_object(
+            binding,
+            ("applicable", "sha256"),
+            f"{area} contract binding",
+        )
+        if not isinstance(binding["applicable"], bool):
+            raise ContractError(f"{area} contract applicable must be boolean")
+        digest = binding["sha256"]
+        if binding["applicable"]:
+            digest = _design_sha256(digest)
+        elif digest is not None:
+            raise ContractError(
+                f"{area} contract digest must be null when not applicable"
+            )
+        result[area] = {"applicable": binding["applicable"], "sha256": digest}
     return result
 
 
@@ -117,6 +152,15 @@ def _validate_verdict(receipt, design):
             f"{receipt['area']} verdict must be one of "
             + ", ".join(VERDICTS_BY_AREA[receipt["area"]])
         )
+    if (
+        receipt["area"] in {"architecture", "sensor"}
+        and receipt["verdict"] == "not-applicable"
+        and design["contractApplicability"][receipt["area"]]["applicable"]
+    ):
+        raise ContractError(
+            f"{receipt['area']} verdict cannot be not-applicable because the "
+            "accepted design contains that contract"
+        )
     design_binding = {
         "identity": _nonempty(receipt["designIdentity"], "verification design identity"),
         "reference": _nonempty(
@@ -126,6 +170,7 @@ def _validate_verdict(receipt, design):
         "sha256": _design_sha256(receipt["designSha256"]),
         "acceptanceSha256": _design_sha256(receipt["acceptanceSha256"]),
         "outcomes": design["outcomes"],
+        "contractApplicability": design["contractApplicability"],
     }
     if design_binding != design:
         raise ContractError(
@@ -155,8 +200,8 @@ def _validate_verdict(receipt, design):
             allow_empty=False,
         )
         for reference in references:
-            match = _REVISION_EVIDENCE(reference)
-            if match is None or match.group(1) != revision_binding["commit"]:
+            parsed = parse_revision_evidence(reference)
+            if parsed is None or parsed[0] != revision_binding["commit"]:
                 raise ContractError(
                     f"outcomeEvidence[{identity}] must contain resolvable "
                     "exact-revision evidence references"
@@ -204,7 +249,14 @@ def _validate_contract(contract):
         raise ContractError("workflow contract schema is unsupported")
     design = _closed_object(
         contract["acceptedDesign"],
-        ("identity", "reference", "sha256", "acceptanceSha256", "outcomes"),
+        (
+            "identity",
+            "reference",
+            "sha256",
+            "acceptanceSha256",
+            "outcomes",
+            "contractApplicability",
+        ),
         "accepted design binding",
     )
     normalized_design = {
@@ -213,6 +265,9 @@ def _validate_contract(contract):
         "sha256": _design_sha256(design["sha256"]),
         "acceptanceSha256": _design_sha256(design["acceptanceSha256"]),
         "outcomes": _outcome_bindings(design["outcomes"]),
+        "contractApplicability": _contract_applicability(
+            design["contractApplicability"]
+        ),
     }
     revision = contract["candidateRevision"]
     if revision is not None:
@@ -252,6 +307,7 @@ def accept_design(
     design_sha256,
     acceptance_sha256,
     outcomes,
+    contract_applicability,
 ):
     """Create a contract pointing directly to one accepted design source."""
 
@@ -263,6 +319,9 @@ def accept_design(
             "sha256": _design_sha256(design_sha256),
             "acceptanceSha256": _design_sha256(acceptance_sha256),
             "outcomes": _outcome_bindings(outcomes),
+            "contractApplicability": _contract_applicability(
+                contract_applicability
+            ),
         },
         "candidateRevision": None,
         "verdicts": {area: None for area in VERDICT_AREAS},

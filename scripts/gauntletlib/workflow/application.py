@@ -10,6 +10,7 @@ from .contracts import (
     accept_design,
     bind_candidate_revision,
     completion_status,
+    parse_revision_evidence,
     record_verdict,
 )
 
@@ -156,6 +157,7 @@ def build_entry(
         design_sha256=accepted["sha256"],
         acceptance_sha256=accepted["acceptanceSha256"],
         outcomes=accepted["outcomes"],
+        contract_applicability=accepted["contractApplicability"],
     )
     return {"contract": contract, "prebuildReview": review_summary}
 
@@ -169,6 +171,7 @@ def authorize_candidate(
     commit,
     tree,
     accepted_design_reader,
+    git_repository,
 ):
     """Re-run the ephemeral Build gate before binding an exact candidate."""
 
@@ -182,7 +185,8 @@ def authorize_candidate(
         raise ContractError(
             "candidate contract does not match the current authorized Build entry"
         )
-    return bind_candidate_revision(contract, commit=commit, tree=tree)
+    resolved = git_repository.resolve_candidate(project_root, commit, tree)
+    return bind_candidate_revision(contract, **resolved)
 
 
 def verify_entry(
@@ -217,6 +221,7 @@ def record_verification_verdict(
     verdict,
     evidence,
     accepted_design_reader,
+    git_repository,
 ):
     """Record one source-validated exact-candidate verdict."""
 
@@ -230,6 +235,30 @@ def record_verification_verdict(
         raise ContractError("verdict evidence must be an object")
     accepted = contract["acceptedDesign"]
     revision = contract["candidateRevision"]
+    if area == "build":
+        outcome_evidence = evidence.get("outcomeEvidence", {})
+        if isinstance(outcome_evidence, Mapping):
+            for references in outcome_evidence.values():
+                if isinstance(references, Sequence) and not isinstance(
+                    references,
+                    (str, bytes),
+                ):
+                    for reference in references:
+                        parsed = parse_revision_evidence(reference)
+                        if parsed is None:
+                            raise ContractError(
+                                "Build evidence reference has an unsupported shape"
+                            )
+                        commit, locator = parsed
+                        if commit != revision["commit"]:
+                            raise ContractError(
+                                "Build evidence does not identify the candidate commit"
+                            )
+                        git_repository.resolve_evidence(
+                            project_root,
+                            commit,
+                            locator,
+                        )
     return record_verdict(
         contract,
         area=area,

@@ -1090,6 +1090,25 @@ PY
 
 preflight_codex_plugins
 
+PYTHONPATH="$ROOT/scripts${PYTHONPATH:+:$PYTHONPATH}" python3 - \
+  "$AGENT_HOME" "$rendered_router" "$AGENT_HOME/AGENTS.md" <<'PY'
+from pathlib import Path
+import sys
+
+from gauntletlib.install.manifest import preflight_generated_payload
+
+try:
+    preflight_generated_payload(
+        Path(sys.argv[1]),
+        "gauntlet/AGENTS.md",
+        Path(sys.argv[2]),
+        legacy_container=Path(sys.argv[3]),
+    )
+except ValueError as error:
+    print(str(error), file=sys.stderr)
+    raise SystemExit(1)
+PY
+
 if [ "$CHECK_ONLY" = "1" ]; then
   exit 0
 fi

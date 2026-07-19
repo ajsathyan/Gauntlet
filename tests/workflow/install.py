@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 from scripts.gauntletlib.install.manifest import (
+    preflight_generated_payload,
     preflight_product_cutover,
     sync_payload,
     uninstall_payload,
@@ -419,6 +420,7 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
     test_product_cutover_guard_has_an_explicit_portable_detection_boundary()
     test_receipt_upgrade_and_uninstall_remove_only_unchanged_owned_files()
     test_manifest_sync_rejects_modified_owned_and_unowned_current_collisions()
+    test_generated_router_preflight_preserves_collisions_and_allows_upgrade()
     test_default_install_requests_machine_local_sensor_tools_without_network()
     test_codex_uninstall_preserves_user_bytes_config_and_modified_payload()
 
@@ -1284,6 +1286,122 @@ def test_manifest_sync_rejects_modified_owned_and_unowned_current_collisions():
         sync_payload(source_root, upgrade_home)
         if upgrade.read_bytes() != b"new runtime\n":
             raise AssertionError("byte-identical receipt-owned payload should upgrade")
+
+
+def test_generated_router_preflight_preserves_collisions_and_allows_upgrade():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        candidate = root / "candidate-router.md"
+        candidate.write_bytes(b"new generated router\n")
+
+        owned_home = root / "owned-home"
+        installed = owned_home / "gauntlet" / "AGENTS.md"
+        installed.parent.mkdir(parents=True)
+        installed.write_bytes(b"old generated router\n")
+        receipt = owned_home / "gauntlet" / ".install-manifest.json"
+        receipt.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "entries": [],
+                    "generatedEntries": [
+                        {
+                            "destination": "gauntlet/AGENTS.md",
+                            "sha256": hashlib.sha256(installed.read_bytes()).hexdigest(),
+                        }
+                    ],
+                    "manifestSha256": "0" * 64,
+                }
+            )
+        )
+        preflight_generated_payload(
+            owned_home,
+            "gauntlet/AGENTS.md",
+            candidate,
+        )
+
+        installed.write_bytes(b"user modified generated router\n")
+        before = installed.read_bytes()
+        try:
+            preflight_generated_payload(
+                owned_home,
+                "gauntlet/AGENTS.md",
+                candidate,
+            )
+        except ValueError as error:
+            assert_contains(
+                str(error),
+                "modified prior-receipt-owned generated destination",
+                "modified generated router collision",
+            )
+        else:
+            raise AssertionError("modified owned generated router must fail closed")
+        if installed.read_bytes() != before:
+            raise AssertionError("modified owned generated router must be preserved")
+
+        unowned_home = root / "unowned-home"
+        unowned = unowned_home / "gauntlet" / "AGENTS.md"
+        unowned.parent.mkdir(parents=True)
+        unowned.write_bytes(b"user-owned generated router\n")
+        before = unowned.read_bytes()
+        try:
+            preflight_generated_payload(
+                unowned_home,
+                "gauntlet/AGENTS.md",
+                candidate,
+            )
+        except ValueError as error:
+            assert_contains(
+                str(error),
+                "unowned generated destination collision",
+                "unowned generated router collision",
+            )
+        else:
+            raise AssertionError("unowned generated router must fail closed")
+        if unowned.read_bytes() != before:
+            raise AssertionError("unowned generated router must be preserved")
+
+        legacy_home = root / "legacy-home"
+        legacy_router = legacy_home / "gauntlet" / "AGENTS.md"
+        legacy_router.parent.mkdir(parents=True)
+        legacy_router.write_bytes(b"exact historical router\n")
+        legacy_container = legacy_home / "AGENTS.md"
+        legacy_container.write_bytes(
+            b"personal instructions\n" + legacy_router.read_bytes()
+        )
+        preflight_generated_payload(
+            legacy_home,
+            "gauntlet/AGENTS.md",
+            candidate,
+            legacy_container=legacy_container,
+        )
+        legacy_container.write_bytes(b"personal instructions only\n")
+        try:
+            preflight_generated_payload(
+                legacy_home,
+                "gauntlet/AGENTS.md",
+                candidate,
+                legacy_container=legacy_container,
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(
+                "unowned router without exact legacy-container evidence must fail"
+            )
+
+        wired = run_install(
+            unowned_home,
+            extra_args=["--check", "--codex-preferences", "skip"],
+            check=False,
+        )
+        if wired.returncode == 0:
+            raise AssertionError("install.sh must enforce generated router ownership")
+        assert_contains(
+            wired.stderr,
+            "unowned generated destination collision",
+            "generated router preflight wiring",
+        )
 
 
 def test_default_install_requests_machine_local_sensor_tools_without_network():
