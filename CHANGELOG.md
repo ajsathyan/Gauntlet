@@ -6,6 +6,8 @@
 
 - Implement GAUNTLET-009: Adaptive code quality sensors.
 
+- Implement GAUNTLET-008: Repository workflow mode selection.
+
 - Omit empty named acceptance groups from generated run-backed Project PR facts.
 
 - Gauntlet now plans proportional language-aware code-quality sensors from repository-owned configuration, normalizes compact evidence, and validates behavior-preserving readability rewrites without installing optional tools.
