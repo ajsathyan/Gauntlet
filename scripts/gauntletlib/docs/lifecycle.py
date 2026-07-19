@@ -859,23 +859,40 @@ def acceptance_outcome_bindings(acceptance):
         )
     ]
     minimum_indent = min((indent for _index, indent in item_candidates), default=0)
-    item_starts = [
-        index for index, indent in item_candidates if indent == minimum_indent
-    ]
+    item_starts = {index for index, indent in item_candidates if indent == minimum_indent}
     outcomes = []
-    if item_starts:
-        for offset, start in enumerate(item_starts):
-            end = item_starts[offset + 1] if offset + 1 < len(item_starts) else len(lines)
-            item = "\n".join(lines[start:end]).strip()
-            if item:
-                outcomes.append(item)
-    else:
-        visible = "\n".join(lines).strip()
-        outcomes = [
-            paragraph.strip()
-            for paragraph in re.split(r"\r?\n[ \t]*\r?\n", visible)
-            if paragraph.strip()
-        ]
+    index = 0
+    while index < len(lines):
+        if not lines[index].strip():
+            index += 1
+            continue
+        start = index
+        if index in item_starts:
+            index += 1
+            while index < len(lines):
+                if index in item_starts:
+                    break
+                if not lines[index].strip():
+                    following = index + 1
+                    while following < len(lines) and not lines[following].strip():
+                        following += 1
+                    if following >= len(lines) or following in item_starts:
+                        break
+                    indent = len(lines[following]) - len(lines[following].lstrip())
+                    if indent <= minimum_indent:
+                        break
+                index += 1
+        else:
+            index += 1
+            while (
+                index < len(lines)
+                and lines[index].strip()
+                and index not in item_starts
+            ):
+                index += 1
+        outcome = "\n".join(lines[start:index]).strip()
+        if outcome and not outcome.lower().startswith(("*guidance:", "_guidance:")):
+            outcomes.append(outcome)
     return [
         {
             "identity": f"acceptance-{index:03d}",
@@ -898,8 +915,6 @@ def load_accepted_design(project_root, supplied):
     if failures:
         raise RuntimeError("Accepted design is unavailable: " + "; ".join(failures))
     _index_text, row, design_path = _indexed_design(context, supplied)
-    if row.group(4).strip() != "Accepted":
-        raise RuntimeError(f"Design {row.group(1)} is not accepted.")
     sidecar = accepted_record_path(design_path)
     if sidecar.is_symlink() or not sidecar.is_file():
         raise RuntimeError(f"Accepted design record is unavailable: {sidecar}")
@@ -907,7 +922,7 @@ def load_accepted_design(project_root, supplied):
         record = json.loads(sidecar.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise RuntimeError(f"Accepted design record is invalid: {sidecar}") from exc
-    expected_keys = {
+    design_keys = {
         "schemaVersion",
         "designId",
         "sourcePath",
@@ -915,15 +930,42 @@ def load_accepted_design(project_root, supplied):
         "acceptanceSha256",
         "acceptedAt",
     }
-    if not isinstance(record, dict) or set(record) != expected_keys:
+    if not isinstance(record, dict):
         raise RuntimeError(f"Accepted design record has an unsupported shape: {sidecar}")
     relative = str(design_path.relative_to(context["docsRoot"]))
-    if (
-        record["schemaVersion"] != "gauntlet.accepted-design.v1"
-        or record["designId"] != row.group(1)
-        or record["sourcePath"] != relative
-    ):
+    schema = record.get("schemaVersion")
+    if schema == "gauntlet.accepted-design.v1":
+        if set(record) != design_keys:
+            raise RuntimeError(
+                f"Accepted design record has an unsupported shape: {sidecar}"
+            )
+        identity = record.get("designId")
+        reference = relative
+        indexed_status = row.group(4).strip()
+        source_matches = record.get("sourcePath") == relative
+    elif schema == "gauntlet.accepted-epic.v1":
+        required = {"epicId", "sourcePath", "sourceSha256", "acceptedAt"}
+        if not required.issubset(record):
+            raise RuntimeError(
+                f"Accepted Epic record has an unsupported shape: {sidecar}"
+            )
+        identity = record.get("epicId")
+        reference = record.get("sourcePath")
+        columns = [part.strip() for part in row.group(0).strip("|").split("|")]
+        indexed_status = columns[3] if len(columns) >= 4 else ""
+        try:
+            recorded_source = Path(reference).expanduser()
+            if not recorded_source.is_absolute():
+                recorded_source = context["docsRoot"] / recorded_source
+            source_matches = recorded_source.resolve() == design_path
+        except (OSError, TypeError):
+            source_matches = False
+    else:
+        raise RuntimeError(f"Accepted design record schema is unsupported: {sidecar}")
+    if identity != row.group(1) or not source_matches:
         raise RuntimeError("Accepted design record does not identify the indexed design.")
+    if indexed_status != "Accepted":
+        raise RuntimeError(f"Design {row.group(1)} is not accepted.")
     source_bytes = design_path.read_bytes()
     try:
         source_text = source_bytes.decode("utf-8")
@@ -938,7 +980,10 @@ def load_accepted_design(project_root, supplied):
         raise RuntimeError(
             "Accepted design source is stale: its bytes changed after acceptance."
         )
-    if record["acceptanceSha256"] != current_acceptance:
+    if (
+        schema == "gauntlet.accepted-design.v1"
+        and record["acceptanceSha256"] != current_acceptance
+    ):
         raise RuntimeError(
             "Accepted design Acceptance section is stale: its bytes changed after acceptance."
         )
@@ -946,10 +991,10 @@ def load_accepted_design(project_root, supplied):
     if not outcomes:
         raise RuntimeError("Accepted design has no observable Acceptance outcomes.")
     return {
-        "identity": record["designId"],
-        "reference": record["sourcePath"],
+        "identity": identity,
+        "reference": reference,
         "sha256": "sha256:" + record["sourceSha256"],
-        "acceptanceSha256": "sha256:" + record["acceptanceSha256"],
+        "acceptanceSha256": "sha256:" + current_acceptance,
         "outcomes": outcomes,
     }
 

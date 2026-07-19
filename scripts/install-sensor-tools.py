@@ -343,6 +343,34 @@ def _remove_owned_generation(generation, receipt):
     return findings
 
 
+def _preserve_predecessor_generation(root, generation_name, generation):
+    """Move an unverifiable predecessor generation out of the install namespace."""
+
+    if not generation.exists() and not generation.is_symlink():
+        return [
+            "predecessor receipt generation is already missing; "
+            "no generation content was removed"
+        ]
+    preserved_root = root / "preserved-generations"
+    if preserved_root.is_symlink() or (
+        preserved_root.exists() and not preserved_root.is_dir()
+    ):
+        raise ToolInstallError(
+            f"cannot preserve predecessor sensor tools at {preserved_root}"
+        )
+    preserved_root.mkdir(parents=True, exist_ok=True)
+    preserved = preserved_root / generation_name
+    suffix = 1
+    while preserved.exists() or preserved.is_symlink():
+        preserved = preserved_root / f"{generation_name}-{suffix}"
+        suffix += 1
+    os.replace(generation, preserved)
+    return [
+        "preserved predecessor receipt generation without deleting unverifiable "
+        f"content: {preserved}"
+    ]
+
+
 def _atomic_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
@@ -499,15 +527,23 @@ def remove(args):
     if receipt.get("schema") != RECEIPT_SCHEMA:
         raise ToolInstallError("refusing to remove tools without a valid ownership receipt")
     generation_name, generation = _owned_generation(root, receipt)
+    predecessor_receipt = "contents" not in receipt
     current = root / "current"
-    if current.is_symlink() and current.resolve() == generation.resolve():
-        current.unlink()
-    elif current.exists() or current.is_symlink():
+    active_owned_generation = (
+        current.is_symlink() and current.resolve() == generation.resolve()
+    )
+    if not active_owned_generation and (current.exists() or current.is_symlink()):
         raise ToolInstallError("refusing to remove a changed sensor tool activation")
-    try:
+    if predecessor_receipt:
+        findings = _preserve_predecessor_generation(
+            root,
+            generation_name,
+            generation,
+        )
+    else:
         findings = _remove_owned_generation(generation, receipt)
-    except ToolInstallError as error:
-        findings = [str(error)]
+    if active_owned_generation:
+        current.unlink()
     receipt_path.unlink()
     for directory in (root / "generations", root):
         try:

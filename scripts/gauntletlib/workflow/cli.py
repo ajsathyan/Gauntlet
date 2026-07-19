@@ -5,8 +5,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .application import build_entry, completion_check, verify_entry
-from .contracts import ContractError, bind_candidate_revision, record_verdict
+from gauntletlib.docs.lifecycle import load_accepted_design
+
+from .application import (
+    authorize_candidate,
+    build_entry,
+    completion_check,
+    record_verification_verdict,
+    verify_entry,
+)
+from .contracts import ContractError
 
 
 def _read_json(path, label):
@@ -63,31 +71,26 @@ def command_build_entry(args):
             project_root=args.project_root,
             design=args.design,
             review_results=_read_json(args.reviews, "pre-build reviews"),
+            accepted_design_reader=load_accepted_design,
         ),
     )
 
 
 def command_bind_candidate(args):
-    def operation():
-        contract = _read_json(args.contract, "workflow contract")
-        authorized = build_entry(
-            project_root=args.project_root,
-            design=args.design,
-            review_results=_read_json(args.reviews, "pre-build reviews"),
-        )["contract"]
-        if contract != authorized:
-            raise ContractError(
-                "candidate contract does not match the current authorized Build entry"
-            )
-        return {
-            "contract": bind_candidate_revision(
-                contract,
+    return _run(
+        args,
+        lambda: {
+            "contract": authorize_candidate(
+                project_root=args.project_root,
+                design=args.design,
+                review_results=_read_json(args.reviews, "pre-build reviews"),
+                contract=_read_json(args.contract, "workflow contract"),
                 commit=args.commit,
                 tree=args.tree,
+                accepted_design_reader=load_accepted_design,
             )
-        }
-
-    return _run(args, operation)
+        },
+    )
 
 
 def command_verify_entry(args):
@@ -97,41 +100,26 @@ def command_verify_entry(args):
             project_root=args.project_root,
             design=args.design,
             contract=_read_json(args.contract, "workflow contract"),
+            accepted_design_reader=load_accepted_design,
         ),
     )
 
 
 def command_record_verdict(args):
-    def operation():
-        contract = _read_json(args.contract, "workflow contract")
-        verify_entry(
-            project_root=args.project_root,
-            design=args.design,
-            contract=contract,
-        )
-        evidence = _read_json(args.evidence, "verdict evidence")
-        if not isinstance(evidence, dict):
-            raise ContractError("verdict evidence must be an object")
-        accepted = contract["acceptedDesign"]
-        revision = contract["candidateRevision"]
-        return {
-            "contract": record_verdict(
-                contract,
+    return _run(
+        args,
+        lambda: {
+            "contract": record_verification_verdict(
+                project_root=args.project_root,
+                design=args.design,
+                contract=_read_json(args.contract, "workflow contract"),
                 area=args.area,
                 verdict=args.verdict,
-                design_identity=accepted["identity"],
-                design_reference=accepted["reference"],
-                design_sha256=accepted["sha256"],
-                commit=revision["commit"],
-                tree=revision["tree"],
-                read_design_directly=True,
-                direct_evidence=evidence.get("directEvidence", []),
-                derivative_evidence=evidence.get("derivativeEvidence", []),
-                outcome_evidence=evidence.get("outcomeEvidence", {}),
+                evidence=_read_json(args.evidence, "verdict evidence"),
+                accepted_design_reader=load_accepted_design,
             )
-        }
-
-    return _run(args, operation)
+        },
+    )
 
 
 def command_completion_check(args):
@@ -140,6 +128,7 @@ def command_completion_check(args):
             project_root=args.project_root,
             design=args.design,
             contract=_read_json(args.contract, "workflow contract"),
+            accepted_design_reader=load_accepted_design,
         )
         findings = [
             {

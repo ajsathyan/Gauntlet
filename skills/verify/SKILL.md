@@ -16,6 +16,9 @@ Independently verify the exact integrated revision. Read the accepted design dir
 
 If any required input is missing, stale, or does not identify the same revision, return `Cannot verify` and block completion.
 
+Begin with a passing `workflow verify-entry` from the installed Gauntlet CLI
+against the bound temporary contract and accepted design.
+
 ## Procedure
 
 1. Enumerate every accepted outcome and required non-effect from the design's `Acceptance` section.
@@ -26,6 +29,12 @@ If any required input is missing, stale, or does not identify the same revision,
    - **Build Verdict:** `Pass`, `Fail`, or `Cannot verify` for every accepted product outcome and required non-effect.
    - **Architecture Verdict:** `Pass`, `Fail`, `Not applicable`, or `Cannot verify`.
    - **Sensor Verdict:** `Pass`, `Fail`, `Not applicable`, or `Cannot verify`.
+6. Use `workflow record-verdict` to record each of those three verdicts, passing
+   the updated temporary contract forward each time. Build outcome evidence uses
+   a distinct `revision:<commit>#<locator>` reference for every accepted outcome.
+7. Run `workflow completion-check`. A failed command blocks completion. Remove
+   the task-temporary workflow files after the handoff; never preserve them as
+   product documents or controller state.
 
 The Build Verdict is authoritative for the accepted outcome. Architecture or Sensor success cannot turn a Build failure into completion. A green sensor pass and narrowed worker checklist must fail when any accepted user outcome is absent. Applicable Architecture and Sensor failures still block completion, but neither substitutes for Build.
 

@@ -8,9 +8,9 @@ repository, not only the files named for deletion.
 
 | Surface | Before | Candidate | Change |
 | --- | ---: | ---: | ---: |
-| Measured nonblank lines | 44,815 | 28,074 | 37.4% fewer |
-| Production and test lines | 40,033 | 26,001 | 35.1% fewer |
-| Full workflow feedback | 90.332s median | 55.1s sample | 39.0% faster |
+| Measured nonblank lines | 44,815 | 29,142 | 35.0% fewer |
+| Production and test lines | 40,033 | 27,051 | 32.4% fewer |
+| Full workflow feedback | 90.332s median | 58.0s sample | 35.8% faster |
 | Fast sensor feedback | no distinct phase | 2.19s sample | new edit loop |
 | Dashboard direct dependencies | 3 runtime + 6 development | 0 | removed |
 | Default workflow states | Epic, Ticket, Run, journal, dashboard, analytics | Design, ephemeral plan, exact revision | controller removed |

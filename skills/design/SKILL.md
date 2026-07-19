@@ -28,6 +28,12 @@ After acceptance and before Build, run three independent lenses against the same
 
 Each lens returns only material findings. Deduplicate without losing provenance. Show the user at most three recommendations per round, but retain and resolve every material finding. Each finding ends as `accepted`, `rejected`, `deferred`, or `omitted` with a reason. An unresolved material finding blocks only the affected Build work; it may not disappear because of the display cap.
 
+Keep the complete review results in a task-temporary JSON file. Before Build
+edits, invoke `workflow build-entry` through the installed Gauntlet CLI path
+named by the router. Pass the accepted design and all three review results. A
+failed command blocks Build. Its returned contract is temporary execution input,
+not a durable design, implementation plan, or controller artifact.
+
 ## Output
 
 - Durable design path and exact accepted revision or digest

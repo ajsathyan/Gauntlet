@@ -285,6 +285,8 @@ class WorkstreamQueue:
     def _matches_candidate(self, attempt, default_commit, default_tree):
         if default_tree != attempt["candidateTree"]:
             return False
+        if not self._is_ancestor(attempt["baseCommit"], default_commit):
+            return False
         if default_commit == attempt["candidateCommit"]:
             return True
         return not self._is_ancestor(

@@ -22,6 +22,9 @@ VERDICTS_BY_AREA = {
 }
 _OBJECT_ID = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?").fullmatch
 _SHA256 = re.compile(r"(?:sha256:)?[0-9a-f]{64}").fullmatch
+_REVISION_EVIDENCE = re.compile(
+    r"revision:([0-9a-f]{40}(?:[0-9a-f]{24})?)#([^\s#]+)"
+).fullmatch
 
 
 class ContractError(ValueError):
@@ -144,12 +147,21 @@ def _validate_verdict(receipt, design):
     accepted_identities = {item["identity"] for item in design["outcomes"]}
     if not set(evidence).issubset(accepted_identities):
         raise ContractError("outcomeEvidence identifies an unaccepted outcome")
+    evidence_references = []
     for identity, observations in evidence.items():
-        _strings(
+        references = _strings(
             observations,
             f"outcomeEvidence[{identity}]",
             allow_empty=False,
         )
+        for reference in references:
+            match = _REVISION_EVIDENCE(reference)
+            if match is None or match.group(1) != revision_binding["commit"]:
+                raise ContractError(
+                    f"outcomeEvidence[{identity}] must contain resolvable "
+                    "exact-revision evidence references"
+                )
+            evidence_references.append(reference)
     if receipt["area"] != "build" and evidence:
         raise ContractError("only the Build verdict may contain outcomeEvidence")
     if (
@@ -159,6 +171,14 @@ def _validate_verdict(receipt, design):
     ):
         raise ContractError(
             "a passing Build verdict requires direct evidence for every accepted outcome"
+        )
+    if (
+        receipt["area"] == "build"
+        and receipt["verdict"] == "pass"
+        and len(evidence_references) != len(set(evidence_references))
+    ):
+        raise ContractError(
+            "a passing Build verdict requires unique evidence references per outcome"
         )
     return revision_binding
 

@@ -216,6 +216,56 @@ class SensorToolInstallTests(unittest.TestCase):
             any("user-owned.txt" in finding for finding in removed["findings"])
         )
 
+    def test_predecessor_receipt_uninstall_preserves_then_reinstalls(self):
+        installed = json.loads(self.cli("install").stdout)
+        root = self.agent_home / "gauntlet-tools"
+        receipt_path = root / "receipt.json"
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt.pop("contents")
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        generation_name = installed["currentGeneration"]
+
+        removed = json.loads(self.cli("remove").stdout)
+
+        preserved = root / "preserved-generations" / generation_name
+        self.assertTrue((preserved / "bin" / "coverage").is_file())
+        self.assertTrue(
+            any("predecessor receipt generation" in item for item in removed["findings"])
+        )
+        reinstalled = json.loads(self.cli("install").stdout)
+        self.assertIn("contents", reinstalled)
+        self.assertTrue((root / "current" / "bin" / "coverage").is_file())
+
+    def test_drifted_predecessor_receipt_uninstall_preserves_then_reinstalls(self):
+        installed = json.loads(self.cli("install").stdout)
+        root = self.agent_home / "gauntlet-tools"
+        receipt_path = root / "receipt.json"
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt.pop("contents")
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        current = root / "current"
+        (current / "bin" / "coverage").write_text(
+            "#!/bin/sh\necho drifted predecessor\n",
+            encoding="utf-8",
+        )
+
+        removed = json.loads(self.cli("remove").stdout)
+
+        preserved = (
+            root
+            / "preserved-generations"
+            / installed["currentGeneration"]
+            / "bin"
+            / "coverage"
+        )
+        self.assertIn("drifted predecessor", preserved.read_text(encoding="utf-8"))
+        self.assertTrue(removed["findings"])
+        self.cli("install")
+        self.assertNotIn(
+            "drifted predecessor",
+            (root / "current" / "bin" / "coverage").read_text(encoding="utf-8"),
+        )
+
     def test_activation_receipt_failure_restores_previous_generation(self):
         self.cli("install")
         current = self.agent_home / "gauntlet-tools" / "current"

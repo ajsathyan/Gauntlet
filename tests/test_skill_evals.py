@@ -63,6 +63,40 @@ class DesignBuildVerifyContractTests(unittest.TestCase):
         self.assertIn("Sensor Verdict", verify)
         self.assertIn("Build Verdict is authoritative", verify)
 
+    def test_installed_agent_path_requires_the_stateless_semantic_gate_sequence(self):
+        router = (ROOT / "router" / "AGENTS.md").read_text(encoding="utf-8")
+        installed_root = "/tmp/agent-home/gauntlet"
+        rendered = router.replace("{{GAUNTLET_ROOT}}", installed_root)
+        self.assertIn(
+            f"python3 {installed_root}/scripts/gauntlet.py workflow build-entry",
+            rendered,
+        )
+        for command in (
+            "workflow bind-candidate",
+            "workflow verify-entry",
+            "workflow record-verdict",
+            "workflow completion-check",
+        ):
+            self.assertIn(command, rendered)
+        self.assertIn("task-temporary", rendered)
+        self.assertIn("first implementation edit", rendered)
+
+        for skill_name, commands in {
+            "design": ("workflow build-entry",),
+            "build": ("workflow build-entry", "workflow bind-candidate"),
+            "verify": (
+                "workflow verify-entry",
+                "workflow record-verdict",
+                "workflow completion-check",
+            ),
+        }.items():
+            text = (ROOT / "skills" / skill_name / "SKILL.md").read_text(
+                encoding="utf-8"
+            )
+            for command in commands:
+                self.assertIn(command, text)
+            self.assertIn("task-temporary", text)
+
     def test_three_lens_review_caps_display_without_dropping_findings(self):
         reviewer = (
             ROOT / "skills" / "adversarial-reviewer" / "SKILL.md"

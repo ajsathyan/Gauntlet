@@ -418,6 +418,7 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
     test_manifest_preflight_rejects_bad_ancestors_and_fixed_generated_paths()
     test_product_cutover_guard_has_an_explicit_portable_detection_boundary()
     test_receipt_upgrade_and_uninstall_remove_only_unchanged_owned_files()
+    test_manifest_sync_rejects_modified_owned_and_unowned_current_collisions()
     test_default_install_requests_machine_local_sensor_tools_without_network()
     test_codex_uninstall_preserves_user_bytes_config_and_modified_payload()
 
@@ -1191,6 +1192,98 @@ def test_receipt_upgrade_and_uninstall_remove_only_unchanged_owned_files():
             raise AssertionError("uninstall should retire the ownership receipt")
         if len(findings) != 1 or "preserved modified stale managed file" not in findings[0]:
             raise AssertionError("modified managed preservation must be explicit")
+
+
+def test_manifest_sync_rejects_modified_owned_and_unowned_current_collisions():
+    def fixture(root, payload):
+        source_root = root / "source"
+        source = source_root / "scripts" / "runtime.py"
+        source.parent.mkdir(parents=True)
+        source.write_bytes(payload)
+        digest = hashlib.sha256(payload).hexdigest()
+        (source_root / "MANIFEST").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "entries": [
+                        {
+                            "destination": "gauntlet/scripts/runtime.py",
+                            "executable": False,
+                            "sha256": digest,
+                            "source": "scripts/runtime.py",
+                        }
+                    ],
+                    "generatedDestinations": [
+                        "gauntlet/AGENTS.md",
+                        "gauntlet/MANIFEST",
+                        "gauntlet/.install-manifest.json",
+                    ],
+                    "legacyManaged": [],
+                }
+            )
+        )
+        return source_root
+
+    def receipt(home, digest):
+        path = home / "gauntlet" / ".install-manifest.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "entries": [
+                        {
+                            "destination": "gauntlet/scripts/runtime.py",
+                            "sha256": digest,
+                        }
+                    ],
+                    "manifestSha256": "0" * 64,
+                }
+            )
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source_root = fixture(root, b"new runtime\n")
+
+        modified_home = root / "modified-home"
+        modified = modified_home / "gauntlet" / "scripts" / "runtime.py"
+        modified.parent.mkdir(parents=True)
+        modified.write_bytes(b"user modified runtime\n")
+        receipt(
+            modified_home,
+            hashlib.sha256(b"old runtime\n").hexdigest(),
+        )
+        try:
+            sync_payload(source_root, modified_home)
+        except ValueError as error:
+            assert_contains(str(error), "modified prior-receipt-owned", "owned collision")
+        else:
+            raise AssertionError("modified receipt-owned current payload must fail closed")
+        if modified.read_bytes() != b"user modified runtime\n":
+            raise AssertionError("modified receipt-owned current payload must be preserved")
+
+        unowned_home = root / "unowned-home"
+        unowned = unowned_home / "gauntlet" / "scripts" / "runtime.py"
+        unowned.parent.mkdir(parents=True)
+        unowned.write_bytes(b"user-owned runtime\n")
+        try:
+            sync_payload(source_root, unowned_home)
+        except ValueError as error:
+            assert_contains(str(error), "unowned manifest destination", "unowned collision")
+        else:
+            raise AssertionError("unowned gauntlet payload collision must fail closed")
+        if unowned.read_bytes() != b"user-owned runtime\n":
+            raise AssertionError("unowned gauntlet payload collision must be preserved")
+
+        upgrade_home = root / "upgrade-home-current"
+        upgrade = upgrade_home / "gauntlet" / "scripts" / "runtime.py"
+        upgrade.parent.mkdir(parents=True)
+        upgrade.write_bytes(b"old runtime\n")
+        receipt(upgrade_home, hashlib.sha256(upgrade.read_bytes()).hexdigest())
+        sync_payload(source_root, upgrade_home)
+        if upgrade.read_bytes() != b"new runtime\n":
+            raise AssertionError("byte-identical receipt-owned payload should upgrade")
 
 
 def test_default_install_requests_machine_local_sensor_tools_without_network():

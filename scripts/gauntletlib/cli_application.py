@@ -24,11 +24,7 @@ from gauntletlib.merge import configure as configure_merge
 from gauntletlib.merge import register as register_merge
 from gauntletlib.sensors import register as register_sensors
 from gauntletlib.workflow import register as register_workflow
-
-try:
-    from gauntletlib.workstreams import register as register_workstreams
-except ImportError:
-    register_workstreams = None
+from gauntletlib.workstreams import register as register_workstreams
 
 
 ROOT = Path(__file__).resolve().parents[2]

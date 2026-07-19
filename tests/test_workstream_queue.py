@@ -190,6 +190,25 @@ class WorkstreamQueueTests(unittest.TestCase):
         self.assertIsNone(state["activeAttempt"])
         self.assertEqual(state["entries"][0]["status"], "merged")
 
+    def test_orphan_same_tree_default_cannot_satisfy_candidate_proof(self):
+        self.queue.enqueue("orphan-tree", self.source)
+        attempt = self.queue.claim()
+        candidate, tree = self.candidate()
+        self.queue.bind_candidate(attempt["attemptId"], candidate, tree)
+        orphan = git(
+            self.repo,
+            "commit-tree",
+            tree,
+            "-m",
+            "orphan same-tree default",
+        )
+        git(self.repo, "update-ref", "refs/heads/main", orphan, self.base)
+
+        state = self.queue.reconcile()
+
+        self.assertIsNone(state["activeAttempt"])
+        self.assertEqual(state["entries"][0]["status"], "blocked")
+
     def test_post_bind_default_descendant_is_not_merged(self):
         self.queue.enqueue("post-bind-drift", self.source)
         attempt = self.queue.claim()

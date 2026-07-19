@@ -370,7 +370,9 @@ class FlexibleDesignTests(unittest.TestCase):
                 {
                     "directEvidence": ["external command observed"],
                     "outcomeEvidence": {
-                        outcomes[0]["identity"]: ["external command observed"]
+                        outcomes[0]["identity"]: [
+                            f"revision:{'1' * 40}#proof/external-command"
+                        ]
                     },
                 },
             ),
@@ -424,6 +426,131 @@ class FlexibleDesignTests(unittest.TestCase):
                 "sensor": "pass",
             },
         )
+
+    def test_mixed_acceptance_prose_and_lists_all_bind_as_outcomes(self):
+        design_id, design = self.create_accepted_design(
+            "The existing command remains available.\n\n"
+            "1. The command runs the configured check.\n"
+            "2. The result reports the exact revision.\n\n"
+            "No dashboard state is created.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        built = self.cli(
+            "workflow",
+            "build-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(self.write_json("mixed-reviews.json", self.reviews(record))),
+            "--json",
+        )
+        outcomes = json.loads(built.stdout)["contract"]["acceptedDesign"]["outcomes"]
+        self.assertEqual(
+            [item["identity"] for item in outcomes],
+            [
+                "acceptance-001",
+                "acceptance-002",
+                "acceptance-003",
+                "acceptance-004",
+            ],
+        )
+
+    def test_legacy_accepted_epic_is_a_read_only_design_source(self):
+        self.cli("docs", "ensure", "--project-root", str(self.repo), "--json")
+        docs = self.repo / "local-docs"
+        epic = docs / "epics" / "011" / "011_THIN_CONTRACT_WORKFLOW_PRD.md"
+        epic.parent.mkdir(parents=True)
+        source = (
+            "# Thin Contract Workflow\n\n"
+            "## Acceptance\n\n"
+            "The old accepted Epic remains directly readable.\n"
+        )
+        epic.write_text(source, encoding="utf-8")
+        (docs / "INDEX.md").write_text(
+            "# Local documents\n\n"
+            "| ID | Title | Type | Status | Created | Dependencies | Supersedes | Implementation | Verification |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            "| `GAUNTLET-011` | [Thin Contract Workflow](epics/011/011_THIN_CONTRACT_WORKFLOW_PRD.md) | PRD | Accepted | 2026-07-19 | None | None | Not implemented | Not verified |\n",
+            encoding="utf-8",
+        )
+        record = {
+            "acceptedAt": "2026-07-19T04:51:11Z",
+            "consequenceTriggers": [],
+            "dependencies": [],
+            "epicId": "GAUNTLET-011",
+            "releaseStages": ["merge"],
+            "schemaVersion": "gauntlet.accepted-epic.v1",
+            "sourcePath": str(epic),
+            "sourceSha256": hashlib.sha256(source.encode()).hexdigest(),
+            "title": "Thin Contract Workflow",
+        }
+        sidecar = epic.with_suffix(".accepted.json")
+        sidecar.write_text(json.dumps(record), encoding="utf-8")
+        before = (epic.read_bytes(), sidecar.read_bytes(), (docs / "INDEX.md").read_bytes())
+
+        built = self.cli(
+            "workflow",
+            "build-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            "GAUNTLET-011",
+            "--reviews",
+            str(self.write_json("legacy-reviews.json", self.reviews(record))),
+            "--json",
+        )
+        accepted = json.loads(built.stdout)["contract"]["acceptedDesign"]
+        self.assertEqual(accepted["identity"], "GAUNTLET-011")
+        self.assertEqual(before, (epic.read_bytes(), sidecar.read_bytes(), (docs / "INDEX.md").read_bytes()))
+
+    def test_public_cli_rejects_one_evidence_reference_reused_for_two_outcomes(self):
+        design_id, design = self.create_accepted_design(
+            "1. External command runs.\n2. Dashboard is published.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        reviews_path = self.write_json("duplicate-reviews.json", self.reviews(record))
+        built = self.cli(
+            "workflow", "build-entry",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--json",
+        )
+        contract = json.loads(built.stdout)["contract"]
+        bound = self.cli(
+            "workflow", "bind-candidate",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--contract", str(self.write_json("duplicate-contract.json", contract)),
+            "--commit", "1" * 40,
+            "--tree", "2" * 40,
+            "--json",
+        )
+        contract = json.loads(bound.stdout)["contract"]
+        reused = f"revision:{'1' * 40}#proof/reused"
+        evidence = {
+            "directEvidence": ["two outcomes claimed"],
+            "outcomeEvidence": {
+                item["identity"]: [reused]
+                for item in contract["acceptedDesign"]["outcomes"]
+            },
+        }
+        rejected = self.cli(
+            "workflow", "record-verdict",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--contract", str(self.write_json("duplicate-bound.json", contract)),
+            "--area", "build",
+            "--verdict", "pass",
+            "--evidence", str(self.write_json("duplicate-evidence.json", evidence)),
+            "--json",
+            check=False,
+        )
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("unique evidence references", rejected.stdout)
 
 
 if __name__ == "__main__":

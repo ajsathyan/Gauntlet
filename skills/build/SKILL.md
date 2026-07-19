@@ -16,6 +16,11 @@ Implement the accepted design without translating its product meaning into anoth
 
 If the accepted design is unavailable, semantically stale, lacks observable acceptance, or has an unresolved material finding that affects the work, stop. Do not infer or narrow the missing product decision.
 
+Before the first implementation edit, require a passing `workflow build-entry`
+from the installed Gauntlet CLI using the accepted design and complete three-lens
+review JSON. Keep its contract and all review inputs only in a task-temporary
+directory.
+
 ## Procedure
 
 1. Read the accepted design directly, inspect the repository, and trace relevant contracts and failure paths.
@@ -24,7 +29,9 @@ If the accepted design is unavailable, semantically stale, lacks observable acce
 4. The parent keeps product meaning, shared contracts, integration, user decisions, GitHub effects, and final verification.
 5. Read before editing, preserve unrelated user work, use practical RED-GREEN-REFACTOR for behavior changes, and integrate coherent atomic changes.
 6. Run focused edit-loop proof as work lands. Execute configured required sensors with `sensors run`; a plan, normalized result, or stale pass does not prove completion.
-7. Hand the exact integrated revision and accepted design to Verify. Build does not self-certify completion.
+7. Run `workflow bind-candidate` with the temporary contract, complete review
+   results, and exact integrated commit and tree. Then hand that bound contract
+   and accepted design to Verify. Build does not self-certify completion.
 
 ## Workstream Receipt
 

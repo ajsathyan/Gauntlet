@@ -62,6 +62,34 @@ def handoff(repo):
 
 
 class ControllerFreeCliTests(unittest.TestCase):
+    def test_required_workstreams_import_failure_is_visible(self):
+        scripts = ROOT / "scripts"
+        program = "\n".join(
+            [
+                "import builtins",
+                "import sys",
+                f"sys.path.insert(0, {str(scripts)!r})",
+                "original_import = builtins.__import__",
+                "def fail_workstreams(name, *args, **kwargs):",
+                "    if name == 'gauntletlib.workstreams':",
+                "        raise ImportError('simulated required workstreams failure')",
+                "    return original_import(name, *args, **kwargs)",
+                "builtins.__import__ = fail_workstreams",
+                "import gauntletlib.cli_application",
+            ]
+        )
+
+        result = subprocess.run(
+            ["python3", "-c", program],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("simulated required workstreams failure", result.stderr)
+
     def test_help_exposes_generic_commands_without_controller_commands(self):
         root = run_cli("--help")
         self.assertEqual(root.returncode, 0, root.stderr)

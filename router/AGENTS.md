@@ -36,6 +36,11 @@ Before non-trivial implementation:
 
 Show at most three recommendations per user round without dropping material findings. Every material finding reaches `accepted`, `rejected`, `deferred`, or `omitted` with a reason before affected Build work starts.
 
+For accepted non-trivial work, keep the review JSON and workflow contract only in
+a task-temporary directory. Before the first implementation edit, run `python3 {{GAUNTLET_ROOT}}/scripts/gauntlet.py workflow build-entry --project-root "$PROJECT_ROOT" --design "$DESIGN" --reviews "$REVIEWS_JSON" --json`.
+A failed gate blocks Build; do not create repository, local-document, or
+controller artifacts for these temporary values.
+
 ## Build
 
 Read before editing, match repository patterns, preserve unrelated work, and avoid unrelated cleanup. Use a branch for persisted changes and an isolated worktree for broad, consequential, dirty-worktree, or write-heavy delegated changes.
@@ -53,6 +58,12 @@ Children work quietly and return changed artifacts, compact proof, and risk. The
 Evidence precedes completion claims. Name an observable oracle for material behavior. Use a plausible wrong case or required non-effect when it distinguishes the intended result. Fields, phrases, statuses, receipts, and self-reports prove structure, not behavior.
 
 Independent Verify receives the accepted design, exact integrated revision, Architecture Contract, and Sensor Contract. It reports separate Build, Architecture, and Sensor verdicts. The Build verdict independently covers every accepted product outcome. Applicable Architecture and Sensor failures also block completion.
+
+On the exact integrated candidate, use the same installed CLI to run
+`workflow bind-candidate`, `workflow verify-entry`, `workflow record-verdict`
+once each for Build, Architecture, and Sensor, then `workflow completion-check`.
+Pass the temporary contract forward between commands. Completion requires the
+final command to pass; remove the task-temporary inputs and outputs after handoff.
 
 When the repository supplies `gauntlet-sensors.json`, execute `gauntlet.py sensors run` with fast sensors during edit loops and integrated sensors on the final candidate. A sensor plan or normalized result without execution is not proof. Treat a nonzero required result as a completion blocker. Keep compact attention items in active context and open raw logs only when needed.
 

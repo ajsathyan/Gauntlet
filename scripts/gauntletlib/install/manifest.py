@@ -421,6 +421,21 @@ def sync_payload(root: Path, agent_home: Path) -> list[str]:
     findings: list[str] = []
     receipt = _load_receipt(agent_home)
     receipt_destinations = _receipt_destinations(receipt, agent_home) if receipt else set()
+    receipt_rows = (
+        {row["destination"]: row for row in receipt["entries"]}
+        if receipt
+        else {}
+    )
+    legacy_hashes: dict[str, set[str]] = {}
+    for row in manifest.get("legacyManaged", []):
+        destination = row.get("destination")
+        expected_sha = row.get("sha256")
+        if (
+            isinstance(destination, str)
+            and isinstance(expected_sha, str)
+            and len(expected_sha) == 64
+        ):
+            legacy_hashes.setdefault(destination, set()).add(expected_sha)
 
     # Complete every path, source, symlink, and ownership check before mutation.
     for row, source, destination in prepared:
@@ -430,14 +445,41 @@ def sync_payload(root: Path, agent_home: Path) -> list[str]:
             raise ValueError(f"Manifest destination is not a file: {row['destination']}")
         if not destination.exists():
             continue
+        installed_sha = _sha256(destination)
+        allowed_hashes = {
+            row["sha256"],
+            *legacy_hashes.get(row["destination"], set()),
+        }
         if receipt:
-            if row["destination"] not in receipt_destinations:
+            if row["destination"] in receipt_destinations:
+                allowed_hashes.add(receipt_rows[row["destination"]]["sha256"])
+            if installed_sha not in allowed_hashes:
+                if row["destination"] in receipt_destinations:
+                    raise ValueError(
+                        "Refusing modified prior-receipt-owned manifest destination: "
+                        f"{row['destination']}"
+                    )
                 raise ValueError(
                     f"Refusing unowned manifest destination collision: {row['destination']}"
                 )
-        elif row["destination"].startswith("skills/") and _sha256(destination) != row["sha256"]:
+        elif installed_sha not in allowed_hashes:
             raise ValueError(
-                f"Refusing unowned skill destination collision: {row['destination']}"
+                f"Refusing unowned manifest destination collision: {row['destination']}"
+            )
+
+    manifest_destination = agent_home / "gauntlet" / "MANIFEST"
+    if manifest_destination.exists():
+        installed_manifest_sha = _sha256(manifest_destination)
+        allowed_manifest_hashes = {
+            _sha256(root / "MANIFEST"),
+            *legacy_hashes.get("gauntlet/MANIFEST", set()),
+        }
+        if receipt:
+            allowed_manifest_hashes.add(receipt["manifestSha256"])
+        if installed_manifest_sha not in allowed_manifest_hashes:
+            owner = "prior-receipt-owned" if receipt else "unowned"
+            raise ValueError(
+                f"Refusing modified {owner} generated destination: gauntlet/MANIFEST"
             )
 
     if receipt:
@@ -460,7 +502,6 @@ def sync_payload(root: Path, agent_home: Path) -> list[str]:
         if source != destination.resolve(strict=False):
             _atomic_copy(source, destination, row["executable"])
 
-    manifest_destination = agent_home / "gauntlet" / "MANIFEST"
     if (root / "MANIFEST").resolve() != manifest_destination.resolve():
         _atomic_copy(root / "MANIFEST", manifest_destination, False)
 

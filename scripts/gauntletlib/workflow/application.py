@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from gauntletlib.docs import load_accepted_design
-
 from .contracts import (
     ContractError,
     _validate_contract,
     accept_design,
+    bind_candidate_revision,
     completion_status,
+    record_verdict,
 )
 
 
@@ -42,6 +42,13 @@ def _review_design_binding(value):
             "reference": value["sourcePath"],
             "sha256": value["sourceSha256"],
             "acceptanceSha256": value["acceptanceSha256"],
+        }
+    if {"epicId", "sourcePath", "sourceSha256"}.issubset(value):
+        return {
+            "identity": value["epicId"],
+            "reference": value["sourcePath"],
+            "sha256": value["sourceSha256"],
+            "acceptanceSha256": value.get("acceptanceSha256"),
         }
     required = {"identity", "reference", "sha256", "acceptanceSha256"}
     if required.issubset(value):
@@ -80,9 +87,12 @@ def validate_prebuild_reviews(accepted_design, review_results):
             binding["identity"] != accepted_design["identity"]
             or binding["reference"] != accepted_design["reference"]
             or not _same_digest(binding["sha256"], accepted_design["sha256"])
-            or not _same_digest(
-                binding["acceptanceSha256"],
-                accepted_design["acceptanceSha256"],
+            or (
+                binding["acceptanceSha256"] is not None
+                and not _same_digest(
+                    binding["acceptanceSha256"],
+                    accepted_design["acceptanceSha256"],
+                )
             )
         ):
             raise ContractError(f"{lens} review is stale or bound to another design")
@@ -129,10 +139,16 @@ def validate_prebuild_reviews(accepted_design, review_results):
     }
 
 
-def build_entry(*, project_root, design, review_results):
+def build_entry(
+    *,
+    project_root,
+    design,
+    review_results,
+    accepted_design_reader,
+):
     """Open Build only for a current accepted design and resolved three-lens review."""
 
-    accepted = load_accepted_design(project_root, design)
+    accepted = accepted_design_reader(project_root, design)
     review_summary = validate_prebuild_reviews(accepted, review_results)
     contract = accept_design(
         identity=accepted["identity"],
@@ -144,11 +160,42 @@ def build_entry(*, project_root, design, review_results):
     return {"contract": contract, "prebuildReview": review_summary}
 
 
-def verify_entry(*, project_root, design, contract):
+def authorize_candidate(
+    *,
+    project_root,
+    design,
+    review_results,
+    contract,
+    commit,
+    tree,
+    accepted_design_reader,
+):
+    """Re-run the ephemeral Build gate before binding an exact candidate."""
+
+    authorized = build_entry(
+        project_root=project_root,
+        design=design,
+        review_results=review_results,
+        accepted_design_reader=accepted_design_reader,
+    )["contract"]
+    if contract != authorized:
+        raise ContractError(
+            "candidate contract does not match the current authorized Build entry"
+        )
+    return bind_candidate_revision(contract, commit=commit, tree=tree)
+
+
+def verify_entry(
+    *,
+    project_root,
+    design,
+    contract,
+    accepted_design_reader,
+):
     """Validate the current accepted source and exact candidate before Verify."""
 
     _validate_contract(contract)
-    accepted = load_accepted_design(project_root, design)
+    accepted = accepted_design_reader(project_root, design)
     if contract["acceptedDesign"] != accepted:
         raise ContractError(
             "workflow contract is stale or bound to another accepted design"
@@ -161,8 +208,57 @@ def verify_entry(*, project_root, design, contract):
     }
 
 
-def completion_check(*, project_root, design, contract):
+def record_verification_verdict(
+    *,
+    project_root,
+    design,
+    contract,
+    area,
+    verdict,
+    evidence,
+    accepted_design_reader,
+):
+    """Record one source-validated exact-candidate verdict."""
+
+    verify_entry(
+        project_root=project_root,
+        design=design,
+        contract=contract,
+        accepted_design_reader=accepted_design_reader,
+    )
+    if not isinstance(evidence, Mapping):
+        raise ContractError("verdict evidence must be an object")
+    accepted = contract["acceptedDesign"]
+    revision = contract["candidateRevision"]
+    return record_verdict(
+        contract,
+        area=area,
+        verdict=verdict,
+        design_identity=accepted["identity"],
+        design_reference=accepted["reference"],
+        design_sha256=accepted["sha256"],
+        commit=revision["commit"],
+        tree=revision["tree"],
+        read_design_directly=True,
+        direct_evidence=evidence.get("directEvidence", []),
+        derivative_evidence=evidence.get("derivativeEvidence", []),
+        outcome_evidence=evidence.get("outcomeEvidence", {}),
+    )
+
+
+def completion_check(
+    *,
+    project_root,
+    design,
+    contract,
+    accepted_design_reader,
+):
     """Evaluate the production completion path after revalidating its source."""
 
-    verify_entry(project_root=project_root, design=design, contract=contract)
+    verify_entry(
+        project_root=project_root,
+        design=design,
+        contract=contract,
+        accepted_design_reader=accepted_design_reader,
+    )
     return completion_status(contract)

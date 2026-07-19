@@ -5,6 +5,11 @@ import unittest
 
 from tests import support as _support  # noqa: F401
 
+from gauntletlib.workflow.application import (
+    authorize_candidate,
+    build_entry,
+    record_verification_verdict,
+)
 from gauntletlib.workflow.contracts import (
     ContractError,
     accept_design,
@@ -64,7 +69,9 @@ class WorkflowContractTests(unittest.TestCase):
         }
         if area == "build" and verdict == "pass":
             values["outcome_evidence"] = {
-                outcome["identity"]: [f"{outcome['identity']} oracle observed"]
+                outcome["identity"]: [
+                    f"revision:{COMMIT}#proof/{outcome['identity']}"
+                ]
                 for outcome in OUTCOMES
             }
         values.update(overrides)
@@ -262,9 +269,88 @@ class WorkflowContractTests(unittest.TestCase):
                 self.contract(),
                 "build",
                 outcome_evidence={
-                    OUTCOMES[0]["identity"]: ["command observed"],
+                    OUTCOMES[0]["identity"]: [
+                        f"revision:{COMMIT}#proof/command"
+                    ],
                 },
             )
+
+    def test_build_pass_rejects_reused_or_non_revision_evidence(self):
+        duplicate = f"revision:{COMMIT}#proof/reused"
+        with self.assertRaisesRegex(ContractError, "unique evidence references"):
+            self.verdict(
+                self.contract(),
+                "build",
+                outcome_evidence={
+                    outcome["identity"]: [duplicate] for outcome in OUTCOMES
+                },
+            )
+        with self.assertRaisesRegex(ContractError, "exact-revision"):
+            self.verdict(
+                self.contract(),
+                "build",
+                outcome_evidence={
+                    outcome["identity"]: [f"self-attested:{outcome['identity']}"]
+                    for outcome in OUTCOMES
+                },
+            )
+
+    def test_application_accepts_an_explicit_alternate_design_reader(self):
+        accepted = {
+            "identity": DESIGN_IDENTITY,
+            "reference": DESIGN_REFERENCE,
+            "sha256": DESIGN_SHA256,
+            "acceptanceSha256": ACCEPTANCE_SHA256,
+            "outcomes": OUTCOMES,
+        }
+        calls = []
+
+        def reader(project_root, design):
+            calls.append((project_root, design))
+            return accepted
+
+        reviews = [
+            {
+                "lens": lens,
+                "reviewer": f"reviewer-{index}",
+                "design": accepted,
+                "materialFindingCount": 0,
+                "findings": [],
+            }
+            for index, lens in enumerate(
+                (
+                    "product-completeness",
+                    "engineering-shape",
+                    "proof-and-consequence",
+                )
+            )
+        ]
+        entered = build_entry(
+            project_root="adapter-root",
+            design="adapter-design",
+            review_results=reviews,
+            accepted_design_reader=reader,
+        )
+        candidate = authorize_candidate(
+            project_root="adapter-root",
+            design="adapter-design",
+            review_results=reviews,
+            contract=entered["contract"],
+            commit=COMMIT,
+            tree=TREE,
+            accepted_design_reader=reader,
+        )
+        recorded = record_verification_verdict(
+            project_root="adapter-root",
+            design="adapter-design",
+            contract=candidate,
+            area="sensor",
+            verdict="pass",
+            evidence={"directEvidence": ["sensor evidence"]},
+            accepted_design_reader=reader,
+        )
+        self.assertEqual(recorded["verdicts"]["sensor"]["verdict"], "pass")
+        self.assertEqual(calls, [("adapter-root", "adapter-design")] * 3)
 
 
 if __name__ == "__main__":

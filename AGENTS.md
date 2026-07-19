@@ -47,6 +47,11 @@ Three independent pre-build lenses inspect the same accepted design:
 
 Show at most three recommendations per user round without dropping material findings. Every material finding reaches `accepted`, `rejected`, `deferred`, or `omitted` with a reason before affected Build work starts.
 
+For accepted non-trivial work, keep the three-lens results and workflow contract
+in a task-temporary directory, never in the repository or local documents. Before
+the first implementation edit, run `python3 scripts/gauntlet.py workflow build-entry --project-root "$PROJECT_ROOT" --design "$DESIGN" --reviews "$REVIEWS_JSON" --json`.
+A failed gate blocks Build.
+
 ## Build
 
 Read before editing, match repository patterns, preserve unrelated work, and avoid unrelated cleanup. Use a branch for persisted changes and an isolated worktree for broad, consequential, dirty-worktree, or write-heavy delegated changes.
@@ -80,6 +85,12 @@ Independent Verify receives:
 - the Sensor Contract.
 
 It reports separate Build, Architecture, and Sensor verdicts. The Build verdict independently covers every accepted product outcome. Applicable Architecture and Sensor failures also block completion. A green sensor result cannot substitute for an absent accepted outcome.
+
+On the exact integrated candidate, run the stateless workflow commands in order:
+`bind-candidate`, `verify-entry`, `record-verdict` once each for Build,
+Architecture, and Sensor, then `completion-check`. Pass the temporary contract
+forward between commands. Do not claim completion unless `completion-check`
+passes; remove the task-temporary inputs and outputs after handoff.
 
 Run focused tests first. When `gauntlet-sensors.json` exists, run fast sensors during the edit loop and integrated sensors on the final candidate. Treat a nonzero required sensor result as a completion blocker. Keep compact attention items in active context and open raw logs only when a finding requires them.
 
