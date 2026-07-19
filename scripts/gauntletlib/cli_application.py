@@ -73,6 +73,7 @@ from gauntletlib.merge import render_pr_body as render_pr_body
 from gauntletlib.merge import register as register_merge
 from gauntletlib.review_unit import configure as configure_review_unit
 from gauntletlib.review_unit import register as register_review_unit
+from gauntletlib.sensors import register as register_sensors
 from gauntletlib.progress import configure as configure_progress
 from gauntletlib.progress import progress_browser_action
 from gauntletlib.progress import register as register_progress
@@ -591,6 +592,7 @@ def register(subcommands):
         register_followup_memory=register_followup_memory,
         register_analytics=register_analytics,
         register_changelog=register_changelog,
+        register_sensors=register_sensors,
         register_diagram=register_diagram,
         command_install_verify=command_install_verify,
         command_diagram_find=command_diagram_find,

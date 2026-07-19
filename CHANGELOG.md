@@ -2,7 +2,11 @@
 
 ## Unreleased
 
+- Implement GAUNTLET-009: Adaptive code quality sensors.
+
 - Omit empty named acceptance groups from generated run-backed Project PR facts.
+
+- Gauntlet now plans proportional language-aware code-quality sensors from repository-owned configuration, normalizes compact evidence, and validates behavior-preserving readability rewrites without installing optional tools.
 
 - Name follow-up PRD drafts after their features and preserve a valid working directory after landed-worktree cleanup.
 
