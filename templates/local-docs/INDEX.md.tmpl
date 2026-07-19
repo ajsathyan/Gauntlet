@@ -1,9 +1,12 @@
 # Local document index
 
-Epic prefix: `{{EPIC_PREFIX}}`
+Design prefix: `{{DESIGN_PREFIX}}`
 
-| ID | Title | Type | Status | Created | Dependencies | Supersedes | Implementation | Verification |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-<!-- EPICS -->
+| ID | Design | Status | Created |
+| --- | --- | --- | --- |
+<!-- DESIGNS -->
 
-Keep this index navigational. Add one row per Epic, even when several Epics share one PRD. Canonical requirements belong in the linked document; exact implementation and lifecycle state comes from that Epic's Execution Run. Never use the table status as proof of implementation, merge, deployment, or production behavior.
+Keep this index navigational. The linked design's exact `Acceptance` section is its
+Build Contract. An `Accepted` row means only that the exact document digest was
+bound; it does not prove implementation, verification, merge, deployment, or
+production behavior.

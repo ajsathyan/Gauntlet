@@ -15,6 +15,23 @@ GENERATED_DESTINATIONS = (
     "gauntlet/.install-manifest.json",
 )
 RECEIPT = Path(GENERATED_DESTINATIONS[-1])
+CONTROLLER_ERA_DESTINATIONS = {
+    "gauntlet/scripts/prd-run.py",
+    "gauntlet/scripts/gauntletlib/run/controller.py",
+    "gauntlet/scripts/progress-dashboard.py",
+}
+LIVE_CONTROLLER_STATES = {
+    "discussing",
+    "accepted",
+    "compiled",
+    "executing",
+    "integrating",
+    "epic_verified",
+    "merged",
+    "deployed",
+    "production_verified",
+}
+CONTROLLER_MERGE_LEASE_SCHEMA = "gauntlet.epic-merge-lease.v1"
 
 
 def _sha256(path: Path) -> str:
@@ -182,6 +199,194 @@ def _receipt_destinations(receipt: dict, agent_home: Path) -> set[str]:
     return destinations
 
 
+def _generated_receipt_entries(receipt: dict, agent_home: Path) -> list[dict]:
+    entries = receipt.get("generatedEntries", [])
+    if not isinstance(entries, list):
+        raise ValueError("Invalid install ownership receipt generated entries")
+    prepared = []
+    destinations = set()
+    for row in entries:
+        if not isinstance(row, dict):
+            raise ValueError("Invalid install ownership receipt generated entry")
+        value = _relative_path(row.get("destination"), "generated receipt destination")
+        if value not in GENERATED_DESTINATIONS[:-1]:
+            raise ValueError(f"Unsupported generated receipt destination: {value}")
+        _generated_destination_path(agent_home, value)
+        if value in destinations:
+            raise ValueError("Duplicate generated install ownership receipt destination")
+        destinations.add(value)
+        if not isinstance(row.get("sha256"), str) or len(row["sha256"]) != 64:
+            raise ValueError(f"Invalid generated install ownership receipt hash: {value}")
+        prepared.append(row)
+    return prepared
+
+
+def _is_controller_era_receipt(receipt: dict | None, agent_home: Path) -> bool:
+    if receipt is None:
+        return False
+    destinations = _receipt_destinations(receipt, agent_home)
+    return bool(destinations & CONTROLLER_ERA_DESTINATIONS)
+
+
+def _controller_merge_lease_state(path: Path) -> str:
+    """Return ``active`` or ``released`` for one historical merge lease."""
+
+    try:
+        lease = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(
+            f"Cannot determine controller merge lease state from {path}: {error}"
+        ) from error
+    if (
+        not isinstance(lease, dict)
+        or lease.get("schemaVersion") != CONTROLLER_MERGE_LEASE_SCHEMA
+    ):
+        raise ValueError(f"Cannot determine controller merge lease state from {path}")
+
+    statuses = []
+    for key in ("status", "state"):
+        value = lease.get(key)
+        if value is not None:
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(
+                    f"Cannot determine controller merge lease state from {path}"
+                )
+            normalized = value.strip().lower()
+            if normalized not in {
+                "active",
+                "acquired",
+                "held",
+                "inactive",
+                "released",
+            }:
+                raise ValueError(
+                    f"Cannot determine controller merge lease state from {path}"
+                )
+            statuses.append(normalized)
+    active_marker = lease.get("active")
+    if active_marker is not None and not isinstance(active_marker, bool):
+        raise ValueError(f"Cannot determine controller merge lease state from {path}")
+    released_at = lease.get("releasedAt")
+    if released_at is not None and (
+        not isinstance(released_at, str) or not released_at.strip()
+    ):
+        raise ValueError(f"Cannot determine controller merge lease state from {path}")
+
+    released_status = any(value in {"inactive", "released"} for value in statuses)
+    active_status = any(value in {"active", "acquired", "held"} for value in statuses)
+    released_marker = active_marker is False or released_at is not None
+    if (released_status or released_marker) and not (
+        active_marker is True or active_status
+    ):
+        return "released"
+    if released_status or released_marker:
+        raise ValueError(
+            f"Cannot determine controller merge lease state from {path}: "
+            "conflicting active and released markers"
+        )
+
+    required = {
+        "coverageSha256": 64,
+        "epicId": None,
+        "candidateHead": None,
+        "baseHead": None,
+        "baseRef": None,
+    }
+    for key, length in required.items():
+        value = lease.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"Cannot determine controller merge lease state from {path}")
+        if length is not None and len(value) != length:
+            raise ValueError(f"Cannot determine controller merge lease state from {path}")
+    return "active"
+
+
+def preflight_product_cutover(
+    agent_home: Path,
+    project_roots: list[Path],
+    *,
+    confirmed_no_unscanned_live_work: bool = False,
+) -> list[str]:
+    """Reject a controller-era upgrade when detectable execution work is live.
+
+    Detection is intentionally bounded to explicitly supplied project roots. Each
+    root is inspected at local-docs/executions/*/manifest.json and for historical
+    **/*.merge-lease.json files. Historical state is never changed.
+    """
+
+    receipt = _load_receipt(agent_home)
+    if not _is_controller_era_receipt(receipt, agent_home):
+        return []
+    if not project_roots and not confirmed_no_unscanned_live_work:
+        raise ValueError(
+            "Controller-era Gauntlet is installed. Product-cut installation requires "
+            "at least one --cutover-project-root to inspect, or "
+            "--confirm-no-live-controller-work after checking every other project. "
+            "The installer can only detect local-docs/executions/*/manifest.json "
+            "and **/*.merge-lease.json under project roots you "
+            "explicitly provide."
+        )
+
+    live = []
+    findings = []
+    seen = set()
+    for supplied in project_roots:
+        root = supplied.expanduser().absolute()
+        if root in seen:
+            continue
+        seen.add(root)
+        if root.is_symlink() or not root.is_dir():
+            raise ValueError(f"Cutover project root must be a real directory: {root}")
+        local_docs = root / "local-docs"
+        if local_docs.exists() and (
+            local_docs.is_symlink() or not local_docs.is_dir()
+        ):
+            raise ValueError(f"Unsafe controller document directory: {local_docs}")
+        executions = root / "local-docs" / "executions"
+        if executions.exists():
+            if executions.is_symlink() or not executions.is_dir():
+                raise ValueError(f"Unsafe controller execution directory: {executions}")
+            for manifest_path in sorted(executions.glob("*/manifest.json")):
+                if manifest_path.is_symlink() or not manifest_path.is_file():
+                    raise ValueError(f"Unsafe controller run manifest: {manifest_path}")
+                try:
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+                    raise ValueError(
+                        f"Cannot determine controller run state from {manifest_path}: {error}"
+                    ) from error
+                if not isinstance(manifest, dict) or not isinstance(manifest.get("state"), str):
+                    raise ValueError(
+                        f"Cannot determine controller run state from {manifest_path}"
+                    )
+                state = manifest["state"]
+                if state in LIVE_CONTROLLER_STATES:
+                    live.append(f"{manifest_path.parent.name} ({state})")
+                elif state != "complete":
+                    findings.append(
+                        f"preserved historical controller run with legacy state {state}: "
+                        f"{manifest_path.parent}"
+                    )
+        for lease_path in sorted(root.rglob("*.merge-lease.json")):
+            if lease_path.is_symlink() or not lease_path.is_file():
+                raise ValueError(f"Unsafe controller merge lease: {lease_path}")
+            state = _controller_merge_lease_state(lease_path)
+            if state == "active":
+                live.append(f"{lease_path} (active merge lease)")
+            else:
+                findings.append(
+                    "preserved released historical controller merge lease: "
+                    f"{lease_path}"
+                )
+    if live:
+        raise ValueError(
+            "Refusing product cut while controller-era work is live: "
+            + ", ".join(live)
+            + ". Complete or explicitly close those runs before installing."
+        )
+    return findings
+
+
 def _remove_empty_parents(path: Path, stop: Path) -> None:
     parent = path.parent
     while parent != stop and stop in parent.parents:
@@ -216,6 +421,21 @@ def sync_payload(root: Path, agent_home: Path) -> list[str]:
     findings: list[str] = []
     receipt = _load_receipt(agent_home)
     receipt_destinations = _receipt_destinations(receipt, agent_home) if receipt else set()
+    receipt_rows = (
+        {row["destination"]: row for row in receipt["entries"]}
+        if receipt
+        else {}
+    )
+    legacy_hashes: dict[str, set[str]] = {}
+    for row in manifest.get("legacyManaged", []):
+        destination = row.get("destination")
+        expected_sha = row.get("sha256")
+        if (
+            isinstance(destination, str)
+            and isinstance(expected_sha, str)
+            and len(expected_sha) == 64
+        ):
+            legacy_hashes.setdefault(destination, set()).add(expected_sha)
 
     # Complete every path, source, symlink, and ownership check before mutation.
     for row, source, destination in prepared:
@@ -225,14 +445,41 @@ def sync_payload(root: Path, agent_home: Path) -> list[str]:
             raise ValueError(f"Manifest destination is not a file: {row['destination']}")
         if not destination.exists():
             continue
+        installed_sha = _sha256(destination)
+        allowed_hashes = {
+            row["sha256"],
+            *legacy_hashes.get(row["destination"], set()),
+        }
         if receipt:
-            if row["destination"] not in receipt_destinations:
+            if row["destination"] in receipt_destinations:
+                allowed_hashes.add(receipt_rows[row["destination"]]["sha256"])
+            if installed_sha not in allowed_hashes:
+                if row["destination"] in receipt_destinations:
+                    raise ValueError(
+                        "Refusing modified prior-receipt-owned manifest destination: "
+                        f"{row['destination']}"
+                    )
                 raise ValueError(
                     f"Refusing unowned manifest destination collision: {row['destination']}"
                 )
-        elif row["destination"].startswith("skills/") and _sha256(destination) != row["sha256"]:
+        elif installed_sha not in allowed_hashes:
             raise ValueError(
-                f"Refusing unowned skill destination collision: {row['destination']}"
+                f"Refusing unowned manifest destination collision: {row['destination']}"
+            )
+
+    manifest_destination = agent_home / "gauntlet" / "MANIFEST"
+    if manifest_destination.exists():
+        installed_manifest_sha = _sha256(manifest_destination)
+        allowed_manifest_hashes = {
+            _sha256(root / "MANIFEST"),
+            *legacy_hashes.get("gauntlet/MANIFEST", set()),
+        }
+        if receipt:
+            allowed_manifest_hashes.add(receipt["manifestSha256"])
+        if installed_manifest_sha not in allowed_manifest_hashes:
+            owner = "prior-receipt-owned" if receipt else "unowned"
+            raise ValueError(
+                f"Refusing modified {owner} generated destination: gauntlet/MANIFEST"
             )
 
     if receipt:
@@ -255,7 +502,6 @@ def sync_payload(root: Path, agent_home: Path) -> list[str]:
         if source != destination.resolve(strict=False):
             _atomic_copy(source, destination, row["executable"])
 
-    manifest_destination = agent_home / "gauntlet" / "MANIFEST"
     if (root / "MANIFEST").resolve() != manifest_destination.resolve():
         _atomic_copy(root / "MANIFEST", manifest_destination, False)
 
@@ -281,6 +527,156 @@ def sync_payload(root: Path, agent_home: Path) -> list[str]:
             if os.path.exists(temporary):
                 os.unlink(temporary)
     return findings
+
+
+def preflight_generated_payload(
+    agent_home: Path,
+    destination: str,
+    candidate: Path,
+    *,
+    legacy_container: Path | None = None,
+) -> None:
+    """Reject replacement of modified or unowned installer-rendered bytes."""
+
+    installed = _generated_destination_path(agent_home, destination)
+    if candidate.is_symlink() or not candidate.is_file():
+        raise ValueError(f"Generated payload candidate is not a real file: {candidate}")
+    if not installed.exists():
+        return
+    candidate_sha = _sha256(candidate)
+    installed_sha = _sha256(installed)
+    if installed_sha == candidate_sha:
+        return
+    receipt = _load_receipt(agent_home)
+    if receipt is not None:
+        generated = {
+            row["destination"]: row
+            for row in _generated_receipt_entries(receipt, agent_home)
+        }
+        owned = generated.get(destination)
+        if owned is not None and installed_sha == owned["sha256"]:
+            return
+        if owned is not None:
+            raise ValueError(
+                f"Refusing modified prior-receipt-owned generated destination: "
+                f"{destination}"
+            )
+    if legacy_container is not None and legacy_container.is_file():
+        installed_bytes = installed.read_bytes()
+        container_bytes = legacy_container.read_bytes()
+        begin = b"<!-- BEGIN GAUNTLET MANAGED BLOCK -->"
+        end = b"<!-- END GAUNTLET MANAGED BLOCK -->"
+        begin_count = container_bytes.count(begin)
+        end_count = container_bytes.count(end)
+        exact_single_copy = (
+            bool(installed_bytes)
+            and container_bytes.count(installed_bytes) == 1
+        )
+        marker_free_legacy = begin_count == 0 and end_count == 0
+        valid_managed_legacy = False
+        if begin_count == 1 and end_count == 1:
+            begin_at = container_bytes.find(begin)
+            end_at = container_bytes.find(end)
+            begin_after = begin_at + len(begin)
+            end_after = end_at + len(end)
+            router_at = container_bytes.find(installed_bytes)
+            begin_is_line = (
+                begin_at == 0 or container_bytes[begin_at - 1 : begin_at] == b"\n"
+            ) and (
+                begin_after == len(container_bytes)
+                or container_bytes[begin_after : begin_after + 1] == b"\n"
+                or container_bytes[begin_after : begin_after + 2] == b"\r\n"
+            )
+            end_is_line = (
+                end_at == 0 or container_bytes[end_at - 1 : end_at] == b"\n"
+            ) and (
+                end_after == len(container_bytes)
+                or container_bytes[end_after : end_after + 1] == b"\n"
+                or container_bytes[end_after : end_after + 2] == b"\r\n"
+            )
+            valid_managed_legacy = (
+                begin_at < end_at
+                and begin_is_line
+                and end_is_line
+                and begin_after <= router_at
+                and router_at + len(installed_bytes) <= end_at
+            )
+        if exact_single_copy and (marker_free_legacy or valid_managed_legacy):
+            return
+    raise ValueError(f"Refusing unowned generated destination collision: {destination}")
+
+
+def record_generated_payload(agent_home: Path, destination: str) -> None:
+    """Add an installer-rendered file to the ownership receipt after it is written."""
+
+    receipt = _load_receipt(agent_home)
+    if receipt is None:
+        raise ValueError("Cannot record generated payload without an ownership receipt")
+    path = _generated_destination_path(agent_home, destination)
+    if not path.is_file():
+        raise ValueError(f"Missing generated payload: {destination}")
+    entries = {
+        row["destination"]: row
+        for row in _generated_receipt_entries(receipt, agent_home)
+    }
+    entries[destination] = {"destination": destination, "sha256": _sha256(path)}
+    receipt["generatedEntries"] = [entries[key] for key in sorted(entries)]
+    receipt_path = agent_home / RECEIPT
+    rendered = (json.dumps(receipt, indent=2, sort_keys=True) + "\n").encode()
+    fd, temporary = tempfile.mkstemp(prefix=f".{receipt_path.name}.", dir=receipt_path.parent)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(rendered)
+        os.chmod(temporary, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+        os.replace(temporary, receipt_path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def uninstall_payload(agent_home: Path) -> list[str]:
+    """Remove only byte-identical files named by the installation receipt."""
+
+    receipt = _load_receipt(agent_home)
+    if receipt is None:
+        return ["no Gauntlet payload ownership receipt found; preserved installed files"]
+    prepared, manifest_path, manifest_sha = preflight_uninstall_payload(agent_home)
+    findings: list[str] = []
+
+    for path, expected_sha in prepared:
+        _safe_stale_file(path, expected_sha, findings)
+        _remove_empty_parents(path, agent_home)
+    _safe_stale_file(manifest_path, manifest_sha, findings)
+
+    receipt_path = agent_home / RECEIPT
+    receipt_path.unlink()
+    _remove_empty_parents(receipt_path, agent_home)
+    return findings
+
+
+def preflight_uninstall_payload(
+    agent_home: Path,
+) -> tuple[list[tuple[Path, str]], Path, str]:
+    """Validate every receipt-owned path without changing installed state."""
+
+    receipt = _load_receipt(agent_home)
+    if receipt is None:
+        return [], _generated_destination_path(agent_home, "gauntlet/MANIFEST"), ""
+    _receipt_destinations(receipt, agent_home)
+    generated = _generated_receipt_entries(receipt, agent_home)
+    rows = list(receipt["entries"]) + generated
+    prepared = [
+        (
+            _destination_path(agent_home, row["destination"], "receipt destination"),
+            row["sha256"],
+        )
+        for row in rows
+    ]
+    return (
+        prepared,
+        _generated_destination_path(agent_home, "gauntlet/MANIFEST"),
+        receipt["manifestSha256"],
+    )
 
 
 def verify_payload(root: Path, agent_home: Path) -> list[str]:

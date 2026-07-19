@@ -1,67 +1,55 @@
 # Document organization
 
-This project keeps private product working documents in the primary Git worktree. Read this file with `local-docs/INDEX.md` before changing those documents.
+This project keeps private product documents in the primary Git worktree. Read this
+file with `local-docs/INDEX.md` before changing those documents.
 
 ## Locations
 
-- Product drafts: `local-docs/drafts/`
-- Promoted product documents: `local-docs/epics/`
-- Research and decisions: `local-docs/research/` and the relevant Epic home
-- Execution state: `local-docs/executions/`
-- Tracked maintainer documentation: the repository's established documentation location
+- Durable product designs: `local-docs/designs/`
+- Research: `local-docs/research/`
+- Decisions whose reasoning must survive: `local-docs/decisions/`
+- Legacy PRD, Epic, and execution files: their existing paths, read-only unless the
+  user explicitly asks to edit the owning document
+- Tracked maintainer documentation: the repository's established documentation path
 
-`doc_org.md` and `local-docs/` are ignored locally. They are not a security boundary. Canonical local documents exist only in the primary worktree; linked worktrees read them and return durable results to the parent task.
+`doc_org.md` and `local-docs/` are ignored locally. They are not a security
+boundary. Canonical local documents exist only in the primary worktree; linked
+worktrees read them there.
 
-To opt out, run `python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs disable --project-root "$PROJECT_ROOT"`. Run `docs enable` to reactivate the profile.
+To opt out, run:
 
-## User-owned product documents
+`python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs disable --project-root "$PROJECT_ROOT"`
 
-Discussion does not change a draft, plan, or PRD. Write only after the user explicitly asks to create or edit one.
+Run `docs enable` to reactivate the profile.
 
-- Use the guided Founding Hypothesis for a new product.
-- Use the guided Peter Yang feature PRD for a follow-up Epic; omit Meeting Notes.
-- Preserve useful template guidance, direct user edits, and arbitrary added, removed, or renamed sections.
-- Write product content only when the user stated it, accepted it, or explicitly asked the agent to draft it.
-- Keep agent suggestions outside the document as proposed edits until the user accepts them.
+## User-owned designs
 
-Do not infer non-goals, security or safety boundaries, quality gates, rollout constraints, or other product limits merely because a template or workflow could contain them. Ask one concise practical-effect question when an unanswered decision would materially change behavior, scope, acceptance, authority, cost, or external effect.
+Discussion does not change a design. Write only after the user explicitly asks to
+create or edit one. Templates are prompts, not product decisions. Preserve direct
+user edits and arbitrary sections. Never infer non-goals, security boundaries,
+rollout constraints, quality gates, or other product limits from an empty prompt.
 
-## Promotion and acceptance
+Before the user accepts a non-trivial design, explicitly consider material
+alternatives, assumptions, completeness, edge cases, observable outcomes, and
+required non-effects. Keep unaccepted suggestions outside the document.
 
-Drafts remain under `local-docs/drafts/` until the user explicitly promotes them. Promotion allocates a stable `{{EPIC_PREFIX}}-###` ID, chooses the final filename, preserves the draft bytes, and updates the index atomically.
+## Acceptance and implementation
 
-Acceptance binds the exact human document version. Require observable done behavior; if it is absent, ask instead of inventing acceptance criteria. Existing behavior is preserved unless the accepted document explicitly changes it. Legacy accepted PRDs remain valid and are not rewritten solely to adopt a new template.
+Acceptance requires one answered exact `## Acceptance` section and binds the whole
+file digest without rewriting the design. That exact section is the Build Contract.
+Architecture and Sensor Contracts remain separate. Build plans and child workstream
+assignments are ephemeral.
 
-The human document owns product intent. Controller state owns source digests, dependencies, release applicability, review iteration, run status, receipts, and dashboard projections. Guidance and unanswered headings are never accepted requirements.
+Independent Verify reads the accepted design and exact integrated revision and
+returns separate Build, Architecture, and Sensor verdicts. The Build verdict is
+authoritative for accepted outcomes; green sensors cannot replace missing behavior.
 
-## Document roles
+The default path creates no implementation plan document, Epic, Ticket Graph,
+Execution Run, journal, dashboard, telemetry, or analytics state. Existing legacy
+files remain readable and are not rewritten merely to adopt this lifecycle.
 
-- Product documents own user-authorized intent and observable acceptance.
-- Research owns evidence, contradictions, uncertainty, and deferred investigation; it does not authorize implementation.
-- Decisions preserve choices whose reasoning would otherwise be lost.
-- Ticket Graphs direct one locked Epic's execution; they cannot add product requirements.
-- Run state records implementation facts, proof, review dispositions, and resumability.
+## Secrets
 
-Link artifacts rather than copying their full content. Put contributor, operator, CI, release, or architectural requirements in tracked code, tests, or documentation so another checkout can use them.
-
-## Secrets and configuration
-
-Never place credentials, secret values, personal data, or sensitive resource identifiers in either document tree. Refer to settings by name. Keep real secrets in the project's approved secret store and environment-specific non-secret values in validated configuration. Stable product rules remain reviewed and tested code unless a real operator need makes them configurable.
-
-<!-- BEGIN GAUNTLET EXECUTION CONTRACT v2 -->
-## Epic execution
-
-An explicit `implement the PRD` request freezes the accepted target and creates one visible task and one deterministic Execution Run per independently shippable Epic. Dependency-ready Epics may start together. Each Epic gets one integration branch and one Project PR.
-
-The visible task receives a compact launch envelope. Bootstrap verifies the immutable source and loads the complete relevant Epic once. Child Tickets receive only their accepted source slices, dependency contracts, and proof expectations; they never receive the complete PRD, run history, or unrelated receipts.
-
-The parent owns user decisions, shared contracts, integration, the acceptance oracle, final verification, pull requests, merge, release, rollback, and canonical-document updates. Delegate only work with independent ownership and proof. Disk run state is authoritative after launch; resume from the locked source, manifest, and compact resume artifact.
-
-Run focused changed-behavior checks and one final Epic verification on the exact integrated revision. Consequence-specific specialists run only when the accepted Epic declares the relevant trigger. Review findings cannot expand the accepted product and must end as `fixed`, `ask user`, `deferred`, or `omitted`.
-
-Implementation stops for a material unresolved product decision, missing authority, unsafe or destructive behavior absent from the accepted document, preservation risk, or required proof that cannot be obtained. Follow `$GAUNTLET_ROOT/docs/prd-execution.md` for controller commands and release mechanics.
-<!-- END GAUNTLET EXECUTION CONTRACT v2 -->
-
-## Future tasks
-
-Use `maintain-prd` for explicit product-document actions and `implement-prd` only for an explicit accepted implementation request. Keep canonical local documents in the primary worktree and durable maintainer requirements in tracked repository artifacts.
+Never place credentials, secret values, personal data, or sensitive resource
+identifiers in local documents. Refer to settings by name and keep real secrets in
+the project's approved secret store.

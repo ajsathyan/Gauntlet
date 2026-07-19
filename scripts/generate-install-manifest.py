@@ -13,7 +13,7 @@ from gauntletlib.install.manifest import GENERATED_DESTINATIONS
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "MANIFEST"
 
-PAYLOAD_ROOTS = ("router", "docs", "scripts", "templates", "agents", "evals")
+PAYLOAD_ROOTS = ("router", "docs", "scripts", "templates", "agents", "evals", "config")
 ROOT_FILES = ("README.md",)
 EXCLUDED_PARTS = {"__pycache__", "node_modules", "generated-prompts", "results"}
 LEGACY_RETIRED = {

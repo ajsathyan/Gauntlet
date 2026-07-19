@@ -28,8 +28,7 @@ def register(subparsers):
     commands = land.add_subparsers(dest="land_command", required=True)
     execute = commands.add_parser("execute")
     execute.add_argument("--git-root", type=Path, default=Path.cwd())
-    execute.add_argument("--handoff", type=Path, default=None)
-    execute.add_argument("--run", type=Path, default=None)
+    execute.add_argument("--handoff", type=Path, required=True)
     execute.add_argument("--body", type=Path, default=Path(".gauntlet/pr-body.md"))
     execute.add_argument("--monitor-timeout", type=int, default=180)
     execute.add_argument("--json", action="store_true")
@@ -240,10 +239,7 @@ def merge_command(args):
         str(args.body),
         "--json",
     ]
-    if args.run:
-        command.extend(["--run", str(args.run)])
-    elif args.handoff:
-        command.extend(["--handoff", str(args.handoff)])
+    command.extend(["--handoff", str(args.handoff)])
     return command
 
 

@@ -175,9 +175,43 @@ def command_verify(path: Path, runtime: Path) -> int:
     return 0
 
 
+def command_remove(path: Path, runtime: Path) -> int:
+    payload, data = load_payload(path)
+    validate_shape(payload)
+    locations = owned_locations(payload)
+    if not locations:
+        return 0
+    removed = False
+    for event, group_index in sorted(locations, reverse=True):
+        expected = (
+            expected_group(runtime, HOOK_SPECS[event])
+            if event in HOOK_SPECS
+            else None
+        )
+        if expected is not None and payload["hooks"][event][group_index] == expected:
+            payload["hooks"][event].pop(group_index)
+            removed = True
+        else:
+            print(
+                f"Gauntlet installer finding: preserved modified managed Codex hook: "
+                f"{event}[{group_index}]",
+                file=sys.stderr,
+            )
+    if not removed:
+        return 0
+    rendered = (json.dumps(payload, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    if data == rendered:
+        return 0
+    mode = path.stat().st_mode & 0o777 if path.exists() else 0o600
+    atomic_write(path, rendered, mode)
+    return 0
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["check", "apply", "verify"])
+    parser.add_argument(
+        "command", choices=["check", "apply", "verify", "check-remove", "remove"]
+    )
     parser.add_argument("--agent-home", required=True)
     parser.add_argument("--runtime", required=True)
     args = parser.parse_args(argv)
@@ -191,6 +225,13 @@ def main(argv: list[str]) -> int:
             return command_check(path, runtime)
         if args.command == "apply":
             return command_apply(path, runtime)
+        if args.command == "check-remove":
+            payload, _ = load_payload(path)
+            validate_shape(payload)
+            owned_locations(payload)
+            return 0
+        if args.command == "remove":
+            return command_remove(path, runtime)
         return command_verify(path, runtime)
     except (OSError, HookStateError) as error:
         fail(str(error))

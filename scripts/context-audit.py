@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
+"""Measure the small Design/Build/Verify context surfaces."""
+
 import argparse
 import json
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_FIXTURES = ROOT / "evals" / "thin-context-fixtures.json"
+STABLE_PATHS = ("router/AGENTS.md",)
+PHASE_PATHS = {
+    "design": ("skills/design/SKILL.md",),
+    "build": ("skills/build/SKILL.md",),
+    "verify": ("skills/verify/SKILL.md",),
+}
 
 
 def token_range(byte_count):
@@ -49,33 +56,39 @@ def trace_tokens(path):
     return totals
 
 
-def build_report(root, fixtures_path, traces):
-    fixtures = json.loads(fixtures_path.read_text(encoding="utf-8"))
-    surfaces = [path_measurement(root, relative) for relative in fixtures["modelVisibleSurfacePaths"]]
-    artifacts = [path_measurement(root, relative) for relative in fixtures["artifactPaths"]]
-    controllers = [path_measurement(root, relative) for relative in fixtures["controllerPaths"]]
-    representative = []
-    for epic_id, epic_bytes in fixtures["representativeEpicBytes"].items():
-        envelope_bytes = 850
-        representative.append({
-            "epicId": epic_id,
-            "epicBytes": epic_bytes,
-            "currentTaskBytes": epic_bytes + envelope_bytes,
-            "candidateTaskBytes": envelope_bytes,
-            "duplicateEstimatedTokens": token_range(epic_bytes),
-        })
-    surface_bytes = sum(item["bytes"] for item in surfaces)
-    baseline_bytes = fixtures["baselineModelVisibleBytes"]
+def build_report(root, traces):
+    stable = [path_measurement(root, relative) for relative in STABLE_PATHS]
+    stable_bytes = sum(item["bytes"] for item in stable)
+    phases = []
+    phase_only_bytes = 0
+    for phase, relative_paths in PHASE_PATHS.items():
+        surfaces = [
+            path_measurement(root, relative)
+            for relative in relative_paths
+        ]
+        surface_bytes = sum(item["bytes"] for item in surfaces)
+        phase_only_bytes += surface_bytes
+        phases.append(
+            {
+                "phase": phase,
+                "surfaces": surfaces,
+                "phaseBytes": surface_bytes,
+                "modelVisibleBytes": stable_bytes + surface_bytes,
+                "estimatedTokens": token_range(stable_bytes + surface_bytes),
+            }
+        )
+    unique_bytes = stable_bytes + phase_only_bytes
+    repeated_bytes = sum(item["modelVisibleBytes"] for item in phases)
+    stable_prefix_savings = repeated_bytes - unique_bytes
     return {
-        "schemaVersion": "gauntlet.context-audit.v1",
-        "surfaces": surfaces,
-        "artifactSurfaces": artifacts,
-        "controllerSurfaces": controllers,
-        "baselineModelVisibleBytes": baseline_bytes,
-        "modelVisibleBytes": surface_bytes,
-        "modelVisibleDeltaBytes": surface_bytes - baseline_bytes,
-        "modelVisibleReductionPercent": round((baseline_bytes - surface_bytes) * 100 / baseline_bytes, 1),
-        "representativeLaunches": representative,
+        "schemaVersion": "gauntlet.context-audit.v2",
+        "stableSurfaces": stable,
+        "stableBytes": stable_bytes,
+        "phases": phases,
+        "uniqueBytes": unique_bytes,
+        "repeatedWithoutStablePrefixBytes": repeated_bytes,
+        "stablePrefixSavingsBytes": stable_prefix_savings,
+        "stablePrefixSavingsEstimatedTokens": token_range(stable_prefix_savings),
         "traceTokens": [
             {"path": str(path), **trace_tokens(path)} for path in traces
         ],
@@ -83,23 +96,31 @@ def build_report(root, fixtures_path, traces):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Measure repeated Gauntlet context without changing project state.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Measure controller-free Design/Build/Verify context without "
+            "changing project state."
+        )
+    )
     parser.add_argument("--root", type=Path, default=ROOT)
-    parser.add_argument("--fixtures", type=Path, default=DEFAULT_FIXTURES)
     parser.add_argument("--trace", action="append", type=Path, default=[])
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
-    report = build_report(args.root.resolve(), args.fixtures.resolve(), args.trace)
+    report = build_report(args.root.resolve(), args.trace)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
         return
     print(
-        f"Measured {len(report['surfaces'])} model-visible surfaces: {report['modelVisibleBytes']} bytes "
-        f"({report['modelVisibleReductionPercent']}% below baseline)"
+        "Measured Design/Build/Verify context: "
+        f"{report['uniqueBytes']} unique bytes; "
+        f"{report['stablePrefixSavingsBytes']} repeat bytes avoidable with a stable prefix."
     )
-    for item in report["representativeLaunches"]:
-        estimate = item["duplicateEstimatedTokens"]
-        print(f"{item['epicId']}: duplicate Epic {item['epicBytes']} bytes (~{estimate['low']}-{estimate['high']} tokens)")
+    for phase in report["phases"]:
+        estimate = phase["estimatedTokens"]
+        print(
+            f"{phase['phase']}: {phase['modelVisibleBytes']} bytes "
+            f"(~{estimate['low']}-{estimate['high']} tokens)"
+        )
 
 
 if __name__ == "__main__":

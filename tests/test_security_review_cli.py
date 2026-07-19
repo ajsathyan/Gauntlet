@@ -29,34 +29,6 @@ def run(args, *, input_value=None, check=True, env=None):
     return result
 
 
-def security_route_args():
-    return [
-        "python3",
-        str(SCRIPTS / "route-codex-agent.py"),
-        "--work-class",
-        "verification",
-        "--complexity",
-        "deep",
-        "--risk",
-        "consequential",
-        "--authority",
-        "read-only",
-        "--proof",
-        "security",
-        "--context-shape",
-        "bounded",
-        "--json",
-    ]
-
-
-def test_security_route_selects_cli_runner_instead_of_native_profile():
-    payload = json.loads(run(security_route_args()).stdout)
-    if payload["status"] != "codex-cli":
-        raise AssertionError("security proof must select the dedicated Codex CLI runner")
-    if payload["runner"] != "security-review" or payload["profile"] is not None:
-        raise AssertionError("security proof must not select a native subagent profile")
-
-
 def test_security_review_runner_enforces_read_only_codex_exec():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -158,7 +130,6 @@ def test_security_review_runner_rejects_output_inside_reviewed_workspace():
 
 def security_review_tests():
     return (
-        test_security_route_selects_cli_runner_instead_of_native_profile,
         test_security_review_runner_enforces_read_only_codex_exec,
         test_security_review_runner_rejects_output_inside_reviewed_workspace,
     )

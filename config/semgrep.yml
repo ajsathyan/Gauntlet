@@ -1,0 +1,23 @@
+rules:
+  - id: gauntlet-python-eval
+    message: Dynamic eval or exec obscures the executed code boundary.
+    severity: ERROR
+    languages: [python]
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: exec(...)
+
+  - id: gauntlet-python-os-system
+    message: Use an argument-array subprocess boundary instead of os.system.
+    severity: ERROR
+    languages: [python]
+    pattern: os.system(...)
+
+  - id: gauntlet-python-shell-true
+    message: Shell execution expands the command surface; use an argument array.
+    severity: ERROR
+    languages: [python]
+    pattern-either:
+      - pattern: subprocess.run(..., shell=True, ...)
+      - pattern: subprocess.call(..., shell=True, ...)
+      - pattern: subprocess.Popen(..., shell=True, ...)

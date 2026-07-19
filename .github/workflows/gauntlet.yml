@@ -19,9 +19,10 @@ jobs:
         group:
           - policy
           - install
-          - lifecycle
-          - prd
-          - orchestration
+          - design
+          - contracts
+          - sensors
+          - evals
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

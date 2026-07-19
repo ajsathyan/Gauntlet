@@ -1,9 +1,8 @@
-"""Canonical local product-document lifecycle and command handlers."""
+"""Controller-free local design-document lifecycle."""
 
 import json
 import os
 import re
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,48 +17,15 @@ from gauntletlib.core.proc import git
 ROOT = Path(__file__).resolve().parents[3]
 LOCAL_DOC_TEMPLATES = ROOT / "templates" / "local-docs"
 LOCAL_DOC_OPT_OUT = Path(".gauntlet") / "doc-org.disabled"
-DOC_EXECUTION_BLOCK_BEGIN = "<!-- BEGIN GAUNTLET EXECUTION CONTRACT v2 -->"
-DOC_EXECUTION_BLOCK_END = "<!-- END GAUNTLET EXECUTION CONTRACT v2 -->"
-DOC_EXECUTION_LEGACY_HASHES = {
-    "5315292c4648aaa6bc04bd810730c7f480a79efb01e81cc882966a63407538e8",
-}
 
 _atomic_write_text = _core_atomic_write_text
-_parse_dependency_list = None
-_parse_release_stages = None
-_parse_consequence_triggers = None
 
 
-def _default_legacy_hashes():
-    return DOC_EXECUTION_LEGACY_HASHES
-
-
-_legacy_hashes = _default_legacy_hashes
-
-
-def configure(
-    *,
-    atomic_write_text=None,
-    parse_dependency_list=None,
-    parse_release_stages=None,
-    parse_consequence_triggers=None,
-    legacy_hashes=None,
-):
+def configure(*, atomic_write_text=None, **_unused):
+    """Allow the CLI facade and tests to provide the shared atomic writer."""
     global _atomic_write_text
-    global _parse_dependency_list
-    global _parse_release_stages
-    global _parse_consequence_triggers
-    global _legacy_hashes
     if atomic_write_text is not None:
         _atomic_write_text = atomic_write_text
-    if parse_dependency_list is not None:
-        _parse_dependency_list = parse_dependency_list
-    if parse_release_stages is not None:
-        _parse_release_stages = parse_release_stages
-    if parse_consequence_triggers is not None:
-        _parse_consequence_triggers = parse_consequence_triggers
-    if legacy_hashes is not None:
-        _legacy_hashes = legacy_hashes
 
 
 def _git_root(repo):
@@ -73,10 +39,11 @@ def parse_worktree_roots(project_root):
     result = git(["worktree", "list", "--porcelain"], project_root)
     if result.returncode != 0:
         raise RuntimeError(f"Cannot list repository worktrees:\n{result.stderr.strip()}")
-    roots = []
-    for line in result.stdout.splitlines():
-        if line.startswith("worktree "):
-            roots.append(Path(line.removeprefix("worktree ")).resolve())
+    roots = [
+        Path(line.removeprefix("worktree ")).resolve()
+        for line in result.stdout.splitlines()
+        if line.startswith("worktree ")
+    ]
     if not roots:
         raise RuntimeError("Git did not report a primary worktree.")
     return roots
@@ -97,13 +64,17 @@ def local_docs_context(project_root):
     exclude = Path(exclude_result.stdout.strip())
     if not exclude.is_absolute():
         exclude = (primary / exclude).resolve()
+    docs_root = primary / "local-docs"
     return {
         "requestedRoot": supplied,
         "primaryRoot": primary,
         "worktrees": worktrees,
         "policyPath": primary / "doc_org.md",
-        "docsRoot": primary / "local-docs",
-        "indexPath": primary / "local-docs" / "INDEX.md",
+        "docsRoot": docs_root,
+        "indexPath": docs_root / "INDEX.md",
+        "designsRoot": docs_root / "designs",
+        "researchRoot": docs_root / "research",
+        "decisionsRoot": docs_root / "decisions",
         "optOutPath": primary / LOCAL_DOC_OPT_OUT,
         "excludePath": exclude,
     }
@@ -120,7 +91,15 @@ def tracked_local_doc_paths(primary):
 
 def local_docs_path_findings(context):
     findings = []
-    for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]:
+    canonical = [
+        context["policyPath"],
+        context["docsRoot"],
+        context["indexPath"],
+        context["designsRoot"],
+        context["researchRoot"],
+        context["decisionsRoot"],
+    ]
+    for path in canonical:
         if path.is_symlink():
             findings.append(
                 {
@@ -129,70 +108,48 @@ def local_docs_path_findings(context):
                     "message": f"Canonical local-document paths must not be symlinks: {path}",
                 }
             )
-    if context["policyPath"].exists() and not context["policyPath"].is_file():
-        findings.append(
-            {
-                "code": "invalid_doc_org_path",
-                "severity": "fail",
-                "message": f"Policy path is not a file: {context['policyPath']}",
-            }
-        )
-    if context["docsRoot"].exists() and not context["docsRoot"].is_dir():
-        findings.append(
-            {
-                "code": "invalid_local_docs_path",
-                "severity": "fail",
-                "message": f"Local document root is not a directory: {context['docsRoot']}",
-            }
-        )
-    if context["indexPath"].exists() and not context["indexPath"].is_file():
-        findings.append(
-            {
-                "code": "invalid_local_docs_index",
-                "severity": "fail",
-                "message": f"Local document index is not a file: {context['indexPath']}",
-            }
-        )
-    if context["optOutPath"].is_symlink():
-        findings.append(
-            {
-                "code": "local_document_opt_out_symlink",
-                "severity": "fail",
-                "message": (
-                    "Local-document opt-out marker must not be a symlink: "
-                    f"{context['optOutPath']}"
-                ),
-            }
-        )
-    if context["optOutPath"].exists() and not context["optOutPath"].is_file():
-        findings.append(
-            {
-                "code": "invalid_local_document_opt_out",
-                "severity": "fail",
-                "message": (
-                    "Local-document opt-out marker is not a file: "
-                    f"{context['optOutPath']}"
-                ),
-            }
-        )
-    for name in ["drafts", "epics", "research"]:
-        path = context["docsRoot"] / name
-        if path.is_symlink():
+    expected_files = [context["policyPath"], context["indexPath"]]
+    expected_directories = [
+        context["docsRoot"],
+        context["designsRoot"],
+        context["researchRoot"],
+        context["decisionsRoot"],
+    ]
+    for path in expected_files:
+        if path.exists() and not path.is_file():
             findings.append(
                 {
-                    "code": "local_document_symlink",
+                    "code": "invalid_local_document_file",
                     "severity": "fail",
-                    "message": f"Canonical local-document paths must not be symlinks: {path}",
+                    "message": f"Canonical local-document path is not a file: {path}",
                 }
             )
-        elif path.exists() and not path.is_dir():
+    for path in expected_directories:
+        if path.exists() and not path.is_dir():
             findings.append(
                 {
                     "code": "invalid_local_document_directory",
                     "severity": "fail",
-                    "message": f"Local-document path is not a directory: {path}",
+                    "message": f"Canonical local-document path is not a directory: {path}",
                 }
             )
+    opt_out = context["optOutPath"]
+    if opt_out.is_symlink():
+        findings.append(
+            {
+                "code": "local_document_opt_out_symlink",
+                "severity": "fail",
+                "message": f"Local-document opt-out marker must not be a symlink: {opt_out}",
+            }
+        )
+    elif opt_out.exists() and not opt_out.is_file():
+        findings.append(
+            {
+                "code": "invalid_local_document_opt_out",
+                "severity": "fail",
+                "message": f"Local-document opt-out marker is not a file: {opt_out}",
+            }
+        )
     return findings
 
 
@@ -200,14 +157,33 @@ def local_docs_opted_out(context):
     return context["optOutPath"].is_file()
 
 
-def inferred_epic_prefix(context):
-    """Return a stable prefix for lazy initialization without asking the user."""
+def inferred_design_prefix(context):
     raw = re.sub(r"[^A-Z0-9]", "", context["primaryRoot"].name.upper())
     if not raw or not raw[0].isalpha():
         raw = "PROJECT"
     if len(raw) == 1:
-        raw += "P"
+        raw += "D"
     return raw[:12]
+
+
+def local_design_prefix(index_path):
+    if not index_path.is_file():
+        raise RuntimeError(f"Local document index does not exist: {index_path}")
+    text = index_path.read_text(encoding="utf-8")
+    match = re.search(
+        r"^(?:Design|Epic) prefix:\s*`([^`]+)`\s*$",
+        text,
+        re.MULTILINE,
+    )
+    if not match:
+        raise RuntimeError(
+            f"Local document index does not declare a design prefix: {index_path}"
+        )
+    return match.group(1)
+
+
+def _valid_prefix(prefix):
+    return bool(re.fullmatch(r"[A-Z][A-Z0-9]{1,11}", prefix))
 
 
 def local_docs_validation_findings(context, require_profile=False):
@@ -229,19 +205,19 @@ def local_docs_validation_findings(context, require_profile=False):
         for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]
     )
     if require_profile or materialized:
-        for key, code in [
-            ("policyPath", "missing_doc_org"),
-            ("indexPath", "missing_local_docs_index"),
+        for path, code in [
+            (context["policyPath"], "missing_doc_org"),
+            (context["indexPath"], "missing_local_docs_index"),
         ]:
-            if not context[key].is_file():
+            if not path.is_file():
                 findings.append(
-                    {
-                        "code": code,
-                        "severity": "fail",
-                        "message": f"Missing {context[key]}",
-                    }
+                    {"code": code, "severity": "fail", "message": f"Missing {path}"}
                 )
-        for relative in ["doc_org.md", "local-docs/INDEX.md"]:
+        for relative in [
+            "doc_org.md",
+            "local-docs/INDEX.md",
+            ".gauntlet/doc-org.disabled",
+        ]:
             ignored = git(["check-ignore", "-q", "--", relative], context["primaryRoot"])
             if ignored.returncode != 0:
                 findings.append(
@@ -270,85 +246,8 @@ def render_local_doc_template(name, replacements):
     return rendered
 
 
-def managed_execution_block():
-    template = (LOCAL_DOC_TEMPLATES / "doc_org.md.tmpl").read_text(encoding="utf-8")
-    start = template.index(DOC_EXECUTION_BLOCK_BEGIN)
-    end = template.index(DOC_EXECUTION_BLOCK_END, start) + len(
-        DOC_EXECUTION_BLOCK_END
-    )
-    return template[start:end] + "\n\n"
-
-
-def migrate_doc_execution_contract(text):
-    """Return (updated, state) without rewriting project-authored policy."""
-    begin_count = text.count(DOC_EXECUTION_BLOCK_BEGIN)
-    end_count = text.count(DOC_EXECUTION_BLOCK_END)
-    current = managed_execution_block()
-    if begin_count or end_count:
-        if begin_count != 1 or end_count != 1:
-            return text, "ambiguous"
-        start = text.index(DOC_EXECUTION_BLOCK_BEGIN)
-        end = text.index(DOC_EXECUTION_BLOCK_END, start) + len(
-            DOC_EXECUTION_BLOCK_END
-        )
-        observed = text[start:end] + "\n\n"
-        if observed != current:
-            return text, "customized"
-        return text, "current"
-
-    start_marker = "## PRD Compilation And Ticket Graph\n"
-    end_marker = "## Future Tasks\n"
-    if text.count(start_marker) != 1 or text.count(end_marker) != 1:
-        return text, "ambiguous"
-    start = text.index(start_marker)
-    end = text.index(end_marker, start)
-    legacy = text[start:end]
-    if sha256(legacy.encode("utf-8")) not in _legacy_hashes():
-        return text, "customized"
-    return text[:start] + current + text[end:], "migrated"
-
-
-def ensure_doc_execution_contract(context, dry_run=False):
-    path = context["policyPath"]
-    if not path.is_file():
-        return [], False
-    original = path.read_text(encoding="utf-8")
-    updated, state = migrate_doc_execution_contract(original)
-    findings = []
-    if state == "migrated":
-        if not dry_run:
-            _atomic_write_text(path, updated)
-        findings.append(
-            {
-                "code": (
-                    "local_execution_contract_migrated"
-                    if not dry_run
-                    else "local_execution_contract_migration_planned"
-                ),
-                "severity": "pass",
-                "message": (
-                    "Gauntlet updated only the versioned local execution contract "
-                    "and preserved project-authored policy bytes."
-                ),
-            }
-        )
-        return findings, True
-    if state in {"ambiguous", "customized"}:
-        findings.append(
-            {
-                "code": "local_execution_contract_review",
-                "severity": "review",
-                "message": (
-                    "The materialized doc_org.md execution contract is customized "
-                    "or ambiguous; Gauntlet left it unchanged for human review."
-                ),
-            }
-        )
-    return findings, False
-
-
 def ensure_local_excludes(exclude_path, dry_run=False):
-    required = ["/doc_org.md", "/local-docs/"]
+    required = ["/doc_org.md", "/local-docs/", "/.gauntlet/doc-org.disabled"]
     existing = exclude_path.read_text(encoding="utf-8") if exclude_path.exists() else ""
     lines = {line.strip() for line in existing.splitlines()}
     missing = [entry for entry in required if entry not in lines]
@@ -357,11 +256,7 @@ def ensure_local_excludes(exclude_path, dry_run=False):
         prefix = existing
         if prefix and not prefix.endswith("\n"):
             prefix += "\n"
-        _atomic_write_text(
-            exclude_path,
-            prefix + "\n".join(missing) + "\n",
-            mode=0o644,
-        )
+        _atomic_write_text(exclude_path, prefix + "\n".join(missing) + "\n", mode=0o644)
     return missing
 
 
@@ -372,13 +267,11 @@ def _print_payload(payload, as_json):
     print(f"Gauntlet: {payload['status']}")
     for finding in payload.get("findings", []):
         print(f"- [{finding['severity']}] {finding['code']}: {finding['message']}")
-    for action in payload.get("archivePlan", {}).get("actions", []):
-        print(f"- action: {action.get('type')}")
 
 
 def local_docs_payload(args, context, findings, **extra):
     payload = {
-        "schemaVersion": "1.0",
+        "schemaVersion": "gauntlet.local-docs.v2",
         "status": "pass",
         "primaryRoot": str(context["primaryRoot"]),
         "policyPath": str(context["policyPath"]),
@@ -387,23 +280,8 @@ def local_docs_payload(args, context, findings, **extra):
         **extra,
     }
     payload["status"] = status_for(payload["findings"])
-    _print_payload(payload, args.json)
+    _print_payload(payload, getattr(args, "json", False))
     return EXIT_CODES[payload["status"]]
-
-
-def local_epic_prefix(index_path):
-    if not index_path.is_file():
-        raise RuntimeError(f"Local document index does not exist: {index_path}")
-    match = re.search(
-        r"^Epic prefix:\s*`([^`]+)`\s*$",
-        index_path.read_text(encoding="utf-8"),
-        re.MULTILINE,
-    )
-    if not match:
-        raise RuntimeError(
-            f"Local document index does not declare an epic prefix: {index_path}"
-        )
-    return match.group(1)
 
 
 def initialize_local_docs(args, context, prefix):
@@ -427,66 +305,64 @@ def initialize_local_docs(args, context, prefix):
                 "code": "local_document_profile_opted_out",
                 "severity": "fail",
                 "message": (
-                    "Project opted out of default local documents through "
-                    f"{context['optOutPath']}; run docs enable before initialization."
+                    "Project opted out of default local documents; run docs enable "
+                    "before initialization."
+                ),
+            }
+        )
+    prefix = prefix.upper()
+    if not _valid_prefix(prefix):
+        findings.append(
+            {
+                "code": "invalid_design_prefix",
+                "severity": "fail",
+                "message": (
+                    "Design prefix must be 2-12 uppercase letters or digits and begin "
+                    "with a letter."
                 ),
             }
         )
     if findings:
         return findings, [], []
 
-    prefix = prefix.upper()
-    if not re.fullmatch(r"[A-Z][A-Z0-9]{1,11}", prefix):
-        findings.append(
-            {
-                "code": "invalid_epic_prefix",
-                "severity": "fail",
-                "message": (
-                    "Epic prefix must be 2-12 uppercase letters or digits and begin "
-                    "with a letter."
-                ),
-            }
-        )
-        return findings, [], []
-
-    created = []
-    preserved = []
-    candidates = [
-        (context["policyPath"], "doc_org.md.tmpl"),
-        (context["indexPath"], "INDEX.md.tmpl"),
-    ]
-    rendered = {
-        path: render_local_doc_template(template, {"EPIC_PREFIX": prefix})
-        for path, template in candidates
-        if not path.exists()
-    }
     if context["indexPath"].exists():
-        existing_prefix = local_epic_prefix(context["indexPath"])
+        existing_prefix = local_design_prefix(context["indexPath"])
         if existing_prefix != prefix:
             findings.append(
                 {
-                    "code": "epic_prefix_mismatch",
+                    "code": "design_prefix_mismatch",
                     "severity": "fail",
                     "message": (
-                        "Existing local document index uses epic prefix "
-                        f"{existing_prefix}, not {prefix}."
+                        f"Existing local document index uses prefix {existing_prefix}, "
+                        f"not {prefix}."
                     ),
                 }
             )
             return findings, [], []
 
+    candidates = [
+        (context["policyPath"], "doc_org.md.tmpl"),
+        (context["indexPath"], "INDEX.md.tmpl"),
+    ]
+    rendered = {
+        path: render_local_doc_template(template, {"DESIGN_PREFIX": prefix})
+        for path, template in candidates
+        if not path.exists()
+    }
+    created = []
+    preserved = []
     missing_excludes = ensure_local_excludes(context["excludePath"], dry_run=dry_run)
-    for path, template in candidates:
+    for path, _template in candidates:
         if path.exists():
             preserved.append(str(path))
-            continue
-        created.append(str(path))
-        if not dry_run:
-            write_new_file(path, rendered[path])
+        else:
+            created.append(str(path))
+            if not dry_run:
+                write_new_file(path, rendered[path])
     for directory in [
-        context["docsRoot"] / "drafts",
-        context["docsRoot"] / "epics",
-        context["docsRoot"] / "research",
+        context["designsRoot"],
+        context["researchRoot"],
+        context["decisionsRoot"],
     ]:
         if directory.exists():
             preserved.append(str(directory))
@@ -494,106 +370,66 @@ def initialize_local_docs(args, context, prefix):
             created.append(str(directory))
             if not dry_run:
                 directory.mkdir(parents=True, exist_ok=False)
-
     if missing_excludes:
         findings.append(
             {
                 "code": (
-                    "local_excludes_added"
-                    if not dry_run
-                    else "local_excludes_planned"
+                    "local_excludes_planned" if dry_run else "local_excludes_added"
                 ),
                 "severity": "pass",
-                "message": "Local Git exclusions protect the canonical local-document paths.",
+                "message": "Local Git exclusions protect the canonical document paths.",
                 "patterns": missing_excludes,
             }
         )
     return findings, created, preserved
 
 
-def local_product_document_paths(context):
-    paths = []
-    for root in [context["docsRoot"] / "drafts", context["docsRoot"] / "epics"]:
-        if not root.is_dir() or root.is_symlink():
-            continue
-        paths.extend(
-            path
-            for path in root.rglob("*.md")
-            if path.is_file() and not path.is_symlink()
-        )
-    return sorted(paths)
-
-
-def guided_draft_destination(context, template, title=None):
-    templates = {
-        "founding-hypothesis": (
-            "FOUNDING_HYPOTHESIS.md.tmpl",
-            "FOUNDING_HYPOTHESIS.md",
-        ),
-    }
-    if template == "peter-yang":
-        if not title or not title.strip():
-            raise ValueError("A feature title is required for a Peter Yang PRD draft.")
-        slug = epic_title_slug(title)
-        filename = f"{slug}.md" if slug.endswith("_PRD") else f"{slug}_PRD.md"
-        template_name = "PETER_YANG_PRD.md.tmpl"
-    else:
-        template_name, filename = templates[template]
-    return template_name, context["docsRoot"] / "drafts" / filename
-
-
-def create_guided_draft(context, template, title=None, dry_run=False):
-    template_name, draft_path = guided_draft_destination(context, template, title)
-    drafts_root = context["docsRoot"] / "drafts"
-    findings = []
-    if drafts_root.is_symlink() or (
-        drafts_root.exists() and not drafts_root.is_dir()
-    ):
-        findings.append(
+def _profile_ready(args, context):
+    if local_docs_opted_out(context):
+        return [
             {
-                "code": "invalid_drafts_directory",
+                "code": "local_document_profile_opted_out",
                 "severity": "fail",
-                "message": f"Drafts path must be a real directory: {drafts_root}",
+                "message": (
+                    "Project opted out of default local documents; run docs enable "
+                    "before creating or accepting a design."
+                ),
             }
-        )
-        return findings, draft_path
-    if draft_path.exists() or draft_path.is_symlink():
-        findings.append(
-            {
-                "code": "draft_exists",
-                "severity": "fail",
-                "message": f"Refusing to overwrite an existing product draft: {draft_path}",
-            }
-        )
-        return findings, draft_path
-    date = datetime.now().astimezone().date().isoformat()
-    rendered = render_local_doc_template(template_name, {"DATE": date})
-    if not dry_run:
-        drafts_root.mkdir(parents=True, exist_ok=True)
-        write_new_file(draft_path, rendered)
-    findings.append(
-        {
-            "code": "guided_draft_planned" if dry_run else "guided_draft_created",
-            "severity": "pass",
-            "message": (
-                f"Gauntlet {'would create' if dry_run else 'created'} an unanswered "
-                f"{template} draft."
-            ),
-        }
+        ]
+    materialized = all(
+        path.exists()
+        for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]
     )
-    return findings, draft_path
+    if materialized:
+        findings = local_docs_validation_findings(context, require_profile=True)
+        if not any(finding["severity"] == "fail" for finding in findings):
+            for directory in [
+                context["designsRoot"],
+                context["researchRoot"],
+                context["decisionsRoot"],
+            ]:
+                if not directory.exists():
+                    if getattr(args, "dry_run", False):
+                        continue
+                    directory.mkdir(parents=True, exist_ok=False)
+        return findings
+    prefix = getattr(args, "prefix", None) or inferred_design_prefix(context)
+    findings, _, _ = initialize_local_docs(args, context, prefix)
+    if not getattr(args, "dry_run", False) and not any(
+        finding["severity"] == "fail" for finding in findings
+    ):
+        findings.extend(local_docs_validation_findings(context, require_profile=True))
+    return findings
 
 
 def command_docs_init(args):
     context = local_docs_context(args.project_root)
-    findings, created, preserved = initialize_local_docs(
-        args, context, args.epic_prefix
-    )
+    findings, created, preserved = initialize_local_docs(args, context, args.prefix)
     return local_docs_payload(
         args,
         context,
         findings,
-        epicPrefix=args.epic_prefix.upper(),
+        designPrefix=args.prefix.upper(),
         dryRun=args.dry_run,
         created=created,
         preserved=preserved,
@@ -604,7 +440,7 @@ def command_docs_init(args):
 def command_docs_ensure(args):
     context = local_docs_context(args.project_root)
     path_findings = local_docs_path_findings(context)
-    if any(finding.get("severity") == "fail" for finding in path_findings):
+    if any(finding["severity"] == "fail" for finding in path_findings):
         return local_docs_payload(
             args,
             context,
@@ -622,10 +458,7 @@ def command_docs_ensure(args):
                 {
                     "code": "local_document_profile_opted_out",
                     "severity": "pass",
-                    "message": (
-                        "Project opted out of default local documents through "
-                        f"{context['optOutPath']}; no files were created."
-                    ),
+                    "message": "Project opted out; no local documents were created.",
                 }
             ],
             mode="opted-out",
@@ -633,87 +466,15 @@ def command_docs_ensure(args):
             created=[],
             preserved=[],
         )
-
-    all_paths_exist = all(
-        path.exists()
-        for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]
-    )
-    if all_paths_exist:
-        drafts_root = context["docsRoot"] / "drafts"
-        created = []
-        preserved = []
-        if drafts_root.is_dir() and not drafts_root.is_symlink():
-            preserved.append(str(drafts_root))
-        else:
-            created.append(str(drafts_root))
-            if not args.dry_run:
-                drafts_root.mkdir(parents=False, exist_ok=False)
-        migration_findings, migrated = ensure_doc_execution_contract(
-            context, dry_run=args.dry_run
-        )
-        findings = migration_findings + local_docs_validation_findings(
-            context, require_profile=True
-        )
-        return local_docs_payload(
-            args,
-            context,
-            findings,
-            mode="default-on",
-            materialized=True,
-            created=created,
-            preserved=preserved,
-            migrated=migrated,
-            dryRun=args.dry_run,
-        )
-
-    had_product_document = bool(local_product_document_paths(context))
-    _, founding_candidate = guided_draft_destination(context, "founding-hypothesis")
-    if not had_product_document and (
-        founding_candidate.exists() or founding_candidate.is_symlink()
-    ):
-        return local_docs_payload(
-            args,
-            context,
-            [
-                {
-                    "code": "draft_exists",
-                    "severity": "fail",
-                    "message": (
-                        "Refusing to overwrite an existing product draft path: "
-                        f"{founding_candidate}"
-                    ),
-                }
-            ],
-            mode="default-on",
-            materialized=False,
-            created=[],
-            preserved=[],
-            dryRun=args.dry_run,
-            foundingDraftPath=str(founding_candidate),
-        )
-    prefix = args.epic_prefix or (
-        local_epic_prefix(context["indexPath"])
+    prefix = args.prefix or (
+        local_design_prefix(context["indexPath"])
         if context["indexPath"].is_file()
-        else inferred_epic_prefix(context)
+        else inferred_design_prefix(context)
     )
     findings, created, preserved = initialize_local_docs(args, context, prefix)
-    founding_draft_path = None
-    if not had_product_document and not any(
-        finding.get("severity") == "fail" for finding in findings
-    ):
-        draft_findings, founding_draft_path = create_guided_draft(
-            context, "founding-hypothesis", dry_run=args.dry_run
-        )
-        findings.extend(draft_findings)
-        if not any(
-            finding.get("severity") == "fail" for finding in draft_findings
-        ):
-            created.append(str(founding_draft_path))
     if not args.dry_run and not any(
-        finding.get("severity") == "fail" for finding in findings
+        finding["severity"] == "fail" for finding in findings
     ):
-        migration_findings, _ = ensure_doc_execution_contract(context, dry_run=False)
-        findings.extend(migration_findings)
         findings.extend(local_docs_validation_findings(context, require_profile=True))
     return local_docs_payload(
         args,
@@ -721,19 +482,17 @@ def command_docs_ensure(args):
         findings,
         mode="default-on",
         materialized=not args.dry_run,
-        epicPrefix=prefix.upper(),
+        designPrefix=prefix.upper(),
         dryRun=args.dry_run,
         created=created,
         preserved=preserved,
         excludePath=str(context["excludePath"]),
-        foundingDraftPath=str(founding_draft_path) if founding_draft_path else None,
     )
 
 
 def command_docs_disable(args):
     context = local_docs_context(args.project_root)
     findings = local_docs_path_findings(context)
-    changed = False
     tracked = tracked_local_doc_paths(context["primaryRoot"])
     if tracked:
         findings.append(
@@ -741,31 +500,26 @@ def command_docs_disable(args):
                 "code": "tracked_local_document_collision",
                 "severity": "fail",
                 "message": (
-                    "Refusing to change the local-document mode because "
-                    "local-document paths are already tracked."
+                    "Refusing to change the local-document mode because canonical "
+                    "local paths are tracked."
                 ),
                 "paths": tracked,
             }
         )
+    changed = False
     if not findings and not context["optOutPath"].exists():
+        ensure_local_excludes(context["excludePath"])
         write_new_file(
             context["optOutPath"],
             "# Gauntlet local-document profile disabled.\n",
         )
         changed = True
-    if (
-        context["optOutPath"].exists()
-        and not context["optOutPath"].is_symlink()
-        and context["optOutPath"].is_file()
-    ):
+    if context["optOutPath"].is_file() and not context["optOutPath"].is_symlink():
         findings.append(
             {
                 "code": "local_document_profile_disabled",
                 "severity": "pass",
-                "message": (
-                    "Default local documents are disabled for this project through "
-                    f"{context['optOutPath']}."
-                ),
+                "message": "Default local documents are disabled for this project.",
             }
         )
     return local_docs_payload(
@@ -777,20 +531,17 @@ def command_docs_enable(args):
     context = local_docs_context(args.project_root)
     findings = local_docs_path_findings(context)
     changed = False
-    if (
-        not any(finding.get("severity") == "fail" for finding in findings)
-        and context["optOutPath"].is_file()
-    ):
-        context["optOutPath"].unlink()
-        changed = True
-    if not any(finding.get("severity") == "fail" for finding in findings):
+    if not any(finding["severity"] == "fail" for finding in findings):
+        if context["optOutPath"].is_file():
+            context["optOutPath"].unlink()
+            changed = True
         findings.append(
             {
                 "code": "local_document_profile_enabled",
                 "severity": "pass",
                 "message": (
-                    "Default local documents are enabled for this project; files "
-                    "will be materialized on first covered document task."
+                    "Default local documents are enabled and will materialize on "
+                    "the first covered document action."
                 ),
             }
         )
@@ -807,18 +558,12 @@ def command_docs_check(args):
         path.exists()
         for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]
     )
-    if not opted_out and context["policyPath"].is_file():
-        migration_findings, _ = ensure_doc_execution_contract(context, dry_run=True)
-        findings.extend(migration_findings)
     if opted_out:
         findings.append(
             {
                 "code": "local_document_profile_opted_out",
                 "severity": "pass",
-                "message": (
-                    "Project opted out of default local documents through "
-                    f"{context['optOutPath']}."
-                ),
+                "message": "Project opted out of the default local-document profile.",
             }
         )
     elif materialized:
@@ -826,9 +571,7 @@ def command_docs_check(args):
             {
                 "code": "local_document_profile_materialized",
                 "severity": "pass",
-                "message": (
-                    "Default local documents are materialized in the primary worktree."
-                ),
+                "message": "Local designs are materialized in the primary worktree.",
             }
         )
     else:
@@ -837,8 +580,7 @@ def command_docs_check(args):
                 "code": "local_document_profile_default_active",
                 "severity": "pass",
                 "message": (
-                    "Default local documents are active and will be materialized "
-                    "lazily on the first covered document task."
+                    "Default local documents are active and will materialize lazily."
                 ),
             }
         )
@@ -854,9 +596,7 @@ def command_docs_check(args):
             {
                 "code": "linked_worktree_canonical_copy",
                 "severity": "fail",
-                "message": (
-                    "Linked worktrees contain alternate canonical local-document paths."
-                ),
+                "message": "Linked worktrees contain alternate canonical local documents.",
                 "paths": duplicates,
             }
         )
@@ -870,12 +610,12 @@ def command_docs_check(args):
     )
 
 
-def epic_title_slug(title):
+def design_title_slug(title):
     slug = re.sub(r"[^A-Z0-9]+", "_", title.upper()).strip("_")
     return slug[:64] or "UNTITLED"
 
 
-def valid_epic_title(title):
+def valid_design_title(title):
     return (
         bool(title.strip())
         and len(title) <= 120
@@ -883,17 +623,21 @@ def valid_epic_title(title):
     )
 
 
-def allocated_epic_numbers(context, prefix):
+def allocated_design_numbers(context, prefix):
     pattern = re.compile(rf"\b{re.escape(prefix)}-(\d{{3}})\b")
-    numbers = {
-        int(match)
-        for match in pattern.findall(
-            context["indexPath"].read_text(encoding="utf-8")
+    numbers = set()
+    if context["indexPath"].is_file():
+        numbers.update(
+            int(match)
+            for match in pattern.findall(
+                context["indexPath"].read_text(encoding="utf-8")
+            )
         )
-    }
-    epics_root = context["docsRoot"] / "epics"
-    if epics_root.exists():
-        for path in epics_root.rglob("*.md"):
+    # Legacy Epic files are read but never rewritten; including their IDs prevents reuse.
+    for root in [context["designsRoot"], context["docsRoot"] / "epics"]:
+        if not root.is_dir() or root.is_symlink():
+            continue
+        for path in root.rglob("*.md"):
             if path.is_file() and not path.is_symlink():
                 numbers.update(
                     int(match)
@@ -902,609 +646,409 @@ def allocated_epic_numbers(context, prefix):
     return numbers
 
 
-def existing_prd_path(context, supplied):
-    candidate = Path(supplied).expanduser()
-    if not candidate.is_absolute():
-        candidate = context["docsRoot"] / candidate
-    candidate = candidate.absolute()
-    epics_root = (context["docsRoot"] / "epics").resolve()
-    resolved = candidate.resolve()
-    try:
-        resolved.relative_to(epics_root)
-    except ValueError as exc:
-        raise RuntimeError("An appended PRD must be inside local-docs/epics.") from exc
-    current = candidate
-    while current != context["docsRoot"]:
-        if current.is_symlink():
-            raise RuntimeError(
-                f"An appended PRD path must not use symlinks: {candidate}"
-            )
-        current = current.parent
-    if not candidate.is_file():
-        raise RuntimeError(f"An appended PRD must already exist: {candidate}")
-    return candidate
+def _index_marker(index_text):
+    if index_text.count("<!-- DESIGNS -->") == 1:
+        return "<!-- DESIGNS -->"
+    if index_text.count("<!-- EPICS -->") == 1:
+        return "<!-- EPICS -->"
+    raise RuntimeError(
+        "Local document index must contain exactly one design insertion marker."
+    )
 
 
-def command_docs_epic_create(args):
+def command_docs_design_create(args):
     context = local_docs_context(args.project_root)
-    if local_docs_opted_out(context):
-        findings = local_docs_path_findings(context) + [
-            {
-                "code": "local_document_profile_opted_out",
-                "severity": "fail",
-                "message": (
-                    "Project opted out of default local documents through "
-                    f"{context['optOutPath']}; run docs enable before creating an Epic."
-                ),
-            }
-        ]
-    elif all(
-        path.exists()
-        for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]
-    ):
-        findings = local_docs_validation_findings(context, require_profile=True)
-    else:
-        findings, _, _ = initialize_local_docs(
-            args, context, inferred_epic_prefix(context)
-        )
-        if not any(finding.get("severity") == "fail" for finding in findings):
-            findings.extend(
-                local_docs_validation_findings(context, require_profile=True)
-            )
-    if findings:
-        return local_docs_payload(args, context, findings)
-    if not valid_epic_title(args.title):
+    findings = _profile_ready(args, context)
+    if any(finding["severity"] == "fail" for finding in findings):
+        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
+    if not valid_design_title(args.title):
         findings.append(
             {
-                "code": "invalid_epic_title",
+                "code": "invalid_design_title",
                 "severity": "fail",
                 "message": (
-                    "Epic title must be one non-empty line, at most 120 characters, "
-                    "without Markdown link or control delimiters."
+                    "Design title must be one non-empty line, at most 120 characters, "
+                    "without Markdown link or table delimiters."
                 ),
             }
         )
-        return local_docs_payload(args, context, findings)
-    prefix = local_epic_prefix(context["indexPath"])
-    if not re.fullmatch(r"[A-Z][A-Z0-9]{1,11}", prefix):
-        raise RuntimeError(f"Local document index has an invalid epic prefix: {prefix}")
-    epics_root = context["docsRoot"] / "epics"
-    existing = allocated_epic_numbers(context, prefix)
+        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
+
+    prefix = (
+        local_design_prefix(context["indexPath"])
+        if context["indexPath"].is_file()
+        else (getattr(args, "prefix", None) or inferred_design_prefix(context))
+    )
+    if not _valid_prefix(prefix):
+        raise RuntimeError(f"Local document index has an invalid prefix: {prefix}")
+    allocated = allocated_design_numbers(context, prefix)
     number = args.number if args.number is not None else (
-        (max(existing) + 1) if existing else 1
+        max(allocated) + 1 if allocated else 1
     )
     if number < 1 or number > 999:
         findings.append(
             {
-                "code": "invalid_epic_number",
+                "code": "invalid_design_number",
                 "severity": "fail",
-                "message": "Epic number must be between 001 and 999.",
+                "message": "Design number must be between 001 and 999.",
             }
         )
-        return local_docs_payload(args, context, findings)
+        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
     sequence = f"{number:03d}"
-    if number in existing:
+    design_id = f"{prefix}-{sequence}"
+    if number in allocated:
         findings.append(
             {
-                "code": "epic_id_exists",
+                "code": "design_id_exists",
                 "severity": "fail",
-                "message": f"Epic ID already exists: {prefix}-{sequence}",
+                "message": f"Design ID already exists: {design_id}",
             }
         )
-        return local_docs_payload(args, context, findings)
-    epic_root = epics_root / sequence
-    if not args.prd and epic_root.exists():
-        findings.append(
-            {
-                "code": "epic_exists",
-                "severity": "fail",
-                "message": f"Epic folder already exists: {epic_root}",
-            }
-        )
-        return local_docs_payload(args, context, findings)
+        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
 
-    index_text = context["indexPath"].read_text(encoding="utf-8")
-    marker = "<!-- EPICS -->"
-    if marker not in index_text:
-        raise RuntimeError(
-            f"Local document index is missing its epic insertion marker: "
-            f"{context['indexPath']}"
+    design_path = (
+        context["designsRoot"]
+        / f"{sequence}_{design_title_slug(args.title)}_DESIGN.md"
+    )
+    if design_path.exists() or design_path.is_symlink():
+        findings.append(
+            {
+                "code": "design_exists",
+                "severity": "fail",
+                "message": f"Refusing to overwrite an existing design: {design_path}",
+            }
         )
+        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
     date = datetime.now().astimezone().date().isoformat()
-    epic_id = f"{prefix}-{sequence}"
-    section = render_local_doc_template(
-        "EPIC_SECTION.md.tmpl",
-        {"EPIC_ID": epic_id, "TITLE": args.title},
+    rendered = render_local_doc_template(
+        "DESIGN.md.tmpl",
+        {
+            "DESIGN_ID": design_id,
+            "TITLE": args.title,
+            "DATE": date,
+        },
     )
-    prd_path = (
-        existing_prd_path(context, args.prd)
-        if args.prd
-        else epic_root / f"{sequence}_{epic_title_slug(args.title)}_PRD.md"
-    )
-    prd_before = prd_path.read_text(encoding="utf-8") if args.prd else None
-    try:
-        if args.prd:
-            separator = (
-                ""
-                if prd_before.endswith("\n\n")
-                else ("\n" if prd_before.endswith("\n") else "\n\n")
-            )
-            _atomic_write_text(
-                prd_path, prd_before + separator + section.rstrip() + "\n"
-            )
-        else:
-            epic_root.mkdir(parents=True)
-            for child in ["prompts", "research", "decisions", "runs"]:
-                (epic_root / child).mkdir()
-            write_new_file(
-                prd_path,
-                render_local_doc_template(
-                    "EPIC_PRD.md.tmpl",
-                    {
-                        "TITLE": args.title,
-                        "DATE": date,
-                        "EPIC_SECTION": section.rstrip(),
-                    },
-                ),
-            )
-        relative = prd_path.relative_to(context["docsRoot"])
-        row = (
-            f"| `{epic_id}` | [{args.title}]({relative.as_posix()}) | PRD | "
-            f"Proposed | {date} | None | None | Not implemented | Not verified |\n"
-        )
-        _atomic_write_text(
-            context["indexPath"], index_text.replace(marker, row + marker, 1)
-        )
-    except Exception:
-        if args.prd and prd_before is not None:
-            _atomic_write_text(prd_path, prd_before)
-        elif epic_root.exists():
-            shutil.rmtree(epic_root)
-        raise
-    return local_docs_payload(
-        args,
-        context,
-        findings,
-        epicId=epic_id,
-        epicRoot=str(prd_path.parent),
-        prdPath=str(prd_path),
-        appended=bool(args.prd),
-    )
-
-
-def command_docs_draft_create(args):
-    context = local_docs_context(args.project_root)
-    title = getattr(args, "title", None)
-    if args.template == "peter-yang" and (not title or not title.strip()):
-        return local_docs_payload(
-            args,
-            context,
-            [
-                {
-                    "code": "missing_draft_title",
-                    "severity": "fail",
-                    "message": (
-                        "Peter Yang PRD drafts require --title so the filename "
-                        "describes the feature."
-                    ),
-                }
-            ],
-            template=args.template,
-            dryRun=args.dry_run,
-        )
-    _, draft_candidate = guided_draft_destination(context, args.template, title)
-    if draft_candidate.exists() or draft_candidate.is_symlink():
-        return local_docs_payload(
-            args,
-            context,
-            [
-                {
-                    "code": "draft_exists",
-                    "severity": "fail",
-                    "message": (
-                        "Refusing to overwrite an existing product draft: "
-                        f"{draft_candidate}"
-                    ),
-                }
-            ],
-            template=args.template,
-            draftPath=str(draft_candidate),
-            dryRun=args.dry_run,
-        )
-    if local_docs_opted_out(context):
-        findings = local_docs_path_findings(context) + [
-            {
-                "code": "local_document_profile_opted_out",
-                "severity": "fail",
-                "message": (
-                    "Project opted out of default local documents through "
-                    f"{context['optOutPath']}; run docs enable before creating a draft."
-                ),
-            }
-        ]
-    elif all(
-        path.exists()
-        for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]
-    ):
-        findings = local_docs_validation_findings(context, require_profile=True)
-    else:
-        findings, _, _ = initialize_local_docs(
-            args, context, inferred_epic_prefix(context)
-        )
-        if not args.dry_run and not any(
-            finding.get("severity") == "fail" for finding in findings
-        ):
-            findings.extend(
-                local_docs_validation_findings(context, require_profile=True)
-            )
-    if any(finding.get("severity") == "fail" for finding in findings):
-        return local_docs_payload(
-            args, context, findings, template=args.template, dryRun=args.dry_run
-        )
-    draft_findings, draft_path = create_guided_draft(
-        context, args.template, title=title, dry_run=args.dry_run
-    )
-    findings.extend(draft_findings)
-    return local_docs_payload(
-        args,
-        context,
-        findings,
-        template=args.template,
-        draftPath=str(draft_path),
-        dryRun=args.dry_run,
-    )
-
-
-def local_draft_path(context, supplied):
-    drafts_root = context["docsRoot"] / "drafts"
-    candidate = Path(supplied).expanduser()
-    if not candidate.is_absolute():
-        candidate = drafts_root / candidate
-    candidate = candidate.absolute()
-    if candidate.is_symlink():
-        raise RuntimeError(f"A promoted draft must not be a symlink: {candidate}")
-    resolved_root = drafts_root.resolve()
-    resolved = candidate.resolve()
-    try:
-        resolved.relative_to(resolved_root)
-    except ValueError as exc:
-        raise RuntimeError(
-            "A promoted draft must be inside local-docs/drafts."
-        ) from exc
-    current = candidate.parent
-    resolved_docs_root = context["docsRoot"].resolve()
-    while current.resolve() != resolved_docs_root:
-        if current.is_symlink():
-            raise RuntimeError(
-                f"A promoted draft path must not use symlinks: {candidate}"
-            )
-        if current == current.parent:
-            raise RuntimeError(
-                "A promoted draft must be inside local-docs/drafts."
-            )
-        current = current.parent
-    if candidate.parent.resolve() != resolved_root:
-        raise RuntimeError(
-            "A promoted draft must be directly inside local-docs/drafts."
-        )
-    if not resolved.is_file():
-        raise RuntimeError(f"A promoted draft must already exist: {candidate}")
-    return resolved
-
-
-def _commit_draft_promotion(
-    draft_path,
-    epic_root,
-    prd_path,
-    index_path,
-    index_text,
-    updated_index,
-):
-    moved = False
-    try:
-        epic_root.mkdir(parents=False, exist_ok=False)
-        for child in ["prompts", "research", "decisions", "runs"]:
-            (epic_root / child).mkdir()
-        os.replace(draft_path, prd_path)
-        moved = True
-        _atomic_write_text(index_path, updated_index)
-    except Exception:
-        if moved and prd_path.is_file() and not draft_path.exists():
-            os.replace(prd_path, draft_path)
-        if epic_root.exists() and not epic_root.is_symlink():
-            shutil.rmtree(epic_root)
-        if (
-            index_path.is_file()
-            and index_path.read_text(encoding="utf-8") != index_text
-        ):
-            _atomic_write_text(index_path, index_text)
-        raise
-
-
-def command_docs_draft_promote(args):
-    context = local_docs_context(args.project_root)
-    if local_docs_opted_out(context):
-        findings = local_docs_path_findings(context) + [
-            {
-                "code": "local_document_profile_opted_out",
-                "severity": "fail",
-                "message": (
-                    "Project opted out of default local documents through "
-                    f"{context['optOutPath']}; run docs enable before promoting a draft."
-                ),
-            }
-        ]
-    elif all(
-        path.exists()
-        for path in [context["policyPath"], context["docsRoot"], context["indexPath"]]
-    ):
-        findings = local_docs_validation_findings(context, require_profile=True)
-    else:
-        findings = local_docs_path_findings(context) + [
-            {
-                "code": "local_document_profile_missing",
-                "severity": "fail",
-                "message": "Create a local product draft before promoting it.",
-            }
-        ]
-    if any(finding.get("severity") == "fail" for finding in findings):
-        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
-    if not valid_epic_title(args.title):
-        findings.append(
-            {
-                "code": "invalid_epic_title",
-                "severity": "fail",
-                "message": (
-                    "Epic title must be one non-empty line, at most 120 characters, "
-                    "without Markdown link or control delimiters."
-                ),
-            }
-        )
-        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
-
-    draft_path = local_draft_path(context, args.draft)
-    prefix = local_epic_prefix(context["indexPath"])
-    if not re.fullmatch(r"[A-Z][A-Z0-9]{1,11}", prefix):
-        raise RuntimeError(f"Local document index has an invalid epic prefix: {prefix}")
-    existing = allocated_epic_numbers(context, prefix)
-    number = args.number if args.number is not None else (
-        (max(existing) + 1) if existing else 1
-    )
-    if number < 1 or number > 999:
-        findings.append(
-            {
-                "code": "invalid_epic_number",
-                "severity": "fail",
-                "message": "Epic number must be between 001 and 999.",
-            }
-        )
-        return local_docs_payload(
-            args,
-            context,
-            findings,
-            draftPath=str(draft_path),
-            dryRun=args.dry_run,
-        )
-    sequence = f"{number:03d}"
-    epic_id = f"{prefix}-{sequence}"
-    if number in existing:
-        findings.append(
-            {
-                "code": "epic_id_exists",
-                "severity": "fail",
-                "message": f"Epic ID already exists: {epic_id}",
-            }
-        )
-        return local_docs_payload(
-            args,
-            context,
-            findings,
-            draftPath=str(draft_path),
-            dryRun=args.dry_run,
-        )
-
-    epics_root = context["docsRoot"] / "epics"
-    epic_root = epics_root / sequence
-    prd_path = epic_root / f"{sequence}_{epic_title_slug(args.title)}_PRD.md"
-    if epic_root.exists() or epic_root.is_symlink() or prd_path.exists():
-        findings.append(
-            {
-                "code": "epic_exists",
-                "severity": "fail",
-                "message": f"Epic destination already exists: {epic_root}",
-            }
-        )
-        return local_docs_payload(
-            args,
-            context,
-            findings,
-            draftPath=str(draft_path),
-            dryRun=args.dry_run,
-        )
-
     index_path = context["indexPath"]
-    index_text = index_path.read_text(encoding="utf-8")
-    marker = "<!-- EPICS -->"
-    if index_text.count(marker) != 1:
-        raise RuntimeError(
-            f"Local document index must contain exactly one epic insertion marker: "
-            f"{index_path}"
+    if index_path.is_file():
+        index_text = index_path.read_text(encoding="utf-8")
+    else:
+        index_text = render_local_doc_template(
+            "INDEX.md.tmpl", {"DESIGN_PREFIX": prefix}
         )
-    date = datetime.now().astimezone().date().isoformat()
-    relative = prd_path.relative_to(context["docsRoot"])
+    marker = _index_marker(index_text)
+    relative = design_path.relative_to(context["docsRoot"])
     row = (
-        f"| `{epic_id}` | [{args.title}]({relative.as_posix()}) | PRD | "
-        f"Proposed | {date} | None | None | Not implemented | Not verified |\n"
+        f"| `{design_id}` | [{args.title}]({relative.as_posix()}) "
+        f"| Proposed | {date} |\n"
     )
-    updated_index = index_text.replace(marker, row + marker, 1)
-    if args.dry_run:
-        return local_docs_payload(
-            args,
-            context,
-            findings,
-            epicId=epic_id,
-            epicRoot=str(epic_root),
-            prdPath=str(prd_path),
-            draftPath=str(draft_path),
-            dryRun=True,
-        )
-
-    _commit_draft_promotion(
-        draft_path,
-        epic_root,
-        prd_path,
-        index_path,
-        index_text,
-        updated_index,
-    )
-    return local_docs_payload(
-        args,
-        context,
-        findings,
-        epicId=epic_id,
-        epicRoot=str(epic_root),
-        prdPath=str(prd_path),
-        draftPath=str(draft_path),
-        dryRun=False,
-    )
-
-
-def markdown_answer(text, headings):
-    for heading in headings:
-        match = re.search(
-            rf"^(##|###) {re.escape(heading)}\s*$",
-            text,
-            re.MULTILINE | re.IGNORECASE,
-        )
-        if not match:
-            continue
-        level = len(match.group(1))
-        following = re.search(
-            rf"^#{{1,{level}}} ", text[match.end() :], re.MULTILINE
-        )
-        end = match.end() + following.start() if following else len(text)
-        content = text[match.end() : end].strip()
-        substantive = [
-            line
-            for line in content.splitlines()
-            if line.strip()
-            and not line.strip().lower().startswith(("*guidance:", "_guidance:"))
-        ]
-        if substantive:
-            return content
-    return ""
-
-
-def accepted_record_path(prd_path):
-    return prd_path.with_suffix(".accepted.json")
-
-
-def _commit_epic_acceptance(
-    args,
-    context,
-    findings,
-    epic_id,
-    prd_path,
-    source_bytes,
-    index_path,
-    index_text,
-    row_match,
-    sidecar,
-):
-    if not all(
-        [
-            _parse_dependency_list,
-            _parse_release_stages,
-            _parse_consequence_triggers,
-        ]
-    ):
-        raise RuntimeError("Docs acceptance contracts are not configured.")
-    record = {
-        "schemaVersion": "gauntlet.accepted-epic.v1",
-        "epicId": epic_id,
-        "title": row_match.group(1),
-        "sourcePath": str(prd_path.resolve()),
-        "sourceSha256": sha256(source_bytes),
-        "acceptedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "dependencies": _parse_dependency_list(args.depends_on),
-        "releaseStages": _parse_release_stages(args.release_stages),
-        "consequenceTriggers": _parse_consequence_triggers(
-            args.consequence_triggers
-        ),
-    }
-    updated_index = (
-        index_text[: row_match.start()]
-        + row_match.group(0).replace("| Proposed |", "| Accepted |", 1)
-        + index_text[row_match.end() :]
-    )
-    if updated_index == index_text:
-        findings.append(
-            {
-                "code": "epic_not_proposed",
-                "severity": "fail",
-                "message": f"Epic {epic_id} must be Proposed before acceptance.",
-            }
-        )
-        return local_docs_payload(
-            args,
-            context,
-            findings,
-            epicId=epic_id,
-            prdPath=str(prd_path),
-            dryRun=args.dry_run,
-        )
     if not args.dry_run:
         try:
-            write_new_file(
-                sidecar, json.dumps(record, indent=2, sort_keys=True) + "\n"
-            )
-            _atomic_write_text(index_path, updated_index)
+            write_new_file(design_path, rendered)
+            _atomic_write_text(index_path, index_text.replace(marker, row + marker, 1))
         except Exception:
-            if sidecar.is_file() and not sidecar.is_symlink():
-                sidecar.unlink()
-            if index_path.read_text(encoding="utf-8") != index_text:
+            if design_path.is_file() and not design_path.is_symlink():
+                design_path.unlink()
+            if (
+                index_path.is_file()
+                and index_path.read_text(encoding="utf-8") != index_text
+            ):
                 _atomic_write_text(index_path, index_text)
             raise
     return local_docs_payload(
         args,
         context,
         findings,
-        epicId=epic_id,
-        prdPath=str(prd_path),
-        acceptedRecord=str(sidecar),
-        sourceSha256=record["sourceSha256"],
+        designId=design_id,
+        designPath=str(design_path),
         dryRun=args.dry_run,
     )
 
 
-def command_docs_epic_accept(args):
+def _safe_local_document_path(context, supplied):
+    candidate = Path(supplied).expanduser()
+    if not candidate.is_absolute():
+        candidate = context["docsRoot"] / candidate
+    candidate = Path(os.path.abspath(str(candidate)))
+    resolved_root = context["docsRoot"].resolve()
+    try:
+        relative = candidate.relative_to(context["docsRoot"])
+    except ValueError as exc:
+        raise RuntimeError("A design must be inside local-docs.") from exc
+    current = context["docsRoot"]
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise RuntimeError(f"A design path must not use symlinks: {candidate}")
+    try:
+        candidate.resolve().relative_to(resolved_root)
+    except ValueError as exc:
+        raise RuntimeError("A design must be inside local-docs.") from exc
+    if not candidate.is_file():
+        raise RuntimeError(f"A design must already exist: {candidate}")
+    return candidate.resolve()
+
+
+def _indexed_design(context, supplied):
+    index_text = context["indexPath"].read_text(encoding="utf-8")
+    row_pattern = re.compile(
+        r"^\| `([A-Z][A-Z0-9]*-\d{3})` \| \[([^\]]+)\]\(([^)]+)\) "
+        r"\| ([^|]+) \|.*$",
+        re.MULTILINE,
+    )
+    rows = list(row_pattern.finditer(index_text))
+    if re.fullmatch(r"[A-Za-z][A-Za-z0-9]*-\d{3}", supplied):
+        design_id = supplied.upper()
+        row = next((item for item in rows if item.group(1) == design_id), None)
+        if row is None:
+            raise RuntimeError(f"Design {design_id} is not indexed.")
+        design_path = _safe_local_document_path(context, row.group(3))
+        return index_text, row, design_path
+
+    design_path = _safe_local_document_path(context, supplied)
+    row = next(
+        (
+            item
+            for item in rows
+            if (context["docsRoot"] / item.group(3)).resolve() == design_path
+        ),
+        None,
+    )
+    if row is None:
+        raise RuntimeError(f"Design is not indexed: {design_path}")
+    return index_text, row, design_path
+
+
+def exact_acceptance_section(source_text):
+    return exact_named_section(source_text, "Acceptance")
+
+
+def exact_named_section(source_text, title):
+    matches = list(
+        re.finditer(
+            rf"^## {re.escape(title)}[ \t]*\r?$",
+            source_text,
+            re.MULTILINE,
+        )
+    )
+    if len(matches) != 1:
+        return ""
+    start = matches[0].start()
+    following = re.search(r"^#{1,2} ", source_text[matches[0].end() :], re.MULTILINE)
+    end = matches[0].end() + following.start() if following else len(source_text)
+    section = source_text[start:end]
+    body = source_text[matches[0].end() : end]
+    visible = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+    visible_lines = [
+        line.strip()
+        for line in visible.splitlines()
+        if line.strip()
+        and not line.strip().lower().startswith(("*guidance:", "_guidance:"))
+    ]
+    return section if visible_lines else ""
+
+
+def _optional_contract_binding(source_text, title):
+    headings = re.findall(
+        rf"^## {re.escape(title)}[ \t]*\r?$",
+        source_text,
+        re.MULTILINE,
+    )
+    if len(headings) > 1:
+        raise RuntimeError(f"Accepted design has multiple exact '{title}' sections.")
+    section = exact_named_section(source_text, title)
+    return {
+        "applicable": bool(section),
+        "sha256": "sha256:" + sha256(section.encode("utf-8")) if section else None,
+    }
+
+
+def acceptance_outcome_bindings(acceptance):
+    """Return stable identities and digests for each exact accepted outcome.
+
+    The contract retains only mechanical bindings.  Build and Verify continue
+    to read the human-owned Acceptance section for meaning.
+    """
+
+    heading = re.match(r"^## Acceptance[ \t]*\r?\n?", acceptance)
+    body = acceptance[heading.end() :] if heading else acceptance
+    body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+    lines = body.splitlines()
+    item_candidates = [
+        (index, len(match.group(1).expandtabs(4)))
+        for index, line in enumerate(lines)
+        if (
+            match := re.match(
+                r"^([ \t]*)(?:[-+*]|\d+[.)])[ \t]+\S",
+                line,
+            )
+        )
+    ]
+    minimum_indent = min((indent for _index, indent in item_candidates), default=0)
+    item_starts = {index for index, indent in item_candidates if indent == minimum_indent}
+    outcomes = []
+    index = 0
+    while index < len(lines):
+        if not lines[index].strip():
+            index += 1
+            continue
+        start = index
+        if index in item_starts:
+            index += 1
+            while index < len(lines):
+                if index in item_starts:
+                    break
+                if not lines[index].strip():
+                    following = index + 1
+                    while following < len(lines) and not lines[following].strip():
+                        following += 1
+                    if following >= len(lines) or following in item_starts:
+                        break
+                    indent = len(lines[following]) - len(lines[following].lstrip())
+                    if indent <= minimum_indent:
+                        break
+                index += 1
+        else:
+            index += 1
+            while (
+                index < len(lines)
+                and lines[index].strip()
+                and index not in item_starts
+            ):
+                index += 1
+        outcome = "\n".join(lines[start:index]).strip()
+        if outcome and not outcome.lower().startswith(("*guidance:", "_guidance:")):
+            outcomes.append(outcome)
+    return [
+        {
+            "identity": f"acceptance-{index:03d}",
+            "sha256": "sha256:" + sha256(outcome.encode("utf-8")),
+        }
+        for index, outcome in enumerate(outcomes, start=1)
+    ]
+
+
+def accepted_record_path(design_path):
+    return design_path.with_suffix(".accepted.json")
+
+
+def load_accepted_design(project_root, supplied):
+    """Read and validate the exact accepted source for Build or Verify entry."""
+
+    context = local_docs_context(project_root)
+    findings = local_docs_validation_findings(context, require_profile=True)
+    failures = [item["message"] for item in findings if item["severity"] == "fail"]
+    if failures:
+        raise RuntimeError("Accepted design is unavailable: " + "; ".join(failures))
+    _index_text, row, design_path = _indexed_design(context, supplied)
+    sidecar = accepted_record_path(design_path)
+    if sidecar.is_symlink() or not sidecar.is_file():
+        raise RuntimeError(f"Accepted design record is unavailable: {sidecar}")
+    try:
+        record = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Accepted design record is invalid: {sidecar}") from exc
+    design_keys = {
+        "schemaVersion",
+        "designId",
+        "sourcePath",
+        "sourceSha256",
+        "acceptanceSha256",
+        "acceptedAt",
+    }
+    if not isinstance(record, dict):
+        raise RuntimeError(f"Accepted design record has an unsupported shape: {sidecar}")
+    relative = str(design_path.relative_to(context["docsRoot"]))
+    schema = record.get("schemaVersion")
+    if schema == "gauntlet.accepted-design.v1":
+        if set(record) != design_keys:
+            raise RuntimeError(
+                f"Accepted design record has an unsupported shape: {sidecar}"
+            )
+        identity = record.get("designId")
+        reference = relative
+        indexed_status = row.group(4).strip()
+        source_matches = record.get("sourcePath") == relative
+    elif schema == "gauntlet.accepted-epic.v1":
+        required = {"epicId", "sourcePath", "sourceSha256", "acceptedAt"}
+        if not required.issubset(record):
+            raise RuntimeError(
+                f"Accepted Epic record has an unsupported shape: {sidecar}"
+            )
+        identity = record.get("epicId")
+        reference = record.get("sourcePath")
+        columns = [part.strip() for part in row.group(0).strip("|").split("|")]
+        indexed_status = columns[3] if len(columns) >= 4 else ""
+        try:
+            recorded_source = Path(reference).expanduser()
+            if not recorded_source.is_absolute():
+                recorded_source = context["docsRoot"] / recorded_source
+            source_matches = recorded_source.resolve() == design_path
+        except (OSError, TypeError):
+            source_matches = False
+    else:
+        raise RuntimeError(f"Accepted design record schema is unsupported: {sidecar}")
+    if identity != row.group(1) or not source_matches:
+        raise RuntimeError("Accepted design record does not identify the indexed design.")
+    if indexed_status != "Accepted":
+        raise RuntimeError(f"Design {row.group(1)} is not accepted.")
+    source_bytes = design_path.read_bytes()
+    try:
+        source_text = source_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("Accepted design source must be UTF-8.") from exc
+    acceptance = exact_acceptance_section(source_text)
+    if not acceptance:
+        raise RuntimeError("Accepted design no longer has one exact Acceptance section.")
+    current_source = sha256(source_bytes)
+    current_acceptance = sha256(acceptance.encode("utf-8"))
+    if record["sourceSha256"] != current_source:
+        raise RuntimeError(
+            "Accepted design source is stale: its bytes changed after acceptance."
+        )
+    if (
+        schema == "gauntlet.accepted-design.v1"
+        and record["acceptanceSha256"] != current_acceptance
+    ):
+        raise RuntimeError(
+            "Accepted design Acceptance section is stale: its bytes changed after acceptance."
+        )
+    outcomes = acceptance_outcome_bindings(acceptance)
+    if not outcomes:
+        raise RuntimeError("Accepted design has no observable Acceptance outcomes.")
+    return {
+        "identity": identity,
+        "reference": reference,
+        "sha256": "sha256:" + record["sourceSha256"],
+        "acceptanceSha256": "sha256:" + current_acceptance,
+        "outcomes": outcomes,
+        "contractApplicability": {
+            "architecture": _optional_contract_binding(
+                source_text,
+                "Architecture Contract",
+            ),
+            "sensor": _optional_contract_binding(source_text, "Sensor Contract"),
+        },
+    }
+
+
+def command_docs_design_accept(args):
     context = local_docs_context(args.project_root)
     findings = local_docs_validation_findings(context, require_profile=True)
-    if any(finding.get("severity") == "fail" for finding in findings):
+    if any(finding["severity"] == "fail" for finding in findings):
         return local_docs_payload(args, context, findings, dryRun=args.dry_run)
-    epic_id = args.epic.upper()
-    if not re.fullmatch(r"[A-Z][A-Z0-9]*-\d{3}", epic_id):
-        findings.append(
-            {
-                "code": "invalid_epic_id",
-                "severity": "fail",
-                "message": "Acceptance requires a stable Epic ID.",
-            }
-        )
-        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
-    prd_path = existing_prd_path(context, args.prd)
-    source_bytes = prd_path.read_bytes()
+
+    index_text, row, design_path = _indexed_design(context, args.design)
+    source_bytes = design_path.read_bytes()
     source_text = source_bytes.decode("utf-8")
-    if not markdown_answer(
-        source_text, ("Acceptance", "Done when", "Product Acceptance")
-    ):
+    acceptance = exact_acceptance_section(source_text)
+    if not acceptance:
         findings.append(
             {
-                "code": "missing_observable_acceptance",
+                "code": "missing_exact_acceptance",
                 "severity": "fail",
                 "message": (
-                    "Add an answered Acceptance or Done when section before "
-                    "accepting this Epic; Gauntlet will not invent it."
+                    "Add one answered exact '## Acceptance' section before accepting "
+                    "this design; Gauntlet will not invent or broaden it."
                 ),
             }
         )
@@ -1512,78 +1056,84 @@ def command_docs_epic_accept(args):
             args,
             context,
             findings,
-            epicId=epic_id,
-            prdPath=str(prd_path),
+            designId=row.group(1),
+            designPath=str(design_path),
             dryRun=args.dry_run,
         )
-    index_path = context["indexPath"]
-    index_text = index_path.read_text(encoding="utf-8")
-    row_pattern = re.compile(
-        rf"^\| `{re.escape(epic_id)}` \| \[([^\]]+)\]\(([^)]+)\) "
-        rf"\| PRD \| ([^|]+) \|.*$",
-        re.MULTILINE,
-    )
-    row_match = row_pattern.search(index_text)
-    if not row_match:
+    sidecar = accepted_record_path(design_path)
+    if sidecar.is_symlink() or (sidecar.exists() and not sidecar.is_file()):
         findings.append(
             {
-                "code": "epic_not_indexed",
+                "code": "invalid_accepted_record",
                 "severity": "fail",
-                "message": f"Epic {epic_id} is not indexed.",
+                "message": f"Acceptance record must be a regular file: {sidecar}",
             }
         )
         return local_docs_payload(
             args,
             context,
             findings,
-            epicId=epic_id,
-            prdPath=str(prd_path),
-            dryRun=args.dry_run,
-        )
-    indexed_path = (context["docsRoot"] / row_match.group(2)).resolve()
-    if indexed_path != prd_path.resolve():
-        findings.append(
-            {
-                "code": "epic_path_mismatch",
-                "severity": "fail",
-                "message": f"Epic {epic_id} does not point to {prd_path}.",
-            }
-        )
-        return local_docs_payload(
-            args,
-            context,
-            findings,
-            epicId=epic_id,
-            prdPath=str(prd_path),
-            dryRun=args.dry_run,
-        )
-    sidecar = accepted_record_path(prd_path)
-    if sidecar.exists() or sidecar.is_symlink():
-        findings.append(
-            {
-                "code": "accepted_record_exists",
-                "severity": "fail",
-                "message": f"Acceptance already exists: {sidecar}",
-            }
-        )
-        return local_docs_payload(
-            args,
-            context,
-            findings,
-            epicId=epic_id,
-            prdPath=str(prd_path),
+            designId=row.group(1),
+            designPath=str(design_path),
             acceptedRecord=str(sidecar),
             dryRun=args.dry_run,
         )
-    return _commit_epic_acceptance(
+    current_status = row.group(4).strip()
+    if current_status not in {"Proposed", "Accepted"}:
+        findings.append(
+            {
+                "code": "design_not_acceptable",
+                "severity": "fail",
+                "message": (
+                    f"Design {row.group(1)} must be Proposed or Accepted before "
+                    "binding its current bytes."
+                ),
+            }
+        )
+        return local_docs_payload(args, context, findings, dryRun=args.dry_run)
+
+    record = {
+        "schemaVersion": "gauntlet.accepted-design.v1",
+        "designId": row.group(1),
+        "sourcePath": str(design_path.relative_to(context["docsRoot"])),
+        "sourceSha256": sha256(source_bytes),
+        "acceptanceSha256": sha256(acceptance.encode("utf-8")),
+        "acceptedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+    updated_index = index_text
+    if current_status == "Proposed":
+        updated_index = (
+            index_text[: row.start()]
+            + row.group(0).replace("| Proposed |", "| Accepted |", 1)
+            + index_text[row.end() :]
+        )
+    previous_record = sidecar.read_text(encoding="utf-8") if sidecar.is_file() else None
+    if not args.dry_run:
+        try:
+            serialized = json.dumps(record, indent=2, sort_keys=True) + "\n"
+            if previous_record is None:
+                write_new_file(sidecar, serialized)
+            else:
+                _atomic_write_text(sidecar, serialized)
+            if updated_index != index_text:
+                _atomic_write_text(context["indexPath"], updated_index)
+        except Exception:
+            if previous_record is not None:
+                _atomic_write_text(sidecar, previous_record)
+            elif sidecar.is_file() and not sidecar.is_symlink():
+                sidecar.unlink()
+            if context["indexPath"].read_text(encoding="utf-8") != index_text:
+                _atomic_write_text(context["indexPath"], index_text)
+            raise
+    return local_docs_payload(
         args,
         context,
         findings,
-        epic_id,
-        prd_path,
-        source_bytes,
-        index_path,
-        index_text,
-        row_match,
-        sidecar,
+        designId=row.group(1),
+        designPath=str(design_path),
+        acceptedRecord=str(sidecar),
+        sourceSha256=record["sourceSha256"],
+        acceptanceSha256=record["acceptanceSha256"],
+        reaccepted=previous_record is not None,
+        dryRun=args.dry_run,
     )

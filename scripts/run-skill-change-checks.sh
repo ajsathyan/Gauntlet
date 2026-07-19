@@ -26,13 +26,18 @@ elif git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 
 changed_skill_names=()
+lint_skill_names=()
 changed_python_files=()
 if [ "${#changed_files[@]}" -gt 0 ]; then
   for file in "${changed_files[@]}"; do
     case "$file" in
       skills/*/*)
         skill_name="${file#skills/}"
-        changed_skill_names+=("${skill_name%%/*}")
+        skill_name="${skill_name%%/*}"
+        changed_skill_names+=("$skill_name")
+        if [ -f "$SKILLS_ROOT/$skill_name/SKILL.md" ]; then
+          lint_skill_names+=("$skill_name")
+        fi
         ;;
     esac
     case "$file" in
@@ -72,6 +77,12 @@ if [ "$detect_only" -eq 1 ]; then
   exit 0
 fi
 
-echo "Gauntlet skill changes detected; running structural lint: $skill_names"
-"$ROOT/scripts/lint-skills.py" --skills-root "$SKILLS_ROOT" --only "$skill_names" --json >/dev/null
+if [ "${#lint_skill_names[@]}" -eq 0 ]; then
+  echo "Gauntlet skill deletions detected; no remaining skill files require structural lint."
+  exit 0
+fi
+
+lint_skill_names_csv="$(printf '%s\n' "${lint_skill_names[@]}" | sort -u | paste -sd, -)"
+echo "Gauntlet skill changes detected; running structural lint: $lint_skill_names_csv"
+"$ROOT/scripts/lint-skills.py" --skills-root "$SKILLS_ROOT" --only "$lint_skill_names_csv" --json >/dev/null
 echo "skill structural lint: passed"

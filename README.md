@@ -1,437 +1,196 @@
 # Gauntlet
 
-A product-thinking harness for AI coding agents.
+A product-thinking and verification workflow for Codex.
 
-<p>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-3fb950?style=for-the-badge"></a>
-  <a href="https://github.com/ajsathyan/Gauntlet/releases/tag/v2.0.2"><img alt="Version" src="https://img.shields.io/badge/version-v2.0.2-111827?style=for-the-badge"></a>
-  <a href="router/AGENTS.md"><img alt="Workflow" src="https://img.shields.io/badge/workflow-global-0969da?style=for-the-badge"></a>
-  <a href="skills"><img alt="Role skills" src="https://img.shields.io/badge/role_skills-13-8957e5?style=for-the-badge"></a>
-  <a href="docs/coverage-gaps.md"><img alt="Coverage gaps" src="https://img.shields.io/badge/coverage_gaps-pending-f778ba?style=for-the-badge"></a>
-</p>
+Gauntlet helps an agent turn an idea into a complete feature without making a
+permanent project-management system out of the implementation process. Product
+meaning stays in one durable Design. Implementation planning stays temporary.
+Verification checks the exact integrated revision against the original outcome,
+the intended architecture, and the repository's executed quality checks.
 
-<p>
-  <a href="#-at-a-glance">At A Glance</a> |
-  <a href="#v202-product-thinking-and-proof-scope">v2.0.2</a> |
-  <a href="#v201-run-log-harness">v2.0.1</a> |
-  <a href="#-build-stages">Build Stages</a> |
-  <a href="#-run-logs">Run Logs</a> |
-  <a href="#-skill-quality-bar">Skill Quality Bar</a> |
-  <a href="#-coverage-gaps">Coverage Gaps</a> |
-  <a href="#-production-quality-bar">Production Quality Bar</a> |
-  <a href="#-install">Install</a>
-</p>
-
-Gauntlet helps AI coding agents turn rough asks into thought-through features, evidence-backed research, and verified changes. It is the single workflow authority; domain/tool skills may add capabilities without imposing a second lifecycle.
-
-Coding agents make implementation cheaper, but they make product judgment, coherence, and review more important. Gauntlet v2.0.2 keeps the workflow strict where the feature shape or risk demands it and lighter where ceremony gets in the way: durable context is now an exceptions-first Markdown run log plus pending coverage gaps, not a separate review product.
-
-## v2.0.2: Product Thinking And Proof Scope
-
-Gauntlet v2.0.2 sharpens the harness around outcomes:
-
-| Outcome | What Changed |
-| --- | --- |
-| Product coherence | The README and global workflow now position Gauntlet as a product-thinking harness that turns rough asks into coherent features, not just risk-managed prototypes. |
-| Token efficiency | Proof scope now routes work through `smoke`, `delta`, `full`, or `not relevant`; small accepted changes can combine black-box and experience review, skip second triage unless findings exist, and run targeted changed-skill evals instead of the full suite. |
-| UI quality without a design-system tax | The new UI constitution keeps frontend checks bounded to substantial UI work and separates general lint candidates from product-judgment review. |
-| Better durable memory | Coverage gaps stay pending backlog items, and run logs capture exceptions, decisions, skipped proof, and new or updated gap IDs rather than proof dumps. |
-| Clearer gap closeout | Final responses now list only newly added or updated gaps at the end using `Added GAP-###: Short name - why it matters`, while the full backlog remains in `docs/coverage-gaps.md`. |
-| Less parallelization theater | Planner and implementer guidance now require independent files, state, and proof before using subagents, with an explicit context-cost guard. |
-| Launch-grade quality without default ceremony | The Production Quality Bar applies senior implementation boundaries, release proof, and decision-oriented UI checks only to near-launch, private-beta, production-bound, hardened, or audited work. |
-
-## v2.0.1: Run Log Harness
-
-Gauntlet v2.0.1 replaces the default review surface with a small **Run Log** and a candidate **Coverage Gap** loop inspired by repo-local product-design guidance patterns.
-
-The workflow is built around Research, Patch, Feature, and Release paths; Standard and Deep depth; smoke, delta, and full proof scopes; one accepted source and canonical plan; run logs; architecture hygiene; TypeScript durability classification; and triggered quality gates.
-
-## ✨ At A Glance
-
-| Capability | What You Get |
-| --- | --- |
-| Intake | Turns rough intent into scope, boundaries, acceptance criteria, assumptions, and proof. |
-| Work paths | Routes work through Research, Patch, Feature, or Release based on intent and risk, with Standard or Deep depth chosen separately. |
-| Product-thinking loop | Shapes rough asks into coherent product features before implementation and checks consistency after. |
-| Scoped role skills | Adds product architecture, planning, triage, implementation, black-box testing, experience review, and deep code review only at smoke, delta, or full scope when useful. |
-| Run logs | Writes a tiny exceptions-first Markdown receipt for material Feature/Release work: assumptions, decisions, skipped checks, failures, `Cannot verify`, and follow-ups. |
-| Local product documents | Uses a default-on, lazily materialized ignored `local-docs/` profile in the primary worktree, with an explicit per-project opt-out, while preserving tracked repository documentation and Git/PR/release traceability. |
-| PRD execution | Lets one product task shape many independently shippable Epics, then launches one visible task and one durable Execution Run per build-ready Epic with bounded context, exact-revision proof, and end-to-end release authority. |
-| Live Epic progress | Automatically starts one private loopback dashboard per PRD launch, opens it in the Codex in-app Browser when available, and refreshes run, agent, token, cost, and release facts without blocking implementation. |
-| Subagent orchestration | Renders cache-oriented bounded context, audits model requests and routing, bundles compatible Tickets without head-of-line blocking, and preserves parent-only consequential authority. |
-| Comparative evaluation | Admits isolated automatic-oracle tasks and runs condition-blind paired Gauntlet-versus-baseline experiments with replay, ablations, sealed core slots, and replaceable harness adapters. |
-| Adaptive code-quality sensors | Produces deterministic, language-aware plans from repository-configured checks, records compact normalized evidence, and validates behavior-preserving readability rewrites without installing optional tools. |
-| Skill quality bar | Gives future skill and workflow edits a practical behavior-delta, trigger, completion, proof, and token-cost bar without making every Patch heavier. |
-| Coverage gaps | Captures pending candidates when missing reusable guidance forced a material assumption or repeated review finding. |
-| Workflow speedup helpers | Classifies changed surfaces, recommends bounded tests, and generates redacted review packets without making every Patch run a heavy quality gate. |
-| Promotion scanner | Produces a Promotion Brief when repeated manual or agent loops should be considered for repo code, repo test, repo docs/run log, Gauntlet skill/tool, coverage gap, or Reject. |
-| UI constitution | Keeps frontend quality checks bounded: general lint candidates, browser checks, experience review guidance, and gap promotion only for substantial UI work. |
-| Production Quality Bar | Raises the bar for near-launch systems with ownership boundaries, invariants, durable state, state machines, threat/redaction review, no-mutation or dry-run proof, automated GitHub release tags, release proof, feedback loops, and decision-oriented UI. |
-| Model portability | Installs as reusable instructions, skills, docs, scripts, and evals that can be adapted to different agent environments. |
-
-## 🧭 Build Stages
-
-| Stage | Best For | What It Optimizes |
-| --- | --- | --- |
-| Research | Audits, comparisons, recommendations, and implementation discovery | Evidence quality without implementation gates. |
-| Patch | Small, focused changes | Speed and low overhead. |
-| Feature | High-fidelity product features and workflows | Coherent product thinking, implementation, and consistency checks. |
-| Release | Production-bound or risky changes | Deeper verification, review, and regression control. |
-
-## 🎯 How To Choose A Stage
-
-| Signal | Recommended Stage |
-| --- | --- |
-| Investigation, audit, comparison, or recommendation without a requested code change | Research |
-| Clear copy, config, polish, or narrow bug fix | Patch |
-| Small code surface where the best answer matters | Patch with Deep depth |
-| Product workflow, onboarding, activation, retention, growth, IA, or design-heavy work | Feature |
-| Auth, billing, migrations, data integrity, privacy, uploads, concurrency, public APIs, large refactors, weak-test areas, or deploy-sensitive work | Release |
-
-The rule has two parts:
+## The workflow
 
 ```text
-Choose the lightest stage for the change shape.
-Choose the depth that matches the value of finding the best answer.
+Design -> Build -> Verify -> Ship
 ```
 
-Mode is about scope and risk surface. Depth is about search effort. A performance optimization can be a tiny Patch and still deserve Deep depth if "fastest reasonable result" matters more than minimizing tokens.
+### Design
 
-## 👥 Who It Helps
+For non-trivial implementation, Gauntlet first explores materially different
+approaches, assumptions, feature-level edge cases, user-visible states, and
+observable outcomes. The result is one permanent Design that the user explicitly
+accepts.
 
-| Audience | How Gauntlet Helps |
-| --- | --- |
-| Engineers | Turns broad requests into scoped, verifiable implementation work, adds review loops for risky changes, and leaves a small durable trail for future agents. |
-| PMs | Makes product intent executable by clarifying scope, non-goals, acceptance criteria, assumptions, behavior changes, launch risks, and open questions. |
-| Designers | Preserves UX intent through clearer flows, affected interfaces, state inventories, accessibility checks, visual proof, and coverage gaps for missing standards. |
+The Design's exact `## Acceptance` section is the **Build Contract**. Build and
+Verify read it in place. A plan, workstream assignment, sensor result, or PR
+summary cannot narrow it.
 
-## 📊 What The First Evals Show
+Before Build, three bounded lenses review the same Design:
 
-Early local evals are directional, not benchmark-grade.
+- **Product completeness:** missing outcomes, states, assumptions, and edge cases.
+- **Engineering shape:** boundaries, dependencies, compatibility, and ownership.
+- **Proof and consequence:** observable oracles, false-green paths, required
+  non-effects, and concrete risk triggers.
 
-| Finding | What Changed |
-| --- | --- |
-| A lighter Patch path used fewer tokens on one focused performance task, but the heavier workflow found a faster optimization. | Gauntlet separates Patch mode from Deep depth for small-surface work where performance, security, reliability, or data integrity justify deeper search. |
-| Release mode cost more than direct development on one broader product-performance task, but produced stronger review artifacts and caught a real progress-state regression during adversarial review. | Gauntlet keeps stronger claims tied to measured proof, not blanket promises. |
-| The old review artifact became heavier than the decisions it preserved. | v2.0.1 keeps durable repo memory but makes the default artifact a Markdown receipt. |
+Only material findings are shown. Every material finding is accepted, rejected,
+deferred, or omitted with a reason before affected implementation starts.
 
-The current claim is not "Gauntlet always writes better code." The claim is that Gauntlet helps agents think through features before building them, check that the result hangs together, and escalate proof only when the work earns it.
+### Build
 
-## 🧾 Run Logs
+Build creates an internal, ephemeral plan and stops planning once the first
+coherent step and proof path are clear. One parent task keeps product decisions,
+shared contracts, integration, and external authority.
 
-For Feature and Release work, or any Tier 2/3 task with material decisions or exceptions, Gauntlet writes:
+Parallel work uses compact native workstreams only when ownership or independent
+evidence makes it worthwhile. Children receive an outcome slice, owned files or
+state, dependency contracts, constraints, proof, and a compact return contract.
+Coherent changes land as atomic commits. When parallel candidates share a Git
+base, the generic FIFO workstream queue serializes integration and rejects stale
+candidates after the base changes. See
+[Parallel Workstreams](docs/parallel-workstreams.md).
 
-```text
-docs/gauntlet-runs/YYYY-MM-DD-<slug>.md
-```
+### Verify
 
-The run log is exceptions-first. It records only what future agents would regret losing:
+Independent Verify reads the accepted Design and exact integrated revision. It
+returns three separate verdicts:
 
-- Material assumptions.
-- Non-obvious decisions.
-- Things that went wrong.
-- Checks skipped or proof that could not be completed.
-- `Cannot verify` items and follow-ups.
-- For Release, a compact proof summary or launch cut line when it affects risk.
+- **Build:** every accepted outcome and required non-effect is observably true.
+- **Architecture:** required boundaries, dependencies, compatibility, and code
+  shape hold.
+- **Sensor:** configured checks executed at the required cadence against the
+  exact source.
 
-Routine successful checks stay in the final chat summary. The run log should feel like a receipt, not a project report.
+All applicable verdicts must pass. A clean architecture or green sensor run
+cannot compensate for an absent product outcome. This explicitly prevents the
+GAUNTLET-009 failure, where planning passed but the requested sensor execution
+never existed.
 
-## Local Product Documents
+### Ship
 
-Private local PRDs, research, decisions, plans, and run history use the default-on profile. It materializes only when a covered document task needs it:
+Ship stops at the last effect the user authorized. These remain separate:
+
+- local commit;
+- branch push;
+- pull-request creation;
+- merge;
+- deployment or production change;
+- migration, destructive or paid action, credential use, rollback;
+- local installation and task archival.
+
+“Open a PR” does not authorize merge. PR checks do not prove production health.
+See [GitHub Discipline](docs/github-discipline.md).
+
+## Normal requests
+
+Bounded, low-consequence, reversible work uses the light path: make the requested
+change in the parent task and run its smoke check. It does not create a durable
+Design, review panel, workstream queue, or other process state.
+
+## Durable local Designs
+
+Private product documents are created only for explicit covered document work:
 
 ```sh
 python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs ensure \
-  --project-root "$PROJECT_ROOT" \
-  --epic-prefix PROJECT
+  --project-root "$PROJECT_ROOT"
+
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs design create \
+  --project-root "$PROJECT_ROOT" --title "Message surfaces"
+
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs design accept \
+  --project-root "$PROJECT_ROOT" --design PROJECT-001
 ```
 
-The profile creates ignored `doc_org.md` and `local-docs/` paths in the primary worktree through Git's local exclude file. It never repurposes or ignores the repository's tracked `docs/` directory. Linked implementation worktrees read the primary copies and return durable updates to the main task. To opt out for one project, run `python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs disable --project-root "$PROJECT_ROOT"`; `docs enable` removes that project's marker.
+The profile uses ignored `doc_org.md` and `local-docs/` paths in the primary
+worktree. Legacy PRDs and historical execution files remain readable and are not
+rewritten. See [Local Design Documentation](docs/local-documentation.md).
 
-`doc_org.md` owns one release contract. A human-readable PRD may contain multiple independently shippable Epics organized by stable Scope Areas. Keep going while product ideas are flowing: capture each outcome as an Epic, make its release stages, dependency boundaries, and closed high-consequence trigger declaration explicit, and launch the accepted set together when it is ready. Gauntlet creates one visible implementation task, one durable Execution Run, one integration branch, and one complete Project PR per Epic. Dependency-ready Epics can work in parallel while blocked Epics wait on their named `merged`, `deployed`, or `productionProved` boundary. See [docs/local-documentation.md](docs/local-documentation.md) and [docs/prd-execution.md](docs/prd-execution.md).
+## Adaptive code-quality sensors
 
-“Implement the PRD” freezes that accepted launch set, starts every dependency-ready Epic in its own task, and carries each through branch/worktree setup, implementation, one fresh final Epic verification, Project PR, merge, specified deployment and production changes, rollback when required, durable updates, and cleanup. The product task tells you what started, what is waiting, and when a material decision needs you; otherwise you can take a break while the Epic tasks work.
+Sensors discover changed code, select repository-owned checks, execute them
+without a shell, and return a compact handoff containing only counts and
+non-passing attention items. Full commands and raw output stay in referenced
+Git-private evidence instead of recurring model context.
 
-## 🧰 Skill Quality Bar
+Two phases keep the loop proportional:
 
-[docs/skill-quality-bar.md](docs/skill-quality-bar.md) is the reference for creating or meaningfully changing Gauntlet skills, role skills, workflow guidance, eval guidance, or skill-like checklists.
-
-The baseline bar asks whether the change creates a practical behavior delta, has a clear trigger, defines completion and output, steers positively, prunes no-op prose, uses progressive disclosure, and keeps cheap harness mechanics such as schemas, bounded attempt notes, and `Cannot verify` slots where they help. The escalation bar is reserved for high-impact work that earns extra tokens: forward-test scenarios, adversarial skill review, two-attempt Deep planning, impact proof review, or parallel reviewer lanes.
-
-Gauntlet credits Matt Pocock's `writing-great-skills` for the skill-writing vocabulary that informs this reference, while keeping Gauntlet's applied bar in its own docs.
-
-## 🕳 Coverage Gaps
-
-Coverage gaps live in [docs/coverage-gaps.md](docs/coverage-gaps.md). They are pending candidates, not standards.
-
-Agents may add or update a gap when a run exposes missing reusable guidance:
-
-- A material assumption was needed because no rule/reference existed.
-- A reviewer says the same issue keeps coming up.
-- A finding is `Cannot verify` because the expected standard is missing.
-- The same class of issue appears across multiple run logs.
-- A lint/check cannot decide safely without product context.
-- A rule has too many exceptions and should move back to guidance.
-
-A human decides whether a candidate becomes a rule, reference, exemplar, lint, eval, coverage gap, or no change.
-
-## 🧭 UI Constitution
-
-[docs/ui-constitution.md](docs/ui-constitution.md) is the lightweight frontend quality gate. It is not a design system. It runs for substantial frontend work, major prototype surfaces, broad responsive/state changes, or repeated UI findings; it stays out of narrow Patch work.
-
-The pass routes reliable code-detectable issues to [docs/design-lint-candidates.md](docs/design-lint-candidates.md), browser-visible behavior to `black-box-tester`, and workflow/state/product feel to `experience-reviewer`. When a reliable failure with a concrete fix has no reusable guidance, the agent adds or updates a pending `GAP-###` and names it in the final response.
-
-## 🚦 Production Quality Bar
-
-[docs/production-quality-bar.md](docs/production-quality-bar.md) is a near-launch gate for launch-ready, private-beta, production-bound, hardened, or audited work. It checks implementation boundaries, invariants, launch-critical proof, durable state, state machines, operator/user feedback, threat model and redaction policy, release proof, and decision-oriented UI.
-
-It stays out of ordinary Patch work, early prototypes, local demos, copy/config/docs-only tweaks, and UI-only Feature work with no launch intent unless the user asks. Automatable checks belong in CI, local proof scripts, dry-runs, no-mutation tests, release-tag automation, and artifact verification; product and engineering judgment stays with the existing Gauntlet roles.
-
-## 🧪 Design Lint Candidates
-
-[docs/design-lint-candidates.md](docs/design-lint-candidates.md) captures general UI lint ideas that can graduate into linters. The active set is intentionally small:
-
-- Prevent nested modals.
-- Prefer radio buttons over selects for 2-3 static options.
-- Require accessible names for icon buttons and form controls.
-- Require semantic button/link usage.
-- Require associated input labels, form semantics for submit flows, appropriate input types, and non-interactive tooltip content.
-
-## ⚡ Install
-
-Copy this into your AI coding agent:
-
-```text
-Install Gauntlet globally for my coding agent.
-
-Source repo:
-https://github.com/ajsathyan/Gauntlet
-
-Goal:
-Make the Gauntlet workflow available across all my projects, not just one repo.
-
-Use the repo's files as the source of truth:
-- router/AGENTS.md is the compact portable global workflow/router.
-- AGENTS.md is the contributor guide for this repository.
-- skills/ contains reusable role skills.
-- docs/ contains run-log, coverage-gap, and design-lint guidance.
-- scripts/ contains the installer, durability classifier, workflow speedup helpers, skill evals, and skill checks.
-- evals/ contains deterministic skill-eval fixtures and baselines.
-
-Install or adapt those files into whatever persistent global instruction, skill, memory, workflow, or config system this agent environment supports.
-
-Before changing anything, inspect the target agent's existing global instructions and configuration. Preserve unrelated user content byte-for-byte. Compare existing guidance with Gauntlet's candidate guidance for semantic conflicts, including voice, tone, verbosity, workflow authority, approval, sandbox, merge, and destructive-action rules. When guidance conflicts, show both conflicting passages to the user, explain the practical difference, and ask which one should remain active. Do not install through an unresolved conflict or silently remove, disable, or rewrite user-owned guidance.
-
-For Codex, Gauntlet's defaults are:
-
-```toml
-model_verbosity = "low"
-personality = "none"
-model_reasoning_summary = "concise"
-
-[agents]
-max_threads = 24
-
-[desktop]
-show-context-window-usage = true
-
-[plugins."browser@openai-bundled"]
-enabled = true
-
-[plugins."computer-use@openai-bundled"]
-enabled = true
-```
-
-If any key already has a different value, show the existing and Gauntlet values and ask which to keep.
-
-Preserve these concepts:
-- Patch, Feature, and Release build stages
-- Standard and Deep depth
-- Proof scope: smoke | delta | full | not relevant
-- Intake before substantial work
-- Exceptions-first Markdown run logs for Feature/Release work
-- Pending coverage gaps for missing reusable guidance
-- Promotion Brief scans for repeated manual or agent loops after Release or live-ops wrap-up, not ordinary Patch
-- Bounded UI constitution checks for substantial frontend work
-- Triggered Production Quality Bar checks for near-launch, private-beta, production-bound, hardened, or audited work
-- Scoped role skills for planning, implementation, triage, adversarial review, black-box testing, experience review, deep code review, and run-log building
-
-Do not delete or overwrite unrelated existing user instructions. A user's explicit conflict choice authorizes resolving only the identified conflict; preserve the original passage in a user-visible backup before removing it from active instructions.
-
-After installing, tell me:
-1. What files you installed or adapted
-2. Where you installed them
-3. Whether I need to restart or reload anything
-4. One quick test I can run to confirm Gauntlet is active
-```
-
-Already cloned the repo?
+- `fast` for cheap edit-loop checks;
+- `integrated` for final, source-bound proof.
 
 ```sh
-./scripts/install.sh --target codex
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" sensors run \
+  --project-root "$PROJECT_ROOT" --workflow-mode feature --phase fast --json
+
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" sensors run \
+  --project-root "$PROJECT_ROOT" --workflow-mode feature --phase integrated --json
 ```
 
-If the target already contains global instructions, the first install stops before changing files. Later installs stop again when either the user-owned instructions or Gauntlet's candidate guidance has changed since the last acknowledged review. Review the two, resolve or confirm compatibility, then rerun with:
+The Codex installer installs pinned machine-local Semgrep, coverage.py, and
+Gitleaks by default in an isolated owned tool generation. Use
+`--without-sensor-tools` when the core workflow should be installed without
+those tools. Repository configuration decides which checks actually apply.
+See [Adaptive Code-Quality Sensors](docs/code-quality-sensors.md).
+
+## Generic workstream queue
+
+The queue is a small Git-bound integration primitive, not a project tracker:
+
+```sh
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" workstreams enqueue \
+  --repo "$PROJECT_ROOT" --state "$QUEUE_FILE" \
+  --workstream "$ID" --source-commit "$SHA"
+
+python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" workstreams claim \
+  --repo "$PROJECT_ROOT" --state "$QUEUE_FILE"
+```
+
+It keeps FIFO order, allows one active attempt, binds candidate commit and tree
+identity, and reconciles only observable Git state. Native Codex task state
+remains sufficient for normal coordination.
+
+## Install, upgrade, and uninstall
+
+Gauntlet installs only for Codex:
 
 ```sh
 ./scripts/install.sh --target codex --instructions-reviewed
 ```
 
-`--instructions-reviewed` is an acknowledgement, not a conflict override. Do not pass it until the comparison is complete. The installer never removes or rewrites user-owned instructions; it owns only its marked Gauntlet block.
-
-When a voice or response-style passage conflicts, use `--response-style gauntlet` to install Gauntlet's policy or `--response-style existing` to omit Gauntlet's policy while retaining the rest of its workflow. Choosing Gauntlet does not authorize the installer to delete the old passage; deactivate it separately only after the user chooses, and preserve the original in a visible backup.
-
-Use `--check` to run the same marker, instruction-review, and Codex-preference preflight without installing anything. Gauntlet's guarded `closeout execute` command runs this check before it commits or merges, so an unresolved local conflict cannot be discovered only after the repository change lands.
-
-`./scripts/install.sh` defaults to `--target codex`, which installs Gauntlet into `$HOME/.codex` unless `AGENT_HOME` or `GAUNTLET_AGENT_HOME` is set.
-
-The Codex target writes or replaces one Gauntlet managed block inside the agent-home `AGENTS.md`, preserving unrelated instructions outside the block. It adds the communication, context-visibility, and 24-thread defaults shown above; installs and enables the bundled Browser and Computer Use plugins through the Codex plugin CLI; and installs seven named profiles under `~/.codex/agents/`. Set `GAUNTLET_CODEX_BIN` when the installer cannot discover a working Codex executable. The installer refuses unavailable required plugins before changing files, preserves unrelated configuration and profiles, and keeps explicit `--codex-preferences existing|skip` overrides. Computer Use still requires a supported desktop and any OS permissions prompted by Codex; Gauntlet does not grant them. Restart or reload Codex after installation so the defaults, plugins, profiles, and thread limit are discovered.
-
-The Codex install also appends two preservation-safe groups to `~/.codex/hooks.json`: a `SessionStart` hook for `startup|resume|clear|compact` and a `PreToolUse` hook for every local tool event Codex exposes. Both commands use the installed absolute `~/.codex/gauntlet/scripts/workflow-mode.py` path. Existing top-level fields, events, groups, handlers, order, and permissions remain user-owned. The installer refuses malformed or symlinked hook files and refuses duplicated or changed Gauntlet-owned groups before copying any payload.
-
-After installing, open `/hooks`, inspect the two “Gauntlet repository workflow mode” entries and their absolute commands, and grant trust if they match the installation you intended. Codex treats global user hooks as non-managed, so ordinary sessions do not execute them until the user trusts them. The `PreToolUse` gate covers local tools that Codex routes through that hook event. Hosted or specialized tools that do not emit `PreToolUse` are outside this gate; their presence in Browser, Computer Use, plugins, or another integration must not be described as hook-enforced repository write blocking.
-
-Ticket routing is deterministic and documented in [docs/custom-agent-routing.md](docs/custom-agent-routing.md). It selects either an explicit native profile or the dedicated Codex CLI security-review runner from the Ticket's work class, complexity, risk, authority, proof type, and context shape. Security proof runs through non-interactive `codex exec` with an explicit read-only sandbox instead of native subagent dispatch. The parent remains responsible for integration, pull requests, merges, deployment, production changes, and rollback decisions.
-
-Codex immediately records started subagents in its local native state. Gauntlet's audit exporter durably merges profile, model, reasoning effort, effective sandbox and approval mode, IDs, timestamps, working directory, source, nickname, and token count into `~/.codex/gauntlet/logs/subagents.jsonl`; it never exports prompts or transcript content. Records survive native-state pruning, and a missing or unreadable native database fails without replacing the audit. Refresh or inspect it with:
+The installer preserves unrelated instructions and config, records ownership,
+removes only byte-identical stale managed files during upgrades, and preserves
+modified or unowned files with a finding. A controller-era upgrade refuses to
+proceed while supplied project roots contain live legacy work:
 
 ```sh
-python3 ~/.codex/gauntlet/scripts/subagent-audit.py sync
-python3 ~/.codex/gauntlet/scripts/subagent-audit.py summary --json
+./scripts/install.sh --target codex --instructions-reviewed \
+  --cutover-project-root "$PROJECT_ROOT"
 ```
 
-When Codex already has a different value, the installer stops before changing any files and prints both the existing and candidate values. After asking the user, rerun with one explicit choice:
+After checking every relevant project yourself, the explicit alternative is
+`--confirm-no-live-controller-work`. To omit the default sensor tools, add
+`--without-sensor-tools`.
+
+Uninstall removes receipt-owned Gauntlet files and its managed instruction block
+while preserving user-owned and modified files:
 
 ```sh
-# Use all Gauntlet Codex defaults, including Browser and Computer Use.
-./scripts/install.sh --target codex --codex-preferences gauntlet
-
-# Keep existing values while adding only missing Gauntlet defaults.
-./scripts/install.sh --target codex --codex-preferences existing
-
-# Leave config.toml completely unchanged.
-./scripts/install.sh --target codex --codex-preferences skip
+./scripts/install.sh --target codex --uninstall
 ```
 
-The installer rejects malformed managed markers and replaces its own block idempotently. Shell code cannot reliably decide whether arbitrary prose instructions conflict, so the installation prompt requires the installing agent to perform that semantic comparison, show both conflicting passages, and ask the user. The direct installer stores only hashes of the reviewed user-owned and candidate instructions; it reopens the review gate when either hash changes without copying private instruction text into its state.
+Restart Codex after installing or upgrading so the new global instructions and
+skills are loaded.
 
-The installer includes only the Gauntlet files that live in this repository: the global workflow, Gauntlet role skills, docs, scripts, and eval fixtures. It does not import personal skills or instructions from elsewhere on your machine.
+## Current public surfaces
 
-The same `skills/` tree is also distributed as one Gauntlet plugin for Codex through `.codex-plugin/plugin.json` and `.agents/plugins/marketplace.json`. New Gauntlet-owned skills created under `skills/<name>/` enter the bundle automatically. Use the direct installer or the plugin, not both, to avoid duplicate skill discovery; the direct installer remains the path that installs Gauntlet's always-loaded global router.
+- [Design, Build, Verify, Ship](docs/design-build-verify.md)
+- [Workflow Etiquette](docs/workflow-etiquette.md)
+- [Meaningful Proof](docs/meaningful-proof.md)
+- [Parallel Workstreams](docs/parallel-workstreams.md)
+- [Thin Contract Assessment](docs/thin-contract-assessment.md)
+- [Optional Agent Profiles](docs/optional-agent-profiles.md)
+- [GitHub Discipline](docs/github-discipline.md)
+- [Skills](skills)
+- [Workflow helper CLI](scripts/gauntlet.py)
+- [Deterministic evals](evals)
 
-Install the shared bundle from GitHub:
-
-```sh
-codex plugin marketplace add ajsathyan/Gauntlet
-codex plugin add gauntlet@gauntlet
-```
-
-The installer also adds a Gauntlet pre-commit hook in this repo. When staged files include `skills/*/SKILL.md` or `skills/*/examples/*`, the hook runs skill text coverage, declared trace-field scorer contracts, and structural lint before the commit can proceed. These checks do not establish live agent behavior. Set `GAUNTLET_SKIP_GIT_HOOKS=1` for headless installs that should not touch git hooks.
-
-## 📦 What Gets Installed
-
-| File Or Directory | Purpose |
-| --- | --- |
-| [router/AGENTS.md](router/AGENTS.md) | Compact portable global router installed into the target agent home with rendered stable Gauntlet paths. |
-| [router/response-style.md](router/response-style.md) | Single response-style policy rendered into the portable router unless the user keeps a conflicting existing style. |
-| [agents/codex/](agents/codex) | Seven canonical named Codex profiles with fixed models, reasoning effort, authority boundaries, and quiet return contracts. |
-| [AGENTS.md](AGENTS.md) | Repository contributor guide for changing and proving Gauntlet itself; it is not installed as the portable router. |
-| [skills/intake/SKILL.md](skills/intake/SKILL.md) | Turns rough intent into an implementable spec. |
-| [skills/researcher/SKILL.md](skills/researcher/SKILL.md) | Produces bounded evidence-backed research without importing implementation ceremony. |
-| [skills/debugger/SKILL.md](skills/debugger/SKILL.md) | Reproduces and isolates root cause before a fix is implemented. |
-| [skills/product-architect/SKILL.md](skills/product-architect/SKILL.md) | Shapes Feature work around workflow, IA, activation, retention, growth, trust, and handoff. |
-| [skills/maintain-prd/SKILL.md](skills/maintain-prd/SKILL.md) | Maintains one canonical human-readable multi-Epic PRD without starting implementation. |
-| [skills/planner/SKILL.md](skills/planner/SKILL.md) | Converts accepted specs into bounded implementation steps. |
-| [skills/issue-triager/SKILL.md](skills/issue-triager/SKILL.md) | Routes plans, findings, test failures, bugs, and open questions into ready tasks. |
-| [skills/implementer/SKILL.md](skills/implementer/SKILL.md) | Executes scoped code changes while preserving repo patterns and collecting proof. |
-| [skills/implement-prd/SKILL.md](skills/implement-prd/SKILL.md) | Compiles a build-ready PRD into a durable Ticket Graph and coordinates its authorized end-to-end release path. |
-| [skills/land/SKILL.md](skills/land/SKILL.md) | Lands accepted work through a ready PR, required CI, merge, landed-revision monitoring, default-branch sync, and safe cleanup using local Git and `gh` by default. |
-| [skills/adversarial-reviewer/SKILL.md](skills/adversarial-reviewer/SKILL.md) | Stress-tests assumptions, edge cases, trust boundaries, and regressions. |
-| [skills/black-box-tester/SKILL.md](skills/black-box-tester/SKILL.md) | Validates behavior externally through user-visible outcomes. |
-| [skills/experience-reviewer/SKILL.md](skills/experience-reviewer/SKILL.md) | Reviews workflow clarity, IA, states, metrics, accessibility, trust, activation, retention, and growth. |
-| [skills/deep-code-reviewer/SKILL.md](skills/deep-code-reviewer/SKILL.md) | Reviews correctness, maintainability, tests, integration risk, and regression risk. |
-| [skills/run-log-builder/SKILL.md](skills/run-log-builder/SKILL.md) | Creates exceptions-first run logs and pending coverage-gap candidates. |
-| [skills/promotion-scanner/SKILL.md](skills/promotion-scanner/SKILL.md) | Produces bounded Promotion Briefs for repeated manual or agent loops without recommending live operational actions. |
-| [skills/archive/SKILL.md](skills/archive/SKILL.md) | Runs the guarded local-install, PR-merge, cleanup, and Codex task-archive sequence when `/Archive` is invoked. |
-| [skills/craft-customer-email/SKILL.md](skills/craft-customer-email/SKILL.md) | Writes, revises, and audits customer-facing product, operational, transactional, incident, and lifecycle email. |
-| [skills/craft-product-terminology/SKILL.md](skills/craft-product-terminology/SKILL.md) | Creates minimal, responsibility-accurate names for public product concepts and internal system pieces. |
-| [skills/refactor-codebase/SKILL.md](skills/refactor-codebase/SKILL.md) | Runs staged behavior-preserving codebase simplification with durable parity evidence and migration gates. |
-| [skills/refactor-performance/SKILL.md](skills/refactor-performance/SKILL.md) | Improves measured test or product performance through comparable baselines, profiling, and falsifiable experiments. |
-| [skills/eval-audit/SKILL.md](skills/eval-audit/SKILL.md) | Audits whether an LLM evaluation pipeline is trustworthy. |
-| [skills/eval-error-analysis/SKILL.md](skills/eval-error-analysis/SKILL.md) | Identifies and categorizes failure modes from LLM traces. |
-| [skills/eval-judge-prompt/SKILL.md](skills/eval-judge-prompt/SKILL.md) | Designs binary LLM-as-Judge evaluators for subjective failure modes. |
-| [skills/eval-rag/SKILL.md](skills/eval-rag/SKILL.md) | Evaluates retrieval and generation quality in RAG pipelines. |
-| [skills/eval-review-interface/SKILL.md](skills/eval-review-interface/SKILL.md) | Builds browser interfaces for reviewing traces and collecting human labels. |
-| [skills/eval-synthetic-data/SKILL.md](skills/eval-synthetic-data/SKILL.md) | Generates varied synthetic inputs for LLM evaluation. |
-| [skills/eval-validate-evaluator/SKILL.md](skills/eval-validate-evaluator/SKILL.md) | Calibrates an LLM judge against human labels. |
-| [docs/upstream-superpowers.md](docs/upstream-superpowers.md) | Attributes adapted techniques and explains selective upstream update review and runtime retirement. |
-| [docs/upstream-eval-skills.md](docs/upstream-eval-skills.md) | Records the vendored eval-skill source, namespace mapping, update procedure, and license location. |
-| [docs/local-documentation.md](docs/local-documentation.md) | Defines the default-on lazy local-document profile, explicit project opt-out, tracked/private boundary, canonical primary-worktree rule, and release/configuration contracts. |
-| [docs/prd-execution.md](docs/prd-execution.md) | Defines the product-task-to-Epic-task launch model, one-Epic Ticket Graphs and Project PRs, durable execution artifacts, bounded child context, tiered verification, lifecycle copy, and end-to-end implementation authority. |
-| [docs/custom-agent-routing.md](docs/custom-agent-routing.md) | Defines deterministic Ticket-to-profile selection, escalation, bounded context, and audit requirements. |
-| [docs/coverage-gaps.md](docs/coverage-gaps.md) | Pending missing-guidance candidates. |
-| [docs/github-discipline.md](docs/github-discipline.md) | Beginner-friendly branch, worktree, commit, PR, merge, child-chat, and solo-builder defaults. |
-| [docs/ui-constitution.md](docs/ui-constitution.md) | Bounded frontend quality gate for prototypes and product UI. |
-| [docs/production-quality-bar.md](docs/production-quality-bar.md) | Near-launch quality gate for boundaries, invariants, durable state, state machines, release proof, threat/redaction, feedback loops, and decision-oriented UI. |
-| [docs/workflow-speedups.md](docs/workflow-speedups.md) | Advisory changed-surface, test-planning, review-packet, and child-dispatch guidance. |
-| [docs/promotion-scanner.md](docs/promotion-scanner.md) | Trigger policy and gap-routing guidance for promotion scans. |
-| [docs/design-lint-candidates.md](docs/design-lint-candidates.md) | General lint ideas for project-specific UI checks. |
-| [scripts/gauntlet.py](scripts/gauntlet.py) | Deterministic CLI for guarded landing and closeout, exact-revision monitoring, merge/archive actions, analytics, install verification, follow-up packets, compatibility memory linting, and PR/changelog drafts. |
-| [templates/local-docs/](templates/local-docs) | Scaffolds `doc_org.md`, the local index, Epic PRDs, research, decisions, and run logs without a duplicate implementation-plan document. |
-| [scripts/install.sh](scripts/install.sh) | Installs the global workflow, skills, docs, scripts, and evals with instruction-conflict preflight and conflict-aware Codex response and subagent defaults. |
-| [scripts/install-codex-agents.py](scripts/install-codex-agents.py) | Validates, installs, retires, and verifies Gauntlet-owned Codex profiles without overwriting user-owned agents. |
-| [scripts/subagent-audit.py](scripts/subagent-audit.py) | Idempotently exports privacy-bounded Gauntlet subagent usage from Codex native local state. |
-| [scripts/security-review.py](scripts/security-review.py) | Runs a bounded security Ticket through ephemeral Codex CLI with enforced read-only permissions. |
-| [scripts/route-codex-agent.py](scripts/route-codex-agent.py) | Deterministically maps validated Ticket routing fields to a native profile or the security-review CLI runner. |
-| [scripts/classify-ts-durability.sh](scripts/classify-ts-durability.sh) | Classifies whether TypeScript durability standards are required for the current work. |
-| [scripts/diff-intel.py](scripts/diff-intel.py) | Writes advisory changed-file, package-root, risk-trigger, dirty-worktree, confidence, and `Cannot verify` intel. |
-| [scripts/test-plan.py](scripts/test-plan.py) | Recommends focused and broader verification commands from diff intel without defaulting to huge suites. |
-| [scripts/review-pack.py](scripts/review-pack.py) | Generates a bounded, redacted review packet from diff intel, accepted spec/plan context, and test-plan summaries. |
-| [scripts/check-superpowers-sync.py](scripts/check-superpowers-sync.py) | Reports upstream Superpowers technique changes and affected Gauntlet destinations. |
-| [scripts/retire-superpowers.py](scripts/retire-superpowers.py) | Reversibly retires allowlisted active Superpowers skills and disables the plugin. |
-| [scripts/run-skill-evals.py](scripts/run-skill-evals.py) | Runs deterministic one-shot/current/new skill-text coverage and one positive/negative phrase-matcher contract. |
-| [scripts/run-orchestration-evals.py](scripts/run-orchestration-evals.py) | Unit-tests hand-authored outcome, action, authority, proof, routing, output-budget, cost, and latency fields. It does not observe agent behavior or resolve proof references. |
-| [scripts/lint-skills.py](scripts/lint-skills.py) | Lints skill frontmatter, word budget, contract slots, optional examples, and bounded subagent guidance. |
-| [scripts/run-skill-change-checks.sh](scripts/run-skill-change-checks.sh) | Runs skill text coverage, declared trace-field scorer contracts, and linting when staged Gauntlet skill files change. |
-| [scripts/install-git-hooks.sh](scripts/install-git-hooks.sh) | Installs the pre-commit hook that enforces skill-change checks. |
-| [scripts/prd-run.py](scripts/prd-run.py) | Creates, validates, resumes, and advances deterministic one-Epic Execution Runs; exposes `completion` and `run-facts`; verifies the exact Epic revision; and emits the schema 3.0 Project PR projection. |
-| [scripts/progress_projection.py](scripts/progress_projection.py) | Purely projects launch, run, and telemetry facts into the privacy-allowlisted live progress contract. |
-| [scripts/progress-dashboard.py](scripts/progress-dashboard.py) | Serves the read-only authenticated loopback progress UI with bounded recovery and no execution authority. |
-| [scripts/generated_context.py](scripts/generated_context.py) | Renders versioned bounded machine projections with stable-prefix metadata and adversarial validation. |
-| [scripts/eval-task.py](scripts/eval-task.py) | Admits development evaluation tasks with separate hidden verifiers, cached immutable checks, current liveness, and quarantine. |
-| [scripts/eval-run.py](scripts/eval-run.py) | Records paired executions, state-conditional replay, adapter equivalence, total-package and ablation estimands, and sealed core-study state. |
-| [scripts/eval-harness.py](scripts/eval-harness.py) | Launches version-pinned Codex CLI study cells, normalizes bounded telemetry, scores through trusted task registries, and checks same-harness/model A/A equivalence. |
-| [evals/skill-evals.json](evals/skill-evals.json) | Pressure scenarios for skill contract coverage. |
-| [evals/scorer-smoke-fixtures.json](evals/scorer-smoke-fixtures.json) | One positive and one negative matcher canary that prove phrase-scorer wiring—not agent behavior. |
-| [evals/orchestration-trace-fixtures.json](evals/orchestration-trace-fixtures.json) | Paired declared trace-field scorer cases, including wrong-outcome, self-attested-proof, different-prose, authority, verbosity, and subjective-judgment canaries. |
-| [evals/baselines/current/skills](evals/baselines/current/skills) | Frozen current-skill baseline used by the three-arm evals. |
-
-## 🧠 Inspiration
-
-Gauntlet is partly inspired by Simon Last's framing of agent work as a higher-throughput software factory: the bottleneck moves from typing code to shaping clear specs, boundaries, and review loops so agents can keep working.
-
-It is also influenced by Vercel's product-design guidance pattern: accepted decisions live near the code, repeated mechanical checks graduate into linters, missing standards stay visible as coverage gaps, and humans approve what becomes guidance.
-
-Gauntlet combines those ideas into a product-thinking harness: define the feature clearly, choose the right build stage and proof scope, let the agent keep moving, and leave small durable repo memory behind.
-
-Selected techniques are adapted from Jesse Vincent's [Superpowers](https://github.com/obra/superpowers) under MIT. The version/hash update map lives in [docs/upstream-superpowers.md](docs/upstream-superpowers.md); Superpowers is not a runtime dependency.
-
-## 📚 Repository Files
-
-| File | Purpose |
-| --- | --- |
-| [router/AGENTS.md](router/AGENTS.md) | Portable global workflow router. |
-| [router/response-style.md](router/response-style.md) | Portable response-style policy rendered by the installer. |
-| [.codex-plugin/plugin.json](.codex-plugin/plugin.json) | Codex plugin manifest for the shared Gauntlet skill bundle. |
-| [.agents/plugins/marketplace.json](.agents/plugins/marketplace.json) | Codex marketplace entry for installing the bundle. |
-| [AGENTS.md](AGENTS.md) | Contributor guidance for this repository. |
-| [skills/](skills) | Role-specific reusable instructions. |
-| [docs/](docs) | Adaptive code-quality sensors, coverage gaps, UI constitution, Production Quality Bar, workflow speedups, promotion scanner, design lint candidates, and historical plans. |
-| [templates/](templates) | Reusable downstream scaffolds, including the default-on local product-document profile. |
-| [scripts/](scripts) | Installer, durability classifier, workflow speedup helpers, workflow checks, skill evals, and skill linter. |
-| [evals/](evals) | Skill coverage, scorer-smoke, orchestration-trace fixtures, and baselines. |
-| [LICENSE](LICENSE) | MIT license. |
-
-## 📄 License
-
-MIT. See [LICENSE](LICENSE).
+Gauntlet is released under the [MIT License](LICENSE).

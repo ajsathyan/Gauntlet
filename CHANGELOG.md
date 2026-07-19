@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- GAUNTLET-011 replaces the Epic controller, ticket compiler, dashboard, analytics, and fixed routing layer with Design → Build → Verify → Ship: one permanent Design and canonical Build Contract, three pre-build lenses, ephemeral implementation planning, compact native workstreams with a current-base queue, separate exact-revision Build/Architecture/Sensor verdicts, phased sensors with compact handoffs, and preservation-safe Codex install, upgrade, and uninstall behavior.
+
+- Adaptive sensors now discover changed code, execute repository-owned checks, block completion on required failures or stale evidence, and hand Codex compact attention items while preserving full raw evidence by reference. The Codex installer includes pinned Semgrep, coverage.py, and Gitleaks in an isolated owned generation unless `--without-sensor-tools` is supplied.
+
 - Reconcile completion metadata into flexible accepted PRDs without requiring legacy Epic headings.
 
 - Implement GAUNTLET-009: Adaptive code quality sensors.

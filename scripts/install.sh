@@ -10,6 +10,11 @@ CODEX_PREFERENCES="${GAUNTLET_CODEX_PREFERENCES:-prompt}"
 CHECK_ONLY="${GAUNTLET_INSTALL_CHECK_ONLY:-0}"
 RESPONSE_STYLE="${GAUNTLET_RESPONSE_STYLE:-gauntlet}"
 CODEX_BIN_OVERRIDE="${GAUNTLET_CODEX_BIN:-}"
+WITH_SENSOR_TOOLS="${GAUNTLET_WITH_SENSOR_TOOLS:-1}"
+SENSOR_TOOLS_INSTALLER_OVERRIDE="${GAUNTLET_SENSOR_TOOLS_INSTALLER:-}"
+UNINSTALL="0"
+CONFIRM_NO_LIVE_CONTROLLER_WORK="0"
+CUTOVER_PROJECT_ROOTS=()
 SKILLS_SRC="$ROOT/skills"
 if [ ! -d "$SKILLS_SRC" ] && [ -d "$ROOT/../skills" ]; then
   SKILLS_SRC="$ROOT/../skills"
@@ -24,6 +29,9 @@ usage() {
 Usage: scripts/install.sh [--target codex] [--agent-home PATH] [--check] [--instructions-reviewed]
                           [--response-style gauntlet|existing]
                           [--codex-preferences prompt|gauntlet|existing|skip] [--skip-git-hooks]
+                          [--without-sensor-tools]
+                          [--cutover-project-root PATH | --confirm-no-live-controller-work]
+       scripts/install.sh --target codex [--agent-home PATH] --uninstall
 
 Targets:
   codex   Install Gauntlet as AGENTS.md under the agent home. Default home: ~/.codex
@@ -38,6 +46,8 @@ Environment:
   GAUNTLET_RESPONSE_STYLE   gauntlet or existing (default: gauntlet)
   GAUNTLET_CODEX_BIN       Codex executable override used to install required bundled plugins
   GAUNTLET_SKIP_GIT_HOOKS set to 1 to skip this repo's pre-commit hook install
+  GAUNTLET_WITH_SENSOR_TOOLS set to 0 to skip pinned machine-local sensor tools
+  GAUNTLET_SENSOR_TOOLS_INSTALLER absolute installer override for controlled tests
 USAGE
 }
 
@@ -69,6 +79,34 @@ while [ "$#" -gt 0 ]; do
       ;;
     --skip-git-hooks)
       SKIP_GIT_HOOKS="1"
+      shift
+      ;;
+    --with-sensor-tools)
+      WITH_SENSOR_TOOLS="1"
+      shift
+      ;;
+    --without-sensor-tools)
+      WITH_SENSOR_TOOLS="0"
+      shift
+      ;;
+    --cutover-project-root)
+      if [ "$#" -lt 2 ]; then
+        echo "Missing value for --cutover-project-root" >&2
+        exit 2
+      fi
+      CUTOVER_PROJECT_ROOTS+=("$2")
+      shift 2
+      ;;
+    --cutover-project-root=*)
+      CUTOVER_PROJECT_ROOTS+=("${1#--cutover-project-root=}")
+      shift
+      ;;
+    --confirm-no-live-controller-work)
+      CONFIRM_NO_LIVE_CONTROLLER_WORK="1"
+      shift
+      ;;
+    --uninstall)
+      UNINSTALL="1"
       shift
       ;;
     --instructions-reviewed)
@@ -139,6 +177,33 @@ case "$CHECK_ONLY" in
     ;;
   *)
     echo "GAUNTLET_INSTALL_CHECK_ONLY must be 0 or 1" >&2
+    exit 2
+    ;;
+esac
+
+case "$WITH_SENSOR_TOOLS" in
+  0|1)
+    ;;
+  *)
+    echo "GAUNTLET_WITH_SENSOR_TOOLS must be 0 or 1" >&2
+    exit 2
+    ;;
+esac
+
+case "$UNINSTALL" in
+  0|1)
+    ;;
+  *)
+    echo "Uninstall mode must be 0 or 1" >&2
+    exit 2
+    ;;
+esac
+
+case "$CONFIRM_NO_LIVE_CONTROLLER_WORK" in
+  0|1)
+    ;;
+  *)
+    echo "Cutover confirmation must be 0 or 1" >&2
     exit 2
     ;;
 esac
@@ -801,24 +866,8 @@ else:
     preserved = data
     if legacy_reference and legacy_reference.is_file():
         legacy = legacy_reference.read_bytes()
-        if data == legacy:
-            preserved = b""
-        else:
-            personal_begin = b"<!-- BEGIN PERSONAL HOUSE VOICE -->"
-            personal_end = b"<!-- END PERSONAL HOUSE VOICE -->"
-            if data.count(personal_begin) == 1 and data.count(personal_end) == 1:
-                personal_at = data.find(personal_begin)
-                personal_finish = data.find(personal_end, personal_at) + len(personal_end)
-                if data[personal_finish:personal_finish + 2] == b"\r\n":
-                    personal_finish += 2
-                elif data[personal_finish:personal_finish + 1] == b"\n":
-                    personal_finish += 1
-                personal = data[personal_at:personal_finish]
-                first_line_end = legacy.find(b"\n")
-                if first_line_end >= 0:
-                    expected = legacy[:first_line_end + 1] + b"\n" + personal + legacy[first_line_end + 1:]
-                    if data == expected:
-                        preserved = personal
+        if data.count(legacy) == 1:
+            preserved = data.replace(legacy, b"", 1)
     separator = b"" if not preserved else (b"\n" if preserved.endswith(b"\n") else b"\n\n")
     output = preserved + separator + block
 
@@ -881,6 +930,83 @@ PY
 # Reject malformed target state before installing or removing any payload files.
 validate_managed_file "$AGENT_HOME/AGENTS.md"
 
+if [ "$UNINSTALL" = "1" ]; then
+  if [ "$CHECK_ONLY" = "1" ] || [ "${#CUTOVER_PROJECT_ROOTS[@]}" -gt 0 ] || [ "$CONFIRM_NO_LIVE_CONTROLLER_WORK" = "1" ]; then
+    echo "--uninstall cannot be combined with install preflight or cutover options" >&2
+    exit 2
+  fi
+
+  PYTHONPATH="$ROOT/scripts${PYTHONPATH:+:$PYTHONPATH}" python3 - "$AGENT_HOME" <<'PY'
+from pathlib import Path
+import sys
+
+from gauntletlib.install.manifest import preflight_uninstall_payload
+
+preflight_uninstall_payload(Path(sys.argv[1]))
+PY
+
+  python3 "$ROOT/scripts/install-codex-hooks.py" check-remove \
+    --agent-home "$AGENT_HOME" \
+    --runtime "$AGENT_HOME/gauntlet/scripts/workflow-mode.py"
+  if [ -f "$AGENT_HOME/gauntlet/install-agents-codex.json" ]; then
+    python3 "$ROOT/scripts/install-codex-agents.py" check-remove \
+      --agent-home "$AGENT_HOME"
+  fi
+
+  if [ -f "$AGENT_HOME/gauntlet-tools/receipt.json" ]; then
+    python3 "$ROOT/scripts/install-sensor-tools.py" remove --agent-home "$AGENT_HOME"
+  fi
+  python3 "$ROOT/scripts/install-codex-hooks.py" remove \
+    --agent-home "$AGENT_HOME" \
+    --runtime "$AGENT_HOME/gauntlet/scripts/workflow-mode.py"
+  python3 "$ROOT/scripts/install-codex-agents.py" remove --agent-home "$AGENT_HOME"
+
+  python3 - "$AGENT_HOME/AGENTS.md" "$MANAGED_BEGIN" "$MANAGED_END" <<'PY'
+from pathlib import Path
+import os
+import sys
+import tempfile
+
+path = Path(sys.argv[1])
+begin = sys.argv[2].encode()
+end = sys.argv[3].encode()
+if not path.exists():
+    raise SystemExit(0)
+data = path.read_bytes()
+start = data.find(begin)
+if start < 0:
+    raise SystemExit(0)
+finish = data.find(end, start) + len(end)
+output = data[:start] + data[finish:]
+write_target = path.resolve() if path.is_symlink() else path
+mode = write_target.stat().st_mode & 0o777
+descriptor, temporary = tempfile.mkstemp(prefix=f".{write_target.name}.", dir=write_target.parent)
+try:
+    with os.fdopen(descriptor, "wb") as handle:
+        handle.write(output)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.chmod(temporary, mode)
+    os.replace(temporary, write_target)
+finally:
+    if os.path.exists(temporary):
+        os.unlink(temporary)
+PY
+
+  PYTHONPATH="$ROOT/scripts${PYTHONPATH:+:$PYTHONPATH}" python3 - "$AGENT_HOME" <<'PY'
+from pathlib import Path
+import sys
+
+from gauntletlib.install.manifest import uninstall_payload
+
+for finding in uninstall_payload(Path(sys.argv[1])):
+    print(f"Gauntlet installer finding: {finding}", file=sys.stderr)
+PY
+  echo "Uninstalled receipt-owned Gauntlet files from $AGENT_HOME"
+  echo "Codex config preferences and all unowned or modified files were preserved."
+  exit 0
+fi
+
 render_codex_agents_block() {
   local block_file="$1"
   local router_file="$2"
@@ -935,7 +1061,53 @@ if [ "$instruction_review_status" -ne 0 ] || [ "$codex_preference_status" -ne 0 
   exit 3
 fi
 
+cutover_arguments=("$AGENT_HOME" "$CONFIRM_NO_LIVE_CONTROLLER_WORK")
+for cutover_root in "${CUTOVER_PROJECT_ROOTS[@]+"${CUTOVER_PROJECT_ROOTS[@]}"}"; do
+  cutover_arguments+=("$cutover_root")
+done
+PYTHONPATH="$ROOT/scripts${PYTHONPATH:+:$PYTHONPATH}" python3 - \
+  "${cutover_arguments[@]}" <<'PY'
+from pathlib import Path
+import sys
+
+from gauntletlib.install.manifest import preflight_product_cutover
+
+agent_home = Path(sys.argv[1])
+confirmed = sys.argv[2] == "1"
+roots = [Path(value) for value in sys.argv[3:]]
+try:
+    findings = preflight_product_cutover(
+        agent_home,
+        roots,
+        confirmed_no_unscanned_live_work=confirmed,
+    )
+except ValueError as error:
+    print(str(error), file=sys.stderr)
+    raise SystemExit(1)
+for finding in findings:
+    print(f"Gauntlet installer finding: {finding}", file=sys.stderr)
+PY
+
 preflight_codex_plugins
+
+PYTHONPATH="$ROOT/scripts${PYTHONPATH:+:$PYTHONPATH}" python3 - \
+  "$AGENT_HOME" "$rendered_router" "$AGENT_HOME/AGENTS.md" <<'PY'
+from pathlib import Path
+import sys
+
+from gauntletlib.install.manifest import preflight_generated_payload
+
+try:
+    preflight_generated_payload(
+        Path(sys.argv[1]),
+        "gauntlet/AGENTS.md",
+        Path(sys.argv[2]),
+        legacy_container=Path(sys.argv[3]),
+    )
+except ValueError as error:
+    print(str(error), file=sys.stderr)
+    raise SystemExit(1)
+PY
 
 if [ "$CHECK_ONLY" = "1" ]; then
   exit 0
@@ -954,6 +1126,14 @@ PY
 
 cp "$rendered_router" "$AGENT_HOME/gauntlet/AGENTS.md"
 chmod 0644 "$AGENT_HOME/gauntlet/AGENTS.md"
+PYTHONPATH="$ROOT/scripts${PYTHONPATH:+:$PYTHONPATH}" python3 - "$AGENT_HOME" <<'PY'
+from pathlib import Path
+import sys
+
+from gauntletlib.install.manifest import record_generated_payload
+
+record_generated_payload(Path(sys.argv[1]), "gauntlet/AGENTS.md")
+PY
 
 python3 "$AGENT_HOME/gauntlet/scripts/install-codex-hooks.py" apply \
   --agent-home "$AGENT_HOME" \
@@ -972,6 +1152,25 @@ record_instruction_review "$AGENT_HOME/AGENTS.md" "$candidate_block" "$rendered_
 
 python3 "$AGENT_HOME/gauntlet/scripts/gauntlet.py" install verify \
   --target "$TARGET" --agent-home "$AGENT_HOME"
+
+if [ "$WITH_SENSOR_TOOLS" = "1" ]; then
+  sensor_tools_installer="$AGENT_HOME/gauntlet/scripts/install-sensor-tools.py"
+  if [ -n "$SENSOR_TOOLS_INSTALLER_OVERRIDE" ]; then
+    case "$SENSOR_TOOLS_INSTALLER_OVERRIDE" in
+      /*)
+        ;;
+      *)
+        echo "GAUNTLET_SENSOR_TOOLS_INSTALLER must be an absolute path" >&2
+        exit 2
+        ;;
+    esac
+    sensor_tools_installer="$SENSOR_TOOLS_INSTALLER_OVERRIDE"
+  fi
+  if ! python3 "$sensor_tools_installer" install --agent-home "$AGENT_HOME"; then
+    echo "Pinned sensor tool installation failed. Gauntlet core files are installed, but this install is incomplete." >&2
+    exit 1
+  fi
+fi
 
 if [ "$SKIP_GIT_HOOKS" != "1" ] && [ -d "$ROOT/.git" ]; then
   "$ROOT/scripts/install-git-hooks.sh" --repo "$ROOT" --gauntlet-root "$ROOT" >/dev/null

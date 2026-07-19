@@ -1,33 +1,41 @@
 #!/usr/bin/env python3
-import argparse
-import importlib.util
+import hashlib
 import json
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from support import ROOT
-from gauntletlib.launch import workflow as launch_workflow
 
 
-GAUNTLET_CLI = ROOT / "scripts" / "gauntlet.py"
-PRD_RUN = ROOT / "scripts" / "prd-run.py"
-SPEC = importlib.util.spec_from_file_location("gauntlet_flexible", GAUNTLET_CLI)
-gauntlet = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(gauntlet)
+CLI = ROOT / "scripts" / "gauntlet.py"
 
 
-def run(args, *, cwd=None, check=True):
-    result = subprocess.run(args, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def run(args, *, check=True):
+    result = subprocess.run(
+        ["python3", str(CLI), *args],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     if check and result.returncode:
-        raise AssertionError(f"command failed ({result.returncode}): {args}\n{result.stdout}\n{result.stderr}")
+        raise AssertionError(
+            f"command failed ({result.returncode}): {args}\n"
+            f"{result.stdout}\n{result.stderr}"
+        )
     return result
 
 
 def git(repo, *args):
-    return run(["git", *args], cwd=repo)
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        text=True,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
 
 
 def init_repo(path):
@@ -40,7 +48,7 @@ def init_repo(path):
     git(path, "commit", "-m", "initial")
 
 
-class FlexiblePrdTests(unittest.TestCase):
+class FlexibleDesignTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.repo = Path(self.temporary.name) / "app"
@@ -50,138 +58,649 @@ class FlexiblePrdTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def cli(self, *args, check=True):
-        return run(["python3", str(GAUNTLET_CLI), *args], cwd=self.repo, check=check)
+        return run(args, check=check)
 
-    def promoted_prd(self):
-        self.cli("docs", "init", "--project-root", str(self.repo), "--epic-prefix", "APP", "--json")
+    def create_accepted_design(self, acceptance):
         created = self.cli(
-            "docs", "draft", "create", "--project-root", str(self.repo),
-            "--template", "peter-yang", "--title", "Machine labels", "--json",
+            "docs",
+            "design",
+            "create",
+            "--project-root",
+            str(self.repo),
+            "--title",
+            "Workflow gate",
+            "--json",
         )
-        draft = Path(json.loads(created.stdout)["draftPath"])
-        draft.write_text(
-            "# Machine labels\n\n"
-            "## Problem\n\nOperators cannot distinguish provisioned machines.\n\n"
-            "## Solution\n\nShow the existing stable machine label.\n\n"
-            "## Acceptance\n\n- Each row shows its existing stable label.\n"
-            "- Provisioning behavior does not change.\n\n"
-            "## User-added section\n\nKeep this exact section.\n",
+        data = json.loads(created.stdout)
+        design = Path(data["designPath"])
+        design.write_text(
+            "# Workflow gate\n\n## Acceptance\n\n" + acceptance,
             encoding="utf-8",
         )
-        expected = draft.read_bytes()
-        promoted = self.cli(
-            "docs", "draft", "promote", "--project-root", str(self.repo),
-            "--draft", draft.name, "--title", "Machine labels", "--json",
+        self.cli(
+            "docs",
+            "design",
+            "accept",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            data["designId"],
+            "--json",
         )
-        prd = Path(json.loads(promoted.stdout)["prdPath"])
-        self.assertEqual(prd.read_bytes(), expected)
-        return prd, expected
+        return data["designId"], design
 
-    def test_accept_launch_bootstrap_and_run_init_preserve_flexible_document(self):
-        prd, expected = self.promoted_prd()
+    def write_json(self, name, value):
+        path = Path(self.temporary.name) / name
+        path.write_text(json.dumps(value), encoding="utf-8")
+        return path
+
+    def revision(self):
+        commit = git(self.repo, "rev-parse", "HEAD").stdout.strip()
+        tree = git(self.repo, "rev-parse", "HEAD^{tree}").stdout.strip()
+        return commit, tree
+
+    def reviews(self, design_binding, fourth_disposition="omitted"):
+        lenses = (
+            "product-completeness",
+            "engineering-shape",
+            "proof-and-consequence",
+        )
+        results = []
+        for index, lens in enumerate(lenses):
+            findings = []
+            if index == 0:
+                findings = [
+                    {
+                        "identity": f"finding-{number}",
+                        "material": True,
+                        "disposition": (
+                            fourth_disposition if number == 4 else "rejected"
+                        ),
+                        "reason": "Resolved against accepted scope.",
+                    }
+                    for number in range(1, 5)
+                ]
+            results.append(
+                {
+                    "lens": lens,
+                    "reviewer": f"reviewer-{index}",
+                    "design": design_binding,
+                    "materialFindingCount": len(findings),
+                    "findings": findings,
+                }
+            )
+        return results
+
+    def test_arbitrary_user_sections_and_bytes_survive_acceptance(self):
+        created = self.cli(
+            "docs",
+            "design",
+            "create",
+            "--project-root",
+            str(self.repo),
+            "--title",
+            "Machine labels",
+            "--json",
+        )
+        data = json.loads(created.stdout)
+        design = Path(data["designPath"])
+        user_bytes = (
+            b"# A title the user controls\r\n\r\n"
+            b"## Bespoke heading\r\n\r\nUser bytes stay unchanged.\r\n"
+            b"\r\n## Acceptance\r\n\r\n"
+            b"- Each row shows its existing stable label.\r\n"
+            b"- Provisioning behavior does not change.\r\n"
+            b"\r\n## Another arbitrary section\r\n\r\n\xe2\x98\x83\r\n"
+        )
+        design.write_bytes(user_bytes)
+
         accepted = self.cli(
-            "docs", "epic", "accept", "--project-root", str(self.repo),
-            "--epic", "APP-001", "--prd", str(prd), "--json",
+            "docs",
+            "design",
+            "accept",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            data["designId"],
+            "--json",
         )
         accepted_data = json.loads(accepted.stdout)
-        self.assertEqual(accepted_data["status"], "pass")
-        self.assertEqual(prd.read_bytes(), expected)
-        self.assertIn("| Accepted |", (self.repo / "local-docs" / "INDEX.md").read_text())
-
-        launch, source_text = gauntlet.build_epic_launch_set(prd, ["APP-001"])
-        launch_path = self.repo / "local-docs" / "launch.json"
-        snapshot = self.repo / "local-docs" / "launch.source.md"
-        snapshot.write_text(source_text, encoding="utf-8")
-        launch["source"]["snapshotPath"] = str(snapshot)
-        launch["epics"]["APP-001"]["taskId"] = "task-app-001"
-        gauntlet.write_launch_set(launch_path, launch)
-        resolved = gauntlet.resolve_epic_bootstrap(
-            launch_path, "APP-001", gauntlet.launch_task_key(launch, "APP-001"),
-        )
-        self.assertEqual(resolved["epicSection"].encode("utf-8"), expected)
-        self.assertIn("## User-added section", resolved["epicSection"])
-
-        executions = self.repo / "local-docs" / "executions"
-        initialized = run([
-            "python3", str(PRD_RUN), "init", "--executions", str(executions),
-            "--run-id", "APP_001_TEST", "--source", str(snapshot),
-            "--target", "APP-001", "--launch-set", str(launch_path),
-            "--release-contract", "doc_org.md:v2",
-        ], cwd=self.repo)
-        source_lock = json.loads((Path(initialized.stdout.strip()) / "source-lock.json").read_text())
-        self.assertEqual(source_lock["epics"]["APP-001"]["title"], "Machine labels")
+        self.assertEqual(user_bytes, design.read_bytes())
+        record = json.loads(Path(accepted_data["acceptedRecord"]).read_text())
+        self.assertEqual(hashlib.sha256(user_bytes).hexdigest(), record["sourceSha256"])
         self.assertEqual(
-            source_lock["epics"]["APP-001"]["acceptance"]["Product Acceptance"],
-            ["Each row shows its existing stable label.", "Provisioning behavior does not change."],
+            {
+                "schemaVersion",
+                "designId",
+                "sourcePath",
+                "sourceSha256",
+                "acceptanceSha256",
+                "acceptedAt",
+            },
+            set(record),
         )
-        self.assertEqual(list(source_lock["scope_hashes"]), ["APP-001-S01"])
 
-    def test_acceptance_requires_user_supplied_done_behavior_and_rejects_later_edits(self):
-        prd, _ = self.promoted_prd()
-        without_acceptance = prd.read_text().replace(
-            "## Acceptance\n\n- Each row shows its existing stable label.\n- Provisioning behavior does not change.\n\n",
-            "",
+    def test_acceptance_record_exposes_later_semantic_edits(self):
+        created = self.cli(
+            "docs",
+            "design",
+            "create",
+            "--project-root",
+            str(self.repo),
+            "--title",
+            "Immutable meaning",
+            "--json",
         )
-        prd.write_text(without_acceptance, encoding="utf-8")
+        data = json.loads(created.stdout)
+        design = Path(data["designPath"])
+        design.write_text(
+            "# Immutable meaning\n\n"
+            "## Acceptance\n\nThe external command runs and reports its result.\n",
+            encoding="utf-8",
+        )
+        accepted = self.cli(
+            "docs",
+            "design",
+            "accept",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            data["designId"],
+            "--json",
+        )
+        record = json.loads(Path(json.loads(accepted.stdout)["acceptedRecord"]).read_text())
+        design.write_text(
+            design.read_text(encoding="utf-8")
+            + "\n## Unaccepted expansion\n\nAlso publish a dashboard.\n",
+            encoding="utf-8",
+        )
+        self.assertNotEqual(
+            record["sourceSha256"],
+            hashlib.sha256(design.read_bytes()).hexdigest(),
+        )
+
+    def test_build_entry_blocks_post_acceptance_source_edit(self):
+        design_id, design = self.create_accepted_design(
+            "1. External command runs.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        design.write_text(
+            design.read_text(encoding="utf-8") + "\nUnaccepted behavior.\n",
+            encoding="utf-8",
+        )
+        result = self.cli(
+            "workflow",
+            "build-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(self.write_json("reviews.json", self.reviews(record))),
+            "--json",
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("stale", result.stdout.lower())
+
+    def test_fourth_material_finding_beyond_display_cap_blocks_build(self):
+        design_id, design = self.create_accepted_design(
+            "1. External command runs.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        result = self.cli(
+            "workflow",
+            "build-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(
+                self.write_json(
+                    "reviews.json",
+                    self.reviews(record, fourth_disposition=None),
+                )
+            ),
+            "--json",
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("finding-4", result.stdout)
+
+    def test_verify_entry_revalidates_the_accepted_source_and_acceptance(self):
+        design_id, design = self.create_accepted_design(
+            "1. External command runs.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        commit, tree = self.revision()
+        built = self.cli(
+            "workflow",
+            "build-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(self.write_json("reviews.json", self.reviews(record))),
+            "--json",
+        )
+        bound = self.cli(
+            "workflow",
+            "bind-candidate",
+            "--contract",
+            str(
+                self.write_json(
+                    "contract.json",
+                    json.loads(built.stdout)["contract"],
+                )
+            ),
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(self.write_json("bind-reviews.json", self.reviews(record))),
+            "--commit",
+            commit,
+            "--tree",
+            tree,
+            "--json",
+        )
+        contract = json.loads(bound.stdout)["contract"]
+        design.write_text(
+            "# Workflow gate\n\n"
+            "## Acceptance\n\n"
+            "1. External command runs.\n"
+            "2. A narrowed checklist is enough.\n",
+            encoding="utf-8",
+        )
+        stale = self.cli(
+            "workflow",
+            "verify-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--contract",
+            str(self.write_json("bound.json", contract)),
+            "--json",
+            check=False,
+        )
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("stale", stale.stdout.lower())
+
+    def test_completion_rejects_omitted_accepted_outcome_despite_green_sensors(self):
+        design_id, design = self.create_accepted_design(
+            "1. External command runs.\n"
+            "2. Dashboard is published.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        commit, tree = self.revision()
+        built = self.cli(
+            "workflow",
+            "build-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(self.write_json("reviews.json", self.reviews(record))),
+            "--json",
+        )
+        contract = json.loads(built.stdout)["contract"]
+        bound = self.cli(
+            "workflow",
+            "bind-candidate",
+            "--contract",
+            str(self.write_json("unbound-contract.json", contract)),
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(self.write_json("bind-reviews.json", self.reviews(record))),
+            "--commit",
+            commit,
+            "--tree",
+            tree,
+            "--json",
+        )
+        contract = json.loads(bound.stdout)["contract"]
+        outcomes = contract["acceptedDesign"]["outcomes"]
+
+        verdict_inputs = [
+            ("architecture", {"directEvidence": ["boundaries inspected"]}),
+            ("sensor", {"directEvidence": ["configured sensors passed"]}),
+            (
+                "build",
+                {
+                    "directEvidence": ["external command observed"],
+                    "outcomeEvidence": {
+                        outcomes[0]["identity"]: [
+                            f"revision:{commit}#path:README.md"
+                        ]
+                    },
+                },
+            ),
+        ]
+        for number, (area, evidence) in enumerate(verdict_inputs):
+            contract_path = self.write_json(f"contract-{number}.json", contract)
+            evidence_path = self.write_json(f"evidence-{number}.json", evidence)
+            verdict = self.cli(
+                "workflow",
+                "record-verdict",
+                "--contract",
+                str(contract_path),
+                "--project-root",
+                str(self.repo),
+                "--design",
+                design_id,
+                "--area",
+                area,
+                "--verdict",
+                "pass",
+                "--evidence",
+                str(evidence_path),
+                "--json",
+                check=False,
+            )
+            if area == "build":
+                self.assertNotEqual(verdict.returncode, 0)
+                self.assertIn("every accepted outcome", verdict.stdout)
+            else:
+                contract = json.loads(verdict.stdout)["contract"]
+
+        completion = self.cli(
+            "workflow",
+            "completion-check",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--contract",
+            str(self.write_json("completion-contract.json", contract)),
+            "--json",
+            check=False,
+        )
+        self.assertNotEqual(completion.returncode, 0)
+        completion_data = json.loads(completion.stdout)["completion"]
+        self.assertEqual(
+            completion_data["verdicts"],
+            {
+                "build": "absent",
+                "architecture": "pass",
+                "sensor": "pass",
+            },
+        )
+
+    def test_mixed_acceptance_prose_and_lists_all_bind_as_outcomes(self):
+        design_id, design = self.create_accepted_design(
+            "The existing command remains available.\n\n"
+            "1. The command runs the configured check.\n"
+            "2. The result reports the exact revision.\n\n"
+            "No dashboard state is created.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        built = self.cli(
+            "workflow",
+            "build-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(self.write_json("mixed-reviews.json", self.reviews(record))),
+            "--json",
+        )
+        outcomes = json.loads(built.stdout)["contract"]["acceptedDesign"]["outcomes"]
+        self.assertEqual(
+            [item["identity"] for item in outcomes],
+            [
+                "acceptance-001",
+                "acceptance-002",
+                "acceptance-003",
+                "acceptance-004",
+            ],
+        )
+
+    def test_bind_candidate_resolves_commit_and_derived_tree(self):
+        design_id, design = self.create_accepted_design(
+            "The external command remains available.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        reviews_path = self.write_json("git-reviews.json", self.reviews(record))
+        built = self.cli(
+            "workflow", "build-entry",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--json",
+        )
+        contract_path = self.write_json(
+            "git-contract.json",
+            json.loads(built.stdout)["contract"],
+        )
+        commit, tree = self.revision()
+        missing = self.cli(
+            "workflow", "bind-candidate",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--contract", str(contract_path),
+            "--commit", "f" * 40,
+            "--tree", tree,
+            "--json",
+            check=False,
+        )
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn("candidate commit", missing.stdout)
+
+        mismatched = self.cli(
+            "workflow", "bind-candidate",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--contract", str(contract_path),
+            "--commit", commit,
+            "--tree", "a" * 40,
+            "--json",
+            check=False,
+        )
+        self.assertNotEqual(mismatched.returncode, 0)
+        self.assertIn("does not match", mismatched.stdout)
+
+        valid = self.cli(
+            "workflow", "bind-candidate",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--contract", str(contract_path),
+            "--commit", commit,
+            "--tree", tree,
+            "--json",
+        )
+        self.assertEqual(
+            json.loads(valid.stdout)["contract"]["candidateRevision"],
+            {"commit": commit, "tree": tree},
+        )
+
+    def test_build_evidence_locator_must_resolve_in_candidate_revision(self):
+        design_id, design = self.create_accepted_design(
+            "The external command remains available.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        reviews_path = self.write_json("locator-reviews.json", self.reviews(record))
+        built = self.cli(
+            "workflow", "build-entry",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--json",
+        )
+        commit, tree = self.revision()
+        bound = self.cli(
+            "workflow", "bind-candidate",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--contract", str(
+                self.write_json(
+                    "locator-contract.json",
+                    json.loads(built.stdout)["contract"],
+                )
+            ),
+            "--commit", commit,
+            "--tree", tree,
+            "--json",
+        )
+        contract = json.loads(bound.stdout)["contract"]
+        outcome = contract["acceptedDesign"]["outcomes"][0]["identity"]
+
+        def verdict(locator, name):
+            return self.cli(
+                "workflow", "record-verdict",
+                "--project-root", str(self.repo),
+                "--design", design_id,
+                "--contract", str(
+                    self.write_json(f"{name}-contract.json", contract)
+                ),
+                "--area", "build",
+                "--verdict", "pass",
+                "--evidence", str(
+                    self.write_json(
+                        f"{name}-evidence.json",
+                        {
+                            "directEvidence": ["command observed"],
+                            "outcomeEvidence": {
+                                outcome: [f"revision:{commit}#{locator}"]
+                            },
+                        },
+                    )
+                ),
+                "--json",
+                check=False,
+            )
+
+        unresolved = verdict("path:missing-proof.txt", "unresolved")
+        self.assertNotEqual(unresolved.returncode, 0)
+        self.assertIn("could not be resolved by Git", unresolved.stdout)
+
+        valid = verdict("path:README.md", "valid")
+        self.assertEqual(valid.returncode, 0, valid.stdout + valid.stderr)
+
+    def test_legacy_accepted_epic_is_a_read_only_design_source(self):
+        self.cli("docs", "ensure", "--project-root", str(self.repo), "--json")
+        docs = self.repo / "local-docs"
+        epic = docs / "epics" / "011" / "011_THIN_CONTRACT_WORKFLOW_PRD.md"
+        epic.parent.mkdir(parents=True)
+        source = (
+            "# Thin Contract Workflow\n\n"
+            "## Acceptance\n\n"
+            "The old accepted Epic remains directly readable.\n\n"
+            "## Architecture Contract\n\n"
+            "Application services own workflow sequencing.\n\n"
+            "## Sensor Contract\n\n"
+            "Configured checks execute against the candidate revision.\n"
+        )
+        epic.write_text(source, encoding="utf-8")
+        (docs / "INDEX.md").write_text(
+            "# Local documents\n\n"
+            "| ID | Title | Type | Status | Created | Dependencies | Supersedes | Implementation | Verification |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            "| `GAUNTLET-011` | [Thin Contract Workflow](epics/011/011_THIN_CONTRACT_WORKFLOW_PRD.md) | PRD | Accepted | 2026-07-19 | None | None | Not implemented | Not verified |\n",
+            encoding="utf-8",
+        )
+        record = {
+            "acceptedAt": "2026-07-19T04:51:11Z",
+            "consequenceTriggers": [],
+            "dependencies": [],
+            "epicId": "GAUNTLET-011",
+            "releaseStages": ["merge"],
+            "schemaVersion": "gauntlet.accepted-epic.v1",
+            "sourcePath": str(epic),
+            "sourceSha256": hashlib.sha256(source.encode()).hexdigest(),
+            "title": "Thin Contract Workflow",
+        }
+        sidecar = epic.with_suffix(".accepted.json")
+        sidecar.write_text(json.dumps(record), encoding="utf-8")
+        before = (epic.read_bytes(), sidecar.read_bytes(), (docs / "INDEX.md").read_bytes())
+
+        built = self.cli(
+            "workflow",
+            "build-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            "GAUNTLET-011",
+            "--reviews",
+            str(self.write_json("legacy-reviews.json", self.reviews(record))),
+            "--json",
+        )
+        accepted = json.loads(built.stdout)["contract"]["acceptedDesign"]
+        self.assertEqual(accepted["identity"], "GAUNTLET-011")
+        self.assertEqual(
+            {
+                area: binding["applicable"]
+                for area, binding in accepted["contractApplicability"].items()
+            },
+            {"architecture": True, "sensor": True},
+        )
+        self.assertTrue(
+            all(
+                binding["sha256"].startswith("sha256:")
+                for binding in accepted["contractApplicability"].values()
+            )
+        )
+        self.assertEqual(before, (epic.read_bytes(), sidecar.read_bytes(), (docs / "INDEX.md").read_bytes()))
+
+    def test_public_cli_rejects_one_evidence_reference_reused_for_two_outcomes(self):
+        design_id, design = self.create_accepted_design(
+            "1. External command runs.\n2. Dashboard is published.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        commit, tree = self.revision()
+        reviews_path = self.write_json("duplicate-reviews.json", self.reviews(record))
+        built = self.cli(
+            "workflow", "build-entry",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--json",
+        )
+        contract = json.loads(built.stdout)["contract"]
+        bound = self.cli(
+            "workflow", "bind-candidate",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--reviews", str(reviews_path),
+            "--contract", str(self.write_json("duplicate-contract.json", contract)),
+            "--commit", commit,
+            "--tree", tree,
+            "--json",
+        )
+        contract = json.loads(bound.stdout)["contract"]
+        reused = f"revision:{commit}#path:README.md"
+        evidence = {
+            "directEvidence": ["two outcomes claimed"],
+            "outcomeEvidence": {
+                item["identity"]: [reused]
+                for item in contract["acceptedDesign"]["outcomes"]
+            },
+        }
         rejected = self.cli(
-            "docs", "epic", "accept", "--project-root", str(self.repo),
-            "--epic", "APP-001", "--prd", str(prd), "--json", check=False,
+            "workflow", "record-verdict",
+            "--project-root", str(self.repo),
+            "--design", design_id,
+            "--contract", str(self.write_json("duplicate-bound.json", contract)),
+            "--area", "build",
+            "--verdict", "pass",
+            "--evidence", str(self.write_json("duplicate-evidence.json", evidence)),
+            "--json",
+            check=False,
         )
         self.assertNotEqual(rejected.returncode, 0)
-        self.assertIn("missing_observable_acceptance", rejected.stdout)
-
-        prd.write_text(without_acceptance + "\n## Done when\n\nThe existing label appears on every row.\n", encoding="utf-8")
-        self.cli(
-            "docs", "epic", "accept", "--project-root", str(self.repo),
-            "--epic", "APP-001", "--prd", str(prd), "--json",
-        )
-        prd.write_text(prd.read_text() + "\nUnaccepted expansion.\n", encoding="utf-8")
-        with self.assertRaisesRegex(ValueError, "changed after acceptance"):
-            gauntlet.build_epic_launch_set(prd, ["APP-001"])
-
-    def test_reconcile_docs_updates_a_flexible_prd_without_an_epic_heading(self):
-        prd, _ = self.promoted_prd()
-        self.cli(
-            "docs", "epic", "accept", "--project-root", str(self.repo),
-            "--epic", "APP-001", "--prd", str(prd), "--json",
-        )
-        launch, source_text = gauntlet.build_epic_launch_set(prd, ["APP-001"])
-        launch_path = self.repo / "local-docs" / "launch.json"
-        snapshot = self.repo / "local-docs" / "launch.source.md"
-        snapshot.write_text(source_text, encoding="utf-8")
-        launch["source"]["snapshotPath"] = str(snapshot)
-        launch["epics"]["APP-001"].update({
-            "taskId": "task-app-001",
-            "runPath": str(self.repo / "local-docs" / "executions" / "APP-001-RUN"),
-            "status": "implementation-complete",
-        })
-        gauntlet.write_launch_set(launch_path, launch)
-        projection = {
-            "available": True,
-            "implemented": True,
-            "complete": False,
-            "exactRevision": "a" * 40,
-            "sourceSha256": launch["source"]["sha256"],
-        }
-        args = argparse.Namespace(
-            git_root=self.repo,
-            launch_set=launch_path,
-            epic="APP-001",
-            json=True,
-        )
-
-        with mock.patch.object(
-            launch_workflow,
-            "completion_projection_for_run",
-            return_value=projection,
-        ), mock.patch.object(launch_workflow, "print_payload") as output:
-            self.assertEqual(0, gauntlet.command_epic_tasks_reconcile_docs(args))
-
-        reconciled = prd.read_text(encoding="utf-8")
-        self.assertIn("Epic status: Implementation-complete", reconciled)
-        self.assertIn("Implemented by: Execution Run APP-001-RUN", reconciled)
-        self.assertNotIn("## Epic APP-001", reconciled)
-        self.assertTrue(output.call_args.args[0]["reconciled"]["changed"])
+        self.assertIn("unique evidence references", rejected.stdout)
 
 
 if __name__ == "__main__":

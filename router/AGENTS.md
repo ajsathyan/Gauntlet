@@ -10,78 +10,69 @@ Write concise user-facing explanations in practical terms. Preserve material evi
 
 ## Minimum scope
 
-Use a Normal Request when work is bounded, low-consequence, reversible, and directly checkable, and does not change a durable schema, contract, methodology, architecture, production system, or safety boundary.
+Use a Normal Request when work is bounded, low-consequence, reversible, directly checkable, and does not change a durable schema, contract, methodology, architecture, production system, or safety boundary.
 
-For a Normal Request:
+For a Normal Request, deliver the artifact directly, run its smoke check, keep work in the main task, and stop when it works; do not create a durable design, review panel, process change, or unrelated improvement.
 
-- deliver the requested artifact directly and run only its smoke check;
-- keep work in the main task;
-- do not create plans, Tickets, subagents, run logs, audits, review panels, or durable process changes;
-- do not expand a corrected premise into a redesign;
-- stop when the requested result works.
+For other work, choose internally among Research, Patch, Feature, and Release. Use Deep only for an explicit audit, optimization, benchmark, hardening request, repeated material failure, or consequential decision that needs alternatives. Keep routing labels out of chat unless they change scope, authority, cost, proof, or a user decision.
 
-For other work, choose internally among Research, Patch, Feature, and Release. Use Deep only for an explicit audit, optimization, benchmark, hardening request, or consequential decision that needs alternatives. Proof is smoke, changed-surface, or full only when blast radius earns it. Keep routing labels out of chat unless they change scope, authority, cost, proof, or a user decision.
+Set the root task title silently once the goal is clear. Use plain descriptive text with at most four words. Do not add priority, size, or autonomy metadata.
 
-Set the root task title silently once the goal is clear, using `p#: four word goal` or `p#-auto: four word goal`. Priorities follow consequence: p0 material release harm, p1 substantial product work, p2 consequential or deep patches, p3 bounded research or ordinary patches, p4 administration.
+## Design
 
-## Scope and product authority
+Use existing context first. Ask at most three short questions, only when an answer materially changes behavior, scope, acceptance, authority, risk, cost, or an external effect. Stop for a material unresolved decision, data loss, billing, privacy or security ambiguity, missing credentials, preservation conflict, or unsafe external action.
 
-Use existing context first. Ask at most three short questions, only when an answer materially changes behavior, scope, acceptance, authority, risk, cost, or external effect. Stop for a material unresolved decision, data-loss, billing, privacy or security ambiguity, missing required credentials, preservation conflict, or unsafe external action.
-
-Discussion does not change a plan or product document. Add or edit content only after the user explicitly asks. Keep unaccepted agent suggestions outside the owning artifact.
+Discussion does not change a durable design. Add or edit product content only after explicit user instruction. Preserve direct user edits, arbitrary sections, and legacy accepted PRDs.
 
 When the local-document profile is active, run `python3 {{GAUNTLET_ROOT}}/scripts/gauntlet.py docs ensure --project-root "$PROJECT_ROOT"` before an explicit covered document action, then read `doc_org.md` and `local-docs/INDEX.md`. Canonical local documents stay in the primary worktree.
 
-- New products use the guided Founding Hypothesis.
-- Follow-up features use the guided Peter Yang PRD without Meeting Notes.
-- Guidance and unanswered headings are not product decisions.
-- Preserve direct user edits and arbitrary sections.
-- Never infer non-goals, security boundaries, rollout, maturity gates, or other product limits.
-- Promotion and acceptance require explicit user instruction. If observable done behavior is missing, ask instead of inventing it.
+Before non-trivial implementation:
 
-The human product document owns intent. Deterministic controller artifacts own mechanical identity, digests, execution state, review dispositions, and dashboard projections. Legacy accepted PRDs remain valid.
+1. Brainstorm materially different approaches and record the chosen tradeoff.
+2. Resolve assumptions, feature completeness, user-visible states, edge cases, observable acceptance, and required non-effects.
+3. Preserve one durable design with explicit user authority.
+4. Obtain explicit acceptance. The exact `Acceptance` section is the canonical Build Contract.
+5. Run independent product-completeness, engineering-shape, and proof/consequence lenses.
 
-Use the relevant installed skill only when its trigger applies. `maintain-prd` owns explicit product-document actions; `implement-prd` owns an explicit accepted implementation launch. Research, debugging, planning, implementation, and review skills add their named capability without starting a second lifecycle. Stop planning when the first coherent build step and proof are clear.
+Show at most three recommendations per user round without dropping material findings. Every material finding reaches `accepted`, `rejected`, `deferred`, or `omitted` with a reason before affected Build work starts.
 
-## Implementation and proof
+For accepted non-trivial work, keep the review JSON and workflow contract only in
+a task-temporary directory. Before the first implementation edit, run `python3 {{GAUNTLET_ROOT}}/scripts/gauntlet.py workflow build-entry --project-root "$PROJECT_ROOT" --design "$DESIGN" --reviews "$REVIEWS_JSON" --json`.
+A failed gate blocks Build; do not create repository, local-document, or
+controller artifacts for these temporary values.
 
-Read before editing, match repository patterns, preserve unrelated dirty work, and avoid unrelated cleanup. Use a branch for persisted changes. Use an isolated worktree for broad, p0-p2, dirty-worktree, or write-heavy delegated work.
+## Build
 
-When behavior changes, observe the relevant failure when a practical harness exists, implement the smallest source fix, and rerun focused proof. Diagnose unexpected behavior before fixing it: reproduce, identify the earliest divergence, state a falsifiable cause, and run the smallest discriminating check.
+Read before editing, match repository patterns, preserve unrelated work, and avoid unrelated cleanup. Use a branch for persisted changes and an isolated worktree for broad, consequential, dirty-worktree, or write-heavy delegated changes.
 
-Evidence precedes completion claims. For material behavior, name an observable oracle. Use a plausible wrong case or required non-effect only when it distinguishes the intended result. Fields, phrases, statuses, receipts, and self-reports prove structure, not behavior. A child may write tests but cannot weaken the oracle; the parent independently inspects or reruns the proof.
+Build reads the accepted design directly and uses an internal ephemeral plan. Stop planning when the first coherent implementation step and proof path are clear.
 
-For an accepted product launch:
+When behavior changes, observe the relevant failure when practical, implement the smallest source fix, and rerun focused proof. Diagnose unexpected behavior at its earliest divergence before fixing it.
 
-- freeze the accepted target once;
-- create one visible task and one Execution Run per independently shippable Epic;
-- send the visible task a compact launch envelope, then verify and load the complete Epic once from the immutable artifact;
-- compile bounded Tickets and start only dependency-ready work;
-- keep one integration branch and one Project PR per Epic;
-- resume from controller state after compaction or restart;
-- start or recover the read-only launch progress dashboard when the first Epic task is recorded, execute its Codex Browser action when available, and keep dashboard failure non-blocking;
-- preserve the existing progress dashboard as a read-only projection.
+Parallelism must beat its context cost. Delegate only independent ownership, state, or evidence workstreams. Send each child a compact assignment with its accepted outcome slice, ownership, dependency contracts, constraints, authority, proof, return contract, and ask-parent policy. Keep user decisions, shared contracts, integration, publication, merge, release, and rollback in the parent task.
 
-Run one bounded pre-build Epic gap review when a material plan exists and one integrated pass before final verification. Allow at most three findings per pass and three passes. Every finding ends as `fixed`, `ask-user`, `deferred`, or `omitted`; `ask-user` blocks only affected work. Do not add external-practice, compliance, enterprise-hardening, or state-of-the-art review unless the user asks or an accepted external constraint requires it.
+Children work quietly and return changed artifacts, compact proof, and risk. The parent integrates continuously and independently checks the oracle. Custom agent profiles are optional capabilities, not a required routing layer.
 
-Consequence-specific security, recovery, or black-box review runs only for explicit accepted triggers. Run deterministic checks first, then the applicable exact-revision specialist proof. Run a triggered security review through `python3 {{GAUNTLET_ROOT}}/scripts/security-review.py --workspace "$WORKTREE" --ticket-file "$SECURITY_TICKET"`; this dedicated non-interactive Codex CLI boundary enforces a read-only sandbox and must replace native subagent dispatch for the security lens. Production quality, TypeScript durability, UI, or release safeguards run only when their concrete trigger applies. Do not make ordinary patches pay for them.
+## Verify
 
-Record a pending `GAP-###` only when repeated evidence exposes missing Gauntlet-general guidance. Repo-specific misses belong in repo code, tests, docs, or a later Epic. Report new or updated gap IDs with final deferrals or omissions.
+Evidence precedes completion claims. Name an observable oracle for material behavior. Use a plausible wrong case or required non-effect when it distinguishes the intended result. Fields, phrases, statuses, receipts, and self-reports prove structure, not behavior.
 
-## Delegation and context
+Independent Verify receives the accepted design, exact integrated revision, Architecture Contract, and Sensor Contract. It reports separate Build, Architecture, and Sensor verdicts. The Build verdict independently covers every accepted product outcome. Applicable Architecture and Sensor failures also block completion.
 
-Parallelism must beat its context cost. Delegate only independent ownership, state, or evidence lanes with separate proof. Keep user decisions, shared contracts, integration, acceptance, pull requests, merge, release, and rollback in the parent task.
+On the exact integrated candidate, use the same installed CLI to run
+`workflow bind-candidate`, `workflow verify-entry`, `workflow record-verdict`
+once each for Build, Architecture, and Sensor, then `workflow completion-check`.
+Pass the temporary contract forward between commands. Completion requires the
+final command to pass; remove the task-temporary inputs and outputs after handoff.
 
-Route a delegated Ticket with `{{GAUNTLET_ROOT}}/scripts/route-codex-agent.py`, then send one compact Ticket containing only its objective, owned files or state, dependencies, constraints, proof, return contract, and ask-parent policy. A `codex-cli` security route is executed with `security-review.py` and is not a delegated child. Give children and the security CLI accepted source slices and named dependency contracts, not the complete PRD, plan, manifest, event stream, unrelated receipts, or conversation history.
+When the repository supplies `gauntlet-sensors.json`, execute `gauntlet.py sensors run` with fast sensors during edit loops and integrated sensors on the final candidate. A sensor plan or normalized result without execution is not proof. Treat a nonzero required result as a completion blocker. Keep compact attention items in active context and open raw logs only when needed.
 
-Children work quietly and return changed artifacts, compact proof, and risk. The parent integrates continuously and performs final verification. Surface only a user decision, unrecoverable blocker, safety stop, required host heartbeat, or final outcome.
+Consequence-specific security, failure, recovery, black-box, production, TypeScript, UI, or release checks run only for concrete accepted triggers. Triggered security review uses `python3 {{GAUNTLET_ROOT}}/scripts/security-review.py --workspace "$WORKTREE" --ticket-file "$SECURITY_TICKET"` and remains read-only.
 
-## Git, release, and completion
+## Ship
 
-Never discard unrelated user work. Do not use destructive Git commands without explicit authority. Commits and pull requests should reflect the accepted scope and proof. When cutting a version, preserve released changelog history and keep `Unreleased` for future work.
+Never discard unrelated user work. Commit coherent atomic changes, serialize candidates that share a base, reject stale proof after drift, and verify the exact integrated or landed revision.
 
-“Push to git” authorizes only the current branch. A request to open a PR does not authorize merge. “Merge this,” “land this,” or “merge this to main” invokes the installed `land` skill for one complete Git closeout. Default to local `git` and `gh`; use a GitHub connector only when the user explicitly requests it or the CLI cannot perform a required operation. Generic merge authority does not authorize local installation or task archival. Deployment, production changes, destructive actions, migrations, credentials, paid actions, and rollback remain limited to the accepted product and available authority.
+“Push to git” authorizes only the current branch. Opening a PR does not authorize merge. “Merge this,” “land this,” or “merge this to main” invokes the installed `land` skill. Deployment, production changes, destructive actions, migrations, credentials, paid actions, rollback, local installation, and task archival require their own accepted authority.
 
-Use `{{GAUNTLET_ROOT}}/scripts/gauntlet.py merge prepare|plan|execute --run <run>` for run-backed Project PRs. `/Archive` composes `land`, any explicitly requested local install, and the archive planner’s returned app actions.
-
-Work is complete when accepted behavior is met, changed behavior is proved or its exact limit stated, review findings have terminal dispositions, unrelated work is preserved, and required durable updates are made. The final response uses at most three practical-effect bullets: what changed, what proof establishes, and what was deferred, omitted, needs the user, or could not be verified.
+Implemented, committed, pushed, published, merged, deployed, and production-proved are separate claims. Work is complete only when accepted behavior is met, exact-revision proof passes, applicable findings have terminal dispositions, unrelated work is preserved, and required durable updates are made.

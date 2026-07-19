@@ -15,15 +15,30 @@ SPEC.loader.exec_module(context_audit)
 
 
 class ContextAuditTests(unittest.TestCase):
-    def test_report_uses_real_surface_bytes_and_fixed_representative_fixtures(self):
-        report = context_audit.build_report(context_audit.ROOT, context_audit.DEFAULT_FIXTURES, [])
-        router = next(item for item in report["surfaces"] if item["path"] == "router/AGENTS.md")
-        self.assertEqual(router["bytes"], (context_audit.ROOT / "router" / "AGENTS.md").stat().st_size)
-        self.assertLess(report["modelVisibleBytes"], report["baselineModelVisibleBytes"])
-        self.assertLess(report["modelVisibleDeltaBytes"], 0)
-        agora = next(item for item in report["representativeLaunches"] if item["epicId"] == "AGORARUNPOD-014")
-        self.assertEqual(agora["epicBytes"], 61897)
-        self.assertEqual(agora["candidateTaskBytes"], 850)
+    def test_report_measures_design_build_verify_without_controller_telemetry(self):
+        report = context_audit.build_report(context_audit.ROOT, [])
+        router = report["stableSurfaces"][0]
+        self.assertEqual(router["path"], "router/AGENTS.md")
+        self.assertEqual(
+            router["bytes"],
+            (context_audit.ROOT / "router" / "AGENTS.md").stat().st_size,
+        )
+        self.assertEqual(
+            [phase["phase"] for phase in report["phases"]],
+            ["design", "build", "verify"],
+        )
+        self.assertEqual(
+            report["stablePrefixSavingsBytes"],
+            report["stableBytes"] * 2,
+        )
+        self.assertEqual(
+            report["repeatedWithoutStablePrefixBytes"]
+            - report["stablePrefixSavingsBytes"],
+            report["uniqueBytes"],
+        )
+        serialized = json.dumps(report).lower()
+        for obsolete in ("epicid", "controller", "launch", "ticket graph"):
+            self.assertNotIn(obsolete, serialized)
 
     def test_trace_reader_ignores_non_token_events(self):
         with tempfile.TemporaryDirectory() as temporary:
