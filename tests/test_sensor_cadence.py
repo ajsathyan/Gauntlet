@@ -114,11 +114,27 @@ class SensorCadenceTests(unittest.TestCase):
                         "coverage",
                         "{suite}",
                     ],
-                    "phases": ["fast", "integrated"],
+                    "phases": ["integrated"],
+                    "required": True,
+                },
+                "focused-tests": {
+                    "argv": [
+                        "python3",
+                        str(self.command),
+                        "focused-tests",
+                        "smoke",
+                    ],
+                    "phases": ["fast"],
                     "required": True,
                 },
                 "semgrep": {
                     "argv": ["python3", str(self.command), "semgrep"],
+                    "phases": ["fast", "integrated"],
+                    "required": True,
+                },
+                "gitleaks": {
+                    "argv": ["python3", str(self.command), "gitleaks"],
+                    "phases": ["fast", "integrated"],
                     "required": True,
                 },
             },
@@ -140,6 +156,24 @@ class SensorCadenceTests(unittest.TestCase):
             root = self.repo / root
         return root / reference.removeprefix(prefix)
 
+    def test_repository_config_reserves_coverage_for_integrated(self):
+        config = json.loads(
+            (ROOT / "gauntlet-sensors.json").read_text(encoding="utf-8")
+        )["commands"]
+
+        self.assertEqual(config["coverage"]["phases"], ["integrated"])
+        self.assertEqual(config["focused-tests"]["phases"], ["fast"])
+        self.assertEqual(
+            config["focused-tests"]["argv"],
+            [
+                "python3",
+                "scripts/check-gauntlet-workflow.py",
+                "--smoke",
+            ],
+        )
+        for sensor in ("gitleaks", "linter", "semgrep"):
+            self.assertEqual(config[sensor]["phases"], ["fast", "integrated"])
+
     def test_default_is_integrated_and_fast_uses_only_fast_commands(self):
         self.write_config()
 
@@ -156,7 +190,10 @@ class SensorCadenceTests(unittest.TestCase):
             for result in default_evidence["results"]
         }
         self.assertEqual(integrated_argv["coverage"][-1], "full")
-        self.assertIn("semgrep", integrated_argv)
+        self.assertEqual(
+            set(integrated_argv),
+            {"coverage", "gitleaks", "linter", "semgrep"},
+        )
 
         fast = json.loads(
             self.cli(
@@ -183,8 +220,13 @@ class SensorCadenceTests(unittest.TestCase):
             fast_evidence["planFingerprint"],
             default_evidence["planFingerprint"],
         )
-        self.assertEqual(fast_argv["coverage"][-1], "smoke")
-        self.assertEqual(set(fast_argv), {"coverage", "linter"})
+        self.assertNotIn("coverage", fast_argv)
+        self.assertEqual(fast_argv["focused-tests"][-1], "smoke")
+        self.assertEqual(
+            set(fast_argv),
+            {"focused-tests", "gitleaks", "linter", "semgrep"},
+        )
+        self.assertNotIn("focused-tests", integrated_argv)
         self.assertNotIn("argv", fast)
         self.assertNotIn("raw output", json.dumps(fast).lower())
 
@@ -302,7 +344,7 @@ class SensorCadenceTests(unittest.TestCase):
         self.assertNotEqual(incomplete.returncode, 0)
         self.assertIn("incomplete", json.loads(incomplete.stdout)["reason"].lower())
 
-    def test_coverage_wrapper_routes_smoke_and_defaults_to_full(self):
+    def test_coverage_wrapper_runs_only_full_suite(self):
         bin_dir = self.repo / "bin"
         bin_dir.mkdir()
         capture = self.repo / "coverage-arguments.jsonl"
@@ -326,7 +368,7 @@ class SensorCadenceTests(unittest.TestCase):
         env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
         env["COVERAGE_CAPTURE"] = str(capture)
 
-        for arguments in ([], ["--suite", "full"], ["--suite", "smoke"]):
+        for arguments in ([], ["--suite", "full"]):
             result = subprocess.run(
                 [
                     "python3",
@@ -341,15 +383,29 @@ class SensorCadenceTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
 
+        rejected_smoke = subprocess.run(
+            [
+                "python3",
+                str(ROOT / "scripts" / "run-coverage-sensor.py"),
+                "--suite",
+                "smoke",
+            ],
+            cwd=self.repo,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        self.assertNotEqual(rejected_smoke.returncode, 0)
+
         calls = [
             json.loads(line)
             for line in capture.read_text(encoding="utf-8").splitlines()
         ]
         measured = [call for call in calls if call and call[0] == "run"]
-        self.assertEqual(len(measured), 3)
+        self.assertEqual(len(measured), 2)
         self.assertNotIn("--smoke", measured[0])
         self.assertNotIn("--smoke", measured[1])
-        self.assertEqual(measured[2][-1], "--smoke")
 
 
 if __name__ == "__main__":

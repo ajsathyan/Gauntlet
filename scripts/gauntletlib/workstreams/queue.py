@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 import copy
-import fcntl
-import json
-import os
 import re
-import tempfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from pathlib import Path
 
 from .git_client import GitClient, GitClientError
+from .state_store import LockedJsonStateStore, StateStoreError
 
 
 STATE_SCHEMA = "gauntlet.workstream-queue.v1"
@@ -35,13 +31,15 @@ class WorkstreamQueue:
         default_ref="main",
         clock=None,
         git_client=None,
+        state_store=None,
     ):
-        self.state_path = Path(state_path).resolve()
-        self.repo = Path(repo).resolve()
         self.default_ref = self._nonempty(default_ref, "default_ref")
-        self.lock_path = self.state_path.with_name(self.state_path.name + ".lock")
         self._clock = clock or self._now
-        self._git_client = git_client or GitClient(self.repo)
+        self._git_client = git_client or GitClient(repo)
+        self._state_store = state_store or LockedJsonStateStore(state_path)
+        self.repo = getattr(self._git_client, "repo", repo)
+        self.state_path = getattr(self._state_store, "state_path", state_path)
+        self.lock_path = getattr(self._state_store, "lock_path", None)
         try:
             self._git_client.ensure_repository()
         except GitClientError as error:
@@ -50,16 +48,15 @@ class WorkstreamQueue:
     def snapshot(self):
         """Return a validated copy of current state without changing it."""
 
-        with self._lock():
-            return copy.deepcopy(self._load())
+        with self._locked_state() as (state, _):
+            return copy.deepcopy(state)
 
     def enqueue(self, workstream_id, source_commit):
         """Append a workstream, preserving FIFO order and replay safety."""
 
         workstream_id = self._nonempty(workstream_id, "workstream_id")
         source_commit, source_tree = self._revision(source_commit, "source")
-        with self._lock():
-            state = self._load()
+        with self._locked_state() as (state, access):
             current = self._entry(state, workstream_id)
             if current is not None and current["status"] in ("queued", "active"):
                 if (
@@ -84,14 +81,13 @@ class WorkstreamQueue:
                 state["entries"].append(entry)
             else:
                 state["entries"][state["entries"].index(current)] = entry
-            self._save(state)
+            self._save(access, state)
             return copy.deepcopy(state)
 
     def claim(self):
         """Claim the oldest queued workstream against a fresh default snapshot."""
 
-        with self._lock():
-            state = self._load()
+        with self._locked_state() as (state, access):
             if state["activeAttempt"] is not None:
                 return copy.deepcopy(state["activeAttempt"])
             queued = [entry for entry in state["entries"] if entry["status"] == "queued"]
@@ -116,7 +112,7 @@ class WorkstreamQueue:
             entry["status"] = "active"
             entry["attempts"].append(copy.deepcopy(attempt))
             state["activeAttempt"] = attempt
-            self._save(state)
+            self._save(access, state)
             return copy.deepcopy(attempt)
 
     def bind_candidate(self, attempt_id, candidate_commit, candidate_tree):
@@ -130,8 +126,7 @@ class WorkstreamQueue:
         )
         if supplied_tree != resolved_tree:
             raise QueueError("candidate tree does not match the candidate commit")
-        with self._lock():
-            state = self._load()
+        with self._locked_state() as (state, access):
             attempt = self._active(state, attempt_id)
             if attempt["status"] == "candidate":
                 if (
@@ -147,13 +142,20 @@ class WorkstreamQueue:
                 raise QueueError(
                     "default head changed after the attempt was claimed"
                 )
+            entry = self._entry(state, attempt["workstreamId"])
+            if entry is None:
+                raise QueueError("active attempt has no owning entry")
+            if not self._is_ancestor(entry["sourceCommit"], resolved_commit):
+                raise QueueError(
+                    "candidate does not contain the queued source commit"
+                )
             if not self._is_ancestor(attempt["baseCommit"], resolved_commit):
                 raise QueueError("candidate does not contain its claimed default head")
             attempt["candidateCommit"] = resolved_commit
             attempt["candidateTree"] = resolved_tree
             attempt["status"] = "candidate"
             self._copy_attempt_to_entry(state, attempt)
-            self._save(state)
+            self._save(access, state)
             return copy.deepcopy(attempt)
 
     def release(self, attempt_id, result, reason):
@@ -163,8 +165,7 @@ class WorkstreamQueue:
         reason = self._nonempty(reason, "reason")
         if result not in TERMINAL_RESULTS:
             raise QueueError("result must be merged, blocked, or failed")
-        with self._lock():
-            state = self._load()
+        with self._locked_state() as (state, access):
             if state["activeAttempt"] is None:
                 previous = self._attempt(state, attempt_id)
                 if (
@@ -177,42 +178,52 @@ class WorkstreamQueue:
             attempt = self._active(state, attempt_id)
             if result == "merged":
                 self._require_candidate_identity(attempt)
-                default_commit, _ = self._revision(
+                default_commit, default_tree = self._revision(
                     self.default_ref,
                     "default head",
                 )
-                if not self._represents(attempt["candidateCommit"], default_commit):
+                if not self._matches_candidate(
+                    attempt,
+                    default_commit,
+                    default_tree,
+                ):
                     raise QueueError(
-                        "default head does not represent the bound candidate"
+                        "default head does not match the exact bound candidate tree proof"
                     )
             self._finish(state, attempt, result, reason)
-            self._save(state)
+            self._save(access, state)
             return copy.deepcopy(state)
 
     def reconcile(self):
         """Recover an interrupted active attempt from current Git facts."""
 
-        with self._lock():
-            state = self._load()
+        with self._locked_state() as (state, access):
             attempt = state["activeAttempt"]
             if attempt is None:
                 return copy.deepcopy(state)
-            default_commit, _ = self._revision(self.default_ref, "default head")
+            default_commit, default_tree = self._revision(
+                self.default_ref,
+                "default head",
+            )
             if attempt["candidateCommit"] is not None:
                 self._require_candidate_identity(attempt)
-                if self._represents(attempt["candidateCommit"], default_commit):
+                if self._matches_candidate(
+                    attempt,
+                    default_commit,
+                    default_tree,
+                ):
                     self._finish(
                         state,
                         attempt,
                         "merged",
-                        "bound candidate is represented by the current default head",
+                        "current default head has the exact bound candidate tree",
                     )
                 elif default_commit != attempt["baseCommit"]:
                     self._finish(
                         state,
                         attempt,
                         "blocked",
-                        "default head changed without representing the bound candidate",
+                        "default head changed without the bound candidate tree",
                     )
             elif default_commit != attempt["baseCommit"]:
                 self._finish(
@@ -221,7 +232,7 @@ class WorkstreamQueue:
                     "blocked",
                     "default head changed during the interrupted attempt",
                 )
-            self._save(state)
+            self._save(access, state)
             return copy.deepcopy(state)
 
     @staticmethod
@@ -262,13 +273,6 @@ class WorkstreamQueue:
         except GitClientError as error:
             raise QueueError(str(error)) from error
 
-    def _represents(self, candidate, default_commit):
-        if self._is_ancestor(candidate, default_commit):
-            return True
-        _, candidate_tree = self._revision(candidate, "candidate")
-        _, default_tree = self._revision(default_commit, "default head")
-        return candidate_tree == default_tree
-
     def _require_candidate_identity(self, attempt):
         candidate = attempt["candidateCommit"]
         expected_tree = attempt["candidateTree"]
@@ -278,15 +282,26 @@ class WorkstreamQueue:
         if actual_tree != expected_tree:
             raise QueueError("bound candidate tree no longer matches its commit")
 
+    def _matches_candidate(self, attempt, default_commit, default_tree):
+        if default_tree != attempt["candidateTree"]:
+            return False
+        if default_commit == attempt["candidateCommit"]:
+            return True
+        return not self._is_ancestor(
+            attempt["candidateCommit"],
+            default_commit,
+        )
+
     @contextmanager
-    def _lock(self):
-        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.lock_path.open("a+", encoding="utf-8") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    def _locked_state(self):
+        try:
+            with self._state_store.locked() as access:
+                value = access.read()
+                state = self._empty() if value is None else value
+                self._validate_state(state)
+                yield state, access
+        except StateStoreError as error:
+            raise QueueError(str(error)) from error
 
     def _empty(self):
         return {
@@ -296,16 +311,6 @@ class WorkstreamQueue:
             "activeAttempt": None,
             "entries": [],
         }
-
-    def _load(self):
-        if not self.state_path.is_file():
-            return self._empty()
-        try:
-            value = json.loads(self.state_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as error:
-            raise QueueError(f"queue state could not be read: {error}") from error
-        self._validate_state(value)
-        return value
 
     def _validate_state(self, state):
         expected = {
@@ -474,26 +479,9 @@ class WorkstreamQueue:
         self._copy_attempt_to_entry(state, attempt)
         state["activeAttempt"] = None
 
-    def _save(self, state):
+    def _save(self, access, state):
         self._validate_state(state)
-        self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=f".{self.state_path.name}.",
-            dir=self.state_path.parent,
-        )
         try:
-            os.fchmod(descriptor, 0o600)
-            with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
-                json.dump(state, stream, ensure_ascii=False, sort_keys=True, indent=2)
-                stream.write("\n")
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.replace(temporary_name, self.state_path)
-            directory = os.open(self.state_path.parent, os.O_RDONLY)
-            try:
-                os.fsync(directory)
-            finally:
-                os.close(directory)
-        finally:
-            if os.path.exists(temporary_name):
-                os.unlink(temporary_name)
+            access.write(state)
+        except StateStoreError as error:
+            raise QueueError(str(error)) from error

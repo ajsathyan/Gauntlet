@@ -837,8 +837,121 @@ def exact_acceptance_section(source_text):
     return section if visible_lines else ""
 
 
+def acceptance_outcome_bindings(acceptance):
+    """Return stable identities and digests for each exact accepted outcome.
+
+    The contract retains only mechanical bindings.  Build and Verify continue
+    to read the human-owned Acceptance section for meaning.
+    """
+
+    heading = re.match(r"^## Acceptance[ \t]*\r?\n?", acceptance)
+    body = acceptance[heading.end() :] if heading else acceptance
+    body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+    lines = body.splitlines()
+    item_candidates = [
+        (index, len(match.group(1).expandtabs(4)))
+        for index, line in enumerate(lines)
+        if (
+            match := re.match(
+                r"^([ \t]*)(?:[-+*]|\d+[.)])[ \t]+\S",
+                line,
+            )
+        )
+    ]
+    minimum_indent = min((indent for _index, indent in item_candidates), default=0)
+    item_starts = [
+        index for index, indent in item_candidates if indent == minimum_indent
+    ]
+    outcomes = []
+    if item_starts:
+        for offset, start in enumerate(item_starts):
+            end = item_starts[offset + 1] if offset + 1 < len(item_starts) else len(lines)
+            item = "\n".join(lines[start:end]).strip()
+            if item:
+                outcomes.append(item)
+    else:
+        visible = "\n".join(lines).strip()
+        outcomes = [
+            paragraph.strip()
+            for paragraph in re.split(r"\r?\n[ \t]*\r?\n", visible)
+            if paragraph.strip()
+        ]
+    return [
+        {
+            "identity": f"acceptance-{index:03d}",
+            "sha256": "sha256:" + sha256(outcome.encode("utf-8")),
+        }
+        for index, outcome in enumerate(outcomes, start=1)
+    ]
+
+
 def accepted_record_path(design_path):
     return design_path.with_suffix(".accepted.json")
+
+
+def load_accepted_design(project_root, supplied):
+    """Read and validate the exact accepted source for Build or Verify entry."""
+
+    context = local_docs_context(project_root)
+    findings = local_docs_validation_findings(context, require_profile=True)
+    failures = [item["message"] for item in findings if item["severity"] == "fail"]
+    if failures:
+        raise RuntimeError("Accepted design is unavailable: " + "; ".join(failures))
+    _index_text, row, design_path = _indexed_design(context, supplied)
+    if row.group(4).strip() != "Accepted":
+        raise RuntimeError(f"Design {row.group(1)} is not accepted.")
+    sidecar = accepted_record_path(design_path)
+    if sidecar.is_symlink() or not sidecar.is_file():
+        raise RuntimeError(f"Accepted design record is unavailable: {sidecar}")
+    try:
+        record = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Accepted design record is invalid: {sidecar}") from exc
+    expected_keys = {
+        "schemaVersion",
+        "designId",
+        "sourcePath",
+        "sourceSha256",
+        "acceptanceSha256",
+        "acceptedAt",
+    }
+    if not isinstance(record, dict) or set(record) != expected_keys:
+        raise RuntimeError(f"Accepted design record has an unsupported shape: {sidecar}")
+    relative = str(design_path.relative_to(context["docsRoot"]))
+    if (
+        record["schemaVersion"] != "gauntlet.accepted-design.v1"
+        or record["designId"] != row.group(1)
+        or record["sourcePath"] != relative
+    ):
+        raise RuntimeError("Accepted design record does not identify the indexed design.")
+    source_bytes = design_path.read_bytes()
+    try:
+        source_text = source_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("Accepted design source must be UTF-8.") from exc
+    acceptance = exact_acceptance_section(source_text)
+    if not acceptance:
+        raise RuntimeError("Accepted design no longer has one exact Acceptance section.")
+    current_source = sha256(source_bytes)
+    current_acceptance = sha256(acceptance.encode("utf-8"))
+    if record["sourceSha256"] != current_source:
+        raise RuntimeError(
+            "Accepted design source is stale: its bytes changed after acceptance."
+        )
+    if record["acceptanceSha256"] != current_acceptance:
+        raise RuntimeError(
+            "Accepted design Acceptance section is stale: its bytes changed after acceptance."
+        )
+    outcomes = acceptance_outcome_bindings(acceptance)
+    if not outcomes:
+        raise RuntimeError("Accepted design has no observable Acceptance outcomes.")
+    return {
+        "identity": record["designId"],
+        "reference": record["sourcePath"],
+        "sha256": "sha256:" + record["sourceSha256"],
+        "acceptanceSha256": "sha256:" + record["acceptanceSha256"],
+        "outcomes": outcomes,
+    }
 
 
 def command_docs_design_accept(args):

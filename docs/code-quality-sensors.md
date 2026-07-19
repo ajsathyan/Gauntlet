@@ -29,12 +29,13 @@ not-run, incomplete, or stale result blocks completion.
 `integrated` behavior.
 
 - `fast` is the edit-loop phase. It runs only commands whose repository
-  configuration opts into `fast`; the bundled configuration uses cheap
-  changed-surface checks and coverage of the workflow smoke suite.
-- `integrated` is the final sensor phase. It runs the retained full coverage
-  suite and every applicable configured command. A command with no `phases`
-  field defaults to integrated-only, so adding phases cannot silently weaken an
-  existing repository's final proof.
+  configuration opts into `fast`; the bundled configuration runs the workflow
+  smoke suite directly as a focused-test sensor, plus applicable lint, Semgrep,
+  and Gitleaks checks. It never selects coverage.
+- `integrated` is the final sensor phase. It runs the full workflow suite under
+  coverage plus every other applicable configured command. A command with no
+  `phases` field defaults to integrated-only, so adding phases cannot silently
+  weaken an existing repository's final proof.
 
 The phase appears in plan facts, the compact handoff, and private evidence. It
 also participates in both source and plan fingerprints. Verification defaults
@@ -87,9 +88,10 @@ checks in repository configuration.
 Each command may declare `phases` as a non-empty array containing `fast`,
 `integrated`, or both. The optional `{phase}` and `{suite}` argv placeholders
 expand without a shell; `{suite}` becomes `smoke` for fast proof and `full` for
-integrated proof. `scripts/run-coverage-sensor.py --suite smoke|full` routes
-those values to the existing workflow smoke or full suite and defaults to
-`full` for older callers.
+integrated proof. The bundled fast focused-test command invokes
+`scripts/check-gauntlet-workflow.py --smoke` directly. Coverage is
+integrated-only, and `scripts/run-coverage-sensor.py` accepts only the full
+suite.
 
 Missing optional configuration is reported rather than invented. The normal
 Codex install includes pinned Semgrep, coverage.py, and Gitleaks versions in an

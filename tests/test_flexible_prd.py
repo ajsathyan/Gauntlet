@@ -60,6 +60,72 @@ class FlexibleDesignTests(unittest.TestCase):
     def cli(self, *args, check=True):
         return run(args, check=check)
 
+    def create_accepted_design(self, acceptance):
+        created = self.cli(
+            "docs",
+            "design",
+            "create",
+            "--project-root",
+            str(self.repo),
+            "--title",
+            "Workflow gate",
+            "--json",
+        )
+        data = json.loads(created.stdout)
+        design = Path(data["designPath"])
+        design.write_text(
+            "# Workflow gate\n\n## Acceptance\n\n" + acceptance,
+            encoding="utf-8",
+        )
+        self.cli(
+            "docs",
+            "design",
+            "accept",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            data["designId"],
+            "--json",
+        )
+        return data["designId"], design
+
+    def write_json(self, name, value):
+        path = Path(self.temporary.name) / name
+        path.write_text(json.dumps(value), encoding="utf-8")
+        return path
+
+    def reviews(self, design_binding, fourth_disposition="omitted"):
+        lenses = (
+            "product-completeness",
+            "engineering-shape",
+            "proof-and-consequence",
+        )
+        results = []
+        for index, lens in enumerate(lenses):
+            findings = []
+            if index == 0:
+                findings = [
+                    {
+                        "identity": f"finding-{number}",
+                        "material": True,
+                        "disposition": (
+                            fourth_disposition if number == 4 else "rejected"
+                        ),
+                        "reason": "Resolved against accepted scope.",
+                    }
+                    for number in range(1, 5)
+                ]
+            results.append(
+                {
+                    "lens": lens,
+                    "reviewer": f"reviewer-{index}",
+                    "design": design_binding,
+                    "materialFindingCount": len(findings),
+                    "findings": findings,
+                }
+            )
+        return results
+
     def test_arbitrary_user_sections_and_bytes_survive_acceptance(self):
         created = self.cli(
             "docs",
@@ -146,6 +212,217 @@ class FlexibleDesignTests(unittest.TestCase):
         self.assertNotEqual(
             record["sourceSha256"],
             hashlib.sha256(design.read_bytes()).hexdigest(),
+        )
+
+    def test_build_entry_blocks_post_acceptance_source_edit(self):
+        design_id, design = self.create_accepted_design(
+            "1. External command runs.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        design.write_text(
+            design.read_text(encoding="utf-8") + "\nUnaccepted behavior.\n",
+            encoding="utf-8",
+        )
+        result = self.cli(
+            "workflow",
+            "build-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(self.write_json("reviews.json", self.reviews(record))),
+            "--json",
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("stale", result.stdout.lower())
+
+    def test_fourth_material_finding_beyond_display_cap_blocks_build(self):
+        design_id, design = self.create_accepted_design(
+            "1. External command runs.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        result = self.cli(
+            "workflow",
+            "build-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(
+                self.write_json(
+                    "reviews.json",
+                    self.reviews(record, fourth_disposition=None),
+                )
+            ),
+            "--json",
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("finding-4", result.stdout)
+
+    def test_verify_entry_revalidates_the_accepted_source_and_acceptance(self):
+        design_id, design = self.create_accepted_design(
+            "1. External command runs.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        built = self.cli(
+            "workflow",
+            "build-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(self.write_json("reviews.json", self.reviews(record))),
+            "--json",
+        )
+        bound = self.cli(
+            "workflow",
+            "bind-candidate",
+            "--contract",
+            str(
+                self.write_json(
+                    "contract.json",
+                    json.loads(built.stdout)["contract"],
+                )
+            ),
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(self.write_json("bind-reviews.json", self.reviews(record))),
+            "--commit",
+            "1" * 40,
+            "--tree",
+            "2" * 40,
+            "--json",
+        )
+        contract = json.loads(bound.stdout)["contract"]
+        design.write_text(
+            "# Workflow gate\n\n"
+            "## Acceptance\n\n"
+            "1. External command runs.\n"
+            "2. A narrowed checklist is enough.\n",
+            encoding="utf-8",
+        )
+        stale = self.cli(
+            "workflow",
+            "verify-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--contract",
+            str(self.write_json("bound.json", contract)),
+            "--json",
+            check=False,
+        )
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("stale", stale.stdout.lower())
+
+    def test_completion_rejects_omitted_accepted_outcome_despite_green_sensors(self):
+        design_id, design = self.create_accepted_design(
+            "1. External command runs.\n"
+            "2. Dashboard is published.\n"
+        )
+        record = json.loads(design.with_suffix(".accepted.json").read_text())
+        built = self.cli(
+            "workflow",
+            "build-entry",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(self.write_json("reviews.json", self.reviews(record))),
+            "--json",
+        )
+        contract = json.loads(built.stdout)["contract"]
+        bound = self.cli(
+            "workflow",
+            "bind-candidate",
+            "--contract",
+            str(self.write_json("unbound-contract.json", contract)),
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--reviews",
+            str(self.write_json("bind-reviews.json", self.reviews(record))),
+            "--commit",
+            "1" * 40,
+            "--tree",
+            "2" * 40,
+            "--json",
+        )
+        contract = json.loads(bound.stdout)["contract"]
+        outcomes = contract["acceptedDesign"]["outcomes"]
+
+        verdict_inputs = [
+            ("architecture", {"directEvidence": ["boundaries inspected"]}),
+            ("sensor", {"directEvidence": ["configured sensors passed"]}),
+            (
+                "build",
+                {
+                    "directEvidence": ["external command observed"],
+                    "outcomeEvidence": {
+                        outcomes[0]["identity"]: ["external command observed"]
+                    },
+                },
+            ),
+        ]
+        for number, (area, evidence) in enumerate(verdict_inputs):
+            contract_path = self.write_json(f"contract-{number}.json", contract)
+            evidence_path = self.write_json(f"evidence-{number}.json", evidence)
+            verdict = self.cli(
+                "workflow",
+                "record-verdict",
+                "--contract",
+                str(contract_path),
+                "--project-root",
+                str(self.repo),
+                "--design",
+                design_id,
+                "--area",
+                area,
+                "--verdict",
+                "pass",
+                "--evidence",
+                str(evidence_path),
+                "--json",
+                check=False,
+            )
+            if area == "build":
+                self.assertNotEqual(verdict.returncode, 0)
+                self.assertIn("every accepted outcome", verdict.stdout)
+            else:
+                contract = json.loads(verdict.stdout)["contract"]
+
+        completion = self.cli(
+            "workflow",
+            "completion-check",
+            "--project-root",
+            str(self.repo),
+            "--design",
+            design_id,
+            "--contract",
+            str(self.write_json("completion-contract.json", contract)),
+            "--json",
+            check=False,
+        )
+        self.assertNotEqual(completion.returncode, 0)
+        completion_data = json.loads(completion.stdout)["completion"]
+        self.assertEqual(
+            completion_data["verdicts"],
+            {
+                "build": "absent",
+                "architecture": "pass",
+                "sensor": "pass",
+            },
         )
 
 

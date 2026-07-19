@@ -20,6 +20,19 @@ COMMIT = "1" * 40
 TREE = "2" * 40
 DESIGN_IDENTITY = "design-accepted-v3"
 DESIGN_REFERENCE = "docs/design.md"
+ACCEPTANCE_SHA256 = "sha256:" + hashlib.sha256(
+    b"## Acceptance\n\n1. External command runs.\n2. Dashboard is published.\n"
+).hexdigest()
+OUTCOMES = [
+    {
+        "identity": "acceptance-001",
+        "sha256": "sha256:" + hashlib.sha256(b"1. External command runs.").hexdigest(),
+    },
+    {
+        "identity": "acceptance-002",
+        "sha256": "sha256:" + hashlib.sha256(b"2. Dashboard is published.").hexdigest(),
+    },
+]
 
 
 class WorkflowContractTests(unittest.TestCase):
@@ -28,6 +41,8 @@ class WorkflowContractTests(unittest.TestCase):
             identity=DESIGN_IDENTITY,
             reference=DESIGN_REFERENCE,
             design_sha256=DESIGN_SHA256,
+            acceptance_sha256=ACCEPTANCE_SHA256,
+            outcomes=OUTCOMES,
         )
         return bind_candidate_revision(
             contract,
@@ -47,6 +62,11 @@ class WorkflowContractTests(unittest.TestCase):
             "read_design_directly": True,
             "direct_evidence": [f"{area} oracle observed"],
         }
+        if area == "build" and verdict == "pass":
+            values["outcome_evidence"] = {
+                outcome["identity"]: [f"{outcome['identity']} oracle observed"]
+                for outcome in OUTCOMES
+            }
         values.update(overrides)
         return record_verdict(contract, **values)
 
@@ -75,6 +95,8 @@ class WorkflowContractTests(unittest.TestCase):
                 "identity": DESIGN_IDENTITY,
                 "reference": DESIGN_REFERENCE,
                 "sha256": DESIGN_SHA256,
+                "acceptanceSha256": ACCEPTANCE_SHA256,
+                "outcomes": OUTCOMES,
             },
         )
         keys = set()
@@ -98,6 +120,8 @@ class WorkflowContractTests(unittest.TestCase):
             identity=DESIGN_IDENTITY,
             reference=DESIGN_REFERENCE,
             design_sha256=DESIGN_SHA256,
+            acceptance_sha256=ACCEPTANCE_SHA256,
+            outcomes=OUTCOMES,
         )
         self.assertIsNone(accepted["candidateRevision"])
         self.assertNotIn("commit", accepted["acceptedDesign"])
@@ -231,6 +255,16 @@ class WorkflowContractTests(unittest.TestCase):
         contract = self.verdict(contract, "sensor", verdict="fail")
         self.assertEqual(contract["verdicts"]["build"]["verdict"], "pass")
         self.assertEqual(contract["verdicts"]["sensor"]["verdict"], "fail")
+
+    def test_build_pass_requires_direct_evidence_for_every_accepted_outcome(self):
+        with self.assertRaisesRegex(ContractError, "every accepted outcome"):
+            self.verdict(
+                self.contract(),
+                "build",
+                outcome_evidence={
+                    OUTCOMES[0]["identity"]: ["command observed"],
+                },
+            )
 
 
 if __name__ == "__main__":

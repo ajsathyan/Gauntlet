@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from .lifecycle import accepted_record_path as accepted_record_path
+from .lifecycle import acceptance_outcome_bindings as acceptance_outcome_bindings
 from .lifecycle import command_docs_check
 from .lifecycle import command_docs_design_accept
 from .lifecycle import command_docs_design_create
@@ -12,6 +13,7 @@ from .lifecycle import command_docs_ensure
 from .lifecycle import command_docs_init
 from .lifecycle import configure as configure
 from .lifecycle import exact_acceptance_section as exact_acceptance_section
+from .lifecycle import load_accepted_design as load_accepted_design
 from .lifecycle import valid_design_title as valid_design_title
 
 

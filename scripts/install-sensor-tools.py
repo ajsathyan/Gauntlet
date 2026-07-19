@@ -10,10 +10,11 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import urllib.request
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 
 SCHEMA = "gauntlet.sensor-tools/v1"
@@ -172,6 +173,176 @@ def _receipt(root, generation_name, manifest_sha, tools):
     }
 
 
+def _owned_generation(root, receipt):
+    generation_name = receipt.get("currentGeneration")
+    if (
+        not isinstance(generation_name, str)
+        or len(generation_name) != 16
+        or any(character not in "0123456789abcdef" for character in generation_name)
+    ):
+        raise ToolInstallError("sensor tool receipt has no valid owned generation")
+    return generation_name, root / "generations" / generation_name
+
+
+def _relative_content_path(value):
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != value.strip()
+        or "\\" in value
+        or value.startswith("/")
+        or any(part in {"", ".", ".."} for part in value.split("/"))
+        or PurePosixPath(value).as_posix() != value
+    ):
+        raise ToolInstallError(f"invalid sensor tool ownership path: {value!r}")
+    return value
+
+
+def _generation_contents(generation):
+    if generation.is_symlink() or not generation.is_dir():
+        raise ToolInstallError(f"sensor tool generation is missing: {generation}")
+    contents = []
+    for path in sorted(generation.rglob("*")):
+        relative = path.relative_to(generation).as_posix()
+        if path.is_symlink():
+            contents.append(
+                {
+                    "kind": "symlink",
+                    "path": relative,
+                    "target": os.readlink(path),
+                }
+            )
+        elif path.is_dir():
+            contents.append({"kind": "directory", "path": relative})
+        elif path.is_file():
+            contents.append(
+                {
+                    "executable": bool(path.stat().st_mode & 0o111),
+                    "kind": "file",
+                    "path": relative,
+                    "sha256": _sha256(path),
+                }
+            )
+        else:
+            raise ToolInstallError(
+                f"unsupported sensor tool generation entry: {relative}"
+            )
+    return contents
+
+
+def _receipt_contents(receipt):
+    rows = receipt.get("contents")
+    if not isinstance(rows, list):
+        raise ToolInstallError(
+            "sensor tool receipt has no content ownership manifest; "
+            "preserving the existing generation"
+        )
+    contents = []
+    seen = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ToolInstallError("invalid sensor tool content ownership entry")
+        path = _relative_content_path(row.get("path"))
+        if path in seen:
+            raise ToolInstallError(
+                f"duplicate sensor tool content ownership path: {path}"
+            )
+        seen.add(path)
+        kind = row.get("kind")
+        if kind == "file":
+            if (
+                not isinstance(row.get("sha256"), str)
+                or len(row["sha256"]) != 64
+                or not isinstance(row.get("executable"), bool)
+            ):
+                raise ToolInstallError(
+                    f"invalid sensor tool file ownership entry: {path}"
+                )
+        elif kind == "symlink":
+            if not isinstance(row.get("target"), str):
+                raise ToolInstallError(
+                    f"invalid sensor tool symlink ownership entry: {path}"
+                )
+        elif kind != "directory":
+            raise ToolInstallError(
+                f"invalid sensor tool content ownership kind: {path}"
+            )
+        contents.append(row)
+    return sorted(contents, key=lambda row: row["path"])
+
+
+def _content_drift(expected, actual):
+    expected_by_path = {row["path"]: row for row in expected}
+    actual_by_path = {row["path"]: row for row in actual}
+    findings = []
+    for path in sorted(expected_by_path.keys() - actual_by_path.keys()):
+        findings.append(f"missing owned content: {path}")
+    for path in sorted(expected_by_path.keys() & actual_by_path.keys()):
+        if expected_by_path[path] != actual_by_path[path]:
+            findings.append(f"modified owned content: {path}")
+    for path in sorted(actual_by_path.keys() - expected_by_path.keys()):
+        findings.append(f"unknown generation content: {path}")
+    return findings
+
+
+def _verify_owned_generation(generation, receipt):
+    expected = _receipt_contents(receipt)
+    findings = _content_drift(expected, _generation_contents(generation))
+    if findings:
+        raise ToolInstallError(
+            "sensor tool generation content drift: " + "; ".join(findings)
+        )
+    return expected
+
+
+def _remove_owned_generation(generation, receipt):
+    expected = _receipt_contents(receipt)
+    try:
+        actual = _generation_contents(generation)
+    except ToolInstallError:
+        return [f"preserved missing or unsafe owned generation: {generation}"]
+    actual_by_path = {row["path"]: row for row in actual}
+    expected_by_path = {row["path"]: row for row in expected}
+    findings = []
+
+    for path in sorted(actual_by_path.keys() - expected_by_path.keys()):
+        findings.append(f"preserved unknown generation content: {path}")
+    for path in sorted(actual_by_path.keys() & expected_by_path.keys()):
+        if actual_by_path[path] != expected_by_path[path]:
+            findings.append(f"preserved modified owned content: {path}")
+
+    non_directories = [
+        row for row in expected if row["kind"] in {"file", "symlink"}
+    ]
+    for row in sorted(
+        non_directories,
+        key=lambda value: len(PurePosixPath(value["path"]).parts),
+        reverse=True,
+    ):
+        path = generation / row["path"]
+        actual_row = actual_by_path.get(row["path"])
+        if actual_row == row:
+            path.unlink()
+
+    directories = [row for row in expected if row["kind"] == "directory"]
+    for row in sorted(
+        directories,
+        key=lambda value: len(PurePosixPath(value["path"]).parts),
+        reverse=True,
+    ):
+        path = generation / row["path"]
+        if path.is_dir() and not path.is_symlink():
+            try:
+                path.rmdir()
+            except OSError:
+                pass
+    try:
+        generation.rmdir()
+    except OSError:
+        pass
+    return findings
+
+
 def _atomic_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
@@ -226,10 +397,14 @@ def install(args):
             and existing.get("manifestSha256") == manifest_sha
             and existing.get("currentGeneration") == generation_name
         ):
+            _verify_owned_generation(generation, existing)
             _activate(root, generation, existing)
             return existing
     if generation.exists():
-        shutil.rmtree(generation)
+        raise ToolInstallError(
+            "refusing to replace an existing sensor tool generation without "
+            "a matching verified content ownership manifest"
+        )
     generation.mkdir(parents=True)
     try:
         for name in ("semgrep", "coverage"):
@@ -264,6 +439,7 @@ def install(args):
             ),
         }
         receipt = _receipt(root, generation_name, manifest_sha, versions)
+        receipt["contents"] = _generation_contents(generation)
         _activate(root, generation, receipt)
         return receipt
     except BaseException:
@@ -283,7 +459,7 @@ def verify(args):
     if not receipt_path.is_file():
         raise ToolInstallError("sensor tool receipt is missing")
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-    generation = root / "generations" / receipt.get("currentGeneration", "")
+    _, generation = _owned_generation(root, receipt)
     current = root / "current"
     if (
         receipt.get("schema") != RECEIPT_SCHEMA
@@ -295,6 +471,7 @@ def verify(args):
     manifest_raw, manifest = _load_manifest(args.manifest)
     if receipt.get("manifestSha256") != hashlib.sha256(manifest_raw).hexdigest():
         raise ToolInstallError("sensor tool manifest differs from the active generation")
+    _verify_owned_generation(generation, receipt)
     _verify_version(
         current / "bin" / "semgrep",
         ["--version"],
@@ -321,23 +498,27 @@ def remove(args):
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     if receipt.get("schema") != RECEIPT_SCHEMA:
         raise ToolInstallError("refusing to remove tools without a valid ownership receipt")
-    generation_name = receipt.get("currentGeneration")
-    if not isinstance(generation_name, str) or not generation_name:
-        raise ToolInstallError("sensor tool receipt has no owned generation")
+    generation_name, generation = _owned_generation(root, receipt)
     current = root / "current"
-    generation = root / "generations" / generation_name
     if current.is_symlink() and current.resolve() == generation.resolve():
         current.unlink()
     elif current.exists() or current.is_symlink():
         raise ToolInstallError("refusing to remove a changed sensor tool activation")
-    shutil.rmtree(generation, ignore_errors=True)
+    try:
+        findings = _remove_owned_generation(generation, receipt)
+    except ToolInstallError as error:
+        findings = [str(error)]
     receipt_path.unlink()
     for directory in (root / "generations", root):
         try:
             directory.rmdir()
         except OSError:
             pass
-    return {"action": "removed", "generation": generation_name}
+    return {
+        "action": "removed",
+        "findings": findings,
+        "generation": generation_name,
+    }
 
 
 def build_parser():
@@ -374,6 +555,9 @@ def main(argv=None):
         return 1
     payload = {"status": "pass", **result}
     print(json.dumps(payload, indent=2) if args.json else f"Sensor tools: {payload['status']}")
+    if not args.json:
+        for finding in payload.get("findings", []):
+            print(f"Sensor tool removal finding: {finding}", file=sys.stderr)
     return 0
 
 

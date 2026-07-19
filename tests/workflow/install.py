@@ -997,6 +997,49 @@ def test_product_cutover_guard_has_an_explicit_portable_detection_boundary():
         if preflight_product_cutover(agent_home, [project]):
             raise AssertionError("complete historical runs should not block product cutover")
 
+        leases = project / "local-docs" / "epic-launches"
+        leases.mkdir(parents=True)
+        live_lease = leases / "DONE.merge-lease.json"
+        live_lease.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "gauntlet.epic-merge-lease.v1",
+                    "coverageSha256": "a" * 64,
+                    "epicId": "DONE",
+                    "candidateHead": "b" * 40,
+                    "baseHead": "c" * 40,
+                    "baseRef": "origin/main",
+                }
+            )
+        )
+        try:
+            preflight_product_cutover(agent_home, [project])
+        except ValueError as error:
+            assert_contains(str(error), "DONE.merge-lease.json", "live merge lease rejection")
+        else:
+            raise AssertionError("a live merge lease must block even when its Run is complete")
+
+        live_lease.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "gauntlet.epic-merge-lease.v1",
+                    "status": "released",
+                }
+            )
+        )
+        findings = preflight_product_cutover(agent_home, [project])
+        if len(findings) != 1 or "released historical controller merge lease" not in findings[0]:
+            raise AssertionError("a clearly released historical merge lease should be preserved")
+
+        live_lease.write_text("{malformed")
+        try:
+            preflight_product_cutover(agent_home, [project])
+        except ValueError as error:
+            assert_contains(str(error), "Cannot determine controller merge lease state", "malformed lease rejection")
+        else:
+            raise AssertionError("a malformed merge lease must fail closed")
+        live_lease.unlink()
+
         live = project / "local-docs" / "executions" / "LIVE" / "manifest.json"
         live.parent.mkdir(parents=True)
         live.write_text(json.dumps({"state": "executing"}))

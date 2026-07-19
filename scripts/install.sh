@@ -954,7 +954,7 @@ PY
   fi
 
   if [ -f "$AGENT_HOME/gauntlet-tools/receipt.json" ]; then
-    python3 "$ROOT/scripts/install-sensor-tools.py" remove --agent-home "$AGENT_HOME" >/dev/null
+    python3 "$ROOT/scripts/install-sensor-tools.py" remove --agent-home "$AGENT_HOME"
   fi
   python3 "$ROOT/scripts/install-codex-hooks.py" remove \
     --agent-home "$AGENT_HOME" \

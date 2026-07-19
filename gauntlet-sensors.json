@@ -12,10 +12,21 @@
       ],
       "required": true,
       "phases": [
-        "fast",
         "integrated"
       ],
       "timeoutSeconds": 1800
+    },
+    "focused-tests": {
+      "argv": [
+        "python3",
+        "scripts/check-gauntlet-workflow.py",
+        "--smoke"
+      ],
+      "required": true,
+      "phases": [
+        "fast"
+      ],
+      "timeoutSeconds": 300
     },
     "gitleaks": {
       "argv": [

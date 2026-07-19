@@ -31,6 +31,7 @@ LIVE_CONTROLLER_STATES = {
     "deployed",
     "production_verified",
 }
+CONTROLLER_MERGE_LEASE_SCHEMA = "gauntlet.epic-merge-lease.v1"
 
 
 def _sha256(path: Path) -> str:
@@ -227,6 +228,79 @@ def _is_controller_era_receipt(receipt: dict | None, agent_home: Path) -> bool:
     return bool(destinations & CONTROLLER_ERA_DESTINATIONS)
 
 
+def _controller_merge_lease_state(path: Path) -> str:
+    """Return ``active`` or ``released`` for one historical merge lease."""
+
+    try:
+        lease = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(
+            f"Cannot determine controller merge lease state from {path}: {error}"
+        ) from error
+    if (
+        not isinstance(lease, dict)
+        or lease.get("schemaVersion") != CONTROLLER_MERGE_LEASE_SCHEMA
+    ):
+        raise ValueError(f"Cannot determine controller merge lease state from {path}")
+
+    statuses = []
+    for key in ("status", "state"):
+        value = lease.get(key)
+        if value is not None:
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(
+                    f"Cannot determine controller merge lease state from {path}"
+                )
+            normalized = value.strip().lower()
+            if normalized not in {
+                "active",
+                "acquired",
+                "held",
+                "inactive",
+                "released",
+            }:
+                raise ValueError(
+                    f"Cannot determine controller merge lease state from {path}"
+                )
+            statuses.append(normalized)
+    active_marker = lease.get("active")
+    if active_marker is not None and not isinstance(active_marker, bool):
+        raise ValueError(f"Cannot determine controller merge lease state from {path}")
+    released_at = lease.get("releasedAt")
+    if released_at is not None and (
+        not isinstance(released_at, str) or not released_at.strip()
+    ):
+        raise ValueError(f"Cannot determine controller merge lease state from {path}")
+
+    released_status = any(value in {"inactive", "released"} for value in statuses)
+    active_status = any(value in {"active", "acquired", "held"} for value in statuses)
+    released_marker = active_marker is False or released_at is not None
+    if (released_status or released_marker) and not (
+        active_marker is True or active_status
+    ):
+        return "released"
+    if released_status or released_marker:
+        raise ValueError(
+            f"Cannot determine controller merge lease state from {path}: "
+            "conflicting active and released markers"
+        )
+
+    required = {
+        "coverageSha256": 64,
+        "epicId": None,
+        "candidateHead": None,
+        "baseHead": None,
+        "baseRef": None,
+    }
+    for key, length in required.items():
+        value = lease.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"Cannot determine controller merge lease state from {path}")
+        if length is not None and len(value) != length:
+            raise ValueError(f"Cannot determine controller merge lease state from {path}")
+    return "active"
+
+
 def preflight_product_cutover(
     agent_home: Path,
     project_roots: list[Path],
@@ -236,9 +310,8 @@ def preflight_product_cutover(
     """Reject a controller-era upgrade when detectable execution work is live.
 
     Detection is intentionally bounded to explicitly supplied project roots. Each
-    root is inspected at local-docs/executions/*/manifest.json. Historical runs
-    whose state is ``complete`` and legacy manifests with an unknown state are
-    never changed.
+    root is inspected at local-docs/executions/*/manifest.json and for historical
+    **/*.merge-lease.json files. Historical state is never changed.
     """
 
     receipt = _load_receipt(agent_home)
@@ -250,7 +323,8 @@ def preflight_product_cutover(
             "at least one --cutover-project-root to inspect, or "
             "--confirm-no-live-controller-work after checking every other project. "
             "The installer can only detect local-docs/executions/*/manifest.json "
-            "under project roots you explicitly provide."
+            "and **/*.merge-lease.json under project roots you "
+            "explicitly provide."
         )
 
     live = []
@@ -263,31 +337,46 @@ def preflight_product_cutover(
         seen.add(root)
         if root.is_symlink() or not root.is_dir():
             raise ValueError(f"Cutover project root must be a real directory: {root}")
+        local_docs = root / "local-docs"
+        if local_docs.exists() and (
+            local_docs.is_symlink() or not local_docs.is_dir()
+        ):
+            raise ValueError(f"Unsafe controller document directory: {local_docs}")
         executions = root / "local-docs" / "executions"
-        if not executions.exists():
-            continue
-        if executions.is_symlink() or not executions.is_dir():
-            raise ValueError(f"Unsafe controller execution directory: {executions}")
-        for manifest_path in sorted(executions.glob("*/manifest.json")):
-            if manifest_path.is_symlink() or not manifest_path.is_file():
-                raise ValueError(f"Unsafe controller run manifest: {manifest_path}")
-            try:
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-                raise ValueError(
-                    f"Cannot determine controller run state from {manifest_path}: {error}"
-                ) from error
-            if not isinstance(manifest, dict) or not isinstance(manifest.get("state"), str):
-                raise ValueError(
-                    f"Cannot determine controller run state from {manifest_path}"
-                )
-            state = manifest["state"]
-            if state in LIVE_CONTROLLER_STATES:
-                live.append(f"{manifest_path.parent.name} ({state})")
-            elif state != "complete":
+        if executions.exists():
+            if executions.is_symlink() or not executions.is_dir():
+                raise ValueError(f"Unsafe controller execution directory: {executions}")
+            for manifest_path in sorted(executions.glob("*/manifest.json")):
+                if manifest_path.is_symlink() or not manifest_path.is_file():
+                    raise ValueError(f"Unsafe controller run manifest: {manifest_path}")
+                try:
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+                    raise ValueError(
+                        f"Cannot determine controller run state from {manifest_path}: {error}"
+                    ) from error
+                if not isinstance(manifest, dict) or not isinstance(manifest.get("state"), str):
+                    raise ValueError(
+                        f"Cannot determine controller run state from {manifest_path}"
+                    )
+                state = manifest["state"]
+                if state in LIVE_CONTROLLER_STATES:
+                    live.append(f"{manifest_path.parent.name} ({state})")
+                elif state != "complete":
+                    findings.append(
+                        f"preserved historical controller run with legacy state {state}: "
+                        f"{manifest_path.parent}"
+                    )
+        for lease_path in sorted(root.rglob("*.merge-lease.json")):
+            if lease_path.is_symlink() or not lease_path.is_file():
+                raise ValueError(f"Unsafe controller merge lease: {lease_path}")
+            state = _controller_merge_lease_state(lease_path)
+            if state == "active":
+                live.append(f"{lease_path} (active merge lease)")
+            else:
                 findings.append(
-                    f"preserved historical controller run with legacy state {state}: "
-                    f"{manifest_path.parent}"
+                    "preserved released historical controller merge lease: "
+                    f"{lease_path}"
                 )
     if live:
         raise ValueError(

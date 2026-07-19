@@ -8,10 +8,10 @@ repository, not only the files named for deletion.
 
 | Surface | Before | Candidate | Change |
 | --- | ---: | ---: | ---: |
-| Measured nonblank lines | 44,815 | 27,086 | 39.6% fewer |
-| Production and test lines | 40,033 | 25,047 | 37.4% fewer |
-| Full workflow feedback | 90.332s median | 50.4s sample | 44.2% faster |
-| Fast sensor feedback | no distinct phase | 2.35s sample | new edit loop |
+| Measured nonblank lines | 44,815 | 28,074 | 37.4% fewer |
+| Production and test lines | 40,033 | 26,001 | 35.1% fewer |
+| Full workflow feedback | 90.332s median | 55.1s sample | 39.0% faster |
+| Fast sensor feedback | no distinct phase | 2.19s sample | new edit loop |
 | Dashboard direct dependencies | 3 runtime + 6 development | 0 | removed |
 | Default workflow states | Epic, Ticket, Run, journal, dashboard, analytics | Design, ephemeral plan, exact revision | controller removed |
 
@@ -35,7 +35,9 @@ single successful samples on the same machine.
 - Sensor handoff is exceptions-first. The recurring payload contains the phase,
   source fingerprint, pass IDs, counts, bounded attention, and an evidence
   reference; commands, versions, raw passing output, and repeated context stay
-  out of the handoff.
+  out of the handoff. Fast proof runs the repository smoke workflow directly
+  with proportional lint and security checks; coverage remains reserved for the
+  final integrated revision.
 - The dashboard, controller, launch compiler, run state, recovery journal,
   controller-specific pull-request model, telemetry, analytics, deterministic
   agent routing, and permanent implementation-memory surface are gone.

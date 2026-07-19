@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import copy
 import contextlib
 import io
 import json
@@ -123,6 +124,18 @@ class WorkstreamQueueTests(unittest.TestCase):
         self.assertEqual(bound["candidateTree"], tree)
         self.assertEqual(bound["baseCommit"], self.base)
 
+    def test_base_only_candidate_cannot_omit_queued_source(self):
+        self.queue.enqueue("base-only", self.source)
+        attempt = self.queue.claim()
+        base_tree = git(self.repo, "rev-parse", f"{self.base}^{{tree}}")
+
+        with self.assertRaisesRegex(QueueError, "queued source"):
+            self.queue.bind_candidate(
+                attempt["attemptId"],
+                self.base,
+                base_tree,
+            )
+
     def test_default_head_drift_rejects_stale_candidate(self):
         self.queue.enqueue("stale", self.source)
         attempt = self.queue.claim()
@@ -176,6 +189,44 @@ class WorkstreamQueueTests(unittest.TestCase):
 
         self.assertIsNone(state["activeAttempt"])
         self.assertEqual(state["entries"][0]["status"], "merged")
+
+    def test_post_bind_default_descendant_is_not_merged(self):
+        self.queue.enqueue("post-bind-drift", self.source)
+        attempt = self.queue.claim()
+        candidate, tree = self.candidate()
+        self.queue.bind_candidate(attempt["attemptId"], candidate, tree)
+        git(self.repo, "merge", "-q", "--no-edit", candidate)
+        self.commit("post-bind.txt", "drift\n", "post-bind drift")
+
+        with self.assertRaisesRegex(QueueError, "candidate tree"):
+            self.queue.release(
+                attempt["attemptId"],
+                "merged",
+                "must not accept a descendant",
+            )
+
+        state = self.queue.reconcile()
+        self.assertIsNone(state["activeAttempt"])
+        self.assertEqual(state["entries"][0]["status"], "blocked")
+
+    def test_post_bind_empty_descendant_is_stale_despite_tree_equivalence(self):
+        self.queue.enqueue("post-bind-empty-drift", self.source)
+        attempt = self.queue.claim()
+        candidate, tree = self.candidate()
+        self.queue.bind_candidate(attempt["attemptId"], candidate, tree)
+        git(self.repo, "merge", "-q", "--no-edit", candidate)
+        git(self.repo, "commit", "-q", "--allow-empty", "-m", "empty drift")
+
+        with self.assertRaisesRegex(QueueError, "candidate tree proof"):
+            self.queue.release(
+                attempt["attemptId"],
+                "merged",
+                "must not accept an empty descendant",
+            )
+
+        state = self.queue.reconcile()
+        self.assertIsNone(state["activeAttempt"])
+        self.assertEqual(state["entries"][0]["status"], "blocked")
 
     def test_reconcile_blocks_unrepresented_default_drift(self):
         self.queue.enqueue("drift", self.source)
@@ -327,15 +378,29 @@ class WorkstreamQueueTests(unittest.TestCase):
         contract_imports = imports(Path("workflow/contracts.py"))
         queue_imports = imports(Path("workstreams/queue.py"))
         adapter_imports = imports(Path("workstreams/git_client.py"))
+        store_imports = imports(Path("workstreams/state_store.py"))
 
         self.assertFalse(
             {"subprocess", "urllib", ".git_client"} & contract_imports,
         )
-        self.assertFalse({"subprocess", "urllib"} & queue_imports)
+        self.assertFalse(
+            {
+                "fcntl",
+                "json",
+                "os",
+                "pathlib",
+                "subprocess",
+                "tempfile",
+                "urllib",
+            }
+            & queue_imports
+        )
         self.assertIn("subprocess", adapter_imports)
         self.assertFalse(
             {".queue", "gauntletlib.workflow.contracts"} & adapter_imports,
         )
+        self.assertTrue({"fcntl", "json", "os", "tempfile"} <= store_imports)
+        self.assertFalse({".queue", ".git_client"} & store_imports)
 
     def test_queue_observes_git_through_injected_client(self):
         source = "3" * 40
@@ -379,6 +444,43 @@ class WorkstreamQueueTests(unittest.TestCase):
                 ("revision", "main", "default head"),
             ],
         )
+
+    def test_queue_state_uses_injected_locked_store(self):
+        class MemoryAccess:
+            def __init__(self, store):
+                self.store = store
+
+            def read(self):
+                return copy.deepcopy(self.store.value)
+
+            def write(self, value):
+                self.store.value = copy.deepcopy(value)
+
+        class MemoryStore:
+            def __init__(self):
+                self.value = None
+                self.locked_count = 0
+
+            @contextlib.contextmanager
+            def locked(self):
+                self.locked_count += 1
+                yield MemoryAccess(self)
+
+        store = MemoryStore()
+        queue = WorkstreamQueue(
+            self.root / "must-not-exist.json",
+            self.repo,
+            default_ref="main",
+            state_store=store,
+        )
+
+        queue.enqueue("in-memory", self.source)
+        claimed = queue.claim()
+
+        self.assertEqual(claimed["workstreamId"], "in-memory")
+        self.assertEqual(store.value["activeAttempt"]["attemptId"], claimed["attemptId"])
+        self.assertEqual(store.locked_count, 2)
+        self.assertFalse((self.root / "must-not-exist.json").exists())
 
     def test_multi_process_enqueue_and_claim_contention(self):
         process_count = 6

@@ -15,6 +15,7 @@ def register_commands(
     register_sensors,
     register_diagram,
     register_workstreams,
+    register_workflow,
     command_install_verify,
     command_diagram_find,
 ):
@@ -28,5 +29,6 @@ def register_commands(
     register_changelog(subcommands)
     register_sensors(subcommands)
     register_diagram(subcommands, command=command_diagram_find)
+    register_workflow(subcommands)
     if register_workstreams is not None:
         register_workstreams(subcommands)

@@ -18,11 +18,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--suite",
-        choices=("smoke", "full"),
+        choices=("full",),
         default="full",
-        help="coverage scope; omitted callers retain the full workflow suite",
+        help="coverage scope; coverage is reserved for the full workflow suite",
     )
-    args = parser.parse_args(argv)
+    parser.parse_args(argv)
     root = Path(__file__).resolve().parents[1]
     coverage = shutil.which("coverage")
     if not coverage:
@@ -41,8 +41,6 @@ def main(argv=None):
         "--source=scripts/gauntletlib",
         "scripts/check-gauntlet-workflow.py",
     ]
-    if args.suite == "smoke":
-        workflow_command.append("--smoke")
     measured = run(
         workflow_command,
         root,

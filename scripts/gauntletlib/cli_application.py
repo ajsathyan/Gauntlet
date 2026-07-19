@@ -23,6 +23,7 @@ from gauntletlib.land import register as register_land
 from gauntletlib.merge import configure as configure_merge
 from gauntletlib.merge import register as register_merge
 from gauntletlib.sensors import register as register_sensors
+from gauntletlib.workflow import register as register_workflow
 
 try:
     from gauntletlib.workstreams import register as register_workstreams
@@ -77,6 +78,7 @@ def register(subcommands):
         register_sensors=register_sensors,
         register_diagram=register_diagram,
         register_workstreams=register_workstreams,
+        register_workflow=register_workflow,
         command_install_verify=command_install_verify,
         command_diagram_find=_diagram_find,
     )

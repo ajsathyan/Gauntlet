@@ -40,6 +40,32 @@ def _design_sha256(value):
     return value if value.startswith("sha256:") else "sha256:" + value
 
 
+def _outcome_bindings(value):
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise ContractError("accepted design outcomes must be an array")
+    result = []
+    identities = set()
+    for item in value:
+        item = _closed_object(
+            item,
+            ("identity", "sha256"),
+            "accepted outcome binding",
+        )
+        identity = _nonempty(item["identity"], "accepted outcome identity")
+        if identity in identities:
+            raise ContractError("accepted outcome identities must be unique")
+        identities.add(identity)
+        result.append(
+            {
+                "identity": identity,
+                "sha256": _design_sha256(item["sha256"]),
+            }
+        )
+    if not result:
+        raise ContractError("accepted design outcomes must not be empty")
+    return result
+
+
 def _strings(value, label, *, allow_empty):
     if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
         raise ContractError(f"{label} must be a string array")
@@ -69,11 +95,13 @@ def _validate_verdict(receipt, design):
             "designIdentity",
             "designReference",
             "designSha256",
+            "acceptanceSha256",
             "commit",
             "tree",
             "acceptedDesignReadDirectly",
             "directEvidence",
             "derivativeEvidence",
+            "outcomeEvidence",
         ),
         "verification verdict",
     )
@@ -93,6 +121,8 @@ def _validate_verdict(receipt, design):
             "verification design reference",
         ),
         "sha256": _design_sha256(receipt["designSha256"]),
+        "acceptanceSha256": _design_sha256(receipt["acceptanceSha256"]),
+        "outcomes": design["outcomes"],
     }
     if design_binding != design:
         raise ContractError(
@@ -108,6 +138,28 @@ def _validate_verdict(receipt, design):
     }
     _strings(receipt["directEvidence"], "directEvidence", allow_empty=True)
     _strings(receipt["derivativeEvidence"], "derivativeEvidence", allow_empty=True)
+    evidence = receipt["outcomeEvidence"]
+    if not isinstance(evidence, Mapping):
+        raise ContractError("outcomeEvidence must be an object")
+    accepted_identities = {item["identity"] for item in design["outcomes"]}
+    if not set(evidence).issubset(accepted_identities):
+        raise ContractError("outcomeEvidence identifies an unaccepted outcome")
+    for identity, observations in evidence.items():
+        _strings(
+            observations,
+            f"outcomeEvidence[{identity}]",
+            allow_empty=False,
+        )
+    if receipt["area"] != "build" and evidence:
+        raise ContractError("only the Build verdict may contain outcomeEvidence")
+    if (
+        receipt["area"] == "build"
+        and receipt["verdict"] == "pass"
+        and set(evidence) != accepted_identities
+    ):
+        raise ContractError(
+            "a passing Build verdict requires direct evidence for every accepted outcome"
+        )
     return revision_binding
 
 
@@ -132,13 +184,15 @@ def _validate_contract(contract):
         raise ContractError("workflow contract schema is unsupported")
     design = _closed_object(
         contract["acceptedDesign"],
-        ("identity", "reference", "sha256"),
+        ("identity", "reference", "sha256", "acceptanceSha256", "outcomes"),
         "accepted design binding",
     )
     normalized_design = {
         "identity": _nonempty(design["identity"], "accepted design identity"),
         "reference": _nonempty(design["reference"], "accepted design reference"),
         "sha256": _design_sha256(design["sha256"]),
+        "acceptanceSha256": _design_sha256(design["acceptanceSha256"]),
+        "outcomes": _outcome_bindings(design["outcomes"]),
     }
     revision = contract["candidateRevision"]
     if revision is not None:
@@ -171,7 +225,14 @@ def _validate_contract(contract):
     return contract
 
 
-def accept_design(*, identity, reference, design_sha256):
+def accept_design(
+    *,
+    identity,
+    reference,
+    design_sha256,
+    acceptance_sha256,
+    outcomes,
+):
     """Create a contract pointing directly to one accepted design source."""
 
     contract = {
@@ -180,6 +241,8 @@ def accept_design(*, identity, reference, design_sha256):
             "identity": _nonempty(identity, "accepted design identity"),
             "reference": _nonempty(reference, "accepted design reference"),
             "sha256": _design_sha256(design_sha256),
+            "acceptanceSha256": _design_sha256(acceptance_sha256),
+            "outcomes": _outcome_bindings(outcomes),
         },
         "candidateRevision": None,
         "verdicts": {area: None for area in VERDICT_AREAS},
@@ -222,6 +285,7 @@ def record_verdict(
     read_design_directly,
     direct_evidence,
     derivative_evidence=(),
+    outcome_evidence=None,
 ):
     """Return a copy with one independently bound verification verdict.
 
@@ -252,6 +316,18 @@ def record_verdict(
             "a verification verdict requires direct evidence; derivative-only "
             "evidence is insufficient"
         )
+    if outcome_evidence is None:
+        outcome_evidence = {}
+    if not isinstance(outcome_evidence, Mapping):
+        raise ContractError("outcome_evidence must be an object")
+    normalized_outcome_evidence = {
+        _nonempty(identity, "outcome evidence identity"): _strings(
+            observations,
+            f"outcome_evidence[{identity}]",
+            allow_empty=False,
+        )
+        for identity, observations in outcome_evidence.items()
+    }
     receipt = {
         "schemaVersion": VERDICT_SCHEMA,
         "area": area,
@@ -265,11 +341,13 @@ def record_verdict(
             "verification design reference",
         ),
         "designSha256": _design_sha256(design_sha256),
+        "acceptanceSha256": contract["acceptedDesign"]["acceptanceSha256"],
         "commit": _object_id(commit, "verification commit"),
         "tree": _object_id(tree, "verification tree"),
         "acceptedDesignReadDirectly": read_design_directly,
         "directEvidence": direct,
         "derivativeEvidence": derivative,
+        "outcomeEvidence": normalized_outcome_evidence,
     }
     receipt_revision = _validate_verdict(receipt, contract["acceptedDesign"])
     if receipt_revision != contract["candidateRevision"]:

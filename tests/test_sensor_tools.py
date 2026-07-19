@@ -170,6 +170,52 @@ class SensorToolInstallTests(unittest.TestCase):
         self.assertIn("checksum", failed.stdout)
         self.assertEqual(current.resolve(), active_before)
 
+    def test_repeat_install_rejects_a_missing_owned_binary(self):
+        self.cli("install")
+        current = self.agent_home / "gauntlet-tools" / "current"
+        (current / "bin" / "coverage").unlink()
+
+        failed = self.cli("install", check=False)
+
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertIn("content drift", failed.stdout)
+        self.assertIn("bin/coverage", failed.stdout)
+
+    def test_repeat_install_and_remove_report_and_preserve_a_modified_binary(self):
+        self.cli("install")
+        current = self.agent_home / "gauntlet-tools" / "current"
+        coverage = current / "bin" / "coverage"
+        coverage.write_text("#!/bin/sh\necho user-modified\n", encoding="utf-8")
+
+        failed = self.cli("install", check=False)
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertIn("content drift", failed.stdout)
+        self.assertIn("bin/coverage", failed.stdout)
+
+        generation = current.resolve()
+        preserved_coverage = generation / "bin" / "coverage"
+        removed = json.loads(self.cli("remove").stdout)
+        self.assertEqual(removed["action"], "removed")
+        self.assertTrue(preserved_coverage.exists())
+        self.assertTrue(
+            any("bin/coverage" in finding for finding in removed["findings"])
+        )
+
+    def test_remove_preserves_and_reports_an_unknown_generation_file(self):
+        self.cli("install")
+        current = self.agent_home / "gauntlet-tools" / "current"
+        generation = current.resolve()
+        unknown = generation / "user-owned.txt"
+        unknown.write_text("preserve me\n", encoding="utf-8")
+
+        removed = json.loads(self.cli("remove").stdout)
+
+        self.assertEqual(removed["action"], "removed")
+        self.assertEqual(unknown.read_text(encoding="utf-8"), "preserve me\n")
+        self.assertTrue(
+            any("user-owned.txt" in finding for finding in removed["findings"])
+        )
+
     def test_activation_receipt_failure_restores_previous_generation(self):
         self.cli("install")
         current = self.agent_home / "gauntlet-tools" / "current"
