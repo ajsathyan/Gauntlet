@@ -561,7 +561,7 @@ def preflight_generated_payload(
                 f"Refusing modified prior-receipt-owned generated destination: "
                 f"{destination}"
             )
-    elif legacy_container is not None and legacy_container.is_file():
+    if legacy_container is not None and legacy_container.is_file():
         installed_bytes = installed.read_bytes()
         container_bytes = legacy_container.read_bytes()
         begin = b"<!-- BEGIN GAUNTLET MANAGED BLOCK -->"

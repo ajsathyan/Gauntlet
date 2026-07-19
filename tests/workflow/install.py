@@ -1382,6 +1382,16 @@ def test_generated_router_preflight_preserves_collisions_and_allows_upgrade():
             + b"<!-- END GAUNTLET MANAGED BLOCK -->\n"
             b"user-owned suffix\n"
         )
+        (legacy_home / "gauntlet" / ".install-manifest.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0",
+                    "entries": [],
+                    "generatedEntries": [],
+                    "manifestSha256": "0" * 64,
+                }
+            )
+        )
         preflight_generated_payload(
             legacy_home,
             "gauntlet/AGENTS.md",

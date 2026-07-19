@@ -8,8 +8,8 @@ repository, not only the files named for deletion.
 
 | Surface | Before | Candidate | Change |
 | --- | ---: | ---: | ---: |
-| Measured nonblank lines | 44,815 | 29,825 | 33.4% fewer |
-| Production and test lines | 40,033 | 27,728 | 30.7% fewer |
+| Measured nonblank lines | 44,815 | 29,835 | 33.4% fewer |
+| Production and test lines | 40,033 | 27,738 | 30.7% fewer |
 | Full workflow feedback | 90.332s median | 61.0s sample | 32.5% faster |
 | Fast sensor feedback | no distinct phase | 2.19s sample | new edit loop |
 | Dashboard direct dependencies | 3 runtime + 6 development | 0 | removed |
