@@ -60,6 +60,7 @@ The workflow is built around Research, Patch, Feature, and Release paths; Standa
 | Live Epic progress | Automatically starts one private loopback dashboard per PRD launch, opens it in the Codex in-app Browser when available, and refreshes run, agent, token, cost, and release facts without blocking implementation. |
 | Subagent orchestration | Renders cache-oriented bounded context, audits model requests and routing, bundles compatible Tickets without head-of-line blocking, and preserves parent-only consequential authority. |
 | Comparative evaluation | Admits isolated automatic-oracle tasks and runs condition-blind paired Gauntlet-versus-baseline experiments with replay, ablations, sealed core slots, and replaceable harness adapters. |
+| Adaptive code-quality sensors | Produces deterministic, language-aware plans from repository-configured checks, records compact normalized evidence, and validates behavior-preserving readability rewrites without installing optional tools. |
 | Skill quality bar | Gives future skill and workflow edits a practical behavior-delta, trigger, completion, proof, and token-cost bar without making every Patch heavier. |
 | Coverage gaps | Captures pending candidates when missing reusable guidance forced a material assumption or repeated review finding. |
 | Workflow speedup helpers | Classifies changed surfaces, recommends bounded tests, and generates redacted review packets without making every Patch run a heavy quality gate. |
@@ -421,7 +422,7 @@ Selected techniques are adapted from Jesse Vincent's [Superpowers](https://githu
 | [.agents/plugins/marketplace.json](.agents/plugins/marketplace.json) | Codex marketplace entry for installing the bundle. |
 | [AGENTS.md](AGENTS.md) | Contributor guidance for this repository. |
 | [skills/](skills) | Role-specific reusable instructions. |
-| [docs/](docs) | Coverage gaps, UI constitution, Production Quality Bar, workflow speedups, promotion scanner, design lint candidates, and historical plans. |
+| [docs/](docs) | Adaptive code-quality sensors, coverage gaps, UI constitution, Production Quality Bar, workflow speedups, promotion scanner, design lint candidates, and historical plans. |
 | [templates/](templates) | Reusable downstream scaffolds, including the default-on local product-document profile. |
 | [scripts/](scripts) | Installer, durability classifier, workflow speedup helpers, workflow checks, skill evals, and skill linter. |
 | [evals/](evals) | Skill coverage, scorer-smoke, orchestration-trace fixtures, and baselines. |

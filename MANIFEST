@@ -3,7 +3,7 @@
     {
       "destination": "gauntlet/README.md",
       "executable": false,
-      "sha256": "b4b36b1651f86bad5c01708997db9f90d80d53721e26b6c5eb010e0bacf90d4e",
+      "sha256": "915960e1037a81caa88cc8dd7229d78953668a728c3bb29b85630ca71f89c5fc",
       "source": "README.md"
     },
     {
@@ -47,6 +47,12 @@
       "executable": false,
       "sha256": "8ea400e1f69c3a8b7bd6322f0846baeec681745799cb1d8ffd8eb1c0e21638b7",
       "source": "agents/codex/gauntlet_standard_worker.toml"
+    },
+    {
+      "destination": "gauntlet/docs/code-quality-sensors.md",
+      "executable": false,
+      "sha256": "cf19f64acbc8d8717c361ca5fef5f5d22061672bf4075cc731811a3379cfb62b",
+      "source": "docs/code-quality-sensors.md"
     },
     {
       "destination": "gauntlet/docs/coverage-gaps.md",
@@ -657,7 +663,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/cli_application.py",
       "executable": false,
-      "sha256": "2a768edbf91f7a9272ae50a12184b82383a709ce73399c57fd73ee08825a36b0",
+      "sha256": "e6979e950e5a8168c187aad9a546eeb2f0ab5f4c0779a5a715da4db075abe75b",
       "source": "scripts/gauntletlib/cli_application.py"
     },
     {
@@ -669,7 +675,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/cli_registration.py",
       "executable": false,
-      "sha256": "fa314e2281babafa2b0f12b2297ed9a5706e6998a9f05dd5d711f1bfde9b69d5",
+      "sha256": "a554eaa54433ae5750b4457e2dee9e878ead9e1dc9b3e7a99eace382d8006740",
       "source": "scripts/gauntletlib/cli_registration.py"
     },
     {
@@ -869,6 +875,24 @@
       "executable": false,
       "sha256": "0edd8c8323b06bb42ea0cfd7d624bb0a3ea0549d47768257d3e26b4aa1fe0287",
       "source": "scripts/gauntletlib/run/controller.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/sensors/__init__.py",
+      "executable": false,
+      "sha256": "41cfddd8098b55bf3433dcc3575e374182fc67966a78d5139f10c726e6876901",
+      "source": "scripts/gauntletlib/sensors/__init__.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/sensors/evidence.py",
+      "executable": false,
+      "sha256": "35ecd7831cf0fc589370564793a1778ff3dbca3040efb9f4658786caf915ab31",
+      "source": "scripts/gauntletlib/sensors/evidence.py"
+    },
+    {
+      "destination": "gauntlet/scripts/gauntletlib/sensors/planner.py",
+      "executable": false,
+      "sha256": "f6867811ac0846cc1c6e2998deef04dde4253ce7a4d5d686269549928cb066f3",
+      "source": "scripts/gauntletlib/sensors/planner.py"
     },
     {
       "destination": "gauntlet/scripts/generated_context.py",

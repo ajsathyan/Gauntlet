@@ -15,6 +15,7 @@ def register_commands(
     register_followup_memory,
     register_analytics,
     register_changelog,
+    register_sensors,
     register_diagram,
     command_install_verify,
     command_diagram_find,
@@ -30,4 +31,5 @@ def register_commands(
     register_followup_memory(subcommands)
     register_analytics(subcommands)
     register_changelog(subcommands)
+    register_sensors(subcommands)
     register_diagram(subcommands, command=command_diagram_find)

@@ -4,6 +4,8 @@
 
 - Omit empty named acceptance groups from generated run-backed Project PR facts.
 
+- Gauntlet now plans proportional language-aware code-quality sensors from repository-owned configuration, normalizes compact evidence, and validates behavior-preserving readability rewrites without installing optional tools.
+
 - Name follow-up PRD drafts after their features and preserve a valid working directory after landed-worktree cleanup.
 
 - Gauntlet now provides `land execute` as one CLI flow for PR merge, exact-revision push monitoring, local default-branch synchronization, and preservation-safe branch and worktree cleanup.
