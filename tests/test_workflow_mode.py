@@ -101,9 +101,13 @@ class WorkflowModeRuntimeTests(unittest.TestCase):
                 )
                 context = output["hookSpecificOutput"]["additionalContext"]
                 self.assertIn("No valid repository workflow mode is declared", context)
-                self.assertIn("Ask the user to choose", context)
-                self.assertIn("Gauntlet", context)
-                self.assertIn("Scratch", context)
+                self.assertIn(
+                    "Which workflow should this repository use by default: "
+                    "Gauntlet or Scratch?",
+                    context,
+                )
+                self.assertIn("intended to be committed", context)
+                self.assertIn("shared with collaborators", context)
                 self.assertIn("supplements all applicable AGENTS.md", context)
                 self.assertIn("continue to follow them", context)
                 self.assertIn("do not replace or ignore them", context)

@@ -911,6 +911,12 @@ render_router "$rendered_router"
 
 render_codex_agents_block "$candidate_block" "$rendered_router"
 
+# Hook validation is part of preflight because a rejected hooks.json must not
+# leave a partially updated Gauntlet payload behind.
+python3 "$ROOT/scripts/install-codex-hooks.py" check \
+  --agent-home "$AGENT_HOME" \
+  --runtime "$AGENT_HOME/gauntlet/scripts/workflow-mode.py"
+
 set +e
 require_instruction_review "$AGENT_HOME/AGENTS.md" "$candidate_block" "$rendered_router" 2>"$instruction_review_log"
 instruction_review_status=$?
@@ -948,6 +954,10 @@ PY
 
 cp "$rendered_router" "$AGENT_HOME/gauntlet/AGENTS.md"
 chmod 0644 "$AGENT_HOME/gauntlet/AGENTS.md"
+
+python3 "$AGENT_HOME/gauntlet/scripts/install-codex-hooks.py" apply \
+  --agent-home "$AGENT_HOME" \
+  --runtime "$AGENT_HOME/gauntlet/scripts/workflow-mode.py"
 
 python3 "$ROOT/scripts/install-codex-agents.py" apply \
   --source "$AGENTS_SRC" --agent-home "$AGENT_HOME"

@@ -123,10 +123,12 @@ def session_context(mode: str | None, declaration_exists: bool) -> str:
     script = shlex.join([sys.executable, str(Path(__file__).resolve())])
     return (
         f"No valid repository workflow mode is declared; "
-        f".gauntlet/workflow-mode is {state}. Ask the user to choose Gauntlet or "
-        "Scratch before making any local write. After the user chooses, use only "
+        f".gauntlet/workflow-mode is {state}. Before making any local write, ask "
+        'exactly: "Which workflow should this repository use by default: Gauntlet '
+        'or Scratch?" After the user chooses, use only '
         f"`{script} bootstrap gauntlet` or `{script} bootstrap scratch` to persist "
-        "the exact declaration. Read-only inspection may continue while waiting. "
+        "the exact repository-owned declaration. It is intended to be committed and "
+        "shared with collaborators. Read-only inspection may continue while waiting. "
         + ADDITIVE_CONTEXT
     )
 

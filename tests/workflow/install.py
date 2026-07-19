@@ -381,6 +381,196 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
     test_manifest_preflight_rejects_bad_ancestors_and_fixed_generated_paths()
 
 
+def test_codex_hook_install_preserves_user_state_and_fails_closed():
+    marker = "Gauntlet repository workflow mode"
+
+    def owned_groups(agent_home):
+        payload = json.loads((agent_home / "hooks.json").read_text())
+        result = {}
+        for event, groups in payload["hooks"].items():
+            for group in groups:
+                if any(
+                    handler.get("statusMessage") == marker
+                    for handler in group["hooks"]
+                ):
+                    result[event] = group
+        return result
+
+    def assert_preflight_rejected(agent_home, expected):
+        before = {
+            path.relative_to(agent_home): path.read_bytes()
+            for path in agent_home.rglob("*")
+            if path.is_file() and not path.is_symlink()
+        }
+        result = run_install(agent_home, check=False)
+        if result.returncode == 0 or expected not in result.stderr:
+            raise AssertionError(
+                f"unsafe hooks state should fail for {expected}:\n"
+                f"{result.stdout}\n{result.stderr}"
+            )
+        after = {
+            path.relative_to(agent_home): path.read_bytes()
+            for path in agent_home.rglob("*")
+            if path.is_file() and not path.is_symlink()
+        }
+        if after != before or (agent_home / "gauntlet").exists():
+            raise AssertionError("hooks preflight rejection must precede payload mutation")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        clean_home = root / "clean"
+        clean_home.mkdir()
+        run_install(clean_home)
+        hooks_path = clean_home / "hooks.json"
+        first_bytes = hooks_path.read_bytes()
+        groups = owned_groups(clean_home)
+        if set(groups) != {"SessionStart", "PreToolUse"}:
+            raise AssertionError("install should add exactly two Gauntlet-owned hook groups")
+        runtime = str(clean_home / "gauntlet" / "scripts" / "workflow-mode.py")
+        for event, matcher in [
+            ("SessionStart", "startup|resume|clear|compact"),
+            ("PreToolUse", ".*"),
+        ]:
+            group = groups[event]
+            if group["matcher"] != matcher or len(group["hooks"]) != 1:
+                raise AssertionError(f"{event} should use the required bounded matcher")
+            command = group["hooks"][0]["command"]
+            if runtime not in command or str(ROOT) in command:
+                raise AssertionError("owned hooks must reference only the installed runtime")
+        run_install(clean_home)
+        if hooks_path.read_bytes() != first_bytes:
+            raise AssertionError("repeat hook installation must be byte-idempotent")
+
+        existing_home = root / "existing"
+        existing_home.mkdir()
+        original = {
+            "custom": {"keep": ["value", 7]},
+            "hooks": {
+                "SessionStart": [
+                    {
+                        "matcher": "startup",
+                        "customGroup": True,
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "/usr/bin/printf user",
+                                "async": True,
+                                "timeoutSec": 11,
+                                "customHandler": "keep",
+                            }
+                        ],
+                    }
+                ],
+                "PostToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "/usr/bin/true",
+                                "async": False,
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+        existing_path = existing_home / "hooks.json"
+        existing_path.write_text(json.dumps(original, indent=4) + "\n")
+        existing_path.chmod(0o600)
+        run_install(existing_home)
+        installed = json.loads(existing_path.read_text())
+        if installed["custom"] != original["custom"]:
+            raise AssertionError("unrelated top-level hook fields must survive")
+        if installed["hooks"]["PostToolUse"] != original["hooks"]["PostToolUse"]:
+            raise AssertionError("unrelated hook events and handlers must survive")
+        if installed["hooks"]["SessionStart"][0] != original["hooks"]["SessionStart"][0]:
+            raise AssertionError("existing event groups must survive in order and semantics")
+        if existing_path.stat().st_mode & 0o777 != 0o600:
+            raise AssertionError("hook installation must preserve file permissions")
+
+        malformed_home = root / "malformed"
+        malformed_home.mkdir()
+        (malformed_home / "hooks.json").write_text("{bad json")
+        assert_preflight_rejected(malformed_home, "malformed JSON")
+
+        unsupported_home = root / "unsupported"
+        unsupported_home.mkdir()
+        (unsupported_home / "hooks.json").write_text(
+            json.dumps({"hooks": {"SessionStart": {"hooks": []}}})
+        )
+        assert_preflight_rejected(unsupported_home, "must be an array")
+
+        symlink_home = root / "symlink"
+        symlink_home.mkdir()
+        outside = root / "outside-hooks.json"
+        outside.write_text(json.dumps({"hooks": {}}))
+        (symlink_home / "hooks.json").symlink_to(outside)
+        assert_preflight_rejected(symlink_home, "symbolic link")
+
+        duplicate_home = root / "duplicate"
+        duplicate_home.mkdir()
+        duplicate_payload = json.loads(
+            first_bytes.decode().replace(str(clean_home), str(duplicate_home))
+        )
+        duplicate_payload["hooks"]["SessionStart"].append(
+            duplicate_payload["hooks"]["SessionStart"][-1]
+        )
+        (duplicate_home / "hooks.json").write_text(json.dumps(duplicate_payload))
+        assert_preflight_rejected(duplicate_home, "duplicate")
+
+        drift_home = root / "drift"
+        drift_home.mkdir()
+        drift_payload = json.loads(first_bytes)
+        drift_payload["hooks"]["PreToolUse"][-1]["matcher"] = "Bash"
+        (drift_home / "hooks.json").write_text(json.dumps(drift_payload))
+        assert_preflight_rejected(drift_home, "modified")
+
+        missing_payload = json.loads(first_bytes)
+        missing_payload["hooks"]["SessionStart"].pop()
+        hooks_path.write_text(json.dumps(missing_payload))
+        missing = subprocess.run(
+            [
+                "python3",
+                str(clean_home / "gauntlet" / "scripts" / "gauntlet.py"),
+                "install",
+                "verify",
+                "--target",
+                "codex",
+                "--agent-home",
+                str(clean_home),
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if missing.returncode == 0 or "missing_codex_hook" not in missing.stdout:
+            raise AssertionError("installed verification must detect a missing owned hook")
+
+        verification_drift = json.loads(first_bytes)
+        verification_drift["hooks"]["PreToolUse"][-1]["hooks"][0][
+            "command"
+        ] = "python3 /tmp/not-the-installed-runtime.py"
+        hooks_path.write_text(json.dumps(verification_drift))
+        drifted = subprocess.run(
+            [
+                "python3",
+                str(clean_home / "gauntlet" / "scripts" / "gauntlet.py"),
+                "install",
+                "verify",
+                "--target",
+                "codex",
+                "--agent-home",
+                str(clean_home),
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if drifted.returncode == 0 or "invalid_codex_hook" not in drifted.stdout:
+            raise AssertionError("installed verification must detect owned hook drift")
+
+
 def test_manifest_install_syncs_runtime_and_preserves_unmanaged_or_modified_stale_files():
     with tempfile.TemporaryDirectory() as tmp:
         agent_home = Path(tmp) / "agent-home"

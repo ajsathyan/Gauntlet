@@ -61,6 +61,36 @@ def _verify_codex(agent_home, findings):
         )
         if result.returncode:
             findings.append({"code": "invalid_codex_custom_agents", "severity": "fail", "message": result.stderr.strip() or result.stdout.strip()})
+    hook_installer = agent_home / "gauntlet" / "scripts" / "install-codex-hooks.py"
+    hook_runtime = agent_home / "gauntlet" / "scripts" / "workflow-mode.py"
+    if hook_installer.is_file():
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(hook_installer),
+                "verify",
+                "--agent-home",
+                str(agent_home),
+                "--runtime",
+                str(hook_runtime),
+            ],
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode:
+            message = result.stderr.strip() or result.stdout.strip()
+            code = (
+                "missing_codex_hook"
+                if message.startswith("missing_codex_hook:")
+                else "invalid_codex_hook"
+            )
+            findings.append(
+                {
+                    "code": code,
+                    "severity": "fail",
+                    "message": message,
+                }
+            )
 
 
 def command_verify(args):
