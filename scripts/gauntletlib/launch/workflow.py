@@ -985,9 +985,9 @@ def command_epic_tasks_reconcile(args):
 
 def replace_epic_metadata(source_text, epic_id, updates):
     sections = epic_source_sections(source_text)
-    if epic_id not in sections:
+    if sections and epic_id not in sections:
         raise ValueError(f"Canonical PRD no longer contains {epic_id}")
-    section = sections[epic_id]["text"]
+    section = sections[epic_id]["text"] if sections else source_text
     updated = section
     heading_end = updated.find("\n") + 1
     for field, value in updates.items():
@@ -1004,11 +1004,12 @@ def replace_epic_metadata(source_text, epic_id, updates):
 
 def epic_acceptance_identity(source_text, epic_id):
     sections = epic_source_sections(source_text)
-    if epic_id not in sections:
+    if sections and epic_id not in sections:
         raise ValueError(f"Canonical PRD no longer contains {epic_id}")
+    section = sections[epic_id]["text"] if sections else source_text
     controller_fields = {"epic status", "implemented by", "verified by"}
     lines = []
-    for line in sections[epic_id]["text"].splitlines():
+    for line in section.splitlines():
         match = re.match(r"^([A-Za-z][A-Za-z ]+):\s*.*$", line)
         if match and match.group(1).strip().lower() in controller_fields:
             continue

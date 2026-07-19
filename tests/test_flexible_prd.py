@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
+import argparse
 import importlib.util
 import json
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from support import ROOT
+from gauntletlib.launch import workflow as launch_workflow
 
 
 GAUNTLET_CLI = ROOT / "scripts" / "gauntlet.py"
@@ -135,6 +138,50 @@ class FlexiblePrdTests(unittest.TestCase):
         prd.write_text(prd.read_text() + "\nUnaccepted expansion.\n", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "changed after acceptance"):
             gauntlet.build_epic_launch_set(prd, ["APP-001"])
+
+    def test_reconcile_docs_updates_a_flexible_prd_without_an_epic_heading(self):
+        prd, _ = self.promoted_prd()
+        self.cli(
+            "docs", "epic", "accept", "--project-root", str(self.repo),
+            "--epic", "APP-001", "--prd", str(prd), "--json",
+        )
+        launch, source_text = gauntlet.build_epic_launch_set(prd, ["APP-001"])
+        launch_path = self.repo / "local-docs" / "launch.json"
+        snapshot = self.repo / "local-docs" / "launch.source.md"
+        snapshot.write_text(source_text, encoding="utf-8")
+        launch["source"]["snapshotPath"] = str(snapshot)
+        launch["epics"]["APP-001"].update({
+            "taskId": "task-app-001",
+            "runPath": str(self.repo / "local-docs" / "executions" / "APP-001-RUN"),
+            "status": "implementation-complete",
+        })
+        gauntlet.write_launch_set(launch_path, launch)
+        projection = {
+            "available": True,
+            "implemented": True,
+            "complete": False,
+            "exactRevision": "a" * 40,
+            "sourceSha256": launch["source"]["sha256"],
+        }
+        args = argparse.Namespace(
+            git_root=self.repo,
+            launch_set=launch_path,
+            epic="APP-001",
+            json=True,
+        )
+
+        with mock.patch.object(
+            launch_workflow,
+            "completion_projection_for_run",
+            return_value=projection,
+        ), mock.patch.object(launch_workflow, "print_payload") as output:
+            self.assertEqual(0, gauntlet.command_epic_tasks_reconcile_docs(args))
+
+        reconciled = prd.read_text(encoding="utf-8")
+        self.assertIn("Epic status: Implementation-complete", reconciled)
+        self.assertIn("Implemented by: Execution Run APP-001-RUN", reconciled)
+        self.assertNotIn("## Epic APP-001", reconciled)
+        self.assertTrue(output.call_args.args[0]["reconciled"]["changed"])
 
 
 if __name__ == "__main__":
