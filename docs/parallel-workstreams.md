@@ -6,7 +6,7 @@ Use parallel work only when independent ownership or evidence makes it faster or
 
 Each child receives one compact packet:
 
-1. accepted outcome slice;
+1. requested outcome slice;
 2. owned files or state;
 3. dependency and consumes/produces contracts;
 4. constraints and authority;
@@ -17,7 +17,9 @@ Keep stable instructions first and volatile values last. Omit empty fields, unre
 
 ## Ownership
 
-The parent keeps product decisions, shared contracts, integration, publication, merge, release, and rollback. Children do not co-own mutable state or weaken the acceptance oracle.
+The parent keeps requested product meaning, shared contracts, integration,
+publication, merge, release, and rollback. Children do not co-own mutable state
+or weaken the outcome oracle.
 
 ## Integration
 

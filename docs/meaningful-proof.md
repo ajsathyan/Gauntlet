@@ -16,12 +16,19 @@ For each material behavior change, name:
 
 Use these fields proportionally. A direct, reversible outcome may need only a claim and an observation. Do not add empty proof ceremony.
 
-For non-trivial implementation, take claims from the accepted design's exact `Acceptance` section. That section is the canonical Build Contract. A Build plan, workstream assignment, pull-request summary, sensor selection, or worker-authored checklist may organize evidence but cannot replace, summarize away, or narrow an accepted outcome.
+For non-trivial implementation, take claims directly from the user request,
+conversation decisions, and any accepted design's exact `Acceptance` section.
+When present, that section is the canonical Build Contract. A Build plan,
+workstream assignment, pull-request summary, sensor selection, or worker-authored
+checklist may organize evidence but cannot replace, summarize away, or narrow a
+requested or accepted outcome.
 
 ## Evidence Boundaries
 
 - Phrase presence, populated fields, schema validity, status labels, and self-reported results prove only structural coverage or scorer wiring. They do not prove behavior.
-- A child receipt is an evidence pointer. It does not become proof until the parent resolves the referenced command or artifact and checks that it supports the accepted design.
+- A child receipt is an evidence pointer. It does not become proof until the
+  parent resolves the referenced command or artifact and checks that it supports
+  the requested outcomes and any accepted design.
 - Reuse a verification receipt only when its commit and tree, command, toolchain, fixture or oracle digest, and relevant environment identity match exactly. Otherwise rerun the smallest check. Byte-different narration is not independent proof.
 - A passing test is meaningful only if the assertion would fail for a relevant wrong implementation. Prefer observing the regression fail for the intended reason before the fix when a credible harness exists.
 - Child-written tests may preserve regressions, but the same child must not silently weaken, replace, bypass, or tailor the oracle to its implementation. Hidden or independent proof belongs to the parent unless the ticket explicitly assigns ownership.
@@ -30,19 +37,28 @@ For non-trivial implementation, take claims from the accepted design's exact `Ac
 
 ## Delegated Work
 
-A **workstream assignment** is an ephemeral child prompt from Build, not an issue-tracker record or product specification. It contains only the context the child needs. Depending on risk, it may include the proof fields above plus the accepted outcome slice, objective, ownership, dependencies, constraints, return contract, and ask-parent policy.
+A **workstream assignment** is an ephemeral child prompt from Build, not an issue-tracker record or product specification. It contains only the context the child needs. Depending on risk, it may include the proof fields above plus the outcome slice, objective, ownership, dependencies, constraints, return contract, and ask-parent policy.
 
-Children work quietly and retry safe materially different recoveries. Implementation children return compact receipts; research and review children return the requested artifact or findings compactly. The parent owns product meaning, integrates coherent atomic changes, and resolves ordinary child evidence. Run focused checks as results arrive, then one fresh independent Verify pass against the accepted design on exact integration HEAD.
+Children work quietly and retry safe materially different recoveries.
+Implementation children return compact receipts; research and review children
+return the requested artifact or findings compactly. The parent owns requested
+product meaning, integrates coherent atomic changes, and resolves ordinary child
+evidence. Run focused checks as results arrive, then one fresh independent Verify
+pass against requested outcomes and any accepted design on exact integration
+HEAD.
 
 ## Exact-Revision Verdicts
 
-Verify reads the accepted design directly and reports three verdicts without collapsing them:
+Verify reads the request and any accepted design directly and reports three verdicts without collapsing them:
 
-1. **Build Verdict:** whether every accepted product outcome and required non-effect is established.
+1. **Build Verdict:** whether every requested or accepted product outcome and required non-effect is established.
 2. **Architecture Verdict:** whether the exact revision satisfies the applicable Architecture Contract.
 3. **Sensor Verdict:** whether required configured checks executed and passed under the Sensor Contract.
 
-The Build Verdict is authoritative for accepted product outcomes. Architecture and Sensor success cannot compensate for a Build failure or `Cannot verify`. Applicable Architecture and Sensor failures still block completion.
+The Build Verdict is authoritative for requested and accepted product outcomes.
+Architecture and Sensor success cannot compensate for a Build failure or
+`Cannot verify`. Applicable Architecture and Sensor failures still block
+completion.
 
 ## Proof Layers
 

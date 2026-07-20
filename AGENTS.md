@@ -34,42 +34,45 @@ Before non-trivial implementation:
 1. Read existing product documents, behavior, evidence, and user decisions.
 2. Brainstorm materially different approaches and record the chosen tradeoff.
 3. Resolve assumptions, feature-completeness questions, user-visible states, edge cases, observable acceptance, and required non-effects.
-4. Preserve one durable design document with explicit user authority.
-5. Obtain explicit acceptance. The exact `Acceptance` section is the canonical Build Contract.
+4. Make routine product and engineering decisions independently inside the requested scope and record material decisions for handoff.
+5. Create or edit a durable design only with explicit user authority. When one is accepted, its exact `Acceptance` section is the canonical Build Contract for the optional exact-design proof path.
 
 Discussion does not modify a design. Unaccepted suggestions remain outside it. Preserve direct user edits, arbitrary sections, and legacy accepted PRDs as valid designs.
 
-Three independent pre-build lenses inspect the same accepted design:
+Three independent lenses may inspect the same request or accepted design:
 
 - product completeness and feature-level edge cases;
 - engineering shape, boundaries, dependencies, migrations, compatibility, and parallel conflicts;
 - proof, false-green paths, required non-effects, and concrete consequence triggers.
 
-Show at most three recommendations per user round without dropping material findings. Every material finding reaches `accepted`, `rejected`, `deferred`, or `omitted` with a reason before affected Build work starts.
+Show at most three recommendations per user round without dropping material findings. Record a terminal disposition and reason for every material finding. Ask the user only when a finding exposes a material scope, safety, authority, or external-effect decision that cannot be resolved inside the implementation request.
 
-For accepted non-trivial work, keep the three-lens results and workflow contract
-in a task-temporary directory, never in the repository or local documents. Before
-the first implementation edit, run `python3 scripts/gauntlet.py workflow build-entry --project-root "$PROJECT_ROOT" --design "$DESIGN" --reviews "$REVIEWS_JSON" --json`.
-A failed gate blocks Build.
+Design acceptance, advisory review dispositions, and `workflow build-entry` do
+not authorize or block code edits, commits, publication, or a non-production
+merge. When an accepted design exists and exact-design proof is useful, keep the
+three-lens results and workflow contract in a task-temporary directory, never in
+the repository or local documents, and run
+`python3 scripts/gauntlet.py workflow build-entry --project-root "$PROJECT_ROOT" --design "$DESIGN" --reviews "$REVIEWS_JSON" --json`.
+A failed command blocks only that optional proof contract.
 
 ## Build
 
 Read before editing, match repository patterns, preserve unrelated work, and avoid unrelated cleanup. Use a branch for persisted changes and an isolated worktree for broad, consequential, dirty-worktree, or write-heavy delegated changes.
 
-Build reads the accepted design directly and uses an internal ephemeral plan. Stop planning when the first coherent implementation step and proof path are clear.
+Build reads the user request, repository context, and any accepted design directly, then uses an internal ephemeral plan. Stop planning when the first coherent implementation step and proof path are clear.
 
 When behavior changes, observe the relevant failure when a practical harness exists, implement the smallest source fix, and rerun focused proof. Diagnose unexpected behavior at its earliest divergence before fixing it.
 
 Use native subagents only when independent ownership or evidence makes parallelism worth its context cost. Each child receives a compact workstream assignment containing:
 
-- accepted outcome slice;
+- outcome slice;
 - owned files or state;
 - dependency and consumes/produces contracts;
 - constraints and authority;
 - proportional proof and return contract;
 - ask-parent policy.
 
-The parent owns product meaning, shared contracts, user decisions, integration, publication, and the final oracle. Children return changed artifacts, compact proof, and risk. Use custom agent profiles only when a profile clearly improves the bounded work; no classifier or audit layer is required.
+The parent owns requested product meaning, shared contracts, integration, publication, and the final oracle. Children return changed artifacts, compact proof, and risk. Use custom agent profiles only when a profile clearly improves the bounded work; no classifier or audit layer is required.
 
 Keep stable instructions first and volatile assignment details last. Omit empty fields, unrelated history, and duplicate contract text.
 
@@ -79,14 +82,15 @@ Evidence precedes completion claims. For material behavior, name an observable o
 
 Independent Verify receives:
 
-- the accepted design and canonical Build Contract;
+- the user-requested outcomes and any accepted design or canonical Build Contract;
 - the exact integrated revision;
 - the Architecture Contract;
 - the Sensor Contract.
 
-It reports separate Build, Architecture, and Sensor verdicts. The Build verdict independently covers every accepted product outcome. Applicable Architecture and Sensor failures also block completion. A green sensor result cannot substitute for an absent accepted outcome.
+It reports separate Build, Architecture, and Sensor verdicts. The Build verdict independently covers every applicable product outcome. Applicable Architecture and Sensor failures also block completion. A green sensor result cannot substitute for an absent requested outcome.
 
-On the exact integrated candidate, run the stateless workflow commands in order:
+When using the optional exact-design proof path, run the stateless workflow
+commands on the exact integrated candidate in order:
 `bind-candidate`, `verify-entry`, `record-verdict` once each for Build,
 Architecture, and Sensor, then `completion-check`. Pass the temporary contract
 forward between commands. Do not claim completion unless `completion-check`
@@ -110,7 +114,20 @@ The dedicated runner is read-only. It does not grant authority for external effe
 
 Preserve unrelated dirty work. Commit coherent atomic changes. Serialize candidates that share an integration base, reject stale proof after base drift, and verify the exact integrated or landed revision.
 
-“Push to git” authorizes only the current branch. Opening a PR does not authorize merge. “Merge this,” “land this,” or “merge this to main” invokes the `land` skill for the current scoped change. Deployment, production changes, destructive actions, migrations, credentials, paid actions, rollback, local installation, and task archival each require their own accepted authority.
+An implementation request authorizes writing and testing code, creating local
+commits, pushing an implementation branch, opening a pull request, and merging
+it to the default branch through the `land` skill without another acceptance
+pause. Required checks, conflicts, demonstrated security failures, preservation
+conflicts, and unsafe external effects may still block the affected action.
+
+Inspect repository automation and release documentation before landing. If merge
+itself deploys, publishes, migrates, or otherwise changes production, require
+explicit production acceptance before merge. Every production change requires
+separate explicit acceptance accompanied by bullets naming met
+acceptance criteria and evidence, material decisions made independently, unmet
+criteria or remaining risks, the exact revision, and rollback. A concise user
+acceptance is sufficient. Installation, destructive or paid actions, credential
+use, rollback, and task archival retain separately scoped authority.
 
 Keep `Unreleased` for future work when cutting a version. Preserve released changelog history.
 

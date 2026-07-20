@@ -22,11 +22,13 @@ documentation location.
 
 ## What the lifecycle keeps
 
-A bounded Normal Request does not create a durable design. For non-trivial product
-or implementation work, one permanent Design preserves the accepted product
-meaning. Before acceptance, the conversation explicitly considers material
-alternatives, assumptions, completeness, edge cases, observable outcomes, and
-required non-effects.
+A bounded Normal Request does not create a durable design. For non-trivial
+product or implementation work, a permanent Design may preserve accepted product
+meaning when the user explicitly requests that artifact. Design creation and
+acceptance do not authorize or block implementation or non-production landing.
+Before acceptance, the conversation explicitly considers material alternatives,
+assumptions, completeness, edge cases, observable outcomes, and required
+non-effects.
 
 The template contains prompts, not decisions. Users may add, remove, or rename
 sections. Agents write only stated or explicitly requested content and keep
@@ -40,27 +42,30 @@ run. Direct user edits and arbitrary sections remain untouched.
 Explicit acceptance requires one answered exact `## Acceptance` section. Gauntlet
 stores the whole-file digest and the Acceptance-section digest in an adjacent
 acceptance record, updates only the navigational index, and does not edit the
-Design. The exact section is the Build Contract. A later semantic edit requires a
-new explicit acceptance.
+Design. The exact section is the Build Contract for optional exact-design proof.
+A later semantic edit requires new explicit acceptance before reusing that proof
+binding.
 
 Legacy PRD, Epic, and execution files remain readable at their existing paths.
 Profile initialization and Design commands do not rewrite them.
 
 ## Artifact ownership
 
-- The accepted Design owns user-authorized intent and observable outcomes.
-- Its exact `## Acceptance` section owns the Build Contract.
+- The user request and conversation decisions own implementation intent.
+- An accepted Design preserves user-authorized durable intent and observable outcomes.
+- Its exact `## Acceptance` section owns the optional exact-design Build Contract.
 - Research owns evidence and uncertainty; it does not authorize implementation.
 - Decisions preserve reasoning that would otherwise be lost.
 - Architecture and Sensor Contracts remain separate from product acceptance.
 - The index is navigational, not proof.
 - Build plans and workstream assignments are ephemeral implementation aids.
 
-Before Build, product-completeness, engineering-shape, and proof/consequence lenses
-inspect the same Design. Material findings receive terminal dispositions. Independent
-Verify reads the accepted Design and exact integrated revision and returns separate
-Build, Architecture, and Sensor verdicts. Green sensors cannot compensate for a
-missing accepted outcome.
+Before or during Build, product-completeness, engineering-shape, and
+proof/consequence lenses may inspect the same request or Design. Material
+findings receive implementation dispositions but do not become human-approval
+gates. Independent Verify reads the request, any accepted Design, and the exact
+integrated revision and returns separate Build, Architecture, and Sensor
+verdicts. Green sensors cannot compensate for a missing requested outcome.
 
 ## Commands
 

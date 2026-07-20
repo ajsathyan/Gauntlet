@@ -11,7 +11,8 @@ branch from the current default head
   -> one current-base integration candidate
   -> independent exact-revision verification
   -> one coherent pull request
-  -> merge only with explicit authority
+  -> non-production merge under implementation authority
+  -> explicit acceptance before any production consequence
 ```
 
 `main` is the product line. A branch is a bounded side lane. A worktree is an
@@ -22,8 +23,8 @@ landing boundary.
 
 ## Parent and workstreams
 
-The parent owns the integration branch, shared contracts, user decisions,
-publication, merge, release, and rollback.
+The parent owns the integration branch, shared contracts, publication, merge,
+release, and rollback.
 
 Implementation children own disjoint files or state and return changed artifacts,
 compact proof, and risk. Read-only children return findings. Children do not push
@@ -43,7 +44,7 @@ rerun the affected checks against the new exact revision.
 
 ## Commits and pull requests
 
-Prefer one pull request for one coherent accepted scope. Use additional pull
+Prefer one pull request for one coherent requested scope. Use additional pull
 requests only for independently shippable outcomes, not as a substitute for
 clear workstream ownership.
 
@@ -66,12 +67,15 @@ The diff fact-checks this story; it does not define product intent.
 
 ## Authority
 
-- “Commit this” authorizes only scoped local commits.
-- “Push this branch” authorizes only the current branch push.
-- “Open a PR” authorizes publication but not merge.
-- “Merge,” “land,” or “ship to main” authorizes the verified merge flow.
-- Installation, deployment, production changes, migration, destructive or paid
-  actions, credential use, rollback, and task archival remain separate.
+- An implementation request authorizes scoped local commits, the implementation
+  branch push, pull-request creation, and non-production merge.
+- A standalone request limited to commit, branch push, or pull-request creation
+  stops at its stated boundary.
+- “Merge,” “land,” or “ship to main” authorizes the verified merge flow for
+  existing work that did not originate from an implementation request.
+- Every deployment or production change requires separate explicit acceptance.
+- Installation, destructive or paid actions, credential use, rollback, and task
+  archival remain separately scoped.
 
 Use local `git` and authenticated `gh` by default. Use a GitHub connector only
 when the user requests it or the CLI cannot perform the required operation.
@@ -86,11 +90,16 @@ python3 scripts/gauntlet.py merge plan \
   --git-root "$PROJECT_ROOT" --handoff "$HANDOFF" --body "$PR_BODY" --json
 ```
 
-After explicit merge authority, the `land` skill may use `land execute` with the
-same handoff and body. It waits for required checks and blocking review state,
-merges through the PR, verifies default-branch reachability, and performs only
-safe cleanup. Repository-owned post-merge monitoring runs only when it exists
-and can be attributed to the landed revision.
+Before landing, inspect repository automation and release documentation. If
+merge deploys, publishes, migrates, or otherwise changes production, stop and
+present the production acceptance request described by `ship`.
+
+For a non-production merge, the `land` skill may use `land execute` with the same
+handoff and body without another acceptance pause. It waits for required checks
+and blocking review state, merges through the PR, verifies default-branch
+reachability, and performs only safe cleanup. Repository-owned post-merge
+monitoring runs only when it exists and can be attributed to the landed
+revision.
 
 ## Preservation
 

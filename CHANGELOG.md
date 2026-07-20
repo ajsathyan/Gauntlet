@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Implementation requests now authorize routine product and engineering decisions, code changes, commits, branch publication, pull-request creation, and non-production merge without intermediate human acceptance gates; production changes require a separate revision-bound acceptance request that lists met criteria and evidence, independent implementation decisions, remaining risk, and rollback.
+
 - Remove obsolete dashboard remnants, historical run reports, and legacy local-document terminology after the Design → Build → Verify → Ship migration.
 
 - GAUNTLET-011 replaces the Epic controller, ticket compiler, dashboard, analytics, and fixed routing layer with Design → Build → Verify → Ship: one permanent Design and canonical Build Contract, three pre-build lenses, ephemeral implementation planning, compact native workstreams with a current-base queue, separate exact-revision Build/Architecture/Sensor verdicts, phased sensors with compact handoffs, and preservation-safe Codex install, upgrade, and uninstall behavior.

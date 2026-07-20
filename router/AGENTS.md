@@ -26,30 +26,33 @@ Discussion does not change a durable design. Add or edit product content only af
 
 When the local-document profile is active, run `python3 {{GAUNTLET_ROOT}}/scripts/gauntlet.py docs ensure --project-root "$PROJECT_ROOT"` before an explicit covered document action, then read `doc_org.md` and `local-docs/INDEX.md`. Canonical local documents stay in the primary worktree.
 
-Before non-trivial implementation:
+Before or during non-trivial implementation:
 
 1. Brainstorm materially different approaches and record the chosen tradeoff.
 2. Resolve assumptions, feature completeness, user-visible states, edge cases, observable acceptance, and required non-effects.
-3. Preserve one durable design with explicit user authority.
-4. Obtain explicit acceptance. The exact `Acceptance` section is the canonical Build Contract.
+3. Make routine product and engineering decisions independently inside the requested scope and record material decisions for handoff.
+4. Create or edit a durable design only with explicit user authority. When one is accepted, its exact `Acceptance` section is the canonical Build Contract for the optional exact-design proof path.
 5. Run independent product-completeness, engineering-shape, and proof/consequence lenses.
 
-Show at most three recommendations per user round without dropping material findings. Every material finding reaches `accepted`, `rejected`, `deferred`, or `omitted` with a reason before affected Build work starts.
+Show at most three recommendations per user round without dropping material findings. Record a terminal disposition and reason for every material finding. Ask the user only when a finding exposes a material scope, safety, authority, or external-effect decision that cannot be resolved inside the implementation request.
 
-For accepted non-trivial work, keep the review JSON and workflow contract only in
-a task-temporary directory. Before the first implementation edit, run `python3 {{GAUNTLET_ROOT}}/scripts/gauntlet.py workflow build-entry --project-root "$PROJECT_ROOT" --design "$DESIGN" --reviews "$REVIEWS_JSON" --json`.
-A failed gate blocks Build; do not create repository, local-document, or
-controller artifacts for these temporary values.
+Design acceptance, advisory review dispositions, and `workflow build-entry` do
+not authorize or block code edits, commits, publication, or a non-production
+merge. When an accepted design exists and exact-design proof is useful, keep the
+review JSON and workflow contract only in a task-temporary directory and run
+`python3 {{GAUNTLET_ROOT}}/scripts/gauntlet.py workflow build-entry --project-root "$PROJECT_ROOT" --design "$DESIGN" --reviews "$REVIEWS_JSON" --json`.
+A failed command blocks only that optional proof contract. Do not create
+repository, local-document, or controller artifacts for temporary values.
 
 ## Build
 
 Read before editing, match repository patterns, preserve unrelated work, and avoid unrelated cleanup. Use a branch for persisted changes and an isolated worktree for broad, consequential, dirty-worktree, or write-heavy delegated changes.
 
-Build reads the accepted design directly and uses an internal ephemeral plan. Stop planning when the first coherent implementation step and proof path are clear.
+Build reads the user request, repository context, and any accepted design directly, then uses an internal ephemeral plan. Stop planning when the first coherent implementation step and proof path are clear.
 
 When behavior changes, observe the relevant failure when practical, implement the smallest source fix, and rerun focused proof. Diagnose unexpected behavior at its earliest divergence before fixing it.
 
-Parallelism must beat its context cost. Delegate only independent ownership, state, or evidence workstreams. Send each child a compact assignment with its accepted outcome slice, ownership, dependency contracts, constraints, authority, proof, return contract, and ask-parent policy. Keep user decisions, shared contracts, integration, publication, merge, release, and rollback in the parent task.
+Parallelism must beat its context cost. Delegate only independent ownership, state, or evidence workstreams. Send each child a compact assignment with its outcome slice, ownership, dependency contracts, constraints, authority, proof, return contract, and ask-parent policy. Keep shared contracts, integration, publication, merge, release, and rollback in the parent task.
 
 Children work quietly and return changed artifacts, compact proof, and risk. The parent integrates continuously and independently checks the oracle. Custom agent profiles are optional capabilities, not a required routing layer.
 
@@ -57,9 +60,10 @@ Children work quietly and return changed artifacts, compact proof, and risk. The
 
 Evidence precedes completion claims. Name an observable oracle for material behavior. Use a plausible wrong case or required non-effect when it distinguishes the intended result. Fields, phrases, statuses, receipts, and self-reports prove structure, not behavior.
 
-Independent Verify receives the accepted design, exact integrated revision, Architecture Contract, and Sensor Contract. It reports separate Build, Architecture, and Sensor verdicts. The Build verdict independently covers every accepted product outcome. Applicable Architecture and Sensor failures also block completion.
+Independent Verify receives the user-requested outcomes, any accepted design, the exact integrated revision, Architecture Contract, and Sensor Contract. It reports separate Build, Architecture, and Sensor verdicts. The Build verdict independently covers every applicable product outcome. Applicable Architecture and Sensor failures also block completion.
 
-On the exact integrated candidate, use the same installed CLI to run
+When using the optional exact-design proof path, use the same installed CLI on
+the exact integrated candidate to run
 `workflow bind-candidate`, `workflow verify-entry`, `workflow record-verdict`
 once each for Build, Architecture, and Sensor, then `workflow completion-check`.
 Pass the temporary contract forward between commands. Completion requires the
@@ -73,6 +77,21 @@ Consequence-specific security, failure, recovery, black-box, production, TypeScr
 
 Never discard unrelated user work. Commit coherent atomic changes, serialize candidates that share a base, reject stale proof after drift, and verify the exact integrated or landed revision.
 
-“Push to git” authorizes only the current branch. Opening a PR does not authorize merge. “Merge this,” “land this,” or “merge this to main” invokes the installed `land` skill. Deployment, production changes, destructive actions, migrations, credentials, paid actions, rollback, local installation, and task archival require their own accepted authority.
+An implementation request authorizes the ordinary code lifecycle: write and
+test code, create local commits, push an implementation branch, open a pull
+request, and merge it to the default branch through the installed `land` skill.
+Do not ask for another acceptance between those stages. Required checks,
+conflicts, demonstrated security failures, preservation conflicts, and unsafe
+external effects may still block the affected action.
 
-Implemented, committed, pushed, published, merged, deployed, and production-proved are separate claims. Work is complete only when accepted behavior is met, exact-revision proof passes, applicable findings have terminal dispositions, unrelated work is preserved, and required durable updates are made.
+Before landing, inspect repository automation and release documentation. If the
+merge itself deploys, publishes, migrates, or otherwise changes production, it
+is the production boundary and requires explicit acceptance before merge.
+Every production change requires separate explicit acceptance. Present that
+request with bullets naming met acceptance criteria and
+evidence, material decisions made independently, unmet criteria or remaining
+risk, the exact revision, and rollback. A concise user acceptance is sufficient;
+the user need not repeat the bullets. Installation, destructive or paid actions,
+credential use, rollback, and task archival retain separately scoped authority.
+
+Implemented, committed, pushed, published, merged, deployed, and production-proved are separate claims. Work is complete only when requested behavior is met, exact-revision proof passes, applicable findings have terminal dispositions, unrelated work is preserved, and required durable updates are made.

@@ -3,10 +3,12 @@
 A product-thinking and verification workflow for Codex.
 
 Gauntlet helps an agent turn an idea into a complete feature without making a
-permanent project-management system out of the implementation process. Product
-meaning stays in one durable Design. Implementation planning stays temporary.
-Verification checks the exact integrated revision against the original outcome,
-the intended architecture, and the repository's executed quality checks.
+permanent project-management system out of the implementation process or
+pausing for routine acceptance gates. Product meaning stays in the request and,
+when explicitly requested, one durable Design. Implementation planning stays
+temporary. Verification checks the exact integrated revision against the
+original outcome, intended architecture, and repository's executed quality
+checks.
 
 ## The workflow
 
@@ -16,14 +18,16 @@ Design -> Build -> Verify -> Ship
 
 ### Design
 
-For non-trivial implementation, Gauntlet first explores materially different
+For non-trivial implementation, Gauntlet explores materially different
 approaches, assumptions, feature-level edge cases, user-visible states, and
-observable outcomes. The result is one permanent Design that the user explicitly
-accepts.
+observable outcomes. It resolves routine product and engineering decisions
+independently and records material decisions. A permanent Design is optional and
+is created or edited only with explicit user authority.
 
-The Design's exact `## Acceptance` section is the **Build Contract**. Build and
-Verify read it in place. A plan, workstream assignment, sensor result, or PR
-summary cannot narrow it.
+When accepted, the Design's exact `## Acceptance` section is the **Build
+Contract** for optional exact-design proof. Build and Verify also read the user
+request directly. A plan, workstream assignment, sensor result, or PR summary
+cannot narrow requested or accepted outcomes.
 
 Before Build, three bounded lenses review the same Design:
 
@@ -32,14 +36,16 @@ Before Build, three bounded lenses review the same Design:
 - **Proof and consequence:** observable oracles, false-green paths, required
   non-effects, and concrete risk triggers.
 
-Only material findings are shown. Every material finding is accepted, rejected,
-deferred, or omitted with a reason before affected implementation starts.
+Only material findings are shown. Every material finding receives an
+implementation disposition and reason. Design acceptance and advisory findings
+do not block code, commits, publication, or non-production landing.
 
 ### Build
 
-Build creates an internal, ephemeral plan and stops planning once the first
-coherent step and proof path are clear. One parent task keeps product decisions,
-shared contracts, integration, and external authority.
+Build creates an internal, ephemeral plan from the request, repository context,
+and any accepted Design, and stops planning once the first coherent step and
+proof path are clear. One parent task keeps shared contracts, integration, and
+external authority.
 
 Parallel work uses compact native workstreams only when ownership or independent
 evidence makes it worthwhile. Children receive an outcome slice, owned files or
@@ -51,10 +57,10 @@ candidates after the base changes. See
 
 ### Verify
 
-Independent Verify reads the accepted Design and exact integrated revision. It
+Independent Verify reads the request, any accepted Design, and exact integrated revision. It
 returns three separate verdicts:
 
-- **Build:** every accepted outcome and required non-effect is observably true.
+- **Build:** every requested and accepted outcome and required non-effect is observably true.
 - **Architecture:** required boundaries, dependencies, compatibility, and code
   shape hold.
 - **Sensor:** configured checks executed at the required cadence against the
@@ -67,18 +73,21 @@ never existed.
 
 ### Ship
 
-Ship stops at the last effect the user authorized. These remain separate:
+An implementation request authorizes the ordinary code lifecycle:
 
-- local commit;
-- branch push;
+- local commits;
+- implementation branch push;
 - pull-request creation;
-- merge;
-- deployment or production change;
-- migration, destructive or paid action, credential use, rollback;
-- local installation and task archival.
+- non-production merge to the default branch.
 
-“Open a PR” does not authorize merge. PR checks do not prove production health.
-See [GitHub Discipline](docs/github-discipline.md).
+Before landing, Gauntlet inspects repository automation because merge itself may
+deploy, publish, migrate, or otherwise change production. Every production
+change requires separate explicit acceptance. The request includes bullets for
+met criteria and evidence, independent implementation decisions, unmet criteria
+or remaining risk, exact revision, and rollback. Installation, destructive or
+paid actions, credential use, rollback, and task archival remain separately
+scoped. PR checks do not prove production health. See
+[GitHub Discipline](docs/github-discipline.md).
 
 ## Normal requests
 

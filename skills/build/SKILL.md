@@ -1,42 +1,59 @@
 ---
 name: build
-description: Use when implementing an accepted durable design autonomously from its canonical Build Contract with an ephemeral plan and bounded workstreams.
+description: Use when implementing a requested outcome autonomously with an ephemeral plan, bounded workstreams, recorded decisions, and proportional proof.
 ---
 
 # Build
 
-Implement the accepted design without translating its product meaning into another durable requirements artifact.
+Implement the requested outcome without waiting for a separate design or merge
+acceptance and without translating product meaning into another durable
+requirements artifact.
 
 ## Inputs
 
-- Exact accepted durable design
-- Its `Acceptance` section, read in place as the canonical Build Contract
-- Terminal pre-build review dispositions
+- User request and conversation decisions
+- Existing product and repository context
+- Any accepted durable design and its exact `Acceptance` section
+- Advisory review findings and implementation dispositions when available
 - Repository instructions and current working state
 
-If the accepted design is unavailable, semantically stale, lacks observable acceptance, or has an unresolved material finding that affects the work, stop. Do not infer or narrow the missing product decision.
+Resolve routine product and engineering decisions independently inside the
+requested scope and record material decisions for the production acceptance
+request. Stop only when an unresolved choice changes scope, safety, authority, or
+an external effect, or when objective evidence makes the affected action unsafe.
 
-Before the first implementation edit, require a passing `workflow build-entry`
-from the installed Gauntlet CLI using the accepted design and complete three-lens
-review JSON. Keep its contract and all review inputs only in a task-temporary
-directory.
+Design acceptance and `workflow build-entry` do not authorize or block Build.
+When an accepted design exists and exact-design proof is useful,
+`workflow build-entry` may create a task-temporary proof contract. A failure
+blocks only that optional contract path.
 
 ## Procedure
 
-1. Read the accepted design directly, inspect the repository, and trace relevant contracts and failure paths.
-2. Create an internal, ephemeral implementation plan. It may change as evidence changes and disappears with the task; the accepted Design remains the only durable requirements source.
-3. Keep work in the parent when one coherent lane is fastest. Delegate only independent ownership, state, or proof. Each child gets a compact workstream assignment containing its outcome slice, owned files or state, dependencies, constraints, proof, return contract, and ask-parent policy. The child reads the accepted outcome slice without receiving a rewritten requirements contract.
-4. The parent keeps product meaning, shared contracts, integration, user decisions, GitHub effects, and final verification.
+1. Read the request, any accepted design, and repository context directly; trace relevant contracts and failure paths.
+2. Create an internal, ephemeral implementation plan. It may change as evidence
+   changes and disappears with the task; the request and any accepted Design
+   remain the requirements sources.
+3. Keep work in the parent when one coherent lane is fastest. Delegate only independent ownership, state, or proof. Each child gets a compact workstream assignment containing its outcome slice, owned files or state, dependencies, constraints, proof, return contract, and ask-parent policy.
+4. The parent keeps requested product meaning, shared contracts, integration,
+   GitHub effects, and final verification.
 5. Read before editing, preserve unrelated user work, use practical RED-GREEN-REFACTOR for behavior changes, and integrate coherent atomic changes.
 6. Run focused edit-loop proof as work lands. Execute configured required sensors with `sensors run`; a plan, normalized result, or stale pass does not prove completion.
-7. Run `workflow bind-candidate` with the temporary contract, complete review
-   results, and exact integrated commit and tree. Then hand that bound contract
-   and accepted design to Verify. Build does not self-certify completion.
+7. Hand the exact integrated candidate, requested outcomes, material decision
+   record, and evidence to Verify. When using the optional exact-design proof
+   path, run `workflow bind-candidate` with the temporary contract, complete
+   review results, and exact integrated commit and tree. Build does not
+   self-certify completion.
 
 ## Workstream Receipt
 
-Return only changed paths or state, evidence and its limits, risks, and a blocker or required parent decision. Child-authored tests are evidence; they cannot replace or weaken the canonical Build Contract.
+Return only changed paths or state, material decisions, evidence and its limits,
+risks, and an objective blocker or required parent decision. Child-authored tests
+are evidence; they cannot replace or weaken requested outcomes or an applicable
+canonical Build Contract.
 
 ## Completion
 
-Build completes when the exact integrated candidate is ready for independent Verify, every claimed outcome maps back to the accepted design, unrelated work is preserved, and missing proof is stated without a completion claim.
+Build completes when the exact integrated candidate is ready for independent
+Verify, every claimed outcome maps back to the request and any applicable
+accepted design, material implementation decisions are recorded, unrelated work
+is preserved, and missing proof is stated without a completion claim.

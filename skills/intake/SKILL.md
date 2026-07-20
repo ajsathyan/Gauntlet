@@ -11,7 +11,7 @@ Bound the requested implementation without turning rough discussion into require
 
 Include only what applies:
 
-- goal and accepted scope;
+- goal and requested scope;
 - affected behavior or interfaces;
 - observable done behavior and proportionate proof;
 - constraints and user-stated assumptions;
@@ -22,9 +22,14 @@ Optional example: read `examples/intake-packet.md` only when the output shape is
 
 ## Rules
 
-- Use existing context first. Ask at most three short questions, and only when an answer changes behavior, scope, acceptance, authority, risk, cost, or external effect.
+- Use existing context first. Resolve routine choices independently inside the
+  requested scope. Ask at most three short questions only when an answer changes
+  scope, safety, authority, risk, cost, or an external effect and cannot
+  responsibly be decided within the request.
 - Do not create or expand a PRD unless the user explicitly requests that document action.
-- Never infer non-goals, security boundaries, rollout, maturity gates, or supporting features from an empty packet field. Keep suggestions outside accepted scope until acknowledged.
+- Never infer non-goals, security boundaries, rollout, maturity gates, or
+  supporting features from an empty packet field. Keep unrelated suggestions
+  outside requested scope.
 - Preserve existing behavior unless explicitly changed.
 - Prove behavior with an observable outcome. Add a wrong case or required non-effect only when it materially distinguishes the result.
 - Keep intake in the conversation or owning artifact; do not create a second permanent packet.

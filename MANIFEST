@@ -3,7 +3,7 @@
     {
       "destination": "gauntlet/README.md",
       "executable": false,
-      "sha256": "9d103302b15f849c7c2675b13864131cbc14b918607f8f869f597722750a2204",
+      "sha256": "f890c9e380cf8a4d15b36126e816904859dec95c60f6681db59f07e22438d27d",
       "source": "README.md"
     },
     {
@@ -75,7 +75,7 @@
     {
       "destination": "gauntlet/docs/design-build-verify.md",
       "executable": false,
-      "sha256": "be45c28d8af3bfc50c577b04541a872c12ceae955bdb91bf49551e739a4609a3",
+      "sha256": "63977863dba8600a23c24c0a8f8e8ffab79f7101907df52c94f56162717fc927",
       "source": "docs/design-build-verify.md"
     },
     {
@@ -123,37 +123,37 @@
     {
       "destination": "gauntlet/docs/github-discipline.md",
       "executable": false,
-      "sha256": "dc23b59fa4fc8ca33d0c3f6b5b3e554999d72878a10d7b734d8d9a356fc21f5f",
+      "sha256": "bc39a234ee39f3a69aae1aba1c3e1ae1915d21bca1285c253bd118eb9a02b0ee",
       "source": "docs/github-discipline.md"
     },
     {
       "destination": "gauntlet/docs/global-router-rule-map.md",
       "executable": false,
-      "sha256": "f93eb06a2407370f27099cf5a5cea39542ef3866c21b925723462df9a6677068",
+      "sha256": "c786559ff7c47805d2e59c546a165641f8fcd0c4582e1f824f8aa72b3f8e930d",
       "source": "docs/global-router-rule-map.md"
     },
     {
       "destination": "gauntlet/docs/local-documentation.md",
       "executable": false,
-      "sha256": "f769d979106882096abeff0e4469ab967689bc421763fc1f516ce93980faf464",
+      "sha256": "6cc45e4282088dcbce4718d672c4f9128f919ef6286dcf94491be998cb2d0c7b",
       "source": "docs/local-documentation.md"
     },
     {
       "destination": "gauntlet/docs/meaningful-proof.md",
       "executable": false,
-      "sha256": "c8c0937e31fb0ce4120f3ec13feac050e10089f601cbd9a44ccf8375249f2452",
+      "sha256": "c38f4560935c52ba42610f976faf88645aed6efb624ceab716979c4d2b690530",
       "source": "docs/meaningful-proof.md"
     },
     {
       "destination": "gauntlet/docs/optional-agent-profiles.md",
       "executable": false,
-      "sha256": "914ea40884c3aa78794e81a15365fda22d39fe84bfd6f6deb547912af64efef9",
+      "sha256": "9a00be17f9c4e40c8b3c01a4a11bed34f831eb389fe0ede999ba4bf44d071a3b",
       "source": "docs/optional-agent-profiles.md"
     },
     {
       "destination": "gauntlet/docs/parallel-workstreams.md",
       "executable": false,
-      "sha256": "51550a5226c397fd6c4fc2136802ecfc23437e2cb576c350b6cf569dacdce95c",
+      "sha256": "0550cfd92a6678f03f35bae6667ebfcbaec609659acc1b4ad864abe83620d5a3",
       "source": "docs/parallel-workstreams.md"
     },
     {
@@ -225,7 +225,7 @@
     {
       "destination": "gauntlet/docs/upstream-superpowers.md",
       "executable": false,
-      "sha256": "82ad91806ae2fc014f6a95dc0e6f93e81d0a27ff50268c35df2137d898f652a7",
+      "sha256": "bea92efd767d85d21519d82c7a0131fc56d2abffe507a7867ccccc84e40d2875",
       "source": "docs/upstream-superpowers.md"
     },
     {
@@ -237,7 +237,7 @@
     {
       "destination": "gauntlet/docs/workflow-etiquette.md",
       "executable": false,
-      "sha256": "65da4108c0b76f653631cd5a3a20730a2bf94afed2e4388f9c57ec3032d2d65d",
+      "sha256": "af23e28e5e1cd2a98b6481f9fabecae3f41a3afeae0ae146f8520d715ca8e52d",
       "source": "docs/workflow-etiquette.md"
     },
     {
@@ -357,7 +357,7 @@
     {
       "destination": "gauntlet/router/AGENTS.md",
       "executable": false,
-      "sha256": "ebe901055a1433c6716c4b098bfab6cae21df9881014467c1cf2776c751bd1cd",
+      "sha256": "ffb076102d56d37d7770d5ffc0946d7dcd54b117c181c444cde90a21df1bbfe4",
       "source": "router/AGENTS.md"
     },
     {
@@ -633,13 +633,13 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/workflow/application.py",
       "executable": false,
-      "sha256": "18fa0ed5c97018700c46aeee0aed70d295453fe799deef255ac6b74bbd9cb4d1",
+      "sha256": "11c577cbb8f2553ac7e5288a4338feedf1a153e0dd031e844ed72de6743602f5",
       "source": "scripts/gauntletlib/workflow/application.py"
     },
     {
       "destination": "gauntlet/scripts/gauntletlib/workflow/cli.py",
       "executable": false,
-      "sha256": "2e16610765a97bcc5a2ae0e721146948045b49381e051bdaf4b503bf7404f7d2",
+      "sha256": "0d7fe4de8ab60b5cc0dfa0a8a195df9238914b992bae6b13577f6fb620b69338",
       "source": "scripts/gauntletlib/workflow/cli.py"
     },
     {
@@ -795,7 +795,7 @@
     {
       "destination": "skills/adversarial-reviewer/SKILL.md",
       "executable": false,
-      "sha256": "7e2c8a8cc4dbd0d3a6baab1217501068b23d97649bd01fc17f9941451e2db2d5",
+      "sha256": "0dbe1d1521901d75d48c5488699bb26165f1821dcb09d5b962d9b7d3f5fd56b6",
       "source": "skills/adversarial-reviewer/SKILL.md"
     },
     {
@@ -837,7 +837,7 @@
     {
       "destination": "skills/build/SKILL.md",
       "executable": false,
-      "sha256": "f27e64820238e6414c32ce7bcf30d05a5eb5c3350ce58d8f46a4f160af8fbf7c",
+      "sha256": "baff9a6dbb251355a9f5b88735771caa071774bf8ec490ab23a888dc2ea47529",
       "source": "skills/build/SKILL.md"
     },
     {
@@ -897,7 +897,7 @@
     {
       "destination": "skills/design/SKILL.md",
       "executable": false,
-      "sha256": "9045da5b660a0115a4537844821744cc9ca029925ecb604879964c7c3bccad9e",
+      "sha256": "15c603d01bdb0b3e0ba17930714138f9adde38f38f5d1474c51b95efa921931d",
       "source": "skills/design/SKILL.md"
     },
     {
@@ -957,7 +957,7 @@
     {
       "destination": "skills/implementer/SKILL.md",
       "executable": false,
-      "sha256": "2d32f0a51beec01d67ca6e064f88ee9c900902f12315ab0ce1013f127a7a84e4",
+      "sha256": "2bb5528edb933f31f144bc86fbc385d15bf614fc42c61e3470220a49e551ea11",
       "source": "skills/implementer/SKILL.md"
     },
     {
@@ -969,7 +969,7 @@
     {
       "destination": "skills/intake/SKILL.md",
       "executable": false,
-      "sha256": "a9d7319e0a79ff7db1b2306e4b726ed68979b3701c9a2bf75bbefd90a652a5c2",
+      "sha256": "bee6f42e7590226aedd944ef863e036e02b7589dca30be42f22aed86d59523db",
       "source": "skills/intake/SKILL.md"
     },
     {
@@ -993,7 +993,7 @@
     {
       "destination": "skills/land/SKILL.md",
       "executable": false,
-      "sha256": "f662a155527b5d1791415ba052f49dc4f3c5e06e83c4448063bfc60a2ea79cac",
+      "sha256": "afae180264f357b63a9c1c717f9dfe1666d995f2f6904c12f2378856b6a173d8",
       "source": "skills/land/SKILL.md"
     },
     {
@@ -1005,7 +1005,7 @@
     {
       "destination": "skills/planner/SKILL.md",
       "executable": false,
-      "sha256": "a5608404ee0e391ce3180ebe507e1bbaddff6383e84f20d22ae31ddeed0871fa",
+      "sha256": "9f277504ff48297548e6d8ff0eebe638ae390f471543d61ac78a7ad0c31000a2",
       "source": "skills/planner/SKILL.md"
     },
     {
@@ -1017,7 +1017,7 @@
     {
       "destination": "skills/product-architect/SKILL.md",
       "executable": false,
-      "sha256": "cf998cde853ef0b3adf493d7e44683eeb8a21443c586acdff28721f589a31130",
+      "sha256": "f7b385f8814dadfda5c69081562263f3854eaae63921239a46a8f1168d962c81",
       "source": "skills/product-architect/SKILL.md"
     },
     {
@@ -1209,13 +1209,13 @@
     {
       "destination": "skills/ship/SKILL.md",
       "executable": false,
-      "sha256": "33a8a55b1caf2a5760de79530fbde1cd91f0c01ac87f0a992bcbf7166f59b2f4",
+      "sha256": "516ddc0907032aa970513e728454cc2bda9501436a76d70e93bb930a08d56d22",
       "source": "skills/ship/SKILL.md"
     },
     {
       "destination": "skills/verify/SKILL.md",
       "executable": false,
-      "sha256": "47a98e24aa6f5b1847e2b32c6de8b4b430977aa1d1e7c23e45cbcd50e72259e0",
+      "sha256": "f851f8fe5933e4f6db83a7ad0a01833662bf85f333e1eca46fc098b11bcac686",
       "source": "skills/verify/SKILL.md"
     },
     {
@@ -1305,7 +1305,7 @@
     {
       "destination": "gauntlet/templates/local-docs/doc_org.md.tmpl",
       "executable": false,
-      "sha256": "6a865e6a3e11a83aa83f13ae8d982efc40a9046d3dcf7b29c409f16d165ae345",
+      "sha256": "f519e973f5f1494dd7e9f43c9b9c66a38533c66c0eb35acb8e51f46652dfe0a3",
       "source": "templates/local-docs/doc_org.md.tmpl"
     },
     {

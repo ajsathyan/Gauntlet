@@ -1,6 +1,6 @@
 ---
 name: product-architect
-description: Use when Design needs to resolve a material product workflow, information-architecture, first-value, trust, alternative, or acceptance question before implementation.
+description: Use when implementation needs a material product workflow, information-architecture, first-value, trust, alternative, or acceptance decision.
 ---
 
 # Product Architect
@@ -22,8 +22,11 @@ When the user explicitly requests a document edit, provide a targeted proposed e
 ## Rules
 
 - Start from the current product document and repository behavior. Preserve existing behavior unless the user explicitly changes it.
-- For non-trivial implementation, return the decision to the `design` skill so one accepted durable design owns the canonical Build Contract.
-- Ask only when the answer changes behavior, scope, acceptance, authority, cost, or external effect.
+- Return the decision to Build and record it for handoff. Use the `design` skill
+  for a durable update only when the user explicitly requests that document.
+- Resolve routine choices independently inside the requested scope. Ask only
+  when the answer changes scope, safety, authority, cost, or an external effect
+  and cannot responsibly be decided within the request.
 - Never invent non-goals, security boundaries, maturity gates, metrics, rollout, or supporting features. Suggest one only when tied to a concrete product effect, and keep it proposed until accepted.
 - Compare approaches only when the choice materially changes the experience or implementation boundary.
 - Do not turn ordinary internal tools into enterprise or state-of-the-art products by default.
