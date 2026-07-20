@@ -7,6 +7,7 @@ from tests.workflow.fixtures import (
     ROUTER_MD,
     SKILLS,
     assert_contains,
+    assert_not_contains,
     read,
 )
 
@@ -46,13 +47,27 @@ def test_merge_and_archive_authority_requires_complete_safe_closeout():
     router = read(ROUTER_MD)
     archive = read(SKILLS / "archive" / "SKILL.md")
     land = read(SKILLS / "land" / "SKILL.md")
+    ship = read(SKILLS / "ship" / "SKILL.md")
     for marker in [
-        "invokes the installed `land` skill",
-        "Opening a PR does not authorize merge",
-        "local installation, and task archival require their own accepted authority",
+        "An implementation request authorizes the ordinary code lifecycle",
+        "Do not ask for another acceptance between those stages",
+        "merge itself deploys, publishes, migrates",
+        "requires explicit acceptance before merge",
+        "met acceptance criteria and",
+        "material decisions made independently",
+        "the exact revision",
+        "rollback",
     ]:
-        assert_contains(router, marker, "always-loaded merge closeout")
+        assert_contains(router, marker, "autonomous implementation authority")
+    assert_not_contains(
+        router,
+        "Opening a PR does not authorize merge",
+        "retired separate merge acceptance",
+    )
     for marker in [
+        "implementation request authorizes this flow",
+        "no separate merge acceptance is required",
+        "Inspect default-branch automation",
         "Use local `git` and authenticated `gh` by default",
         "waits for required CI",
         "tree-equivalent merge",
@@ -61,6 +76,16 @@ def test_merge_and_archive_authority_requires_complete_safe_closeout():
         "remove a clean isolated worktree",
     ]:
         assert_contains(land, marker, "land closeout")
+    for marker in [
+        "Production Acceptance Request",
+        "acceptance criteria met, with evidence",
+        "decisions made independently during implementation",
+        "unmet criteria, verification limits, and remaining risk",
+        "exact candidate revision",
+        "rollback path",
+        "Never perform the production action from implementation authority alone",
+    ]:
+        assert_contains(ship, marker, "production acceptance boundary")
     for marker in [
         "Read `../land/SKILL.md` completely",
         "Complete the `land` skill",

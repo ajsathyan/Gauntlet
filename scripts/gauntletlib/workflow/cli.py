@@ -1,4 +1,4 @@
-"""Public stateless CLI adapters for workflow semantic gates."""
+"""Public stateless CLI adapters for optional exact-design proof contracts."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ def _run(args, operation):
                 "status": "fail",
                 "findings": [
                     {
-                        "code": "workflow_gate_failed",
+                        "code": "workflow_contract_failed",
                         "severity": "fail",
                         "message": str(exc),
                     }
@@ -162,7 +162,7 @@ def _common_design(parser):
 def register(subparsers):
     workflow = subparsers.add_parser(
         "workflow",
-        help="Run stateless Design, Build, and Verify semantic gates.",
+        help="Run optional stateless exact-design proof contracts.",
     )
     commands = workflow.add_subparsers(dest="workflow_command", required=True)
 

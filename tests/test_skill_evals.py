@@ -45,7 +45,7 @@ class DesignBuildVerifyContractTests(unittest.TestCase):
         )
         self.assertEqual(verdicts(wrong), ("fail", "fail"))
 
-    def test_public_skills_preserve_one_build_contract_and_separate_verdicts(self):
+    def test_public_skills_preserve_outcomes_and_separate_verdicts(self):
         design = (ROOT / "skills" / "design" / "SKILL.md").read_text(
             encoding="utf-8"
         )
@@ -55,15 +55,16 @@ class DesignBuildVerifyContractTests(unittest.TestCase):
         verify = (ROOT / "skills" / "verify" / "SKILL.md").read_text(
             encoding="utf-8"
         )
-        self.assertIn("Acceptance section is the canonical Build Contract", design)
+        self.assertIn("optional exact-design proof path", design)
+        self.assertIn("Do not delay code edits, commits, publication", design)
         self.assertIn("ephemeral", build)
-        self.assertIn("accepted design directly", verify)
+        self.assertIn("user request and any", verify)
         self.assertIn("Build Verdict", verify)
         self.assertIn("Architecture Verdict", verify)
         self.assertIn("Sensor Verdict", verify)
         self.assertIn("Build Verdict is authoritative", verify)
 
-    def test_installed_agent_path_requires_the_stateless_semantic_gate_sequence(self):
+    def test_installed_agent_path_keeps_optional_exact_design_proof_sequence(self):
         router = (ROOT / "router" / "AGENTS.md").read_text(encoding="utf-8")
         installed_root = "/tmp/agent-home/gauntlet"
         rendered = router.replace("{{GAUNTLET_ROOT}}", installed_root)
@@ -79,7 +80,8 @@ class DesignBuildVerifyContractTests(unittest.TestCase):
         ):
             self.assertIn(command, rendered)
         self.assertIn("task-temporary", rendered)
-        self.assertIn("first implementation edit", rendered)
+        self.assertIn("optional exact-design proof path", rendered)
+        self.assertIn("blocks only that optional proof contract", rendered)
 
         for skill_name, commands in {
             "design": ("workflow build-entry",),
@@ -96,6 +98,28 @@ class DesignBuildVerifyContractTests(unittest.TestCase):
             for command in commands:
                 self.assertIn(command, text)
             self.assertIn("task-temporary", text)
+
+    def test_implementation_authority_reaches_merge_but_stops_at_production(self):
+        router = (ROOT / "router" / "AGENTS.md").read_text(encoding="utf-8")
+        ship = (ROOT / "skills" / "ship" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        land = (ROOT / "skills" / "land" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        for marker in (
+            "push an implementation branch",
+            "open a pull",
+            "request, and merge it to the default branch",
+        ):
+            self.assertIn(marker, router)
+        self.assertIn("no separate merge acceptance is required", land)
+        self.assertIn("Every production change requires separate explicit", router)
+        self.assertIn("Production Acceptance Request", ship)
+        self.assertIn(
+            "Never perform the production action from implementation authority alone",
+            ship,
+        )
 
     def test_three_lens_review_caps_display_without_dropping_findings(self):
         reviewer = (

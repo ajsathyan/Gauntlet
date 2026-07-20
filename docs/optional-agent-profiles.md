@@ -21,14 +21,16 @@ The child’s prompt supplies authority and ownership. A profile never grants ad
 
 Send only:
 
-- the accepted outcome slice;
+- the requested outcome slice;
 - owned files or state;
 - dependency contracts;
 - constraints and authority;
 - proportional proof;
 - return contract and ask-parent policy.
 
-Keep stable instructions first, volatile details last, and omit unrelated history. The parent retains product meaning, shared contracts, integration, publication, merge, release, and rollback.
+Keep stable instructions first, volatile details last, and omit unrelated
+history. The parent retains requested product meaning, shared contracts,
+integration, publication, merge, release, and rollback.
 
 ## Security boundary
 

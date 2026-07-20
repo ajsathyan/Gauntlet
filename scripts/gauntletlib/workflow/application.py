@@ -147,7 +147,7 @@ def build_entry(
     review_results,
     accepted_design_reader,
 ):
-    """Open Build only for a current accepted design and resolved three-lens review."""
+    """Create optional exact-design proof input from a current accepted source."""
 
     accepted = accepted_design_reader(project_root, design)
     review_summary = validate_prebuild_reviews(accepted, review_results)
@@ -173,7 +173,7 @@ def authorize_candidate(
     accepted_design_reader,
     git_repository,
 ):
-    """Re-run the ephemeral Build gate before binding an exact candidate."""
+    """Revalidate optional proof input before binding an exact candidate."""
 
     authorized = build_entry(
         project_root=project_root,
@@ -183,7 +183,7 @@ def authorize_candidate(
     )["contract"]
     if contract != authorized:
         raise ContractError(
-            "candidate contract does not match the current authorized Build entry"
+            "candidate contract does not match the current proof entry"
         )
     resolved = git_repository.resolve_candidate(project_root, commit, tree)
     return bind_candidate_revision(contract, **resolved)

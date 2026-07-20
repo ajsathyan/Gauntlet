@@ -1,6 +1,6 @@
 ---
 name: land
-description: Use when the user explicitly asks to merge or land completed work on the repository’s default branch. Completes the verified generic GitHub closeout without granting installation, deployment, production, or archival authority.
+description: Use when a completed implementation is ready for its authorized non-production merge, or when the user explicitly asks to merge or land existing work on the repository’s default branch.
 ---
 
 # Land
@@ -10,8 +10,15 @@ state.
 
 ## Authority
 
-- A branch push or pull-request request stops before merge.
-- “Merge,” “land,” “ship to main,” or “push to main” authorizes this flow.
+- The implementation request authorizes this flow after exact-candidate
+  verification; no separate merge acceptance is required.
+- A standalone request limited to branch push or pull-request creation still
+  stops at its stated boundary.
+- “Merge,” “land,” “ship to main,” or “push to main” authorizes this flow for
+  existing work that did not originate from an implementation request.
+- Inspect repository automation and release documentation before merge. If merge
+  changes production, stop and use the `ship` production acceptance request
+  before executing the merge.
 - Installation, deployment, production changes, migration, destructive or paid
   actions, credential use, rollback, and task archival retain separate authority.
 
@@ -25,11 +32,13 @@ another material choice becomes unresolved.
 2. Inspect status, diff, branch, worktrees, remote default branch, and the
    source-bound merge handoff. Name every intended path and preserve unrelated
    work.
-3. Use local `git` and authenticated `gh` by default. Use a GitHub connector only
+3. Inspect default-branch automation, release workflows, and repository
+   instructions to determine whether merge itself has a production consequence.
+4. Use local `git` and authenticated `gh` by default. Use a GitHub connector only
    when the user requests it or `gh` cannot perform the required operation.
-4. Commit only intended paths. Keep coherent atomic commits and never stage the
+5. Commit only intended paths. Keep coherent atomic commits and never stage the
    whole worktree by default.
-5. Run the read-only merge preflight against the current branch, handoff, PR
+6. Run the read-only merge preflight against the current branch, handoff, PR
    body, default head, and required checks.
 
 ## Land

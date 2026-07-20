@@ -12,10 +12,13 @@ Deliver the artifact, run its direct outcome or smoke check, and stop. Keep it i
 
 ## Design and planning
 
-Gauntlet keeps one accepted durable design and one disposable implementation plan:
+Gauntlet keeps requested outcomes distinct from its disposable implementation plan:
 
-- Design brainstorms materially different approaches, resolves assumptions and feature-level edge cases, and preserves the accepted result.
-- The exact `Acceptance` section is the canonical Build Contract. Build and Verify read it directly.
+- Design brainstorms materially different approaches, resolves assumptions and
+  feature-level edge cases, and optionally preserves a durable accepted result.
+- When present, the exact `Acceptance` section is the canonical Build Contract
+  for optional exact-design proof. Build and Verify also read the request
+  directly.
 - Build plans internally only until the first coherent implementation step and proof path are clear.
 
 Legacy accepted PRDs remain valid durable designs. See `docs/design-build-verify.md`.
@@ -24,7 +27,12 @@ Legacy accepted PRDs remain valid durable designs. See `docs/design-build-verify
 
 Start from existing context. Make safe assumptions explicit when missing detail would not materially change the result.
 
-Ask only when the answer could materially change product behavior, scope, acceptance, authority, data, money, privacy, security, cost, or an external effect. Ask at most three short questions in one message, preferably one or two, with each question focused on one decision.
+Resolve routine product and engineering choices independently inside the
+requested scope and record material decisions. Ask only when the answer changes
+scope, safety, authority, data, money, privacy, security, cost, or an external
+effect and cannot responsibly be decided within the request. Ask at most three
+short questions in one message, preferably one or two, with each question
+focused on one decision.
 
 Before non-trivial implementation, Design examines:
 
@@ -34,7 +42,11 @@ Before non-trivial implementation, Design examines:
 - observable acceptance and required non-effects;
 - architecture boundaries and concrete consequence triggers.
 
-Three independent lenses review product completeness, engineering shape, and proof/consequence. Show at most three recommendations per user round. Every material finding must still reach `accepted`, `rejected`, `deferred`, or `omitted` with a reason.
+Three independent lenses may review product completeness, engineering shape, and
+proof/consequence. Show at most three recommendations per user round. Every
+material finding still receives a recorded `accepted`, `rejected`, `deferred`,
+or `omitted` implementation disposition with a reason. Advisory disposition does
+not block implementation or non-production landing.
 
 ## Titles
 
@@ -48,7 +60,7 @@ Use native subagents only when independent ownership or evidence makes paralleli
 
 Each child receives one compact workstream assignment containing:
 
-- accepted outcome slice;
+- outcome slice;
 - owned files or state;
 - dependency and consumes/produces contracts;
 - constraints and authority;
@@ -66,7 +78,7 @@ Children:
 
 The parent:
 
-- owns product meaning, shared contracts, user decisions, integration, publication, and merge;
+- owns requested product meaning, shared contracts, integration, publication, and merge;
 - independently checks the oracle and resolves child evidence;
 - integrates coherent atomic changes as they arrive;
 - sends the exact integrated candidate to independent Verify.
@@ -83,13 +95,23 @@ Retry silently when the next attempt is safe and materially different. Stop befo
 
 For material behavior, define an observable oracle before choosing checks. Use a plausible wrong case or required non-effect when it discriminates the result. A receipt or status is an evidence pointer, not proof.
 
-Independent Verify reports separate Build, Architecture, and Sensor verdicts on the exact revision. The Build verdict covers every accepted product outcome. Green sensors cannot substitute for a missing outcome.
+Independent Verify reports separate Build, Architecture, and Sensor verdicts on
+the exact revision. The Build verdict covers every requested and accepted
+product outcome. Green sensors cannot substitute for a missing outcome.
 
 Run fast sensors during edit loops and integrated sensors on the final candidate when the repository configures them. Keep compact attention items in active context and open raw logs only when needed.
 
 ## Authority
 
-Autonomous implementation covers reversible local choices and expected verification repairs inside accepted scope. Git publication, merge, deployment, production changes, destructive actions, migrations, credentials, paid actions, rollback, local installation, and archival remain distinct authority boundaries.
+An implementation request authorizes routine product and engineering decisions,
+code edits, checks, local commits, an implementation branch push, pull-request
+creation, and non-production merge. Required checks, conflicts, demonstrated
+security failures, preservation conflicts, and unsafe external effects can still
+block the affected action.
+
+Every production change requires separate explicit acceptance. Installation,
+destructive or paid actions, credential use, rollback, and archival remain
+separately scoped authority boundaries.
 
 Triggered security review uses the dedicated read-only `security-review.py` runner. Other specialist checks run only for a concrete accepted consequence.
 
@@ -99,7 +121,15 @@ Use a branch for persisted work and a worktree for broad, consequential, dirty-w
 
 Serialize candidates that share an integration base. Base drift invalidates stale proof. Verify the exact integrated or landed revision.
 
-“Push to git” authorizes only the current branch. Opening a PR does not authorize merge. “Merge this,” “land this,” or “merge this to main” invokes the `land` skill for the current scope.
+After exact-candidate verification, an implementation request invokes the `land`
+skill without another merge acceptance. Before landing, inspect repository
+automation and release documentation. If merge itself changes production, stop
+before merge and present the production acceptance request.
+
+That request uses bullets naming met acceptance criteria and evidence, material
+decisions made independently, unmet criteria or remaining risk, exact revision,
+and rollback. A concise user response accepts the disclosed production action;
+the user need not repeat the bullets.
 
 ## Completion and archive
 
@@ -112,6 +142,6 @@ When the user asks to archive:
 3. present a concise archive summary;
 4. archive only within explicit authority.
 
-Archive does not grant merge or installation authority.
+Archive does not grant installation or production authority.
 
 Final responses contain at most three practical-effect bullets: what changed, what proof establishes, and what remains deferred, omitted, needs the user, or cannot be verified.
