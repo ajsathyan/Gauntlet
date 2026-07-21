@@ -1,72 +1,23 @@
 # Meaningful Proof
 
-Use the cheapest proof that can distinguish the intended behavior from a plausible wrong implementation. A green command is evidence only when its oracle—the rule that decides pass or fail—measures the claim being made.
+Proof must distinguish the intended behavior from a plausible wrong implementation.
 
-## Define The Claim Before The Check
+For every accepted outcome record the claim, observable oracle, evidence, required
+non-effects, and a wrong case when it discriminates. Report behavior separately
+from proof availability:
 
-For each material behavior change, name:
+- any known behavior failure -> `Failed`;
+- no failure with unavailable required proof -> `Blocked`;
+- complete applicable proof -> `Passed`.
 
-- **Claim or invariant:** the behavior, state transition, or non-effect that must hold.
-- **Observable oracle:** the externally inspectable result that would establish the claim.
-- **Required checks:** commands, inspections, or artifacts that exercise the oracle.
-- **Negative control:** a plausible wrong case that must fail, when risk or ambiguity earns it.
-- **Required non-effects:** state, files, permissions, users, or systems that must remain unchanged.
-- **Independent verification:** what the parent will rerun or inspect after integration.
-- **Cannot verify:** material limits, their consequence, and the next check.
+Run all executable target-specific checks even when an unrelated broad check is
+blocked. A receipt, manifest, document, status, reviewer agreement, or green
+command proves only what its underlying oracle observes.
 
-Use these fields proportionally. A direct, reversible outcome may need only a claim and an observation. Do not add empty proof ceremony.
+Evidence is revision-bound. Reuse it only when the candidate commit/tree, checked
+base, command, fixture, toolchain, and relevant environment still match.
+Architecture is a separate verdict and cannot turn a behavior failure into success.
 
-For non-trivial implementation, take claims directly from the user request,
-conversation decisions, and any accepted design's exact `Acceptance` section.
-When present, that section is the canonical Build Contract. A Build plan,
-workstream assignment, pull-request summary, sensor selection, or worker-authored
-checklist may organize evidence but cannot replace, summarize away, or narrow a
-requested or accepted outcome.
-
-## Evidence Boundaries
-
-- Phrase presence, populated fields, schema validity, status labels, and self-reported results prove only structural coverage or scorer wiring. They do not prove behavior.
-- A child receipt is an evidence pointer. It does not become proof until the
-  parent resolves the referenced command or artifact and checks that it supports
-  the requested outcomes and any accepted design.
-- Reuse a verification receipt only when its commit and tree, command, toolchain, fixture or oracle digest, and relevant environment identity match exactly. Otherwise rerun the smallest check. Byte-different narration is not independent proof.
-- A passing test is meaningful only if the assertion would fail for a relevant wrong implementation. Prefer observing the regression fail for the intended reason before the fix when a credible harness exists.
-- Child-written tests may preserve regressions, but the same child must not silently weaken, replace, bypass, or tailor the oracle to its implementation. Hidden or independent proof belongs to the parent unless the ticket explicitly assigns ownership.
-- For consequential work, include a negative control, mutation check, black-box outcome, or independent review that is meaningfully separate from the implementation. A green sensor result paired with evidence that omits one accepted outcome is a required fail, not partial completion.
-- Record what the evidence establishes and what it cannot establish. Do not turn limited evidence into a broader completion claim.
-
-## Delegated Work
-
-A **workstream assignment** is an ephemeral child prompt from Build, not an issue-tracker record or product specification. It contains only the context the child needs. Depending on risk, it may include the proof fields above plus the outcome slice, objective, ownership, dependencies, constraints, return contract, and ask-parent policy.
-
-Children work quietly and retry safe materially different recoveries.
-Implementation children return compact receipts; research and review children
-return the requested artifact or findings compactly. The parent owns requested
-product meaning, integrates coherent atomic changes, and resolves ordinary child
-evidence. Run focused checks as results arrive, then one fresh independent Verify
-pass against requested outcomes and any accepted design on exact integration
-HEAD.
-
-## Exact-Revision Verdicts
-
-Verify reads the request and any accepted design directly and reports three verdicts without collapsing them:
-
-1. **Build Verdict:** whether every requested or accepted product outcome and required non-effect is established.
-2. **Architecture Verdict:** whether the exact revision satisfies the applicable Architecture Contract.
-3. **Sensor Verdict:** whether required configured checks executed and passed under the Sensor Contract.
-
-The Build Verdict is authoritative for requested and accepted product outcomes.
-Architecture and Sensor success cannot compensate for a Build failure or
-`Cannot verify`. Applicable Architecture and Sensor failures still block
-completion.
-
-## Proof Layers
-
-Keep these claims distinct:
-
-1. **Structural coverage:** required text, fields, schemas, or files exist.
-2. **Scorer smoke:** synthetic inputs show that a scorer detects its intended signals.
-3. **Execution-backed outcomes:** commands, traces, artifacts, or external state establish observable behavior and non-effects.
-4. **Calibrated judgment:** subjective quality is measured against human labels or remains `Cannot verify`.
-
-Use only the layer strong enough for the claim. Never report layers 1 or 2 as agent or product behavior.
+Keep structural coverage, synthetic scorer smoke, execution-backed behavior, and
+calibrated judgment as distinct claim classes. Missing production proof is
+`Cannot verify`, never inferred health.

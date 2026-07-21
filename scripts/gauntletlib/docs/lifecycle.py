@@ -6,7 +6,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from gauntletlib.cli import EXIT_CODES
+from gauntletlib.cli_support import EXIT_CODES
 from gauntletlib.core.fsio import atomic_write_text as _core_atomic_write_text
 from gauntletlib.core.fsio import write_new_file
 from gauntletlib.core.findings import status_for
@@ -170,11 +170,7 @@ def local_design_prefix(index_path):
     if not index_path.is_file():
         raise RuntimeError(f"Local document index does not exist: {index_path}")
     text = index_path.read_text(encoding="utf-8")
-    match = re.search(
-        r"^(?:Design|Epic) prefix:\s*`([^`]+)`\s*$",
-        text,
-        re.MULTILINE,
-    )
+    match = re.search(r"^Design prefix:\s*`([^`]+)`\s*$", text, re.MULTILINE)
     if not match:
         raise RuntimeError(
             f"Local document index does not declare a design prefix: {index_path}"
@@ -633,8 +629,7 @@ def allocated_design_numbers(context, prefix):
                 context["indexPath"].read_text(encoding="utf-8")
             )
         )
-    # Legacy Epic files are read but never rewritten; including their IDs prevents reuse.
-    for root in [context["designsRoot"], context["docsRoot"] / "epics"]:
+    for root in [context["designsRoot"]]:
         if not root.is_dir() or root.is_symlink():
             continue
         for path in root.rglob("*.md"):
@@ -649,8 +644,6 @@ def allocated_design_numbers(context, prefix):
 def _index_marker(index_text):
     if index_text.count("<!-- DESIGNS -->") == 1:
         return "<!-- DESIGNS -->"
-    if index_text.count("<!-- EPICS -->") == 1:
-        return "<!-- EPICS -->"
     raise RuntimeError(
         "Local document index must contain exactly one design insertion marker."
     )
@@ -958,35 +951,16 @@ def load_accepted_design(project_root, supplied):
     if not isinstance(record, dict):
         raise RuntimeError(f"Accepted design record has an unsupported shape: {sidecar}")
     relative = str(design_path.relative_to(context["docsRoot"]))
-    schema = record.get("schemaVersion")
-    if schema == "gauntlet.accepted-design.v1":
-        if set(record) != design_keys:
-            raise RuntimeError(
-                f"Accepted design record has an unsupported shape: {sidecar}"
-            )
-        identity = record.get("designId")
-        reference = relative
-        indexed_status = row.group(4).strip()
-        source_matches = record.get("sourcePath") == relative
-    elif schema == "gauntlet.accepted-epic.v1":
-        required = {"epicId", "sourcePath", "sourceSha256", "acceptedAt"}
-        if not required.issubset(record):
-            raise RuntimeError(
-                f"Accepted Epic record has an unsupported shape: {sidecar}"
-            )
-        identity = record.get("epicId")
-        reference = record.get("sourcePath")
-        columns = [part.strip() for part in row.group(0).strip("|").split("|")]
-        indexed_status = columns[3] if len(columns) >= 4 else ""
-        try:
-            recorded_source = Path(reference).expanduser()
-            if not recorded_source.is_absolute():
-                recorded_source = context["docsRoot"] / recorded_source
-            source_matches = recorded_source.resolve() == design_path
-        except (OSError, TypeError):
-            source_matches = False
-    else:
+    if record.get("schemaVersion") != "gauntlet.accepted-design.v1":
         raise RuntimeError(f"Accepted design record schema is unsupported: {sidecar}")
+    if set(record) != design_keys:
+        raise RuntimeError(
+            f"Accepted design record has an unsupported shape: {sidecar}"
+        )
+    identity = record.get("designId")
+    reference = relative
+    indexed_status = row.group(4).strip()
+    source_matches = record.get("sourcePath") == relative
     if identity != row.group(1) or not source_matches:
         raise RuntimeError("Accepted design record does not identify the indexed design.")
     if indexed_status != "Accepted":
@@ -1005,10 +979,7 @@ def load_accepted_design(project_root, supplied):
         raise RuntimeError(
             "Accepted design source is stale: its bytes changed after acceptance."
         )
-    if (
-        schema == "gauntlet.accepted-design.v1"
-        and record["acceptanceSha256"] != current_acceptance
-    ):
+    if record["acceptanceSha256"] != current_acceptance:
         raise RuntimeError(
             "Accepted design Acceptance section is stale: its bytes changed after acceptance."
         )
@@ -1026,7 +997,6 @@ def load_accepted_design(project_root, supplied):
                 source_text,
                 "Architecture Contract",
             ),
-            "sensor": _optional_contract_binding(source_text, "Sensor Contract"),
         },
     }
 

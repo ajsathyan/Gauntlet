@@ -1,160 +1,51 @@
-# Gauntlet Contributor Guide
+# Gauntlet Lite Contributor Guide
 
-Gauntlet is a product-thinking and proof harness for coding agents. This file governs work on Gauntlet itself. The compact workflow installed into agent homes lives in `router/AGENTS.md`.
+Gauntlet Lite is a compact product, proof, and release workflow for Codex. The
+installed router is `router/AGENTS.md`; procedures live in the nine retained
+`skills/` packages.
 
-## Sources of truth
+## Workflow
 
-- `router/AGENTS.md`: compact always-loaded workflow router.
-- `skills/design`, `skills/build`, `skills/verify`, and `skills/ship`: public workflow responsibilities.
-- `docs/design-build-verify.md`: contract ownership and semantic gates.
-- `docs/parallel-workstreams.md`: bounded native delegation and integration.
-- `docs/workflow-etiquette.md`: collaboration, titles, questions, and authority.
-- `docs/meaningful-proof.md`: observable oracles and evidence boundaries.
-- `docs/code-quality-sensors.md`: fast and integrated sensor cadence.
-- `docs/github-discipline.md`: generic branch, commit, PR, merge, and cleanup behavior.
-- `docs/skill-quality-bar.md`: requirements for skill and workflow changes.
-- `docs/local-documentation.md`: durable design-document organization.
+- Use a Normal Request for bounded, reversible work and Research for read-only work.
+- Before non-trivial implementation, use `design` and the main-agent six-lens
+  review: Product, Engineering, Design, Analytics, QA, and Performance.
+- Require acceptance of the exact final `Acceptance` section.
+- Plan and implement natively in the main task. Use subagents only when AJS asks.
+- Commit a coherent candidate, then use `verify` on that exact commit/tree/base.
+- After passing proof, use `land` and `ship` without another routine prompt.
 
-Repository guidance uses repository-relative paths. Portable guidance uses the installed-path placeholders rendered by the installer.
+A complete user task may serve as Design. A lens may be `Not applicable` with a
+reason. Review recommendations are advisory until the user accepts them.
 
-## Use the lightest responsible path
+## Proof and authority
 
-A Normal Request is bounded, low-consequence, reversible, directly checkable, and does not change a durable schema, contract, methodology, architecture, production system, or safety boundary. Deliver it directly, run its smoke check, and stop. Keep it in the main task.
+Verify reports behavior and proof availability for every accepted outcome. Known
+failure is `Failed`; no failure with missing required proof is `Blocked`; only
+complete applicable proof is `Passed`. Architecture remains a separate verdict.
+Manifests, documents, self-reports, and green commands do not prove behavior.
 
-For other work, choose internally among Research, Patch, Feature, and Release. Use Deep only for an explicit audit, optimization, benchmark, hardening request, repeated material failure, or consequential decision that needs alternatives. Surface routing only when it changes scope, authority, cost, proof, or a user decision.
+Acceptance authorizes the scoped implementation, checks, commit, push, pull
+request, direct merge, ordinary deployment, and monitoring. Stop for effects
+outside that scope or unexpected destructive, credential, migration,
+privacy, security, data-loss, or production effects.
 
-Set the root task title silently once the goal is clear. Use plain descriptive text with at most four words. Do not add priority, size, or autonomy metadata.
+Preserve unrelated work. Gauntlet has no merge queue. Land fails on ambiguous
+remotes or known stale proof, verifies the landed revision, and handles rare
+direct-merge races ad hoc.
 
-## Design
+## Repository checks
 
-Use existing context first. Ask at most three short questions, only when an answer materially changes behavior, scope, acceptance, authority, risk, cost, or an external effect.
-
-Before non-trivial implementation:
-
-1. Read existing product documents, behavior, evidence, and user decisions.
-2. Brainstorm materially different approaches and record the chosen tradeoff.
-3. Resolve assumptions, feature-completeness questions, user-visible states, edge cases, observable acceptance, and required non-effects.
-4. Make routine product and engineering decisions independently inside the requested scope and record material decisions for handoff.
-5. Create or edit a durable design only with explicit user authority. When one is accepted, its exact `Acceptance` section is the canonical Build Contract for the optional exact-design proof path.
-
-Discussion does not modify a design. Unaccepted suggestions remain outside it. Preserve direct user edits, arbitrary sections, and legacy accepted PRDs as valid designs.
-
-Three independent lenses may inspect the same request or accepted design:
-
-- product completeness and feature-level edge cases;
-- engineering shape, boundaries, dependencies, migrations, compatibility, and parallel conflicts;
-- proof, false-green paths, required non-effects, and concrete consequence triggers.
-
-Show at most three recommendations per user round without dropping material findings. Record a terminal disposition and reason for every material finding. Ask the user only when a finding exposes a material scope, safety, authority, or external-effect decision that cannot be resolved inside the implementation request.
-
-Design acceptance, advisory review dispositions, and `workflow build-entry` do
-not authorize or block code edits, commits, publication, or a non-production
-merge. When an accepted design exists and exact-design proof is useful, keep the
-three-lens results and workflow contract in a task-temporary directory, never in
-the repository or local documents, and run
-`python3 scripts/gauntlet.py workflow build-entry --project-root "$PROJECT_ROOT" --design "$DESIGN" --reviews "$REVIEWS_JSON" --json`.
-A failed command blocks only that optional proof contract.
-
-## Build
-
-Read before editing, match repository patterns, preserve unrelated work, and avoid unrelated cleanup. Use a branch for persisted changes and an isolated worktree for broad, consequential, dirty-worktree, or write-heavy delegated changes.
-
-Build reads the user request, repository context, and any accepted design directly, then uses an internal ephemeral plan. Stop planning when the first coherent implementation step and proof path are clear.
-
-When behavior changes, observe the relevant failure when a practical harness exists, implement the smallest source fix, and rerun focused proof. Diagnose unexpected behavior at its earliest divergence before fixing it.
-
-Use native subagents only when independent ownership or evidence makes parallelism worth its context cost. Each child receives a compact workstream assignment containing:
-
-- outcome slice;
-- owned files or state;
-- dependency and consumes/produces contracts;
-- constraints and authority;
-- proportional proof and return contract;
-- ask-parent policy.
-
-The parent owns requested product meaning, shared contracts, integration, publication, and the final oracle. Children return changed artifacts, compact proof, and risk. Use custom agent profiles only when a profile clearly improves the bounded work; no classifier or audit layer is required.
-
-Keep stable instructions first and volatile assignment details last. Omit empty fields, unrelated history, and duplicate contract text.
-
-## Verify
-
-Evidence precedes completion claims. For material behavior, name an observable oracle and use a plausible wrong case or required non-effect when it discriminates the intended result. Fields, phrases, statuses, receipts, and self-reports prove structure, not behavior.
-
-Independent Verify receives:
-
-- the user-requested outcomes and any accepted design or canonical Build Contract;
-- the exact integrated revision;
-- the Architecture Contract;
-- the Sensor Contract.
-
-It reports separate Build, Architecture, and Sensor verdicts. The Build verdict independently covers every applicable product outcome. Applicable Architecture and Sensor failures also block completion. A green sensor result cannot substitute for an absent requested outcome.
-
-When using the optional exact-design proof path, run the stateless workflow
-commands on the exact integrated candidate in order:
-`bind-candidate`, `verify-entry`, `record-verdict` once each for Build,
-Architecture, and Sensor, then `completion-check`. Pass the temporary contract
-forward between commands. Do not claim completion unless `completion-check`
-passes; remove the task-temporary inputs and outputs after handoff.
-
-Run focused tests first. When `gauntlet-sensors.json` exists, run fast sensors during the edit loop and integrated sensors on the final candidate. Treat a nonzero required sensor result as a completion blocker. Keep compact attention items in active context and open raw logs only when a finding requires them.
-
-Run `scripts/run-skill-change-checks.sh` for skill or workflow-guidance changes. Run `python3 scripts/check-gauntlet-workflow.py` for broad workflow, installer, router, or release changes. Use temporary agent homes for install proof.
-
-Consequence-specific security, failure, recovery, black-box, production, TypeScript, UI, or release checks run only when a concrete accepted trigger applies. Triggered security review uses:
+For skill or workflow changes run:
 
 ```sh
-python3 scripts/security-review.py \
-  --workspace "$WORKTREE" \
-  --ticket-file "$SECURITY_TICKET"
+scripts/run-skill-change-checks.sh
+python3 scripts/check-gauntlet-workflow.py
 ```
 
-The dedicated runner is read-only. It does not grant authority for external effects.
+Use temporary agent homes for install proof. Keep the router below Codex's 32 KiB
+instruction limit and preserve bytes outside its managed block. Installer changes
+must prove clean install, safe upgrade, ownership transfer, idempotency, malformed
+state rejection, and uninstall preservation.
 
-## Ship and Git
-
-Preserve unrelated dirty work. Commit coherent atomic changes. Serialize candidates that share an integration base, reject stale proof after base drift, and verify the exact integrated or landed revision.
-
-An implementation request authorizes writing and testing code, creating local
-commits, pushing an implementation branch, opening a pull request, and merging
-it to the default branch through the `land` skill without another acceptance
-pause. Required checks, conflicts, demonstrated security failures, preservation
-conflicts, and unsafe external effects may still block the affected action.
-
-Inspect repository automation and release documentation before landing. If merge
-itself deploys, publishes, migrates, or otherwise changes production, require
-explicit production acceptance before merge. Every production change requires
-separate explicit acceptance accompanied by bullets naming met
-acceptance criteria and evidence, material decisions made independently, unmet
-criteria or remaining risks, the exact revision, and rollback. A concise user
-acceptance is sufficient. Installation, destructive or paid actions, credential
-use, rollback, and task archival retain separately scoped authority.
-
-Keep `Unreleased` for future work when cutting a version. Preserve released changelog history.
-
-Implemented, committed, pushed, published, merged, deployed, and production-proved are separate claims.
-
-## Skills and policy quality
-
-Use the narrowest role skill that adds concrete value:
-
-- `design`, `build`, `verify`, `ship`;
-- `intake`, `product-architect`, `planner`, `issue-triager`, `implementer`;
-- `researcher`, `debugger`;
-- `adversarial-reviewer`, `black-box-tester`, `experience-reviewer`, `deep-code-reviewer`;
-- consequence-triggered specialist and domain skills.
-
-Meaningful skill or router changes must name the behavior delta, trigger, completion criterion, output contract, negative case, and proof layer. Remove no-ops and duplication, disclose branch-specific detail only when needed, and keep one authoritative copy of each instruction.
-
-## Installer safety
-
-- Keep `router/AGENTS.md` below Codex’s default `project_doc_max_bytes` budget.
-- The installer owns only the marked Gauntlet block and preserves every byte outside it.
-- Reject malformed or duplicated markers before mutation.
-- Repeated installation is idempotent.
-- Test clean, legacy, managed, malformed, upgrade, uninstall, conflicting-path, and repeat-install cases in temporary homes.
-
-## Stop conditions
-
-Stop for a material unresolved product decision, data loss, billing, privacy or security ambiguity, missing required credentials, preservation conflict, unsafe external action, unavailable required proof, or a repeated failure fingerprint with no safe materially different attempt.
-
-Work is complete when accepted behavior is met, the exact revision is proved, applicable findings have terminal dispositions, unrelated work is preserved, and required durable updates are made.
+Do not retain aliases, fixtures, examples, documentation, or compatibility code
+for retired behavior. Git history is the archive.

@@ -22,9 +22,11 @@ class GitRepository:
             raise RuntimeError(f"{label} could not be resolved by Git: {detail}")
         return result.stdout.strip()
 
-    def resolve_candidate(self, project_root, commit, tree):
-        if _OBJECT_ID(commit) is None or _OBJECT_ID(tree) is None:
-            raise RuntimeError("candidate commit and tree must be exact Git object IDs")
+    def resolve_candidate(self, project_root, commit, tree, base):
+        if any(_OBJECT_ID(value) is None for value in (commit, tree, base)):
+            raise RuntimeError(
+                "candidate commit, tree, and checked base must be exact Git object IDs"
+            )
         resolved_commit = self._run(
             project_root,
             ["rev-parse", "--verify", f"{commit}^{{commit}}"],
@@ -39,7 +41,14 @@ class GitRepository:
         )
         if resolved_tree != tree:
             raise RuntimeError("candidate tree does not match the commit's derived tree")
-        return {"commit": resolved_commit, "tree": resolved_tree}
+        resolved_base = self._run(
+            project_root,
+            ["rev-parse", "--verify", f"{base}^{{commit}}"],
+            "checked base",
+        )
+        if resolved_base != base:
+            raise RuntimeError("checked base did not resolve to its exact object ID")
+        return {"commit": resolved_commit, "tree": resolved_tree, "base": resolved_base}
 
     def resolve_evidence(self, project_root, commit, locator):
         if not isinstance(locator, str) or not locator.startswith("path:"):

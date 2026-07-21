@@ -1,11 +1,11 @@
 {
-  "name": "gauntlet",
+  "name": "gauntlet-lite",
   "interface": {
-    "displayName": "Gauntlet"
+    "displayName": "Gauntlet Lite"
   },
   "plugins": [
     {
-      "name": "gauntlet",
+      "name": "gauntlet-lite",
       "source": {
         "source": "local",
         "path": "./"

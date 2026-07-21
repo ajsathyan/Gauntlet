@@ -1,4 +1,0 @@
-interface:
-  display_name: "Craft Product Terminology"
-  short_description: "Name product and system concepts clearly"
-  default_prompt: "Use $craft-product-terminology to create a minimal, responsibility-accurate terminology system."

@@ -1,410 +1,51 @@
 {
   "schemaVersion": "1.0",
-  "description": "Deterministic text-coverage cases for Gauntlet skills. Coverage compares one-shot, current baseline skill, and new working skill. Matcher smoke unit-tests phrase handling but does not claim agent behavior.",
+  "description": "Structural matcher cases for retained Gauntlet Lite skills. These do not claim agent behavior.",
   "cases": [
     {
-      "id": "intake-packet-contract",
-      "skill": "intake",
-      "title": "Intake emits a bounded packet instead of loose questions",
-      "oneShotInstruction": "Clarify the user's coding request. Ask only important questions, then summarize goal, scope, acceptance criteria, and proof.",
-      "pressurePrompt": "The user asks for a broad auth-adjacent change with partial context and says they are in a hurry. Produce intake without over-questioning or silently accepting risk.",
-      "requiredPatterns": [
-        "Intake Packet",
-        "goal and accepted scope",
-        "affected behavior or interfaces",
-        "observable done behavior",
-        "proportionate proof",
-        "constraints and user-stated assumptions",
-        "one material open question or `Cannot verify`",
-        "first coherent implementation step",
-        "Ask at most three short questions",
-        "do not create a second permanent packet"
-      ],
-      "forbiddenPatterns": [
-        "ask as many questions"
-      ]
+      "id": "design-task-as-contract",
+      "skill": "design",
+      "title": "Design accepts a complete task without duplication",
+      "oneShotInstruction": "Use the task as contract when complete and show review findings.",
+      "pressurePrompt": "The user supplied complete acceptance and wants no duplicate document.",
+      "requiredPatterns": ["complete user task as Design", "six-lens", "Show every material recommendation", "accept the exact"],
+      "forbiddenPatterns": ["always create a second design"]
     },
     {
-      "id": "planner-ticket",
-      "skill": "planner",
-      "title": "Planner creates tickets with interfaces and proof",
-      "oneShotInstruction": "Turn the accepted spec into ordered implementation steps, risks, non-goals, and verification.",
-      "pressurePrompt": "Plan a multi-file feature where two tasks can be parallelized but share a public interface. Avoid component piles and prevent subagents from guessing contracts.",
-      "requiredPatterns": [
-        "Workstream Assignment",
-        "canonical Build Contract",
-        "ephemeral",
-        "Objective",
-        "Ownership",
-        "Material dependencies",
-        "Proof contract",
-        "Observable oracle",
-        "Negative control",
-        "Parent independent verification",
-        "Cannot verify",
-        "Stop planning once"
-      ],
-      "forbiddenPatterns": [
-        "one agent per failure mode"
-      ]
-    },
-    {
-      "id": "product-feature-contract",
-      "skill": "product-architect",
-      "title": "Product architect resolves one Design decision without inventing scope",
-      "oneShotInstruction": "Resolve the material product choice, compare a genuinely different alternative, and state the evidence limit before returning the decision to Design.",
-      "pressurePrompt": "The user asks for a progress feature. Recommend the user-visible behavior without inventing vanity metrics, supporting features, or agent/process notes in the UI.",
-      "requiredPatterns": [
-        "recommended decision",
-        "materially different alternative",
-        "one unresolved question or `Cannot verify`",
-        "current product document",
-        "Preserve existing behavior",
-        "`design` skill",
-        "canonical Build Contract",
-        "Ask only when",
-        "Never invent"
-      ],
-      "forbiddenPatterns": [
-        "no metric needed"
-      ]
-    },
-    {
-      "id": "implementer-report-contract",
-      "skill": "implementer",
-      "title": "Implementer writes a statused report with proof and cannot-verify items",
-      "oneShotInstruction": "Implement the ready task narrowly, follow local patterns, test it, and summarize files changed, verification, and remaining risks.",
-      "pressurePrompt": "Implement a ready task while the workspace is dirty and the proof path is partial. Report facts to the orchestrator without claiming done too early.",
-      "requiredPatterns": [
-        "Implementation Report",
-        "Status",
-        "Proof",
-        "Cannot verify",
-        "Changed files",
-        "proof and its limit",
-        "Parent reruns",
-        "Done requires",
-        "RED-GREEN-REFACTOR"
-      ],
-      "forbiddenPatterns": [
-        "mark complete merely because code was implemented"
-      ]
-    },
-    {
-      "id": "adversarial-review-verdict",
+      "id": "six-lens-advisory-review",
       "skill": "adversarial-reviewer",
-      "title": "Adversarial review separates attack evidence from speculation",
-      "oneShotInstruction": "Try to break a completed change with edge cases, trust boundary checks, races, resource exhaustion, rollback, and data integrity failures.",
-      "pressurePrompt": "Review a risky upload/API change. Find concrete break paths, avoid style feedback, and state what cannot be verified from the given evidence.",
-      "requiredPatterns": [
-        "Verdict",
-        "Evidence",
-        "Cannot verify",
-        "Impact",
-        "Recommended fix",
-        "Test idea",
-        "Agent next"
-      ],
-      "forbiddenPatterns": [
-        "style"
-      ]
+      "title": "Main-agent review covers six lenses",
+      "oneShotInstruction": "Review Product, Engineering, Design, Analytics, QA, and Performance.",
+      "pressurePrompt": "Review a contract and allow irrelevant lenses to be not applicable.",
+      "requiredPatterns": ["**Product:**", "**Engineering:**", "**Design:**", "**Analytics:**", "**QA:**", "**Performance:**", "Not applicable", "cannot accept its own recommendation"],
+      "forbiddenPatterns": ["automatically implement every recommendation"]
     },
     {
-      "id": "black-box-charter-contract",
-      "skill": "black-box-tester",
-      "title": "Black-box tester uses external charters with oracles and proof limits",
-      "oneShotInstruction": "Validate behavior externally through UI, CLI, API, logs, persisted data, screenshots, and user-visible outcomes.",
-      "pressurePrompt": "Test a feature externally without reading implementation internals. Cover success, error, state, timing, and environment variation without claiming exhaustive proof.",
-      "requiredPatterns": [
-        "Verdict",
-        "Charter",
-        "Oracle",
-        "Evidence",
-        "Cannot verify",
-        "Residual risk",
-        "Agent next"
-      ],
-      "forbiddenPatterns": [
-        "exhaustive coverage"
-      ]
+      "id": "verify-two-axis-outcomes",
+      "skill": "verify",
+      "title": "Verify separates behavior from proof availability",
+      "oneShotInstruction": "Report both axes and continue available checks.",
+      "pressurePrompt": "A broad suite is unavailable while a target-specific check exposes a defect.",
+      "requiredPatterns": ["**Behavior:**", "**Proof availability:**", "does not end", "Failed", "Blocked", "Passed"],
+      "forbiddenPatterns": ["probably correct"]
     },
     {
-      "id": "experience-review-contract",
-      "skill": "experience-reviewer",
-      "title": "Experience review yields role-tagged findings and design proof gaps",
-      "oneShotInstruction": "Review the implemented user-facing feature for workflow clarity, states, accessibility, trust, activation, retention, growth, and cohesion.",
-      "pressurePrompt": "Review a user-facing flow with partial screenshots. Separate PM/design judgment from engineering defects and do not invent metrics.",
-      "requiredPatterns": [
-        "Verdict",
-        "Role",
-        "Surface",
-        "Evidence",
-        "Cannot verify",
-        "Recommended change",
-        "Acceptance or test idea",
-        "Agent next"
-      ],
-      "forbiddenPatterns": [
-        "invent metrics"
-      ]
+      "id": "land-direct-source-bound",
+      "skill": "land",
+      "title": "Land binds exact proof and directly merges",
+      "oneShotInstruction": "Land the verified candidate through the established PR format.",
+      "pressurePrompt": "The repository has one writable remote named upstream.",
+      "requiredPatterns": ["candidate commit and tree", "checked remote/default-branch base", "writable head remote", "Problem, Solution, Changelog, Testing", "no queue or auto-merge"],
+      "forbiddenPatterns": ["create an origin alias"]
     },
     {
-      "id": "deep-code-review-contract",
-      "skill": "deep-code-reviewer",
-      "title": "Deep review reports file-backed risk and cannot-verify proof gaps",
-      "oneShotInstruction": "Review final code for correctness, maintainability, testability, safe refactoring, integration risk, and regression risk.",
-      "pressurePrompt": "Review a broad generated-code-heavy change. Block only concrete current-change risks with evidence and keep cleanup bounded.",
-      "requiredPatterns": [
-        "Verdict",
-        "Evidence",
-        "Cannot verify",
-        "Concrete risk",
-        "Suggested fix",
-        "Test gap",
-        "Agent next"
-      ],
-      "forbiddenPatterns": [
-        "Do not block on taste"
-      ]
-    },
-    {
-      "id": "triage-ready-item-contract",
-      "skill": "issue-triager",
-      "title": "Triager turns findings into ready items or explicit blocked/deferred states",
-      "oneShotInstruction": "Classify, reproduce, prioritize, deduplicate, and route findings into ready implementation tasks.",
-      "pressurePrompt": "Triage a mixed list of release panel concerns, review findings, test failures, duplicate bugs, and vague cleanup requests.",
-      "requiredPatterns": [
-        "Ready Item",
-        "Decision",
-        "Evidence",
-        "Cannot verify",
-        "Done when",
-        "Next action",
-        "Reject"
-      ],
-      "forbiddenPatterns": [
-        "speculative maintainability"
-      ]
-    },
-    {
-      "id": "planner-production-quality-bar",
-      "skill": "planner",
-      "title": "Planner gates production quality bar to near-launch work",
-      "oneShotInstruction": "Plan near-launch hardening by adding production quality checks only when the release risk warrants them.",
-      "pressurePrompt": "Plan a private-beta launch hardening pass with durable state, no-mutation proof, automated release tags, and explicit deferrals. Do not apply the same bar to ordinary Patch work.",
-      "requiredPatterns": [
-        "Production Quality Bar",
-        "near-launch",
-        "otherwise omit it",
-        "release proof",
-        "dry-run/no-mutation",
-        "automated GitHub release tags",
-        "explicit deferrals"
-      ],
-      "forbiddenPatterns": [
-        "always run"
-      ]
-    },
-    {
-      "id": "deep-review-production-quality-bar",
-      "skill": "deep-code-reviewer",
-      "title": "Deep review applies launch-grade architecture boundaries",
-      "oneShotInstruction": "Review near-launch code for senior implementation boundaries, invariants, durable state, and launch proof without blocking on speculative cleanup.",
-      "pressurePrompt": "Review a production-bound workflow that concentrates state, external clients, locks, and alerting in one file. Distinguish ship blockers from judgment calls.",
-      "requiredPatterns": [
-        "Production Quality Bar",
-        "ownership boundaries",
-        "invariants",
-        "durable state",
-        "state machines",
-        "release proof",
-        "Not relevant because"
-      ],
-      "forbiddenPatterns": [
-        "could be cleaner"
-      ]
-    },
-    {
-      "id": "adversarial-production-quality-bar",
-      "skill": "adversarial-reviewer",
-      "title": "Adversarial review covers launch threat and redaction risk",
-      "oneShotInstruction": "For production-bound work, check threat model, redaction policy, trust boundaries, destructive actions, retries, rollback, and recovery.",
-      "pressurePrompt": "Stress-test a near-launch payment/upload flow that logs provider payloads and retries failed jobs. Keep findings concrete and avoid exploit over-detail.",
-      "requiredPatterns": [
-        "Production Quality Bar",
-        "threat model",
-        "redaction",
-        "trust boundaries",
-        "destructive",
-        "Not relevant because"
-      ],
-      "forbiddenPatterns": [
-        "full exploit recipe"
-      ]
-    },
-    {
-      "id": "experience-production-quality-bar",
-      "skill": "experience-reviewer",
-      "title": "Experience review checks decision-oriented launch UI",
-      "oneShotInstruction": "For launch-ready product UI, verify that users can see confidence, freshness, blockers, evidence, and the next action.",
-      "pressurePrompt": "Review a production-bound dashboard that shows statuses but not confidence, data age, sample size, blockers, or why the system will not act.",
-      "requiredPatterns": [
-        "Production Quality Bar",
-        "decision-oriented UI",
-        "confidence",
-        "freshness",
-        "sample size",
-        "next action",
-        "Not relevant because"
-      ],
-      "forbiddenPatterns": [
-        "invent metrics"
-      ]
-    },
-    {
-      "id": "researcher-evidence-contract",
-      "skill": "researcher",
-      "title": "Research stays evidence-bounded without implementation ceremony",
-      "oneShotInstruction": "Research the question, distinguish facts from inference, report uncertainty, and recommend the next action.",
-      "pressurePrompt": "Perform a broad read-only audit that could inform later implementation. Do not classify it as Release merely because it is broad and do not create an implementation plan unless requested.",
-      "requiredPatterns": [
-        "Research Contract",
-        "downstream consequence",
-        "Evidence plan",
-        "observed facts separated from inference",
-        "Cannot verify",
-        "first-class Gauntlet path",
-        "does not redo a child's full assignment",
-        "Do not create an implementation plan"
-      ],
-      "forbiddenPatterns": [
-        "broad means Release"
-      ]
-    },
-    {
-      "id": "debugger-root-cause-contract",
-      "skill": "debugger",
-      "title": "Debugger proves root cause before proposing a source fix",
-      "oneShotInstruction": "Reproduce the failure, trace the earliest divergence, test a falsifiable hypothesis, then propose the smallest source fix and regression proof.",
-      "pressurePrompt": "A flaky test times out after a refactor. Diagnose it without increasing the timeout or guessing at fixes.",
-      "requiredPatterns": [
-        "Debug Report",
-        "Reproduction",
-        "Expected vs observed",
-        "Root-cause hypothesis",
-        "discriminating check",
-        "Smallest source fix",
-        "Regression proof",
-        "Cannot verify"
-      ],
-      "forbiddenPatterns": [
-        "just increase the timeout"
-      ]
-    },
-    {
-      "id": "promotion-scanner-contract",
-      "skill": "promotion-scanner",
-      "title": "Promotion scanner routes repeated manual loops without live actions",
-      "oneShotInstruction": "Analyze recent traces and run logs for repeated manual work that may deserve code, tests, docs, coverage gaps, or workflow guidance.",
-      "pressurePrompt": "Recent ops traces show stale fatal strings, newer join/progress evidence, repeated max-active auth-cap rechecks before cleanup, a one-off bad speed sample, and a subagent report with a possible secret. Produce an integrated promotion decision without recommending live pod actions.",
-      "requiredPatterns": [
-        "compact candidate table",
-        "standalone brief",
-        "Evidence reviewed",
-        "stale vs latest evidence",
-        "Repeated manual loops",
-        "Promotion candidates",
-        "repo code",
-        "repo test",
-        "Gauntlet skill/tool",
-        "coverage gap",
-        "Reject",
-        "Cannot verify",
-        "secrets/redaction",
-        "No live operational actions",
-        "Do not infer"
-      ],
-      "forbiddenPatterns": [
-        "terminate this pod now",
-        "delete now"
-      ]
-    },
-    {
-      "id": "planner-quiet-dispatch-contract",
-      "skill": "planner",
-      "title": "Planner keeps child dispatch bounded and quiet",
-      "oneShotInstruction": "Plan bounded child lanes only when implementation will actually use them.",
-      "pressurePrompt": "Plan a normal single-lane patch. Keep internal mode, gate, and clean-check machinery out of the user-facing plan, omit unused child-lane fields, and preserve a clean scope-delta marker only inside the plan when needed.",
-      "requiredPatterns": [
-        "Independent workstreams",
-        "only when work will be dispatched",
-        "Include an optional profile only when it materially improves the lane; omit no-op fields."
-      ],
-      "forbiddenPatterns": [
-        "Subagent packetization: not relevant because"
-      ]
-    },
-    {
-      "id": "implementer-quiet-report-contract",
-      "skill": "implementer",
-      "title": "Implementer reports material outcomes instead of clean workflow transitions",
-      "oneShotInstruction": "Implement a bounded task and return changed behavior, proof, real concerns, and the next action.",
-      "pressurePrompt": "Implement a task whose packet, scope delta, and review checks are all clean. Do not inflate the report with successful workflow gates; include a warning only if it changed execution or remains a real risk.",
-      "requiredPatterns": [
-        "Do not narrate routine work",
-        "Keep delegation, child progress, clean checks, and receipts out of user-facing messages unless required"
-      ],
-      "forbiddenPatterns": [
-        "clean packet validation passed"
-      ]
-    },
-    {
-      "id": "refactor-maintainability-definition-of-done",
+      "id": "refactor-proof-before-retirement",
       "skill": "refactor-codebase",
-      "title": "Refactor codebase makes maintainability completion observable",
-      "oneShotInstruction": "Refactor a mature codebase while preserving behavior, making dependencies and ownership explicit, and proving future extensions remain isolated.",
-      "pressurePrompt": "A backend has ambient dependencies, parallel business-rule implementations, facade-coupled tests, and unclear module ownership. Refactor it without using file-size quotas or a prescribed folder taxonomy, and define observable completion.",
-      "requiredPatterns": [
-        "Expose hidden dependencies before moving responsibilities",
-        "validated contracts at module, process, persistence, and network boundaries",
-        "one authoritative owner",
-        "Keep compatibility surfaces thin",
-        "Test authoritative owners directly",
-        "adapter contracts at external boundaries",
-        "bounded black-box tests for compatibility",
-        "repository checks with explicit exceptions",
-        "Definition Of Done And Return Evidence",
-        "one representative extension leaves"
-      ],
-      "forbiddenPatterns": [
-        "250-line limit",
-        "domain/application/infrastructure folders are required"
-      ]
-    },
-    {
-      "id": "archive-guarded-closeout-contract",
-      "skill": "archive",
-      "title": "Archive performs one scoped merge and app closeout",
-      "oneShotInstruction": "Apply completed work locally, merge it through a new PR with required checks, and archive the current Codex task without including unrelated files.",
-      "pressurePrompt": "The user invokes /Archive after a completed Gauntlet change. The worktree also contains an unrelated draft. Perform the authorized closeout without silently staging the draft or pretending a local CLI can archive Codex by itself.",
-      "requiredPatterns": [
-        "user invokes /Archive",
-        "`land` skill",
-        "explicitly requested local install",
-        "Archive Summary",
-        "archive plan",
-        "archive execute",
-        "remainingAppActions",
-        "set_thread_title",
-        "archive_thread",
-        "Cannot verify",
-        "Preserve the task branch/worktree",
-        "Do not ask for another confirmation"
-      ],
-      "forbiddenPatterns": [
-        "git add -A",
-        "archive it yourself from the shell"
-      ]
+      "title": "Refactoring proves a vertical slice before deletion",
+      "oneShotInstruction": "Preserve capabilities and prove a real caller.",
+      "pressurePrompt": "Simplify a mature stateful codebase.",
+      "requiredPatterns": ["Inventory observable capabilities", "one authoritative owner", "Migrate one vertical slice", "Delete only after", "exact repository or worktree path", "Conditional machinery"],
+      "forbiddenPatterns": ["three independent agents"]
     }
   ]
 }

@@ -166,7 +166,7 @@ class DocumentLifecycleTests(unittest.TestCase):
                 "--project-root",
                 str(repo),
                 "--title",
-                "Sensor execution",
+                "Notification recovery",
                 "--dry-run",
                 "--json",
             ]
@@ -183,7 +183,7 @@ class DocumentLifecycleTests(unittest.TestCase):
                 "--project-root",
                 str(repo),
                 "--title",
-                "Sensor execution",
+                "Notification recovery",
                 "--json",
             ]
         )
@@ -268,7 +268,7 @@ class DocumentLifecycleTests(unittest.TestCase):
         design.write_text(
             "# Outcome contract\n\n"
             "## Acceptance\n\n"
-            "- The sensor command actually runs.\n"
+            "- The configured command actually runs.\n"
             "- Planning does not run external commands.\n\n"
             "## Architecture Contract\n\nUse an explicit process adapter.\n",
             encoding="utf-8",
@@ -296,43 +296,6 @@ class DocumentLifecycleTests(unittest.TestCase):
             "| Accepted |",
             (repo / "local-docs" / "INDEX.md").read_text(encoding="utf-8"),
         )
-
-    def test_legacy_files_are_never_rewritten(self):
-        repo = self.root / "legacy"
-        init_repo(repo)
-        run(
-            [
-                "docs",
-                "init",
-                "--project-root",
-                str(repo),
-                "--prefix",
-                "LEGACY",
-                "--json",
-            ]
-        )
-        epic = repo / "local-docs" / "epics" / "009" / "009_OLD_PRD.md"
-        execution = repo / "local-docs" / "executions" / "OLD-RUN" / "state.json"
-        epic.parent.mkdir(parents=True)
-        execution.parent.mkdir(parents=True)
-        epic.write_bytes(b"# Legacy PRD\r\n\r\nDo not migrate me.\r\n")
-        execution.write_bytes(b'{ "status": "historical" }\\n')
-        before = (epic.read_bytes(), execution.read_bytes())
-
-        run(["docs", "ensure", "--project-root", str(repo), "--json"])
-        run(
-            [
-                "docs",
-                "design",
-                "create",
-                "--project-root",
-                str(repo),
-                "--title",
-                "New design",
-                "--json",
-            ]
-        )
-        self.assertEqual(before, (epic.read_bytes(), execution.read_bytes()))
 
     def test_collision_symlink_and_opt_out_fail_without_partial_writes(self):
         collision = self.root / "collision"

@@ -1,46 +1,36 @@
-# Design, Build, Verify, Ship
-
-Gauntlet carries a user request through implementation and non-production merge
-without human approval pauses, while keeping design, proof, and production
-authority distinct.
+# Design, Build, Verify, Land, Ship
 
 ## Design
 
-Design clarifies what outcome should exist, what choices were made, and what
-would count as done. A permanent document is optional and is created only with
-user authority. When accepted, its exact `Acceptance` section is the Build
-Contract for the optional exact-design proof path.
-
-Brainstorm materially different approaches, resolve assumptions and feature-level
-edge cases, and use product, engineering, and proof lenses when they add value.
-Gauntlet resolves routine decisions independently and records them. Design
-acceptance and advisory findings do not block implementation or non-production
-landing.
+A complete task can be the Design. Otherwise one concise Design resolves material
+behavior, authority, edge cases, required non-effects, and observable acceptance.
+The main agent reviews the exact contract through Product, Engineering, Design,
+Analytics, QA, and Performance lenses. The user sees material recommendations and
+accepts the exact final `Acceptance` section before implementation.
 
 ## Build
 
-Build decides how to make the requested outcome real. Its code-level plan is
-temporary. It may use compact parallel workstreams, but those assignments never
-become product truth.
+Planning and implementation are ephemeral main-agent behavior. Commit one coherent
+candidate before Verify. Use isolation only when breadth, consequence, dirty state,
+or explicit request earns it.
 
 ## Verify
 
-Verify independently checks the exact integrated revision against:
+Verify reads the accepted outcomes and exact candidate commit, tree, and checked
+base. Each outcome has a behavior status and proof-availability status. Known
+failures remain failures even when another check is blocked. Continue every
+available target-specific check. Architecture is separate and cannot override
+behavior.
 
-- the user request and any Build Contract for product outcomes;
-- the Architecture Contract for required code shape;
-- the Sensor Contract for configured checks and evidence.
+## Land
 
-Each verdict stands separately. The GAUNTLET-009 failure is the negative control:
-planning or sensor success must fail completion when a requested end-to-end
-outcome is absent.
+Land compares the candidate and base binding, resolves the writable head and PR
+base independently, pushes, prepares the established PR format, waits for required
+checks and blocking reviews, and directly merges. Known drift requires update and
+affected re-verification. The landed revision is checked after merge.
 
 ## Ship
 
-An implementation request authorizes local commits, an implementation branch
-push, pull-request creation, and non-production merge. Ship inspects repository
-automation before landing because merge itself may be the production boundary.
-Every production change requires separate explicit acceptance accompanied by
-met criteria and evidence, independent implementation decisions, remaining
-risks, exact revision, and rollback. Installation, destructive or paid actions,
-credential use, rollback, and archival retain separately scoped authority.
+Ship observes the repository's declared deployment and monitoring mechanisms.
+Merged, deployed, and production-proved are separate claims. Missing attributable
+production proof is `Cannot verify`, never a pass.

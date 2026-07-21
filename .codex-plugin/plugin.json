@@ -1,32 +1,32 @@
 {
-  "name": "gauntlet",
-  "version": "2.0.2",
-  "description": "Gauntlet workflow, product, research, implementation, review, and evaluation skills.",
+  "name": "gauntlet-lite",
+  "version": "0.1.0",
+  "description": "Sensor-free Gauntlet orchestration for product, implementation, review, and release work.",
   "author": {
     "name": "AJS Sathyan",
     "url": "https://github.com/ajsathyan"
   },
-  "homepage": "https://github.com/ajsathyan/Gauntlet",
-  "repository": "https://github.com/ajsathyan/Gauntlet",
+  "homepage": "https://github.com/ajsathyan/Gauntlet-lite",
+  "repository": "https://github.com/ajsathyan/Gauntlet-lite",
   "license": "MIT",
   "keywords": [
     "workflow",
     "product",
     "review",
-    "evaluation"
+    "release"
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Gauntlet",
-    "shortDescription": "Product and engineering workflow skills",
-    "longDescription": "Shape, implement, research, evaluate, and review product and engineering work with proportional proof.",
+    "displayName": "Gauntlet Lite",
+    "shortDescription": "Sensor-free product and engineering workflow",
+    "longDescription": "Shape, accept, implement, review, verify, land, and ship product and engineering work with proportional direct proof.",
     "developerName": "AJS Sathyan",
     "category": "Productivity",
     "capabilities": [
       "Read",
       "Write"
     ],
-    "websiteURL": "https://github.com/ajsathyan/Gauntlet",
+    "websiteURL": "https://github.com/ajsathyan/Gauntlet-lite",
     "defaultPrompt": [
       "Shape this feature and identify the first useful build step.",
       "Implement this accepted change and prove the result.",

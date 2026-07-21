@@ -21,7 +21,6 @@ jobs:
           - install
           - design
           - contracts
-          - sensors
           - evals
     steps:
       - name: Check out repository

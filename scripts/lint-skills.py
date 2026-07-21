@@ -9,7 +9,6 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SKILLS = ROOT / "skills" if (ROOT / "skills").exists() else ROOT.parent / "skills"
 ROLE_SKILLS = {
     "adversarial-reviewer",
-    "archive",
     "black-box-tester",
     "debugger",
     "deep-code-reviewer",

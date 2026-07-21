@@ -34,15 +34,14 @@ required non-effects. Keep unaccepted suggestions outside the document.
 ## Acceptance and implementation
 
 Acceptance requires one answered exact `## Acceptance` section and binds the whole
-file digest without rewriting the design. That exact section is the Build Contract
-for optional exact-design proof. Design acceptance does not authorize or block
-implementation or non-production landing. Architecture and Sensor Contracts
-remain separate. Build plans and child workstream assignments are ephemeral.
+file digest without rewriting the design. That exact section is the Build
+Contract and authorizes scoped implementation, verification, merge, and ordinary
+declared production deployment. The Architecture Contract remains separate.
+Build plans and child assignments are ephemeral.
 
-Independent Verify reads the request, any accepted design, and the exact
-integrated revision and returns separate Build, Architecture, and Sensor
-verdicts. The Build verdict is authoritative for requested and accepted outcomes;
-green sensors cannot replace missing behavior.
+Independent Verify reads the request, accepted design, and exact integrated
+revision and returns separate Build and Architecture verdicts. The Build verdict
+is authoritative for requested and accepted outcomes.
 
 The local-document profile stores product intent and durable reasoning only.
 Implementation plans and child workstream assignments remain task-temporary, and

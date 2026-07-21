@@ -1,4 +1,4 @@
-"""Stateless application services for Design-to-Build-to-Verify gates."""
+"""Stateless services for optional exact-design proof contracts."""
 
 from __future__ import annotations
 
@@ -14,11 +14,13 @@ from .contracts import (
     record_verdict,
 )
 
-
 PREBUILD_LENSES = (
-    "product-completeness",
-    "engineering-shape",
-    "proof-and-consequence",
+    "product",
+    "engineering",
+    "design",
+    "analytics",
+    "qa",
+    "performance",
 )
 TERMINAL_DISPOSITIONS = ("accepted", "rejected", "deferred", "omitted")
 
@@ -32,24 +34,12 @@ def _nonempty(value, label):
 def _review_design_binding(value):
     if not isinstance(value, Mapping):
         raise ContractError("review design binding must be an object")
-    if {
-        "designId",
-        "sourcePath",
-        "sourceSha256",
-        "acceptanceSha256",
-    }.issubset(value):
+    if {"designId", "sourcePath", "sourceSha256", "acceptanceSha256"}.issubset(value):
         return {
             "identity": value["designId"],
             "reference": value["sourcePath"],
             "sha256": value["sourceSha256"],
             "acceptanceSha256": value["acceptanceSha256"],
-        }
-    if {"epicId", "sourcePath", "sourceSha256"}.issubset(value):
-        return {
-            "identity": value["epicId"],
-            "reference": value["sourcePath"],
-            "sha256": value["sourceSha256"],
-            "acceptanceSha256": value.get("acceptanceSha256"),
         }
     required = {"identity", "reference", "sha256", "acceptanceSha256"}
     if required.issubset(value):
@@ -62,95 +52,71 @@ def _same_digest(left, right):
 
 
 def validate_prebuild_reviews(accepted_design, review_results):
-    """Validate all three independent result sets without persisting review state."""
-
-    if isinstance(review_results, (str, bytes)) or not isinstance(
-        review_results, Sequence
-    ):
+    if isinstance(review_results, (str, bytes)) or not isinstance(review_results, Sequence):
         raise ContractError("pre-build reviews must be an array")
     if len(review_results) != len(PREBUILD_LENSES):
-        raise ContractError("exactly three independent pre-build reviews are required")
+        raise ContractError("exactly six pre-build lens results are required")
     by_lens = {}
-    reviewers = set()
     finding_ids = set()
     for result in review_results:
         if not isinstance(result, Mapping):
-            raise ContractError("each pre-build review must be an object")
+            raise ContractError("each lens result must be an object")
         lens = result.get("lens")
         if lens not in PREBUILD_LENSES or lens in by_lens:
-            raise ContractError("pre-build review lenses must each appear exactly once")
-        reviewer = _nonempty(result.get("reviewer"), f"{lens} reviewer")
-        if reviewer in reviewers:
-            raise ContractError("pre-build review lenses require independent reviewers")
-        reviewers.add(reviewer)
+            raise ContractError("all six lenses must appear exactly once")
+        _nonempty(result.get("reviewer"), f"{lens} reviewer")
         binding = _review_design_binding(result.get("design"))
         if (
             binding["identity"] != accepted_design["identity"]
             or binding["reference"] != accepted_design["reference"]
             or not _same_digest(binding["sha256"], accepted_design["sha256"])
-            or (
-                binding["acceptanceSha256"] is not None
-                and not _same_digest(
-                    binding["acceptanceSha256"],
-                    accepted_design["acceptanceSha256"],
-                )
+            or not _same_digest(
+                binding["acceptanceSha256"], accepted_design["acceptanceSha256"]
             )
         ):
             raise ContractError(f"{lens} review is stale or bound to another design")
+        applicability = result.get("applicability")
+        if applicability not in {"applicable", "not-applicable"}:
+            raise ContractError(f"{lens} applicability is unsupported")
+        reason = result.get("applicabilityReason")
+        if applicability == "not-applicable":
+            _nonempty(reason, f"{lens} applicability reason")
+        elif reason is not None:
+            raise ContractError(f"{lens} applicabilityReason must be null when applicable")
         findings = result.get("findings")
         if isinstance(findings, (str, bytes)) or not isinstance(findings, Sequence):
             raise ContractError(f"{lens} findings must be an array")
-        material_count = result.get("materialFindingCount")
-        observed_material = 0
+        material = 0
         for finding in findings:
             if not isinstance(finding, Mapping):
                 raise ContractError(f"{lens} finding must be an object")
             identity = _nonempty(finding.get("identity"), f"{lens} finding identity")
             if identity in finding_ids:
-                raise ContractError(f"duplicate material finding identity: {identity}")
+                raise ContractError(f"duplicate finding identity: {identity}")
             finding_ids.add(identity)
             if not isinstance(finding.get("material"), bool):
-                raise ContractError(f"{identity} must declare whether it is material")
+                raise ContractError(f"{identity} must declare material")
             if not finding["material"]:
                 continue
-            observed_material += 1
+            material += 1
             disposition = finding.get("disposition")
             if disposition not in TERMINAL_DISPOSITIONS:
-                raise ContractError(
-                    f"{identity} has an unresolved material disposition"
-                )
-            if disposition in {"deferred", "omitted"}:
+                raise ContractError(f"{identity} has unresolved disposition")
+            if disposition in {"deferred", "omitted", "rejected"}:
                 _nonempty(finding.get("reason"), f"{identity} disposition reason")
-        if (
-            not isinstance(material_count, int)
-            or isinstance(material_count, bool)
-            or material_count < 0
-            or material_count != observed_material
-        ):
-            raise ContractError(
-                f"{lens} materialFindingCount must cover every material finding"
-            )
+        if result.get("materialFindingCount") != material:
+            raise ContractError(f"{lens} materialFindingCount is inaccurate")
         by_lens[lens] = result
     return {
         "lenses": list(PREBUILD_LENSES),
-        "reviewers": len(reviewers),
-        "materialFindings": sum(
-            item["materialFindingCount"] for item in by_lens.values()
-        ),
+        "reviewerMode": "main-agent",
+        "materialFindings": sum(item["materialFindingCount"] for item in by_lens.values()),
     }
 
 
-def build_entry(
-    *,
-    project_root,
-    design,
-    review_results,
-    accepted_design_reader,
-):
-    """Create optional exact-design proof input from a current accepted source."""
-
+def build_entry(*, project_root, design, review_results, accepted_design_reader):
     accepted = accepted_design_reader(project_root, design)
-    review_summary = validate_prebuild_reviews(accepted, review_results)
+    summary = validate_prebuild_reviews(accepted, review_results)
     contract = accept_design(
         identity=accepted["identity"],
         reference=accepted["reference"],
@@ -159,22 +125,13 @@ def build_entry(
         outcomes=accepted["outcomes"],
         contract_applicability=accepted["contractApplicability"],
     )
-    return {"contract": contract, "prebuildReview": review_summary}
+    return {"contract": contract, "prebuildReview": summary}
 
 
 def authorize_candidate(
-    *,
-    project_root,
-    design,
-    review_results,
-    contract,
-    commit,
-    tree,
-    accepted_design_reader,
-    git_repository,
+    *, project_root, design, review_results, contract, commit, tree, base,
+    accepted_design_reader, git_repository
 ):
-    """Revalidate optional proof input before binding an exact candidate."""
-
     authorized = build_entry(
         project_root=project_root,
         design=design,
@@ -182,28 +139,16 @@ def authorize_candidate(
         accepted_design_reader=accepted_design_reader,
     )["contract"]
     if contract != authorized:
-        raise ContractError(
-            "candidate contract does not match the current proof entry"
-        )
-    resolved = git_repository.resolve_candidate(project_root, commit, tree)
+        raise ContractError("candidate contract does not match the current proof entry")
+    resolved = git_repository.resolve_candidate(project_root, commit, tree, base)
     return bind_candidate_revision(contract, **resolved)
 
 
-def verify_entry(
-    *,
-    project_root,
-    design,
-    contract,
-    accepted_design_reader,
-):
-    """Validate the current accepted source and exact candidate before Verify."""
-
+def verify_entry(*, project_root, design, contract, accepted_design_reader):
     _validate_contract(contract)
     accepted = accepted_design_reader(project_root, design)
     if contract["acceptedDesign"] != accepted:
-        raise ContractError(
-            "workflow contract is stale or bound to another accepted design"
-        )
+        raise ContractError("workflow contract is stale or bound to another design")
     if contract["candidateRevision"] is None:
         raise ContractError("Verify requires an exact candidate revision")
     return {
@@ -212,19 +157,20 @@ def verify_entry(
     }
 
 
-def record_verification_verdict(
-    *,
-    project_root,
-    design,
-    contract,
-    area,
-    verdict,
-    evidence,
-    accepted_design_reader,
-    git_repository,
-):
-    """Record one source-validated exact-candidate verdict."""
+def _resolve_references(project_root, revision, references, git_repository):
+    for reference in references:
+        parsed = parse_revision_evidence(reference)
+        if parsed is None or parsed[0] != revision["commit"]:
+            raise ContractError("evidence reference does not bind the candidate commit")
+        git_repository.resolve_evidence(
+            project_root, parsed[0], "path:" + parsed[1]
+        )
 
+
+def record_verification_verdict(
+    *, project_root, design, contract, area, verdict, evidence,
+    accepted_design_reader, git_repository
+):
     verify_entry(
         project_root=project_root,
         design=design,
@@ -233,57 +179,31 @@ def record_verification_verdict(
     )
     if not isinstance(evidence, Mapping):
         raise ContractError("verdict evidence must be an object")
-    accepted = contract["acceptedDesign"]
     revision = contract["candidateRevision"]
     if area == "build":
-        outcome_evidence = evidence.get("outcomeEvidence", {})
-        if isinstance(outcome_evidence, Mapping):
-            for references in outcome_evidence.values():
-                if isinstance(references, Sequence) and not isinstance(
-                    references,
-                    (str, bytes),
-                ):
-                    for reference in references:
-                        parsed = parse_revision_evidence(reference)
-                        if parsed is None:
-                            raise ContractError(
-                                "Build evidence reference has an unsupported shape"
-                            )
-                        commit, locator = parsed
-                        if commit != revision["commit"]:
-                            raise ContractError(
-                                "Build evidence does not identify the candidate commit"
-                            )
-                        git_repository.resolve_evidence(
-                            project_root,
-                            commit,
-                            locator,
-                        )
+        results = evidence.get("outcomeResults")
+        if not isinstance(results, Mapping):
+            raise ContractError("Build evidence requires outcomeResults")
+        for result in results.values():
+            if isinstance(result, Mapping):
+                _resolve_references(
+                    project_root, revision, result.get("evidence", []), git_repository
+                )
+        return record_verdict(
+            contract, area=area, verdict=verdict, outcome_results=results
+        )
+    references = evidence.get("evidence", [])
+    _resolve_references(project_root, revision, references, git_repository)
     return record_verdict(
         contract,
         area=area,
         verdict=verdict,
-        design_identity=accepted["identity"],
-        design_reference=accepted["reference"],
-        design_sha256=accepted["sha256"],
-        commit=revision["commit"],
-        tree=revision["tree"],
-        read_design_directly=True,
-        direct_evidence=evidence.get("directEvidence", []),
-        derivative_evidence=evidence.get("derivativeEvidence", []),
-        outcome_evidence=evidence.get("outcomeEvidence", {}),
+        evidence=references,
+        remaining_check=evidence.get("remainingCheck"),
     )
 
 
-def completion_check(
-    *,
-    project_root,
-    design,
-    contract,
-    accepted_design_reader,
-):
-    """Evaluate the production completion path after revalidating its source."""
-
+def completion_check(*, project_root, design, contract, accepted_design_reader):
     verify_entry(
         project_root=project_root,
         design=design,

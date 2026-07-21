@@ -49,6 +49,7 @@ class LandWorkflowTests(unittest.TestCase):
                                     "headSha": "abc",
                                     "status": "completed",
                                     "conclusion": "success",
+                                    "workflowName": "ci",
                                 },
                             ]
                         ),
@@ -79,7 +80,7 @@ class LandWorkflowTests(unittest.TestCase):
                 if args[:2] == ["run", "list"]:
                     return completed(
                         args,
-                        stdout=json.dumps([{"databaseId": 12, "event": "push", "headSha": "abc"}]),
+                        stdout=json.dumps([{"databaseId": 12, "event": "push", "headSha": "abc", "workflowName": "ci"}]),
                     )
                 return completed(args, returncode=1, stderr="failed")
 
@@ -97,6 +98,35 @@ class LandWorkflowTests(unittest.TestCase):
     def test_push_monitoring_is_not_invented_when_unconfigured(self):
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(configured_push_workflows(Path(directory), "main"), [])
+
+    def test_monitor_waits_for_every_declared_workflow(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            root = repo / ".github/workflows"
+            root.mkdir(parents=True)
+            (root / "one.yml").write_text("name: One\non:\n  push:\n", encoding="utf-8")
+            (root / "two.yml").write_text("name: Two\non:\n  push:\n", encoding="utf-8")
+
+            def fake_gh(args, cwd):
+                if args[:2] == ["run", "list"]:
+                    return completed(
+                        args,
+                        stdout=json.dumps([
+                            {"databaseId": 1, "event": "push", "headSha": "abc", "workflowName": "One"}
+                        ]),
+                    )
+                return completed(args)
+
+            result, error = monitor_landed_revision(
+                repo,
+                "abc",
+                "main",
+                timeout_seconds=0,
+                gh_runner=fake_gh,
+                sleep_fn=lambda _: None,
+            )
+            self.assertEqual(result["status"], "pending")
+            self.assertIn("Two", error)
 
     def test_cleanup_preserves_unique_task_commit(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -235,6 +265,7 @@ def test_land_workflow_behavior():
         "test_monitor_requires_exact_revision_and_successful_watch",
         "test_monitor_failure_is_not_accepted",
         "test_push_monitoring_is_not_invented_when_unconfigured",
+        "test_monitor_waits_for_every_declared_workflow",
         "test_cleanup_preserves_unique_task_commit",
         "test_cleanup_removes_landed_isolated_worktree_and_branch",
     ):
