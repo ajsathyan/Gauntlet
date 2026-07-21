@@ -927,6 +927,47 @@ for parent in parents:
         print(f"Refusing unsafe retired Gauntlet artifact directory: {parent}", file=sys.stderr)
         raise SystemExit(1)
 if phase == "check":
+    profile_root = agent_home / "agents"
+    if profile_root.is_symlink() or (
+        profile_root.exists() and not profile_root.is_dir()
+    ):
+        print(
+            f"Refusing unsafe retired profile directory: {profile_root}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    profile_names = (
+        "gauntlet_deep_expert_researcher.toml",
+        "gauntlet_deep_worker.toml",
+        "gauntlet_fast_reader.toml",
+        "gauntlet_independent_verifier.toml",
+        "gauntlet_release_integrator.toml",
+        "gauntlet_security_reviewer.toml",
+        "gauntlet_standard_worker.toml",
+    )
+    blockers = [profile_root / name for name in profile_names if (profile_root / name).exists()]
+    blockers.extend(
+        path
+        for path in (
+            agent_home / "gauntlet" / "install-agents-codex.json",
+            agent_home / "gauntlet" / "install-agents-codex.pending.json",
+        )
+        if path.exists()
+    )
+    tool_root = agent_home / "gauntlet-tools"
+    if tool_root.is_symlink() or (tool_root.exists() and not tool_root.is_dir()):
+        blockers.append(tool_root)
+    elif tool_root.exists() and any(tool_root.iterdir()):
+        blockers.append(tool_root)
+    if blockers:
+        rendered = ", ".join(str(path) for path in blockers)
+        print(
+            "Gauntlet Lite requires a clean replacement. Use the currently "
+            "installed Gauntlet's preservation-safe --uninstall first; "
+            f"retired runtime artifacts remain: {rendered}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
     raise SystemExit(0)
 
 for path in targets:

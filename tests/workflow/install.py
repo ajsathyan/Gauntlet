@@ -393,6 +393,7 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
     test_receipt_upgrade_and_uninstall_remove_only_unchanged_owned_files()
     test_manifest_sync_rejects_modified_owned_and_unowned_current_collisions()
     test_generated_router_preflight_preserves_collisions_and_allows_upgrade()
+    test_lite_replacement_fails_closed_on_retired_runtime_artifacts()
     test_codex_uninstall_preserves_user_bytes_config_and_modified_payload()
 
 
@@ -1414,6 +1415,34 @@ def test_generated_router_preflight_preserves_collisions_and_allows_upgrade():
             "unowned generated destination collision",
             "generated router preflight wiring",
         )
+
+
+def test_lite_replacement_fails_closed_on_retired_runtime_artifacts():
+    if not (ROOT / ".git").exists():
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        profile_home = root / "profile-home"
+        profile = profile_home / "agents" / "gauntlet_fast_reader.toml"
+        profile.parent.mkdir(parents=True)
+        profile.write_text("retired profile\n")
+        result = run_install(profile_home, check=False)
+        if result.returncode == 0:
+            raise AssertionError("Lite must reject a direct replacement with retired profiles")
+        assert_contains(result.stderr, "requires a clean replacement", "profile replacement guard")
+        if profile.read_text() != "retired profile\n":
+            raise AssertionError("replacement guard must preserve the retired profile")
+
+        tool_home = root / "tool-home"
+        tool = tool_home / "gauntlet-tools" / "generation" / "tool"
+        tool.parent.mkdir(parents=True)
+        tool.write_text("retired tool\n")
+        result = run_install(tool_home, check=False)
+        if result.returncode == 0:
+            raise AssertionError("Lite must reject a direct replacement with retired tools")
+        assert_contains(result.stderr, "requires a clean replacement", "tool replacement guard")
+        if tool.read_text() != "retired tool\n":
+            raise AssertionError("replacement guard must preserve the retired tool")
 
 
 def test_codex_uninstall_preserves_user_bytes_config_and_modified_payload():

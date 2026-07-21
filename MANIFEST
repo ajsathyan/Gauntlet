@@ -3,7 +3,7 @@
     {
       "destination": "gauntlet/README.md",
       "executable": false,
-      "sha256": "dd122bce1ea51dfd55318509a9361b3207cd5aedf30012af8b9ed9b3183387fc",
+      "sha256": "f492b8aa9ea9e7a747d6071625d452e3fc6c62e78e6093350e40daaa93853b8a",
       "source": "README.md"
     },
     {
@@ -465,7 +465,7 @@
     {
       "destination": "gauntlet/scripts/install.sh",
       "executable": true,
-      "sha256": "ae52d63ea92134256c267f7a95804d64222a6a81d05000ca7acf6b506ea09612",
+      "sha256": "e5adcd08c1790b008d9cb44f10b1839b98681c3b873324bad5000956e0ae4b7f",
       "source": "scripts/install.sh"
     },
     {

@@ -81,13 +81,19 @@ Gauntlet Lite installs one canonical copy of each retained skill:
 
 The former `archive`, `build`, and `eval-*` skill packages are intentionally absent. Implementation remains a workflow phase driven by the accepted Design/PRD and the `implementer` skill; removing the `build` package does not remove implementation planning or orchestration.
 
-## Install, upgrade, and uninstall
+## Install, replace, and uninstall
 
 Gauntlet Lite installs only for Codex on this machine:
 
 ```sh
 ./scripts/install.sh --target codex --instructions-reviewed
 ```
+
+When replacing full Gauntlet, first run its currently installed preservation-safe
+`--uninstall`, then run the Lite installer. Lite refuses a direct replacement
+when it detects the old custom-profile or managed-tool footprint, because those
+files live outside the main payload receipt. Once Lite is installed, repeating
+the Lite installer performs a receipt-safe update.
 
 The installer preserves unrelated instructions and configuration, records ownership, removes only safe stale managed files during upgrades, and leaves modified or unowned files with a finding.
 
