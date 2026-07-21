@@ -49,18 +49,8 @@ def _verify_codex(agent_home, findings):
         text = codex_agents.read_text(encoding="utf-8")
         if text.count("BEGIN GAUNTLET MANAGED BLOCK") != 1 or text.count("END GAUNTLET MANAGED BLOCK") != 1:
             findings.append({"code": "invalid_codex_managed_block", "severity": "fail", "message": "Codex AGENTS.md must contain exactly one complete Gauntlet managed block."})
-        if "Gauntlet Workflow Router" not in text:
+        if "Gauntlet Lite Workflow Router" not in text:
             findings.append({"code": "missing_codex_router", "severity": "fail", "message": "Codex AGENTS.md lacks the installed Gauntlet router."})
-    source = agent_home / "gauntlet" / "agents" / "codex"
-    verifier = agent_home / "gauntlet" / "scripts" / "install-codex-agents.py"
-    if source.is_dir() and verifier.is_file():
-        result = subprocess.run(
-            [sys.executable, str(verifier), "verify", "--source", str(source), "--agent-home", str(agent_home)],
-            text=True,
-            capture_output=True,
-        )
-        if result.returncode:
-            findings.append({"code": "invalid_codex_custom_agents", "severity": "fail", "message": result.stderr.strip() or result.stdout.strip()})
     hook_installer = agent_home / "gauntlet" / "scripts" / "install-codex-hooks.py"
     hook_runtime = agent_home / "gauntlet" / "scripts" / "workflow-mode.py"
     if hook_installer.is_file():

@@ -22,9 +22,7 @@ from gauntletlib.land import configure as configure_land
 from gauntletlib.land import register as register_land
 from gauntletlib.merge import configure as configure_merge
 from gauntletlib.merge import register as register_merge
-from gauntletlib.sensors import register as register_sensors
 from gauntletlib.workflow import register as register_workflow
-from gauntletlib.workstreams import register as register_workstreams
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -71,9 +69,7 @@ def register(subcommands):
         register_docs=register_docs,
         register_followup=register_followup,
         register_changelog=register_changelog,
-        register_sensors=register_sensors,
         register_diagram=register_diagram,
-        register_workstreams=register_workstreams,
         register_workflow=register_workflow,
         command_install_verify=command_install_verify,
         command_diagram_find=_diagram_find,

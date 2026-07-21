@@ -1,55 +1,40 @@
 ---
 name: ship
-description: Use after independent verification to carry an implementation through commit, pull request, and non-production merge, then request separate acceptance for production effects.
+description: Use after independent verification to carry accepted work through merge, ordinary production deployment, monitoring, and attributable production proof.
 ---
 
 # Ship
 
-Move one exact verified revision through authorized Git and external effects. Shipping authority does not repair a failed Build, Architecture, or Sensor verdict.
+Carry one exact verified revision through the accepted Git and production
+lifecycle. Shipping authority does not repair a failed Build or Architecture
+verdict.
 
 ## Authority
 
-- An implementation request authorizes scoped local commits, an implementation
-  branch push, pull-request creation, and merge to the default branch.
-- Do not ask for another acceptance between those ordinary implementation stages.
-- If merge deploys, publishes, migrates, or otherwise changes production, merge
-  is the production boundary and requires explicit acceptance first.
-- Deployment and every other production change require separate explicit
-  acceptance for the disclosed revision and effect.
-- Installation, destructive or paid actions, credential use, rollback, and task
-  archival retain separately scoped authority.
+- For a Normal Request, the implementation request authorizes the scoped ordinary lifecycle. For non-trivial work, the accepted Design/PRD authorizes it.
+- Do not request another acceptance between commit, pull request, merge, and the repository's ordinary declared production deployment.
+- Merge-triggered deployment proceeds automatically. If the repository declares a separate standard deployment command or API for accepted work, invoke it after merge.
+- Stop for effects outside the accepted scope and for unexpected destructive, paid, credential, migration, privacy, security, or preservation risk.
+- Installation and rollback retain separately scoped authority.
 
 ## Procedure
 
-1. Confirm the exact revision has passing Build, Architecture, and Sensor verdicts where applicable.
-2. Inspect Git state and explicitly name intended paths. Preserve unrelated, untracked, or user-modified work.
-3. Create coherent atomic commits. When parallel candidates exist, integrate only one current-base candidate at a time; base drift invalidates its proof and requires fresh integration and exact-candidate verification.
-4. Before merge, inspect repository automation and release documentation for a production consequence. Use the `land` skill immediately when merge is non-production.
-5. At a production boundary, stop and present the acceptance request below. A concise user response accepts the listed production action; do not require the user to repeat the bullets. Revision or effect drift invalidates that acceptance.
-6. After acceptance, use the existing deployment or production mechanism within the disclosed scope.
-7. Verify the landed or externally changed revision with repository-owned evidence. Do not infer production health from pull-request checks.
-
-## Production Acceptance Request
-
-Name the production action, then provide bullets for:
-
-- acceptance criteria met, with evidence;
-- material product or engineering decisions made independently during implementation and their tradeoffs;
-- unmet criteria, verification limits, and remaining risk;
-- exact candidate revision and the production effect it will cause;
-- rollback path and any limit on recoverability.
-
-Never request acceptance with only a generic confirmation or a success-only
-summary. Never perform the production action from implementation authority alone.
+1. Confirm the exact revision has passing Build and applicable Architecture verdicts.
+2. Inspect Git state, repository automation, deployment documentation, production oracle, and rollback path. Preserve unrelated work.
+3. Use `land` to commit, push, open or update the pull request, wait for required CI and review, merge to the default branch, and verify the landed revision.
+4. Let merge-triggered deployment run or invoke the declared standard deployment mechanism. Do not invent a generic deploy command.
+5. Monitor exact-revision deployment evidence and exercise the repository's attributable production oracle. Do not infer production health from pull-request checks or a successful merge alone.
+6. If rollout fails, follow the repository's safe recovery path inside accepted authority. Stop before rollback when it requires separate authority.
 
 ## Output
 
-Return scoped commit, pull-request, and merge state; exact-revision evidence;
-material decisions; authorized external effects completed; cleanup state; and
-unresolved risk.
+Return exact commit, pull-request and merge state, deployment state, production
+evidence and its limits, cleanup state, material decisions, and unresolved risk.
+Keep implemented, committed, pushed, merged, deployed, and production-proved as
+separate claims.
 
 ## Completion
 
-Ship completes through non-production merge by default. At a production boundary,
-it completes only through the last explicitly accepted effect. State explicitly
-when work is merged but not deployed or deployed without production proof.
+Ship completes when the accepted revision is merged, its ordinary deployment is
+accounted for, attributable production proof passes or is explicitly unavailable,
+and safe cleanup is complete.

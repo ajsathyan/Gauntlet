@@ -31,6 +31,15 @@ LEGACY_RETIRED = {
     "templates/local-docs/IMPLEMENTATION_PLAN.md.tmpl": "c5bc0c05ce73ae0e5173ae8f8a28c8a8f24eee08a402cb34628b900faca7c384",
 }
 LEGACY_SKILLS = (
+    "archive",
+    "build",
+    "eval-audit",
+    "eval-error-analysis",
+    "eval-judge-prompt",
+    "eval-rag",
+    "eval-review-interface",
+    "eval-synthetic-data",
+    "eval-validate-evaluator",
     "review-brief-builder",
     "build-review-interface",
     "error-analysis",

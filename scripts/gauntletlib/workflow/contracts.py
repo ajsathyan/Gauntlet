@@ -14,11 +14,10 @@ from collections.abc import Mapping, Sequence
 
 CONTRACT_SCHEMA = "gauntlet.workflow-contract.v1"
 VERDICT_SCHEMA = "gauntlet.workflow-verdict.v1"
-VERDICT_AREAS = ("build", "architecture", "sensor")
+VERDICT_AREAS = ("build", "architecture")
 VERDICTS_BY_AREA = {
     "build": ("pass", "fail", "cannot-verify"),
     "architecture": ("pass", "fail", "not-applicable", "cannot-verify"),
-    "sensor": ("pass", "fail", "not-applicable", "cannot-verify"),
 }
 _OBJECT_ID = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?").fullmatch
 _SHA256 = re.compile(r"(?:sha256:)?[0-9a-f]{64}").fullmatch
@@ -81,7 +80,7 @@ def _outcome_bindings(value):
 def _contract_applicability(value):
     value = _closed_object(
         value,
-        ("architecture", "sensor"),
+        ("architecture",),
         "contract applicability",
     )
     result = {}
@@ -153,7 +152,7 @@ def _validate_verdict(receipt, design):
             + ", ".join(VERDICTS_BY_AREA[receipt["area"]])
         )
     if (
-        receipt["area"] in {"architecture", "sensor"}
+        receipt["area"] == "architecture"
         and receipt["verdict"] == "not-applicable"
         and design["contractApplicability"][receipt["area"]]["applicable"]
     ):
@@ -374,7 +373,7 @@ def record_verdict(
 
     _validate_contract(contract)
     if area not in VERDICT_AREAS:
-        raise ContractError("area must be build, architecture, or sensor")
+        raise ContractError("area must be build or architecture")
     if verdict not in VERDICTS_BY_AREA[area]:
         raise ContractError(
             f"{area} verdict must be one of "
@@ -439,7 +438,7 @@ def record_verdict(
 
 
 def completion_status(contract):
-    """Evaluate completion without allowing Sensor proof to imply Build proof."""
+    """Evaluate completion across independent Build and Architecture proof."""
 
     _validate_contract(contract)
     reasons = []

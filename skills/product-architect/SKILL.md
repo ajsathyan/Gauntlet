@@ -22,8 +22,8 @@ When the user explicitly requests a document edit, provide a targeted proposed e
 ## Rules
 
 - Start from the current product document and repository behavior. Preserve existing behavior unless the user explicitly changes it.
-- Return the decision to Build and record it for handoff. Use the `design` skill
-  for a durable update only when the user explicitly requests that document.
+- Return the decision to the `design` skill for the user-authorized Design/PRD
+  update. Its accepted `Acceptance` section is the canonical Build Contract.
 - Resolve routine choices independently inside the requested scope. Ask only
   when the answer changes scope, safety, authority, cost, or an external effect
   and cannot responsibly be decided within the request.

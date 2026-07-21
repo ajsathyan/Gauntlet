@@ -22,7 +22,7 @@ class WorkflowPolicyTests(unittest.TestCase):
         cls.titles = load_module("thread_titles", ROOT / "scripts" / "thread_titles.py")
 
     def test_plain_titles_accept_one_to_four_words(self):
-        for title in ("Sensors", "Build sensors", "Build reliable sensors", "Build reliable sensor execution"):
+        for title in ("Deploy", "Build retries", "Verify recovery paths", "Improve notification recovery"):
             with self.subTest(title=title):
                 parsed = self.titles.parse_thread_title(title)
                 self.assertEqual(parsed["format"], "current")
@@ -31,7 +31,7 @@ class WorkflowPolicyTests(unittest.TestCase):
                 self.assertNotIn("executionMode", parsed)
 
     def test_priority_and_autonomy_metadata_are_rejected(self):
-        for title in ("p1: Build reliable sensor execution", "p1-auto: Build reliable sensors", "Build reliable sensor execution now"):
+        for title in ("p1: Improve notification recovery", "p1-auto: Build retries", "Improve duplicate notification recovery now"):
             with self.subTest(title=title):
                 self.assertEqual(self.titles.parse_thread_title(title)["format"], "malformed")
 
@@ -41,7 +41,7 @@ class WorkflowPolicyTests(unittest.TestCase):
                 sys.executable,
                 str(ROOT / "scripts" / "check-workflow-etiquette.py"),
                 "--title",
-                "Build reliable sensor execution now",
+                "Improve duplicate notification recovery now",
                 "--json",
             ],
             cwd=ROOT,
@@ -62,7 +62,7 @@ class WorkflowPolicyTests(unittest.TestCase):
             ROOT / "router" / "AGENTS.md",
             ROOT / "docs" / "workflow-etiquette.md",
             ROOT / "docs" / "design-build-verify.md",
-            ROOT / "docs" / "parallel-workstreams.md",
+            ROOT / "docs" / "meaningful-proof.md",
         ]
         text = "\n".join(path.read_text(encoding="utf-8") for path in paths).lower()
         for obsolete in (

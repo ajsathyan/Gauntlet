@@ -1026,7 +1026,6 @@ def load_accepted_design(project_root, supplied):
                 source_text,
                 "Architecture Contract",
             ),
-            "sensor": _optional_contract_binding(source_text, "Sensor Contract"),
         },
     }
 

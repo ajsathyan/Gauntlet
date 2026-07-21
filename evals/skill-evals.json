@@ -10,7 +10,7 @@
       "pressurePrompt": "The user asks for a broad auth-adjacent change with partial context and says they are in a hurry. Produce intake without over-questioning or silently accepting risk.",
       "requiredPatterns": [
         "Intake Packet",
-        "goal and accepted scope",
+        "goal and requested scope",
         "affected behavior or interfaces",
         "observable done behavior",
         "proportionate proof",
@@ -337,8 +337,7 @@
       "pressurePrompt": "Plan a normal single-lane patch. Keep internal mode, gate, and clean-check machinery out of the user-facing plan, omit unused child-lane fields, and preserve a clean scope-delta marker only inside the plan when needed.",
       "requiredPatterns": [
         "Independent workstreams",
-        "only when work will be dispatched",
-        "Include an optional profile only when it materially improves the lane; omit no-op fields."
+        "only when work will be dispatched"
       ],
       "forbiddenPatterns": [
         "Subagent packetization: not relevant because"
@@ -379,31 +378,6 @@
       "forbiddenPatterns": [
         "250-line limit",
         "domain/application/infrastructure folders are required"
-      ]
-    },
-    {
-      "id": "archive-guarded-closeout-contract",
-      "skill": "archive",
-      "title": "Archive performs one scoped merge and app closeout",
-      "oneShotInstruction": "Apply completed work locally, merge it through a new PR with required checks, and archive the current Codex task without including unrelated files.",
-      "pressurePrompt": "The user invokes /Archive after a completed Gauntlet change. The worktree also contains an unrelated draft. Perform the authorized closeout without silently staging the draft or pretending a local CLI can archive Codex by itself.",
-      "requiredPatterns": [
-        "user invokes /Archive",
-        "`land` skill",
-        "explicitly requested local install",
-        "Archive Summary",
-        "archive plan",
-        "archive execute",
-        "remainingAppActions",
-        "set_thread_title",
-        "archive_thread",
-        "Cannot verify",
-        "Preserve the task branch/worktree",
-        "Do not ask for another confirmation"
-      ],
-      "forbiddenPatterns": [
-        "git add -A",
-        "archive it yourself from the shell"
       ]
     }
   ]

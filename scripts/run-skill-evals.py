@@ -9,8 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_EVALS = ROOT / "evals" / "skill-evals.json"
-DEFAULT_CURRENT = ROOT / "evals" / "baselines" / "current" / "skills"
 DEFAULT_NEW = ROOT / "skills" if (ROOT / "skills").exists() else ROOT.parent / "skills"
+DEFAULT_CURRENT = DEFAULT_NEW
 DEFAULT_RESULTS = ROOT / "evals" / "results" / "latest.json"
 DEFAULT_SCORER_SMOKE_RESPONSES = ROOT / "evals" / "scorer-smoke-fixtures.json"
 COVERAGE_ARMS = ["one_shot", "current_skill", "new_skill"]

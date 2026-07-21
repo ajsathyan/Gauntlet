@@ -2,71 +2,54 @@
 
 Use the cheapest proof that can distinguish the intended behavior from a plausible wrong implementation. A green command is evidence only when its oracle—the rule that decides pass or fail—measures the claim being made.
 
-## Define The Claim Before The Check
+## Define the claim before the check
 
-For each material behavior change, name:
+For each material behavior change, name proportionally:
 
 - **Claim or invariant:** the behavior, state transition, or non-effect that must hold.
-- **Observable oracle:** the externally inspectable result that would establish the claim.
+- **Observable oracle:** the externally inspectable result that establishes the claim.
 - **Required checks:** commands, inspections, or artifacts that exercise the oracle.
-- **Negative control:** a plausible wrong case that must fail, when risk or ambiguity earns it.
+- **Negative control:** a plausible wrong case that must fail when risk or ambiguity earns it.
 - **Required non-effects:** state, files, permissions, users, or systems that must remain unchanged.
-- **Independent verification:** what the parent will rerun or inspect after integration.
+- **Independent verification:** what the parent reruns or inspects after integration.
 - **Cannot verify:** material limits, their consequence, and the next check.
 
-Use these fields proportionally. A direct, reversible outcome may need only a claim and an observation. Do not add empty proof ceremony.
+For non-trivial implementation, take claims directly from the user request, conversation decisions, and the accepted Design/PRD's exact `Acceptance` section. That section is the canonical Build Contract. An implementation plan, child assignment, pull-request summary, or worker-authored checklist may organize evidence but cannot narrow an accepted outcome.
 
-For non-trivial implementation, take claims directly from the user request,
-conversation decisions, and any accepted design's exact `Acceptance` section.
-When present, that section is the canonical Build Contract. A Build plan,
-workstream assignment, pull-request summary, sensor selection, or worker-authored
-checklist may organize evidence but cannot replace, summarize away, or narrow a
-requested or accepted outcome.
+## Evidence boundaries
 
-## Evidence Boundaries
+- Phrase presence, populated fields, schema validity, statuses, and self-reports prove only structural coverage.
+- A child receipt is an evidence pointer. The parent checks that the referenced command or artifact supports the accepted outcomes.
+- Reuse evidence only when the commit and tree, command, toolchain, fixture or oracle, and relevant environment still match.
+- A passing test is meaningful only if its assertion would fail for a relevant wrong implementation. Observe the regression fail first when a credible harness exists.
+- Child-written tests may preserve regressions, but the same child must not weaken, replace, bypass, or tailor the oracle to its implementation.
+- Consequential work uses a negative control, black-box outcome, mutation check, or independent review that is meaningfully separate from implementation.
+- Record what evidence establishes and what it cannot establish.
 
-- Phrase presence, populated fields, schema validity, status labels, and self-reported results prove only structural coverage or scorer wiring. They do not prove behavior.
-- A child receipt is an evidence pointer. It does not become proof until the
-  parent resolves the referenced command or artifact and checks that it supports
-  the requested outcomes and any accepted design.
-- Reuse a verification receipt only when its commit and tree, command, toolchain, fixture or oracle digest, and relevant environment identity match exactly. Otherwise rerun the smallest check. Byte-different narration is not independent proof.
-- A passing test is meaningful only if the assertion would fail for a relevant wrong implementation. Prefer observing the regression fail for the intended reason before the fix when a credible harness exists.
-- Child-written tests may preserve regressions, but the same child must not silently weaken, replace, bypass, or tailor the oracle to its implementation. Hidden or independent proof belongs to the parent unless the ticket explicitly assigns ownership.
-- For consequential work, include a negative control, mutation check, black-box outcome, or independent review that is meaningfully separate from the implementation. A green sensor result paired with evidence that omits one accepted outcome is a required fail, not partial completion.
-- Record what the evidence establishes and what it cannot establish. Do not turn limited evidence into a broader completion claim.
+Gauntlet Lite does not add a generic sensor layer around these checks. Repository tests and purpose-specific tools run directly when their claims require them.
 
-## Delegated Work
+## Delegated work
 
-A **workstream assignment** is an ephemeral child prompt from Build, not an issue-tracker record or product specification. It contains only the context the child needs. Depending on risk, it may include the proof fields above plus the outcome slice, objective, ownership, dependencies, constraints, return contract, and ask-parent policy.
+A delegated assignment is temporary implementation context, not product truth. It contains only the outcome slice, ownership, dependencies, constraints, authority, proportional proof, return contract, and ask-parent policy that the child needs.
 
-Children work quietly and retry safe materially different recoveries.
-Implementation children return compact receipts; research and review children
-return the requested artifact or findings compactly. The parent owns requested
-product meaning, integrates coherent atomic changes, and resolves ordinary child
-evidence. Run focused checks as results arrive, then one fresh independent Verify
-pass against requested outcomes and any accepted design on exact integration
-HEAD.
+Children work quietly and return changed artifacts, compact proof, and risk. The parent owns accepted product meaning, integrates coherent changes, resolves child evidence, and runs one fresh independent Verify pass against the exact integrated revision.
 
-## Exact-Revision Verdicts
+## Exact-revision verdicts
 
-Verify reads the request and any accepted design directly and reports three verdicts without collapsing them:
+Verify reports two verdicts without collapsing them:
 
-1. **Build Verdict:** whether every requested or accepted product outcome and required non-effect is established.
-2. **Architecture Verdict:** whether the exact revision satisfies the applicable Architecture Contract.
-3. **Sensor Verdict:** whether required configured checks executed and passed under the Sensor Contract.
+1. **Build Verdict:** every requested or accepted product outcome and required non-effect is established.
+2. **Architecture Verdict:** the exact revision satisfies the applicable Architecture Contract.
 
-The Build Verdict is authoritative for requested and accepted product outcomes.
-Architecture and Sensor success cannot compensate for a Build failure or
-`Cannot verify`. Applicable Architecture and Sensor failures still block
-completion.
+The Build Verdict is authoritative for accepted outcomes. Architecture success cannot compensate for a Build failure or `Cannot verify`; an applicable Architecture failure still blocks landing.
 
-## Proof Layers
+## Proof layers
 
 Keep these claims distinct:
 
 1. **Structural coverage:** required text, fields, schemas, or files exist.
-2. **Scorer smoke:** synthetic inputs show that a scorer detects its intended signals.
+2. **Scorer smoke:** synthetic inputs show that a scorer detects intended signals.
 3. **Execution-backed outcomes:** commands, traces, artifacts, or external state establish observable behavior and non-effects.
 4. **Calibrated judgment:** subjective quality is measured against human labels or remains `Cannot verify`.
 
-Use only the layer strong enough for the claim. Never report layers 1 or 2 as agent or product behavior.
+Never report structural coverage or scorer smoke as product behavior.

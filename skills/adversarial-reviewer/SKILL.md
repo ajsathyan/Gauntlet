@@ -26,7 +26,7 @@ The parent may show at most three recommendations per user round, but the review
 Run three independent reviews against the same request or accepted design:
 
 - **Product completeness:** accepted outcomes, feature states, assumptions, and feature-level edge cases.
-- **Engineering shape:** system boundaries, dependencies, migrations, compatibility, and parallel ownership conflicts.
+- **Engineering shape:** system boundaries, dependencies, migrations, compatibility, parallel ownership conflicts, state transitions, retries, idempotency, recovery, and concurrency.
 - **Proof and consequence:** observable oracles, false-green paths, required non-effects, and concrete consequence triggers.
 
 Keep lens findings distinct until the parent deduplicates them. A clean result from one lens cannot clear another.
@@ -43,7 +43,7 @@ Keep lens findings distinct until the parent deduplicates them. A clean result f
   a reason for irrelevant, speculative, or disproportionate advice.
 - Ask the user only when a finding changes scope, safety, authority, or an
   external effect and cannot responsibly be resolved inside the request.
-  Advisory disposition alone does not block Build or a non-production merge.
+  Advisory disposition alone does not substitute for the Design/PRD acceptance gate.
 - Do not run external-practice, compliance, enterprise-hardening, or state-of-the-art research unless the user requests it or an accepted external constraint requires it.
 - Consequence-specific security, recovery, production, or black-box review remains separate and runs only for a concrete accepted trigger.
 

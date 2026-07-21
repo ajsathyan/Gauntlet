@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure the small Design/Build/Verify context surfaces."""
+"""Measure the small Design/Build/Implement/Verify context surfaces."""
 
 import argparse
 import json
@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 STABLE_PATHS = ("router/AGENTS.md",)
 PHASE_PATHS = {
     "design": ("skills/design/SKILL.md",),
-    "build": ("skills/build/SKILL.md",),
+    "build": ("skills/planner/SKILL.md",),
+    "implement": ("skills/implementer/SKILL.md",),
     "verify": ("skills/verify/SKILL.md",),
 }
 
@@ -98,7 +99,7 @@ def build_report(root, traces):
 def main():
     parser = argparse.ArgumentParser(
         description=(
-            "Measure controller-free Design/Build/Verify context without "
+            "Measure Design/Build/Implement/Verify context without "
             "changing project state."
         )
     )
@@ -111,7 +112,7 @@ def main():
         print(json.dumps(report, indent=2, sort_keys=True))
         return
     print(
-        "Measured Design/Build/Verify context: "
+        "Measured Design/Build/Implement/Verify context: "
         f"{report['uniqueBytes']} unique bytes; "
         f"{report['stablePrefixSavingsBytes']} repeat bytes avoidable with a stable prefix."
     )

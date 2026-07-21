@@ -8,6 +8,8 @@ description: Use when Build needs an ephemeral implementation sequence, bounded 
 Shape an internal disposable Build plan. Split only independent ownership and proof.
 
 Plan from the user request, repository context, and any exact accepted design.
+The accepted Design/PRD's exact `Acceptance` section is the canonical Build
+Contract and cannot be narrowed by this plan.
 Resolve routine product and engineering choices independently inside scope and
 record material decisions. If a missing choice changes scope, safety, authority,
 or an external effect, return it to the parent; do not invent a boundary or hide
@@ -22,8 +24,6 @@ Optional example: `examples/workstream-assignment.md`.
 - Deferrals, risks, verification, and ordered implementation steps
 - Independent workstreams and compact child assignments, only when work will be dispatched
 - Material scope additions and their effect on ownership, dependencies, and proof
-
-Include an optional profile only when it materially improves the lane; omit no-op fields.
 
 The plan exists only in current task state and is discarded after Build. The
 user request and any accepted Design remain the sources of product truth.

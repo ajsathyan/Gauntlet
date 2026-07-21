@@ -61,48 +61,20 @@ def fake_codex_plugin_cli(agent_home, available=True):
     return path
 
 
-def fake_sensor_tools_installer(agent_home):
-    path = agent_home.parent / f".fake-sensor-tools-{agent_home.name}.py"
-    if path.exists():
-        return path
-    path.write_text(
-        "#!/usr/bin/env python3\n"
-        "from pathlib import Path\n"
-        "import sys\n"
-        "args = sys.argv[1:]\n"
-        "home = Path(args[args.index('--agent-home') + 1])\n"
-        "home.mkdir(parents=True, exist_ok=True)\n"
-        "(home / 'sensor-tools-install.log').write_text(' '.join(args) + '\\n')\n"
-    )
-    path.chmod(0o755)
-    return path
-
-
 def run_install(
     agent_home,
     target="codex",
     extra_args=None,
     check=True,
     plugins_available=True,
-    sensor_tools=False,
 ):
     env = os.environ.copy()
     env["AGENT_HOME"] = str(agent_home)
     env["GAUNTLET_SKIP_GIT_HOOKS"] = "1"
     if target == "codex":
         env["GAUNTLET_CODEX_BIN"] = str(fake_codex_plugin_cli(agent_home, plugins_available))
-    if sensor_tools:
-        env["GAUNTLET_SENSOR_TOOLS_INSTALLER"] = str(
-            fake_sensor_tools_installer(agent_home)
-        )
     args = [str(SCRIPTS / "install.sh"), "--target", target]
     args.extend(extra_args or [])
-    if (
-        not sensor_tools
-        and "--with-sensor-tools" not in args
-        and "--without-sensor-tools" not in args
-    ):
-        args.append("--without-sensor-tools")
     result = subprocess.run(
         args,
         cwd=ROOT,
@@ -421,7 +393,6 @@ def test_codex_install_merges_preferences_without_silent_overwrite():
     test_receipt_upgrade_and_uninstall_remove_only_unchanged_owned_files()
     test_manifest_sync_rejects_modified_owned_and_unowned_current_collisions()
     test_generated_router_preflight_preserves_collisions_and_allows_upgrade()
-    test_default_install_requests_machine_local_sensor_tools_without_network()
     test_codex_uninstall_preserves_user_bytes_config_and_modified_payload()
 
 
@@ -679,7 +650,6 @@ def test_manifest_install_syncs_runtime_and_preserves_unmanaged_or_modified_stal
                 str(installed / "scripts" / "install.sh"),
                 "--target",
                 "codex",
-                "--without-sensor-tools",
             ],
             cwd=installed,
             env=copied_env,
@@ -1444,16 +1414,6 @@ def test_generated_router_preflight_preserves_collisions_and_allows_upgrade():
             "unowned generated destination collision",
             "generated router preflight wiring",
         )
-
-
-def test_default_install_requests_machine_local_sensor_tools_without_network():
-    if not (ROOT / ".git").exists():
-        return
-    with tempfile.TemporaryDirectory() as tmp:
-        agent_home = Path(tmp) / "agent-home"
-        run_install(agent_home, sensor_tools=True)
-        log = read(agent_home / "sensor-tools-install.log")
-        assert_contains(log, "install --agent-home", "default sensor tool installation")
 
 
 def test_codex_uninstall_preserves_user_bytes_config_and_modified_payload():

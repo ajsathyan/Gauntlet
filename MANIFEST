@@ -3,68 +3,8 @@
     {
       "destination": "gauntlet/README.md",
       "executable": false,
-      "sha256": "f890c9e380cf8a4d15b36126e816904859dec95c60f6681db59f07e22438d27d",
+      "sha256": "dd122bce1ea51dfd55318509a9361b3207cd5aedf30012af8b9ed9b3183387fc",
       "source": "README.md"
-    },
-    {
-      "destination": "gauntlet/agents/codex/gauntlet_deep_expert_researcher.toml",
-      "executable": false,
-      "sha256": "16c4dd9630d633de165116afad3168f086b515f29285eb4337265f2d2735261d",
-      "source": "agents/codex/gauntlet_deep_expert_researcher.toml"
-    },
-    {
-      "destination": "gauntlet/agents/codex/gauntlet_deep_worker.toml",
-      "executable": false,
-      "sha256": "0ff777eb31dc28c4b71de66b06027f2580a821d65cea84cfb5bdff71ad5b48a6",
-      "source": "agents/codex/gauntlet_deep_worker.toml"
-    },
-    {
-      "destination": "gauntlet/agents/codex/gauntlet_fast_reader.toml",
-      "executable": false,
-      "sha256": "762b8cedbcb63142e0161e173b512433c82bb5f7e328fa4cf29221c8bb699020",
-      "source": "agents/codex/gauntlet_fast_reader.toml"
-    },
-    {
-      "destination": "gauntlet/agents/codex/gauntlet_independent_verifier.toml",
-      "executable": false,
-      "sha256": "709493cb3c1e2b5438c88ed8c03c9ded2c3f7a6098d7bcb01b3652d75b4c6fea",
-      "source": "agents/codex/gauntlet_independent_verifier.toml"
-    },
-    {
-      "destination": "gauntlet/agents/codex/gauntlet_release_integrator.toml",
-      "executable": false,
-      "sha256": "e537a46ad4b80fc10cb95f8070df674ecc51df3de095ea6dc6513646ff4437c1",
-      "source": "agents/codex/gauntlet_release_integrator.toml"
-    },
-    {
-      "destination": "gauntlet/agents/codex/gauntlet_security_reviewer.toml",
-      "executable": false,
-      "sha256": "30e9891e1148ccb3e7f6164e639ff4f5a1338aa37bd35c4d98ebaef21c8ab5ed",
-      "source": "agents/codex/gauntlet_security_reviewer.toml"
-    },
-    {
-      "destination": "gauntlet/agents/codex/gauntlet_standard_worker.toml",
-      "executable": false,
-      "sha256": "8ea400e1f69c3a8b7bd6322f0846baeec681745799cb1d8ffd8eb1c0e21638b7",
-      "source": "agents/codex/gauntlet_standard_worker.toml"
-    },
-    {
-      "destination": "gauntlet/config/semgrep.yml",
-      "executable": false,
-      "sha256": "21c681ba7bb2c455018e76e715aa0337cbc19bc113533246f240230c38c084cc",
-      "source": "config/semgrep.yml"
-    },
-    {
-      "destination": "gauntlet/config/sensor-tools.json",
-      "executable": false,
-      "sha256": "620f5d14d992cd7bb83434882041a3ef6a64023e7c3fc07a25c1e76775b62eef",
-      "source": "config/sensor-tools.json"
-    },
-    {
-      "destination": "gauntlet/docs/code-quality-sensors.md",
-      "executable": false,
-      "sha256": "ff5219ce92d7449f537a505bfdce6658da52645d184a8419e7277775d483d1ce",
-      "source": "docs/code-quality-sensors.md"
     },
     {
       "destination": "gauntlet/docs/coverage-gaps.md",
@@ -75,7 +15,7 @@
     {
       "destination": "gauntlet/docs/design-build-verify.md",
       "executable": false,
-      "sha256": "63977863dba8600a23c24c0a8f8e8ffab79f7101907df52c94f56162717fc927",
+      "sha256": "3752ae5f94795ba6cfdf7182a6515183ab4afa55520214ce819eea5c8e395ef6",
       "source": "docs/design-build-verify.md"
     },
     {
@@ -103,18 +43,6 @@
       "source": "docs/evaluation-tasks.md"
     },
     {
-      "destination": "gauntlet/docs/gauntlet-diagrams/2026-07-04-workflow-etiquette-flow.md",
-      "executable": false,
-      "sha256": "74a596a635ad53e952fb20ce3b9b7ae3e051a154d3f43213d757ea89768a105d",
-      "source": "docs/gauntlet-diagrams/2026-07-04-workflow-etiquette-flow.md"
-    },
-    {
-      "destination": "gauntlet/docs/gauntlet-diagrams/index.md",
-      "executable": false,
-      "sha256": "1d756c7f733136e5a3820dd290edab3fa09cad3121e5ae26de3a7c46f7af7693",
-      "source": "docs/gauntlet-diagrams/index.md"
-    },
-    {
       "destination": "gauntlet/docs/generated-context.md",
       "executable": false,
       "sha256": "a7c61efa66dee980b3a226fac4b909fe0f54b26c25c349a3876ec34434f84e0d",
@@ -123,38 +51,26 @@
     {
       "destination": "gauntlet/docs/github-discipline.md",
       "executable": false,
-      "sha256": "bc39a234ee39f3a69aae1aba1c3e1ae1915d21bca1285c253bd118eb9a02b0ee",
+      "sha256": "be42abd2d235ac5ee979f2c620a48da2f551edbfdd84b126f9bb32fe748fd65a",
       "source": "docs/github-discipline.md"
     },
     {
       "destination": "gauntlet/docs/global-router-rule-map.md",
       "executable": false,
-      "sha256": "c786559ff7c47805d2e59c546a165641f8fcd0c4582e1f824f8aa72b3f8e930d",
+      "sha256": "f8d002b4a318e9a4412c9b4291395f97abe84092993212bf0abe9a0320a13ece",
       "source": "docs/global-router-rule-map.md"
     },
     {
       "destination": "gauntlet/docs/local-documentation.md",
       "executable": false,
-      "sha256": "6cc45e4282088dcbce4718d672c4f9128f919ef6286dcf94491be998cb2d0c7b",
+      "sha256": "3d547c4e8df8a4962670804c5a045ee5306b26b4f0c5a1243c7ea8841e2cc616",
       "source": "docs/local-documentation.md"
     },
     {
       "destination": "gauntlet/docs/meaningful-proof.md",
       "executable": false,
-      "sha256": "c38f4560935c52ba42610f976faf88645aed6efb624ceab716979c4d2b690530",
+      "sha256": "9adb9bb420db9481dd5585ce9465f6147a1f376c457f40e166bc8cc001f38d38",
       "source": "docs/meaningful-proof.md"
-    },
-    {
-      "destination": "gauntlet/docs/optional-agent-profiles.md",
-      "executable": false,
-      "sha256": "9a00be17f9c4e40c8b3c01a4a11bed34f831eb389fe0ede999ba4bf44d071a3b",
-      "source": "docs/optional-agent-profiles.md"
-    },
-    {
-      "destination": "gauntlet/docs/parallel-workstreams.md",
-      "executable": false,
-      "sha256": "0550cfd92a6678f03f35bae6667ebfcbaec609659acc1b4ad864abe83620d5a3",
-      "source": "docs/parallel-workstreams.md"
     },
     {
       "destination": "gauntlet/docs/performance/parallel-ci-2026-07-17/baseline.json",
@@ -195,14 +111,8 @@
     {
       "destination": "gauntlet/docs/skill-quality-bar.md",
       "executable": false,
-      "sha256": "0102ff421aa4683da43f1e579b817981621fbf00c99f1d9c4243bcc20450cb4b",
+      "sha256": "ad8f37d7c3da96492c86b7aadf9cf419ac70115b8b3be01d00962305b27da135",
       "source": "docs/skill-quality-bar.md"
-    },
-    {
-      "destination": "gauntlet/docs/thin-contract-assessment.md",
-      "executable": false,
-      "sha256": "bc88d62bffd880c461251dfda9fe112913ad5484fe6a403c6e3b6f38f7311b93",
-      "source": "docs/thin-contract-assessment.md"
     },
     {
       "destination": "gauntlet/docs/ui-constitution.md",
@@ -211,21 +121,15 @@
       "source": "docs/ui-constitution.md"
     },
     {
-      "destination": "gauntlet/docs/upstream-eval-skills.md",
-      "executable": false,
-      "sha256": "e4729b6301bd5bacabae9db3e836ad412ffe5b3cd03ae839acdeb250d504c9bf",
-      "source": "docs/upstream-eval-skills.md"
-    },
-    {
       "destination": "gauntlet/docs/upstream-superpowers.json",
       "executable": false,
-      "sha256": "ad8779e01c2db68bb6658a24e7b6a5ee5d6f087054929c5d55da2e172de8e215",
+      "sha256": "d4676ec0218a5b4eebb3a848f2b6f408b7405fdc75ce51741c6f90e05ce537db",
       "source": "docs/upstream-superpowers.json"
     },
     {
       "destination": "gauntlet/docs/upstream-superpowers.md",
       "executable": false,
-      "sha256": "bea92efd767d85d21519d82c7a0131fc56d2abffe507a7867ccccc84e40d2875",
+      "sha256": "e99a0be075703cdef2334c5ac555fead7f7c4b5d96c0d5e553cfd1f4266fae75",
       "source": "docs/upstream-superpowers.md"
     },
     {
@@ -237,103 +141,19 @@
     {
       "destination": "gauntlet/docs/workflow-etiquette.md",
       "executable": false,
-      "sha256": "af23e28e5e1cd2a98b6481f9fabecae3f41a3afeae0ae146f8520d715ca8e52d",
+      "sha256": "af4de8387eaa89ec04e47731db438b257099f8461be857243fd4c039ef831705",
       "source": "docs/workflow-etiquette.md"
     },
     {
       "destination": "gauntlet/docs/workflow-speedups.md",
       "executable": false,
-      "sha256": "08b58c8699f05cc8040f14a7bd2ba8cbffa7f9636b64171e5ce6a8222ae78f10",
+      "sha256": "d356dc67ee14042f0b4b1ae16d3fdc976ed3182a54c4c9f982e753326eb60e99",
       "source": "docs/workflow-speedups.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/adversarial-reviewer/SKILL.md",
-      "executable": false,
-      "sha256": "a00634a7eaae5719467d11f2060e26dcae1a4ad59eee98873704927158a6e4fe",
-      "source": "evals/baselines/current/skills/adversarial-reviewer/SKILL.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/archive/SKILL.md",
-      "executable": false,
-      "sha256": "f465bfd21e69bd9951c62ba77772bac7c5ee9987a22301329f8a3f48d6c76c8b",
-      "source": "evals/baselines/current/skills/archive/SKILL.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/black-box-tester/SKILL.md",
-      "executable": false,
-      "sha256": "11038f8eb46d28e56c6f9cc0c08dba10c8c61400b269b5bf682835fd5c2b20f5",
-      "source": "evals/baselines/current/skills/black-box-tester/SKILL.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/debugger/SKILL.md",
-      "executable": false,
-      "sha256": "ac7d92f19eff3b693f019945571622af183ade083ddd8e3f1b8868b1747b463b",
-      "source": "evals/baselines/current/skills/debugger/SKILL.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/deep-code-reviewer/SKILL.md",
-      "executable": false,
-      "sha256": "53a308eceea419ed6cf303da12478d477d5aa72930d051ad4414c7a22a0a5afc",
-      "source": "evals/baselines/current/skills/deep-code-reviewer/SKILL.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/experience-reviewer/SKILL.md",
-      "executable": false,
-      "sha256": "4a8679679a8802cc09e08186170fe7b3eb94914ef9b2e90f1fc462e2e842bf2e",
-      "source": "evals/baselines/current/skills/experience-reviewer/SKILL.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/implementer/SKILL.md",
-      "executable": false,
-      "sha256": "21196e31e83d9ea44fa9011312edf3050953ab6d15f30dee460a5c8efe152ceb",
-      "source": "evals/baselines/current/skills/implementer/SKILL.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/intake/SKILL.md",
-      "executable": false,
-      "sha256": "a818daa18c0ba97c6e7b6e607e461529da7cf05803d38480ba3cad6fa41bf5e4",
-      "source": "evals/baselines/current/skills/intake/SKILL.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/issue-triager/SKILL.md",
-      "executable": false,
-      "sha256": "122aa7f05369f1a843f114fe957b73964697f05f77bbf3b61dfc20c47c7098b3",
-      "source": "evals/baselines/current/skills/issue-triager/SKILL.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/planner/SKILL.md",
-      "executable": false,
-      "sha256": "a82bd9a74f5d927ec095557afce9388243edaf11c0bb791ff87e24331d45ed33",
-      "source": "evals/baselines/current/skills/planner/SKILL.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/product-architect/SKILL.md",
-      "executable": false,
-      "sha256": "5afee5c92316f2c0903e98977b01ef2b9f3ab0f5ab51fefe2859ef88eb1a18bd",
-      "source": "evals/baselines/current/skills/product-architect/SKILL.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/promotion-scanner/SKILL.md",
-      "executable": false,
-      "sha256": "8bb41426ee582fa8a6f0a18ad9d0b3acad004bccafe80a40a5c2518b78ba4db5",
-      "source": "evals/baselines/current/skills/promotion-scanner/SKILL.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/refactor-codebase/SKILL.md",
-      "executable": false,
-      "sha256": "1d6263fca6488cb2f848566c49f6c46161305e50b1f761306dc81224dda89777",
-      "source": "evals/baselines/current/skills/refactor-codebase/SKILL.md"
-    },
-    {
-      "destination": "gauntlet/evals/baselines/current/skills/researcher/SKILL.md",
-      "executable": false,
-      "sha256": "f27815864bbca90f0a711589c13ebbcd7605287d9917d004fcca4c0b183aa63a",
-      "source": "evals/baselines/current/skills/researcher/SKILL.md"
     },
     {
       "destination": "gauntlet/evals/design-build-verify-fixtures.json",
       "executable": false,
-      "sha256": "e61011399170599fb3e1af1dcd9a398dc5ddf22bc941a0c5e3ac89ed6bbdc254",
+      "sha256": "688a85fef57a6d3898b65cbfed20fa4e24ece0e434ee4ccc8b06190cc1c93634",
       "source": "evals/design-build-verify-fixtures.json"
     },
     {
@@ -351,13 +171,13 @@
     {
       "destination": "gauntlet/evals/skill-evals.json",
       "executable": false,
-      "sha256": "40a1af21eb943fa7d82e1bfcfe860cf0e3635f961c7a12b78121f9ece7b2479a",
+      "sha256": "0f0a1b0dae953941190dc92cc9f00fa39116fbdea248fdcdb337b9ef9ca39ffe",
       "source": "evals/skill-evals.json"
     },
     {
       "destination": "gauntlet/router/AGENTS.md",
       "executable": false,
-      "sha256": "ffb076102d56d37d7770d5ffc0946d7dcd54b117c181c444cde90a21df1bbfe4",
+      "sha256": "ecff686ff0f60b6877c775e9727219c260f2dda0f71ce180c1647325acb50d63",
       "source": "router/AGENTS.md"
     },
     {
@@ -387,7 +207,7 @@
     {
       "destination": "gauntlet/scripts/context-audit.py",
       "executable": false,
-      "sha256": "4097bc44d0923c34b17f43f562a101e72c9e31529ca58a8459152cbb4cb94f77",
+      "sha256": "d72dc521e5f8b4ed27c3fa16c2cdb0d35a50d8cdb80dcf79121061802c773919",
       "source": "scripts/context-audit.py"
     },
     {
@@ -441,7 +261,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/cli_application.py",
       "executable": false,
-      "sha256": "0fa6f980ce4114b0b1c40eec9ec38609a773318213f0785a806be1ee64117ecc",
+      "sha256": "2c94d0c5c0e872453be9f94faf57c414545630a5b13e97e11e4c2dbae22793a8",
       "source": "scripts/gauntletlib/cli_application.py"
     },
     {
@@ -453,7 +273,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/cli_registration.py",
       "executable": false,
-      "sha256": "43ec60ee92e8941a458899c63934abb12bff5ee350127ebe327a92b92e2dd25a",
+      "sha256": "3a66d19588ed7478923ec5a56ba4d857afdaa388e4663d87f552efa6cccf4592",
       "source": "scripts/gauntletlib/cli_registration.py"
     },
     {
@@ -549,7 +369,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/docs/lifecycle.py",
       "executable": false,
-      "sha256": "ca8ccd691c40308f7e293e3de9165efff0fe3f31f479bc3966b556783b7c52be",
+      "sha256": "c766f119c046441e1eb403fb6ccd4b85e34cfe3678ef0b499d984c9b8e5b62fb",
       "source": "scripts/gauntletlib/docs/lifecycle.py"
     },
     {
@@ -567,7 +387,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/install/verify.py",
       "executable": false,
-      "sha256": "842bb9c02d4a42b54ec3aa0e49719f1ebca444c7fdf0f47502dba4ecc09a4277",
+      "sha256": "0d9cc0844b3ac1635198adb7ff69fef0f8c50f3312c167ab618afc4cdf220e27",
       "source": "scripts/gauntletlib/install/verify.py"
     },
     {
@@ -595,36 +415,6 @@
       "source": "scripts/gauntletlib/merge/workflow.py"
     },
     {
-      "destination": "gauntlet/scripts/gauntletlib/sensors/__init__.py",
-      "executable": false,
-      "sha256": "cb051613a0d3b42f6addc0e4c7faa2b64647fb704bd616d6acabe61e7005128f",
-      "source": "scripts/gauntletlib/sensors/__init__.py"
-    },
-    {
-      "destination": "gauntlet/scripts/gauntletlib/sensors/config.py",
-      "executable": false,
-      "sha256": "15cf8048c08e4a958b0859e1b05e27f404c6dba68c4796fbb3cdc57e2c09f3e7",
-      "source": "scripts/gauntletlib/sensors/config.py"
-    },
-    {
-      "destination": "gauntlet/scripts/gauntletlib/sensors/evidence.py",
-      "executable": false,
-      "sha256": "35ecd7831cf0fc589370564793a1778ff3dbca3040efb9f4658786caf915ab31",
-      "source": "scripts/gauntletlib/sensors/evidence.py"
-    },
-    {
-      "destination": "gauntlet/scripts/gauntletlib/sensors/planner.py",
-      "executable": false,
-      "sha256": "ff8082db72c1a97e6943a9a0b35aa94b985b9ceb0935809279604ae8865feb04",
-      "source": "scripts/gauntletlib/sensors/planner.py"
-    },
-    {
-      "destination": "gauntlet/scripts/gauntletlib/sensors/runner.py",
-      "executable": false,
-      "sha256": "cb292103aaa303a9c25f09f69c20cc2c5302b498c1371720f5b9ca9006403a82",
-      "source": "scripts/gauntletlib/sensors/runner.py"
-    },
-    {
       "destination": "gauntlet/scripts/gauntletlib/workflow/__init__.py",
       "executable": false,
       "sha256": "b63b170898599adf788fbd76ae5f6770857442e2832aa9ec6a2bb7a97df9aac6",
@@ -639,13 +429,13 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/workflow/cli.py",
       "executable": false,
-      "sha256": "0d7fe4de8ab60b5cc0dfa0a8a195df9238914b992bae6b13577f6fb620b69338",
+      "sha256": "50853ef707572f762676af7c753ded0aed5d6e889534fff87e95814e7b79271a",
       "source": "scripts/gauntletlib/workflow/cli.py"
     },
     {
       "destination": "gauntlet/scripts/gauntletlib/workflow/contracts.py",
       "executable": false,
-      "sha256": "893515d6449cb532cbbbbba625fee6300312353ec374677ffe61922bf82151fb",
+      "sha256": "349cd385acd656d2641f7849f6805d03cbef52973cff875d984a5b854473d707",
       "source": "scripts/gauntletlib/workflow/contracts.py"
     },
     {
@@ -655,46 +445,10 @@
       "source": "scripts/gauntletlib/workflow/git_repository.py"
     },
     {
-      "destination": "gauntlet/scripts/gauntletlib/workstreams/__init__.py",
-      "executable": false,
-      "sha256": "a756d9c5a385f733afc52ed8e23383c4fc5af10a437617df8c4d42adba971576",
-      "source": "scripts/gauntletlib/workstreams/__init__.py"
-    },
-    {
-      "destination": "gauntlet/scripts/gauntletlib/workstreams/cli.py",
-      "executable": false,
-      "sha256": "81d799758d5b5d48c82113b80d38fcc99d1d79c8b130cc60de32aae9f3242c3d",
-      "source": "scripts/gauntletlib/workstreams/cli.py"
-    },
-    {
-      "destination": "gauntlet/scripts/gauntletlib/workstreams/git_client.py",
-      "executable": false,
-      "sha256": "eb981562a67bf048e6b86874783aebe9b74805b20f08d22bb350c0828f91687c",
-      "source": "scripts/gauntletlib/workstreams/git_client.py"
-    },
-    {
-      "destination": "gauntlet/scripts/gauntletlib/workstreams/queue.py",
-      "executable": false,
-      "sha256": "995647d2516b931ace4fdd585cad028ed491118d0136cd3d8da709413d69140a",
-      "source": "scripts/gauntletlib/workstreams/queue.py"
-    },
-    {
-      "destination": "gauntlet/scripts/gauntletlib/workstreams/state_store.py",
-      "executable": false,
-      "sha256": "936a3e600a6571dcfa9e8d7a55db5b123f7d3848288ee2ab18e8da137937b690",
-      "source": "scripts/gauntletlib/workstreams/state_store.py"
-    },
-    {
       "destination": "gauntlet/scripts/generated_context.py",
       "executable": true,
       "sha256": "ae64f87d5e8a2041a80078f6465c4b0750d1b0b9b922fb28a1300145ae59ae72",
       "source": "scripts/generated_context.py"
-    },
-    {
-      "destination": "gauntlet/scripts/install-codex-agents.py",
-      "executable": false,
-      "sha256": "6ffd63161e40cbda1c1de64b006e15c72b9d0d1062c27a4a4f91cddd99f3c402",
-      "source": "scripts/install-codex-agents.py"
     },
     {
       "destination": "gauntlet/scripts/install-codex-hooks.py",
@@ -709,21 +463,15 @@
       "source": "scripts/install-git-hooks.sh"
     },
     {
-      "destination": "gauntlet/scripts/install-sensor-tools.py",
-      "executable": true,
-      "sha256": "d7c1966c2c50bfd2a34c8e6780b854d9061cfd021e0244c99b7ef8b3f3a2f84e",
-      "source": "scripts/install-sensor-tools.py"
-    },
-    {
       "destination": "gauntlet/scripts/install.sh",
       "executable": true,
-      "sha256": "18a4bfff73958b94587454dceecb3fb04d840dc932c354a4d03370eb64597a64",
+      "sha256": "ae52d63ea92134256c267f7a95804d64222a6a81d05000ca7acf6b506ea09612",
       "source": "scripts/install.sh"
     },
     {
       "destination": "gauntlet/scripts/lint-skills.py",
       "executable": true,
-      "sha256": "3062f979c04b269fbc63bc95a74302bbd51ebe27430ae9097458a6e839c91acb",
+      "sha256": "77c24f09d011b779f650858b5b99ead478c757e1d85e4ffaf881f1f82c698e4f",
       "source": "scripts/lint-skills.py"
     },
     {
@@ -739,24 +487,6 @@
       "source": "scripts/review-pack.py"
     },
     {
-      "destination": "gauntlet/scripts/run-coverage-sensor.py",
-      "executable": true,
-      "sha256": "9af20a9471d97f227cc2af1d94dc452b88aa9ae179eca23127e0f2f67876b833",
-      "source": "scripts/run-coverage-sensor.py"
-    },
-    {
-      "destination": "gauntlet/scripts/run-gitleaks-sensor.py",
-      "executable": true,
-      "sha256": "155f4d9739b1a3ef9452bec95eed02b0bfbc9fe2009535a20aced3f30f238289",
-      "source": "scripts/run-gitleaks-sensor.py"
-    },
-    {
-      "destination": "gauntlet/scripts/run-semgrep-sensor.py",
-      "executable": true,
-      "sha256": "d47e2b33f5fac8dcbf1ffc8431bc28a833cf249c193e24215ee8860ec7e24709",
-      "source": "scripts/run-semgrep-sensor.py"
-    },
-    {
       "destination": "gauntlet/scripts/run-skill-change-checks.sh",
       "executable": true,
       "sha256": "7caa5058016742c50481014d5ea7093a9b84c2049f21320f6188fcb97c3585cb",
@@ -765,7 +495,7 @@
     {
       "destination": "gauntlet/scripts/run-skill-evals.py",
       "executable": true,
-      "sha256": "e6053cf33f22739157814999431059cc034ed288e2e9bb11011cbd67a36567b2",
+      "sha256": "444a92ab81059bc5ba74de619caa14094639f65dff62c394684be6dc1fa5f60e",
       "source": "scripts/run-skill-evals.py"
     },
     {
@@ -795,7 +525,7 @@
     {
       "destination": "skills/adversarial-reviewer/SKILL.md",
       "executable": false,
-      "sha256": "0dbe1d1521901d75d48c5488699bb26165f1821dcb09d5b962d9b7d3f5fd56b6",
+      "sha256": "7a91b53005a8766f20e0621c43942b89d45b2f1c581ba0e56d7e676889f9bfe9",
       "source": "skills/adversarial-reviewer/SKILL.md"
     },
     {
@@ -803,24 +533,6 @@
       "executable": false,
       "sha256": "0659098b3eea8a32932dd1c32e695ea76f90b05abdbe0fc2755279aaa9155bf6",
       "source": "skills/adversarial-reviewer/examples/adversarial-report.md"
-    },
-    {
-      "destination": "skills/archive/SKILL.md",
-      "executable": false,
-      "sha256": "5d4ce8090846160ae793f463161eaa167201aad050c0457bb5f4f68a76b64fae",
-      "source": "skills/archive/SKILL.md"
-    },
-    {
-      "destination": "skills/archive/agents/openai.yaml",
-      "executable": false,
-      "sha256": "49f95c598afc7cd7de1fc0b1fd542ffda569ed4f807ff65a6ce395b04370fd23",
-      "source": "skills/archive/agents/openai.yaml"
-    },
-    {
-      "destination": "skills/archive/examples/standard-closeout.md",
-      "executable": false,
-      "sha256": "f226ec3e3abb44701f5b319080e238ade299a42d0637b578ad61e39eb1c135e7",
-      "source": "skills/archive/examples/standard-closeout.md"
     },
     {
       "destination": "skills/black-box-tester/SKILL.md",
@@ -833,12 +545,6 @@
       "executable": false,
       "sha256": "41ebe7d4ab2a12222aaa0ffe6ef321df0f5ba6ad238147ebdaa1910467d64aa3",
       "source": "skills/black-box-tester/examples/black-box-report.md"
-    },
-    {
-      "destination": "skills/build/SKILL.md",
-      "executable": false,
-      "sha256": "baff9a6dbb251355a9f5b88735771caa071774bf8ec490ab23a888dc2ea47529",
-      "source": "skills/build/SKILL.md"
     },
     {
       "destination": "skills/craft-customer-email/SKILL.md",
@@ -897,50 +603,8 @@
     {
       "destination": "skills/design/SKILL.md",
       "executable": false,
-      "sha256": "15c603d01bdb0b3e0ba17930714138f9adde38f38f5d1474c51b95efa921931d",
+      "sha256": "9e535677be5a7e823a15c4e70fcb2f5333afa1e1af8e9aefe486e92fa95ab511",
       "source": "skills/design/SKILL.md"
-    },
-    {
-      "destination": "skills/eval-audit/SKILL.md",
-      "executable": false,
-      "sha256": "2d1890ccb725b3dde7816944d1fd47793bd689bb8c753b749f6a88dbfbb2c27d",
-      "source": "skills/eval-audit/SKILL.md"
-    },
-    {
-      "destination": "skills/eval-error-analysis/SKILL.md",
-      "executable": false,
-      "sha256": "1f864e24686f6d25e43a91c31a14cfea9c84db5e2546c050ea17c07c009e78eb",
-      "source": "skills/eval-error-analysis/SKILL.md"
-    },
-    {
-      "destination": "skills/eval-judge-prompt/SKILL.md",
-      "executable": false,
-      "sha256": "c55ed2ba5b10ef54097d86513f61d176711196c8a76002ffd3e605ea9998f763",
-      "source": "skills/eval-judge-prompt/SKILL.md"
-    },
-    {
-      "destination": "skills/eval-rag/SKILL.md",
-      "executable": false,
-      "sha256": "77c5c113f4684472a9bd30d5a9037b56ff0dfc5c16cd39a2bafa6cf6a91bab91",
-      "source": "skills/eval-rag/SKILL.md"
-    },
-    {
-      "destination": "skills/eval-review-interface/SKILL.md",
-      "executable": false,
-      "sha256": "4931c96e68972ca93309d3efdad6876ccc5e83c5e7b49872a62aac6dc4b63d49",
-      "source": "skills/eval-review-interface/SKILL.md"
-    },
-    {
-      "destination": "skills/eval-synthetic-data/SKILL.md",
-      "executable": false,
-      "sha256": "097bf7bc7f7b0ed483dcaa780e9627a04d2fd1adc7b354105b5ed5f4a37fc97b",
-      "source": "skills/eval-synthetic-data/SKILL.md"
-    },
-    {
-      "destination": "skills/eval-validate-evaluator/SKILL.md",
-      "executable": false,
-      "sha256": "fd62265c72a8973eeda29e43d5ab7861ffa39cefbe3b0c94a4ba7c8b4b23a96c",
-      "source": "skills/eval-validate-evaluator/SKILL.md"
     },
     {
       "destination": "skills/experience-reviewer/SKILL.md",
@@ -957,7 +621,7 @@
     {
       "destination": "skills/implementer/SKILL.md",
       "executable": false,
-      "sha256": "2bb5528edb933f31f144bc86fbc385d15bf614fc42c61e3470220a49e551ea11",
+      "sha256": "89db1e5e8e6fca124e70c3ccdb79e96302f1a7c8e6a32abcebdb981297f226fc",
       "source": "skills/implementer/SKILL.md"
     },
     {
@@ -993,7 +657,7 @@
     {
       "destination": "skills/land/SKILL.md",
       "executable": false,
-      "sha256": "afae180264f357b63a9c1c717f9dfe1666d995f2f6904c12f2378856b6a173d8",
+      "sha256": "bc82624cb87cc17d2245d06159ca0f7c00d7c4d38d6ed5f585dda57091e54901",
       "source": "skills/land/SKILL.md"
     },
     {
@@ -1005,7 +669,7 @@
     {
       "destination": "skills/planner/SKILL.md",
       "executable": false,
-      "sha256": "9f277504ff48297548e6d8ff0eebe638ae390f471543d61ac78a7ad0c31000a2",
+      "sha256": "d08dcf94f0be039c458192218fee43575acbab23205ba9a8b8283f5ad7bb7ee7",
       "source": "skills/planner/SKILL.md"
     },
     {
@@ -1017,7 +681,7 @@
     {
       "destination": "skills/product-architect/SKILL.md",
       "executable": false,
-      "sha256": "f7b385f8814dadfda5c69081562263f3854eaae63921239a46a8f1168d962c81",
+      "sha256": "e6912c65526ebccf79699b32bd6a8f9b4adaa05915a8184453649dd882f6725c",
       "source": "skills/product-architect/SKILL.md"
     },
     {
@@ -1209,13 +873,13 @@
     {
       "destination": "skills/ship/SKILL.md",
       "executable": false,
-      "sha256": "516ddc0907032aa970513e728454cc2bda9501436a76d70e93bb930a08d56d22",
+      "sha256": "eb7d1198c2f6d3255e3e39028c6c371dae800a3e89783d13ccc0d93b6d28cea7",
       "source": "skills/ship/SKILL.md"
     },
     {
       "destination": "skills/verify/SKILL.md",
       "executable": false,
-      "sha256": "f851f8fe5933e4f6db83a7ad0a01833662bf85f333e1eca46fc098b11bcac686",
+      "sha256": "8377efa5883a0c6e50f12e2c6b38ec5f9c157e7bcf222c66e46162d65fe34fd5",
       "source": "skills/verify/SKILL.md"
     },
     {
@@ -1287,7 +951,7 @@
     {
       "destination": "gauntlet/templates/local-docs/DESIGN.md.tmpl",
       "executable": false,
-      "sha256": "738ef12951fbfe517282bdb0664fa72a9ba5d0d3d5210dd0a72aa753f34515dd",
+      "sha256": "028798ba06d20fbfa3a3f82ecffcaea3981f9a93c85e7d9d235611576ce3fdb6",
       "source": "templates/local-docs/DESIGN.md.tmpl"
     },
     {
@@ -1305,7 +969,7 @@
     {
       "destination": "gauntlet/templates/local-docs/doc_org.md.tmpl",
       "executable": false,
-      "sha256": "f519e973f5f1494dd7e9f43c9b9c66a38533c66c0eb35acb8e51f46652dfe0a3",
+      "sha256": "0665219335954aaf87597af8f9bf6505a9a4d6ccd2bad6bf631c3adfb95558d5",
       "source": "templates/local-docs/doc_org.md.tmpl"
     },
     {
@@ -1422,11 +1086,47 @@
       "type": "retired-file"
     },
     {
+      "destination": "skills/archive",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/build",
+      "type": "retired-directory"
+    },
+    {
       "destination": "skills/build-review-interface",
       "type": "retired-directory"
     },
     {
       "destination": "skills/error-analysis",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/eval-audit",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/eval-error-analysis",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/eval-judge-prompt",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/eval-rag",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/eval-review-interface",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/eval-synthetic-data",
+      "type": "retired-directory"
+    },
+    {
+      "destination": "skills/eval-validate-evaluator",
       "type": "retired-directory"
     },
     {

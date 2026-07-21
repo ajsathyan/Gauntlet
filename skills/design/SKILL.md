@@ -1,29 +1,30 @@
 ---
 name: design
-description: Use around non-trivial implementation to brainstorm material alternatives, resolve product decisions and edge cases, and optionally create or update a durable design without blocking implementation.
+description: Use before non-trivial implementation to resolve product decisions and edge cases, run adversarial review, and obtain acceptance of the exact Design or PRD.
 ---
 
 # Design
 
-Clarify a non-trivial implementation request without turning design acceptance
-into permission to write or land code. A bounded, low-consequence Normal Request
-bypasses this skill and goes directly to the requested artifact and smoke check.
+Turn a non-trivial implementation request into an accepted Design/PRD before
+code changes begin. A bounded, low-consequence Normal Request bypasses this
+skill and goes directly to the requested artifact and smoke check.
 
 ## Design Work
 
 1. Read existing product documents, repository behavior, research, and user decisions before asking questions.
 2. Explicitly brainstorm materially different approaches. Record the options considered, the recommended approach, and the practical tradeoff. Do not manufacture alternatives that would not change the product or implementation boundary.
 3. Resolve assumptions, feature-completeness questions, user-visible states, edge cases, observable acceptance, and required non-effects. Make routine product and engineering decisions independently inside the requested scope and record material decisions. Ask at most three short questions per user round only when an answer changes scope, safety, authority, cost, risk, or an external effect and cannot responsibly be decided inside the request.
-4. Create or update one permanent design document only with explicit user authority. Preserve direct user edits and keep unaccepted suggestions outside it.
-5. When the user accepts a durable design, its exact Acceptance section is the canonical Build Contract for the optional exact-design proof path. Do not copy, compile, summarize, or narrow it into a second requirements checklist.
-6. Do not delay code edits, commits, publication, or a non-production merge for design creation or acceptance. Later semantic edits invalidate only the accepted-design proof binding until re-accepted.
+4. Create or update one permanent Design/PRD with explicit user authority. Preserve direct user edits and keep unaccepted suggestions outside it.
+5. Run independent product-completeness, engineering-shape, and proof/consequence reviews. For stateful work, examine state transitions, retries, idempotency, recovery after partial failure, concurrency, and required non-effects.
+6. Present the document and stop before implementation until the user accepts its exact `Acceptance` section. That section is the canonical Build Contract; do not narrow it into a second checklist.
+7. Treat acceptance as authority for the scoped implementation, verification, branch publication, pull-request merge, and ordinary declared production deployment. Later semantic edits require re-acceptance.
 
 Legacy accepted PRDs remain valid designs. They do not need rewriting merely to adopt new terminology.
 
 ## Advisory Review
 
-When consequence or complexity justifies it, run three independent lenses against
-the same request or accepted design before or during Build:
+Run three independent lenses against the same request or proposed design before
+asking for acceptance:
 
 - **Product completeness:** missing user outcomes, feature states, assumptions, and feature-level edge cases.
 - **Engineering shape:** boundaries, dependencies, migrations, compatibility, and parallel ownership conflicts.
@@ -33,8 +34,8 @@ Each lens returns only material findings. Deduplicate without losing provenance.
 Show the user at most three recommendations per round, but retain and resolve
 every material finding. Record `accepted`, `rejected`, `deferred`, or `omitted`
 with a reason as the implementation disposition. Ask the user only when the
-finding exposes an unresolved material scope, safety, authority, or external
-effect. Advisory disposition alone does not block implementation or landing.
+  finding exposes an unresolved material scope, safety, authority, or external
+  effect.
 
 When an accepted design exists and exact-design proof is useful, keep complete
 review results in a task-temporary JSON file and invoke `workflow build-entry`
@@ -54,8 +55,7 @@ only that optional proof path.
 
 ## Completion
 
-Design work is ready for implementation when observable outcomes are clear
-enough to build, routine decisions have been resolved or recorded, and any
-unresolved scope, safety, authority, or external effect is surfaced. Durable
-design acceptance is optional unless the user explicitly requests that artifact
-or the exact-design proof path.
+Design work is ready for implementation when the exact `Acceptance` section is
+accepted, observable outcomes are clear enough to build, routine decisions are
+resolved or recorded, and any unresolved scope, safety, authority, or external
+effect is surfaced.

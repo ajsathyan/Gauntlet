@@ -40,7 +40,6 @@ OUTCOMES = [
 ]
 CONTRACT_APPLICABILITY = {
     "architecture": {"applicable": False, "sha256": None},
-    "sensor": {"applicable": False, "sha256": None},
 }
 
 
@@ -84,7 +83,7 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_exact_source_and_revision_with_independent_verdicts_complete(self):
         contract = self.contract()
-        for area in ("build", "architecture", "sensor"):
+        for area in ("build", "architecture"):
             contract = self.verdict(contract, area)
 
         result = completion_status(contract)
@@ -92,7 +91,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertTrue(result["complete"])
         self.assertEqual(
             set(contract["verdicts"]),
-            {"build", "architecture", "sensor"},
+            {"build", "architecture"},
         )
         self.assertTrue(
             contract["verdicts"]["build"]["acceptedDesignReadDirectly"]
@@ -152,9 +151,8 @@ class WorkflowContractTests(unittest.TestCase):
             {"commit": COMMIT, "tree": TREE},
         )
 
-    def test_sensor_pass_cannot_replace_missing_or_failed_build_proof(self):
-        contract = self.verdict(self.contract(), "sensor")
-        contract = self.verdict(contract, "architecture")
+    def test_architecture_pass_cannot_replace_missing_or_failed_build_proof(self):
+        contract = self.verdict(self.contract(), "architecture")
         missing = completion_status(contract)
         self.assertFalse(missing["complete"])
         self.assertIn("build verdict is absent", missing["reasons"])
@@ -164,24 +162,17 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertFalse(result["complete"])
         self.assertIn("build verdict did not pass", result["reasons"])
 
-    def test_non_applicable_architecture_and_sensor_can_complete(self):
+    def test_non_applicable_architecture_can_complete(self):
         contract = self.verdict(self.contract(), "build")
         contract = self.verdict(
             contract,
             "architecture",
             verdict="not-applicable",
         )
-        contract = self.verdict(
-            contract,
-            "sensor",
-            verdict="not-applicable",
-        )
-
         result = completion_status(contract)
 
         self.assertTrue(result["complete"])
         self.assertEqual(result["verdicts"]["architecture"], "not-applicable")
-        self.assertEqual(result["verdicts"]["sensor"], "not-applicable")
 
     def test_build_rejects_not_applicable(self):
         with self.assertRaisesRegex(ContractError, "build verdict"):
@@ -191,22 +182,20 @@ class WorkflowContractTests(unittest.TestCase):
                 verdict="not-applicable",
             )
 
-    def test_present_architecture_or_sensor_contract_rejects_not_applicable(self):
-        for area in ("architecture", "sensor"):
-            with self.subTest(area=area):
-                contract = self.contract()
-                contract["acceptedDesign"]["contractApplicability"][area] = {
-                    "applicable": True,
-                    "sha256": "sha256:" + "a" * 64,
-                }
-                with self.assertRaisesRegex(ContractError, "cannot be not-applicable"):
-                    self.verdict(contract, area, verdict="not-applicable")
+    def test_present_architecture_contract_rejects_not_applicable(self):
+        contract = self.contract()
+        contract["acceptedDesign"]["contractApplicability"]["architecture"] = {
+            "applicable": True,
+            "sha256": "sha256:" + "a" * 64,
+        }
+        with self.assertRaisesRegex(ContractError, "cannot be not-applicable"):
+            self.verdict(contract, "architecture", verdict="not-applicable")
 
     def test_cannot_verify_blocks_each_area(self):
-        for area in ("build", "architecture", "sensor"):
+        for area in ("build", "architecture"):
             with self.subTest(area=area):
                 contract = self.contract()
-                for current in ("build", "architecture", "sensor"):
+                for current in ("build", "architecture"):
                     contract = self.verdict(
                         contract,
                         current,
@@ -219,25 +208,18 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertEqual(result["verdicts"][area], "cannot-verify")
                 self.assertIn(f"{area} could not be verified", result["reasons"])
 
-    def test_failed_architecture_or_sensor_blocks_completion(self):
-        for area in ("architecture", "sensor"):
-            with self.subTest(area=area):
-                contract = self.contract()
-                for current in ("build", "architecture", "sensor"):
-                    contract = self.verdict(
-                        contract,
-                        current,
-                        verdict="fail" if current == area else "pass",
-                    )
+    def test_failed_architecture_blocks_completion(self):
+        contract = self.verdict(self.contract(), "build")
+        contract = self.verdict(contract, "architecture", verdict="fail")
 
-                result = completion_status(contract)
+        result = completion_status(contract)
 
-                self.assertFalse(result["complete"])
-                self.assertEqual(result["verdicts"][area], "fail")
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["verdicts"]["architecture"], "fail")
 
     def test_unproved_build_verdict_cannot_complete(self):
         contract = self.contract()
-        for area in ("build", "architecture", "sensor"):
+        for area in ("build", "architecture"):
             contract = self.verdict(contract, area)
         contract["verdicts"]["build"]["directEvidence"] = []
 
@@ -277,9 +259,9 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_verdict_areas_do_not_overwrite_each_other(self):
         contract = self.verdict(self.contract(), "build")
-        contract = self.verdict(contract, "sensor", verdict="fail")
+        contract = self.verdict(contract, "architecture", verdict="fail")
         self.assertEqual(contract["verdicts"]["build"]["verdict"], "pass")
-        self.assertEqual(contract["verdicts"]["sensor"]["verdict"], "fail")
+        self.assertEqual(contract["verdicts"]["architecture"]["verdict"], "fail")
 
     def test_build_pass_requires_direct_evidence_for_every_accepted_outcome(self):
         with self.assertRaisesRegex(ContractError, "every accepted outcome"):
@@ -373,13 +355,13 @@ class WorkflowContractTests(unittest.TestCase):
             project_root="adapter-root",
             design="adapter-design",
             contract=candidate,
-            area="sensor",
+            area="architecture",
             verdict="pass",
-            evidence={"directEvidence": ["sensor evidence"]},
+            evidence={"directEvidence": ["architecture evidence"]},
             accepted_design_reader=reader,
             git_repository=repository,
         )
-        self.assertEqual(recorded["verdicts"]["sensor"]["verdict"], "pass")
+        self.assertEqual(recorded["verdicts"]["architecture"]["verdict"], "pass")
         self.assertEqual(calls, [("adapter-root", "adapter-design")] * 3)
 
 

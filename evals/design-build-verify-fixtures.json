@@ -1,45 +1,42 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "cases": [
     {
-      "id": "complete-accepted-design",
+      "id": "complete-stateful-change",
       "acceptedOutcomes": [
-        "configured sensors execute",
-        "failed sensors are repaired and rerun"
+        "retry does not duplicate the notification",
+        "recovery preserves the last authoritative state"
       ],
       "claimedOutcomes": [
-        "configured sensors execute",
-        "failed sensors are repaired and rerun"
+        "retry does not duplicate the notification",
+        "recovery preserves the last authoritative state"
       ],
       "architectureVerdict": "pass",
-      "sensorVerdict": "pass",
       "expectedBuildVerdict": "pass",
       "expectedOverallVerdict": "pass"
     },
     {
-      "id": "gauntlet-009-green-sensors-narrow-checklist",
+      "id": "narrow-happy-path-proof",
       "acceptedOutcomes": [
-        "configured sensors execute",
-        "failed sensors are repaired and rerun"
+        "retry does not duplicate the notification",
+        "recovery preserves the last authoritative state"
       ],
       "claimedOutcomes": [
-        "configured sensors execute"
+        "retry does not duplicate the notification"
       ],
       "architectureVerdict": "pass",
-      "sensorVerdict": "pass",
       "expectedBuildVerdict": "fail",
       "expectedOverallVerdict": "fail"
     },
     {
       "id": "architecture-failure-stays-separate",
       "acceptedOutcomes": [
-        "configured sensors execute"
+        "recovery preserves the last authoritative state"
       ],
       "claimedOutcomes": [
-        "configured sensors execute"
+        "recovery preserves the last authoritative state"
       ],
       "architectureVerdict": "fail",
-      "sensorVerdict": "pass",
       "expectedBuildVerdict": "pass",
       "expectedOverallVerdict": "fail"
     }

@@ -29,7 +29,7 @@ Keep stable repeated instructions first, preserve canonical order and whitespace
 
 Use deterministic scripts for repeated mechanical facts. Do not turn a prose field or self-report into an authority or completion oracle.
 
-Delegate only when independent ownership or evidence beats the context cost. A delegated skill supplies one objective, one ownership boundary, explicit dependencies, a checkable return contract, and an ask-parent policy. Custom agent profiles are optional and chosen directly when they clearly help.
+Delegate only when independent ownership or evidence beats the context cost. A delegated skill supplies one objective, one ownership boundary, explicit dependencies, a checkable return contract, and an ask-parent policy.
 
 ## Escalation
 

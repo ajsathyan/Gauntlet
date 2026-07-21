@@ -10,8 +10,6 @@ CODEX_PREFERENCES="${GAUNTLET_CODEX_PREFERENCES:-prompt}"
 CHECK_ONLY="${GAUNTLET_INSTALL_CHECK_ONLY:-0}"
 RESPONSE_STYLE="${GAUNTLET_RESPONSE_STYLE:-gauntlet}"
 CODEX_BIN_OVERRIDE="${GAUNTLET_CODEX_BIN:-}"
-WITH_SENSOR_TOOLS="${GAUNTLET_WITH_SENSOR_TOOLS:-1}"
-SENSOR_TOOLS_INSTALLER_OVERRIDE="${GAUNTLET_SENSOR_TOOLS_INSTALLER:-}"
 UNINSTALL="0"
 CONFIRM_NO_LIVE_CONTROLLER_WORK="0"
 CUTOVER_PROJECT_ROOTS=()
@@ -19,17 +17,11 @@ SKILLS_SRC="$ROOT/skills"
 if [ ! -d "$SKILLS_SRC" ] && [ -d "$ROOT/../skills" ]; then
   SKILLS_SRC="$ROOT/../skills"
 fi
-AGENTS_SRC="$ROOT/agents/codex"
-if [ ! -d "$AGENTS_SRC" ] && [ -d "$ROOT/../agents/codex" ]; then
-  AGENTS_SRC="$ROOT/../agents/codex"
-fi
-
 usage() {
   cat <<'USAGE'
 Usage: scripts/install.sh [--target codex] [--agent-home PATH] [--check] [--instructions-reviewed]
                           [--response-style gauntlet|existing]
                           [--codex-preferences prompt|gauntlet|existing|skip] [--skip-git-hooks]
-                          [--without-sensor-tools]
                           [--cutover-project-root PATH | --confirm-no-live-controller-work]
        scripts/install.sh --target codex [--agent-home PATH] --uninstall
 
@@ -46,8 +38,6 @@ Environment:
   GAUNTLET_RESPONSE_STYLE   gauntlet or existing (default: gauntlet)
   GAUNTLET_CODEX_BIN       Codex executable override used to install required bundled plugins
   GAUNTLET_SKIP_GIT_HOOKS set to 1 to skip this repo's pre-commit hook install
-  GAUNTLET_WITH_SENSOR_TOOLS set to 0 to skip pinned machine-local sensor tools
-  GAUNTLET_SENSOR_TOOLS_INSTALLER absolute installer override for controlled tests
 USAGE
 }
 
@@ -79,14 +69,6 @@ while [ "$#" -gt 0 ]; do
       ;;
     --skip-git-hooks)
       SKIP_GIT_HOOKS="1"
-      shift
-      ;;
-    --with-sensor-tools)
-      WITH_SENSOR_TOOLS="1"
-      shift
-      ;;
-    --without-sensor-tools)
-      WITH_SENSOR_TOOLS="0"
       shift
       ;;
     --cutover-project-root)
@@ -177,15 +159,6 @@ case "$CHECK_ONLY" in
     ;;
   *)
     echo "GAUNTLET_INSTALL_CHECK_ONLY must be 0 or 1" >&2
-    exit 2
-    ;;
-esac
-
-case "$WITH_SENSOR_TOOLS" in
-  0|1)
-    ;;
-  *)
-    echo "GAUNTLET_WITH_SENSOR_TOOLS must be 0 or 1" >&2
     exit 2
     ;;
 esac
@@ -927,6 +900,62 @@ output.write_text(rendered)
 PY
 }
 
+# Remove only exact obsolete runtime logs/state and directories that are empty.
+# This is intentionally small: retired subsystems are not part of Lite.
+retire_legacy_artifacts() {
+  local phase="$1"
+  python3 - "$AGENT_HOME" "$phase" <<'PY'
+from pathlib import Path
+import sys
+
+agent_home = Path(sys.argv[1])
+phase = sys.argv[2]
+if phase not in {"check", "remove"}:
+    raise SystemExit("invalid legacy-artifact cleanup phase")
+
+targets = (
+    agent_home / "gauntlet" / "logs" / "subagent-model-requests.jsonl",
+    agent_home / "gauntlet" / "logs" / "subagent-quarantine.jsonl",
+    agent_home / "gauntlet" / "logs" / "subagents.jsonl",
+    agent_home / "gauntlet" / "state" / "routing-circuit.json",
+    agent_home / "gauntlet" / "state" / "routing-circuit.json.lock",
+    agent_home / "gauntlet" / "state" / "subagent-request-cursors.json",
+)
+parents = {path.parent for path in targets}
+for parent in parents:
+    if parent.is_symlink() or (parent.exists() and not parent.is_dir()):
+        print(f"Refusing unsafe retired Gauntlet artifact directory: {parent}", file=sys.stderr)
+        raise SystemExit(1)
+if phase == "check":
+    raise SystemExit(0)
+
+for path in targets:
+    if not path.exists() and not path.is_symlink():
+        continue
+    if path.is_dir() and not path.is_symlink():
+        print(
+            f"Gauntlet installer finding: preserved non-file at retired artifact path: {path}",
+            file=sys.stderr,
+        )
+        continue
+    path.unlink()
+
+empty_directories = (
+    *parents,
+    agent_home / "agents",
+    agent_home / "gauntlet-tools" / "generations",
+    agent_home / "gauntlet-tools" / "preserved-generations",
+    agent_home / "gauntlet-tools",
+)
+for directory in empty_directories:
+    if directory.is_symlink():
+        continue
+    try:
+        directory.rmdir()
+    except OSError:
+        pass
+PY
+}
 # Reject malformed target state before installing or removing any payload files.
 validate_managed_file "$AGENT_HOME/AGENTS.md"
 
@@ -944,22 +973,16 @@ from gauntletlib.install.manifest import preflight_uninstall_payload
 
 preflight_uninstall_payload(Path(sys.argv[1]))
 PY
+  retire_legacy_artifacts check
 
   python3 "$ROOT/scripts/install-codex-hooks.py" check-remove \
     --agent-home "$AGENT_HOME" \
     --runtime "$AGENT_HOME/gauntlet/scripts/workflow-mode.py"
-  if [ -f "$AGENT_HOME/gauntlet/install-agents-codex.json" ]; then
-    python3 "$ROOT/scripts/install-codex-agents.py" check-remove \
-      --agent-home "$AGENT_HOME"
-  fi
 
-  if [ -f "$AGENT_HOME/gauntlet-tools/receipt.json" ]; then
-    python3 "$ROOT/scripts/install-sensor-tools.py" remove --agent-home "$AGENT_HOME"
-  fi
   python3 "$ROOT/scripts/install-codex-hooks.py" remove \
     --agent-home "$AGENT_HOME" \
     --runtime "$AGENT_HOME/gauntlet/scripts/workflow-mode.py"
-  python3 "$ROOT/scripts/install-codex-agents.py" remove --agent-home "$AGENT_HOME"
+  retire_legacy_artifacts remove
 
   python3 - "$AGENT_HOME/AGENTS.md" "$MANAGED_BEGIN" "$MANAGED_END" <<'PY'
 from pathlib import Path
@@ -1042,6 +1065,7 @@ render_codex_agents_block "$candidate_block" "$rendered_router"
 python3 "$ROOT/scripts/install-codex-hooks.py" check \
   --agent-home "$AGENT_HOME" \
   --runtime "$AGENT_HOME/gauntlet/scripts/workflow-mode.py"
+retire_legacy_artifacts check
 
 set +e
 require_instruction_review "$AGENT_HOME/AGENTS.md" "$candidate_block" "$rendered_router" 2>"$instruction_review_log"
@@ -1049,9 +1073,6 @@ instruction_review_status=$?
 manage_codex_preferences check 2>"$codex_preference_log"
 codex_preference_status=$?
 set -e
-
-python3 "$ROOT/scripts/install-codex-agents.py" check \
-  --source "$AGENTS_SRC" --agent-home "$AGENT_HOME"
 
 if [ "$instruction_review_status" -ne 0 ] || [ "$codex_preference_status" -ne 0 ]; then
   cat "$instruction_review_log" "$codex_preference_log" >&2
@@ -1123,6 +1144,7 @@ from gauntletlib.install.manifest import sync_payload
 for finding in sync_payload(Path(sys.argv[1]), Path(sys.argv[2])):
     print(f"Gauntlet installer finding: {finding}", file=sys.stderr)
 PY
+retire_legacy_artifacts remove
 
 cp "$rendered_router" "$AGENT_HOME/gauntlet/AGENTS.md"
 chmod 0644 "$AGENT_HOME/gauntlet/AGENTS.md"
@@ -1139,11 +1161,6 @@ python3 "$AGENT_HOME/gauntlet/scripts/install-codex-hooks.py" apply \
   --agent-home "$AGENT_HOME" \
   --runtime "$AGENT_HOME/gauntlet/scripts/workflow-mode.py"
 
-python3 "$ROOT/scripts/install-codex-agents.py" apply \
-  --source "$AGENTS_SRC" --agent-home "$AGENT_HOME"
-python3 "$ROOT/scripts/install-codex-agents.py" verify \
-  --source "$AGENTS_SRC" --agent-home "$AGENT_HOME"
-
 # Activate the router only after the installed payload is complete.
 manage_codex_preferences apply
 install_codex_plugins
@@ -1153,28 +1170,9 @@ record_instruction_review "$AGENT_HOME/AGENTS.md" "$candidate_block" "$rendered_
 python3 "$AGENT_HOME/gauntlet/scripts/gauntlet.py" install verify \
   --target "$TARGET" --agent-home "$AGENT_HOME"
 
-if [ "$WITH_SENSOR_TOOLS" = "1" ]; then
-  sensor_tools_installer="$AGENT_HOME/gauntlet/scripts/install-sensor-tools.py"
-  if [ -n "$SENSOR_TOOLS_INSTALLER_OVERRIDE" ]; then
-    case "$SENSOR_TOOLS_INSTALLER_OVERRIDE" in
-      /*)
-        ;;
-      *)
-        echo "GAUNTLET_SENSOR_TOOLS_INSTALLER must be an absolute path" >&2
-        exit 2
-        ;;
-    esac
-    sensor_tools_installer="$SENSOR_TOOLS_INSTALLER_OVERRIDE"
-  fi
-  if ! python3 "$sensor_tools_installer" install --agent-home "$AGENT_HOME"; then
-    echo "Pinned sensor tool installation failed. Gauntlet core files are installed, but this install is incomplete." >&2
-    exit 1
-  fi
-fi
-
 if [ "$SKIP_GIT_HOOKS" != "1" ] && [ -d "$ROOT/.git" ]; then
   "$ROOT/scripts/install-git-hooks.sh" --repo "$ROOT" --gauntlet-root "$ROOT" >/dev/null
 fi
 
-echo "Installed Gauntlet for $TARGET to $AGENT_HOME"
+echo "Installed Gauntlet Lite for $TARGET to $AGENT_HOME"
 echo "Restart or reload your coding agent to pick up the new workflow."

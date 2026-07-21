@@ -1,7 +1,7 @@
 [project]
-name = "gauntlet-workflow"
-version = "2.0.2"
-description = "A product-thinking and proof harness for coding agents"
+name = "gauntlet-lite"
+version = "0.1.0"
+description = "A sensor-free product, implementation, review, and release workflow for Codex"
 requires-python = ">=3.9"
 dependencies = []
 

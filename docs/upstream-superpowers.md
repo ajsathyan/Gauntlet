@@ -23,7 +23,7 @@ Gauntlet contains adapted concepts, not vendored text. The Superpowers plugin an
 | `requesting-code-review` | Advisory product, engineering, and proof lenses plus purpose-specific exact-revision review | `adversarial-reviewer`, `verify`, specialist reviewers |
 | `using-git-worktrees` | Isolate broad, risky, dirty, or delegated writes | global workflow, `github-discipline.md` |
 | `dispatching-parallel-agents` | Parallelize only independent domains whose speedup beats context cost | global delegation and `planner` |
-| `writing-plans`, `executing-plans` | Internal ephemeral Build planning, bounded workstream assignments, and meaningful checkpoints | `build`, `planner`, `implementer` |
+| `writing-plans`, `executing-plans` | Internal ephemeral Build planning, bounded assignments, and meaningful checkpoints | `planner`, `implementer` |
 | `finishing-a-development-branch` | Carry implementation through non-production PR merge after exact-revision Verify and stop separately at production effects | `verify`, `ship`, `github-discipline.md` |
 | `writing-skills` | Trigger clarity, output contracts, positive steering, and forward tests | `skill-quality-bar.md` |
 

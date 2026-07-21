@@ -25,11 +25,11 @@ class ContextAuditTests(unittest.TestCase):
         )
         self.assertEqual(
             [phase["phase"] for phase in report["phases"]],
-            ["design", "build", "verify"],
+            ["design", "build", "implement", "verify"],
         )
         self.assertEqual(
             report["stablePrefixSavingsBytes"],
-            report["stableBytes"] * 2,
+            report["stableBytes"] * 3,
         )
         self.assertEqual(
             report["repeatedWithoutStablePrefixBytes"]

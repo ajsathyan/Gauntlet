@@ -11,9 +11,6 @@ Helper output is an evidence pointer, never product truth or proof by itself.
 | Durable Design profile | `scripts/gauntlet.py docs ensure --project-root "$PROJECT_ROOT"` |
 | Create a Design | `scripts/gauntlet.py docs design create --project-root "$PROJECT_ROOT" --title "$TITLE"` |
 | Accept a Design | `scripts/gauntlet.py docs design accept --project-root "$PROJECT_ROOT" --design "$DESIGN_ID"` |
-| Fast sensor pass | `scripts/gauntlet.py sensors run --project-root "$PROJECT_ROOT" --workflow-mode feature --phase fast --json` |
-| Integrated sensor pass | `scripts/gauntlet.py sensors run --project-root "$PROJECT_ROOT" --workflow-mode feature --phase integrated --json` |
-| Current-base integration queue | `scripts/gauntlet.py workstreams snapshot --repo "$PROJECT_ROOT" --state "$QUEUE_FILE"` |
 | Pull-request preparation | `scripts/gauntlet.py merge prepare --git-root "$PROJECT_ROOT" --handoff "$HANDOFF" --json` |
 | Read-only merge preflight | `scripts/gauntlet.py merge plan --git-root "$PROJECT_ROOT" --handoff "$HANDOFF" --body "$PR_BODY" --json` |
 | Explicitly authorized landing | `scripts/gauntlet.py land execute --git-root "$PROJECT_ROOT" --handoff "$HANDOFF" --body "$PR_BODY" --json` |
@@ -30,8 +27,6 @@ Helper output is an evidence pointer, never product truth or proof by itself.
   proof.
 - Keep stable instructions first and volatile workstream values last. Omit
   unrelated history, empty fields, and repeated contract text.
-- Sensor handoffs contain only compact attention items. Open referenced raw logs
-  only when a finding requires them.
 - Preserve unrelated dirty work.
 - Confidence labels, receipts, green commands, and pull-request checks do not
   replace an observable oracle.

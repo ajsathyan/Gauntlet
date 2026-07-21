@@ -166,7 +166,7 @@ class DocumentLifecycleTests(unittest.TestCase):
                 "--project-root",
                 str(repo),
                 "--title",
-                "Sensor execution",
+                "Notification recovery",
                 "--dry-run",
                 "--json",
             ]
@@ -183,7 +183,7 @@ class DocumentLifecycleTests(unittest.TestCase):
                 "--project-root",
                 str(repo),
                 "--title",
-                "Sensor execution",
+                "Notification recovery",
                 "--json",
             ]
         )
@@ -268,7 +268,7 @@ class DocumentLifecycleTests(unittest.TestCase):
         design.write_text(
             "# Outcome contract\n\n"
             "## Acceptance\n\n"
-            "- The sensor command actually runs.\n"
+            "- The configured command actually runs.\n"
             "- Planning does not run external commands.\n\n"
             "## Architecture Contract\n\nUse an explicit process adapter.\n",
             encoding="utf-8",

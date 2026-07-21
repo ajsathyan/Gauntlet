@@ -1,4 +1,0 @@
-interface:
-  display_name: "Archive"
-  short_description: "Land, verify, clean up, and archive work"
-  default_prompt: "Use $archive to land this work through a PR, verify the landed revision, clean up safely, and archive this task."

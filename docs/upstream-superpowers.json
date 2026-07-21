@@ -71,14 +71,14 @@
       "sourcePath": "skills/writing-plans/SKILL.md",
       "reviewedSha256": "4fd4627d2c02367879c0307d7249270bed633317ff9be82e926a6d57bf5d331b",
       "disposition": "adapted",
-      "destinations": ["skills/build/SKILL.md", "skills/planner/SKILL.md"]
+      "destinations": ["skills/planner/SKILL.md"]
     },
     {
       "sourceSkill": "executing-plans",
       "sourcePath": "skills/executing-plans/SKILL.md",
       "reviewedSha256": "e2102f11631433939f162d383d769f8257d859d6639e0e14969cda3ef0a95eca",
       "disposition": "adapted",
-      "destinations": ["skills/build/SKILL.md", "skills/planner/SKILL.md", "skills/implementer/SKILL.md"]
+      "destinations": ["skills/planner/SKILL.md", "skills/implementer/SKILL.md"]
     },
     {
       "sourceSkill": "finishing-a-development-branch",

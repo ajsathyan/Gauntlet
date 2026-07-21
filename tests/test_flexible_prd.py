@@ -330,7 +330,7 @@ class FlexibleDesignTests(unittest.TestCase):
         self.assertNotEqual(stale.returncode, 0)
         self.assertIn("stale", stale.stdout.lower())
 
-    def test_completion_rejects_omitted_accepted_outcome_despite_green_sensors(self):
+    def test_completion_rejects_omitted_accepted_outcome_despite_architecture_pass(self):
         design_id, design = self.create_accepted_design(
             "1. External command runs.\n"
             "2. Dashboard is published.\n"
@@ -371,7 +371,6 @@ class FlexibleDesignTests(unittest.TestCase):
 
         verdict_inputs = [
             ("architecture", {"directEvidence": ["boundaries inspected"]}),
-            ("sensor", {"directEvidence": ["configured sensors passed"]}),
             (
                 "build",
                 {
@@ -430,7 +429,6 @@ class FlexibleDesignTests(unittest.TestCase):
             {
                 "build": "absent",
                 "architecture": "pass",
-                "sensor": "pass",
             },
         )
 
@@ -599,9 +597,7 @@ class FlexibleDesignTests(unittest.TestCase):
             "## Acceptance\n\n"
             "The old accepted Epic remains directly readable.\n\n"
             "## Architecture Contract\n\n"
-            "Application services own workflow sequencing.\n\n"
-            "## Sensor Contract\n\n"
-            "Configured checks execute against the candidate revision.\n"
+            "Application services own workflow sequencing.\n"
         )
         epic.write_text(source, encoding="utf-8")
         (docs / "INDEX.md").write_text(
@@ -644,7 +640,7 @@ class FlexibleDesignTests(unittest.TestCase):
                 area: binding["applicable"]
                 for area, binding in accepted["contractApplicability"].items()
             },
-            {"architecture": True, "sensor": True},
+            {"architecture": True},
         )
         self.assertTrue(
             all(

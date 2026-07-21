@@ -187,7 +187,7 @@ def register(subparsers):
     verdict = commands.add_parser("record-verdict")
     _common_design(verdict)
     verdict.add_argument("--contract", type=Path, required=True)
-    verdict.add_argument("--area", choices=("build", "architecture", "sensor"), required=True)
+    verdict.add_argument("--area", choices=("build", "architecture"), required=True)
     verdict.add_argument(
         "--verdict",
         choices=("pass", "fail", "not-applicable", "cannot-verify"),

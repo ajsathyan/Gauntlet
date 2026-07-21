@@ -19,7 +19,6 @@ from tests.workflow.policy import (
     test_plugin_manifests_bundle_shared_skills,
 )
 from tests.workflow.quality import test_skill_changes_are_guarded_by_pre_commit
-from tests.workflow.sensors import test_sensor_execution_and_cadence
 from tests.workflow.fixtures import ROOT, run
 from tests.test_land import test_land_workflow_behavior
 
@@ -69,10 +68,6 @@ test_exact_revision_contracts = _test_modules(
     "test_exact_revision_contracts",
     "tests.test_workflow_contracts",
 )
-test_parallel_workstream_queue = _test_modules(
-    "test_parallel_workstream_queue",
-    "tests.test_workstream_queue",
-)
 test_dedicated_security_runner = _test_modules(
     "test_dedicated_security_runner",
     "tests.test_security_review_cli",
@@ -113,11 +108,8 @@ DESIGN_CASES = (test_design_document_lifecycle_behavior,)
 
 CONTRACT_CASES = (
     test_exact_revision_contracts,
-    test_parallel_workstream_queue,
     test_dedicated_security_runner,
 )
-
-SENSOR_CASES = (test_sensor_execution_and_cadence,)
 
 EVAL_CASES = (
     test_generated_context_and_size_audit,
@@ -130,13 +122,12 @@ GROUP_CASES = {
     "install": INSTALL_CASES,
     "design": DESIGN_CASES,
     "contracts": CONTRACT_CASES,
-    "sensors": SENSOR_CASES,
     "evals": EVAL_CASES,
 }
 
 FULL_CASES = tuple(
     case
-    for group in ("policy", "install", "design", "contracts", "sensors", "evals")
+    for group in ("policy", "install", "design", "contracts", "evals")
     for case in GROUP_CASES[group]
 )
 if len(FULL_CASES) != len(set(FULL_CASES)):

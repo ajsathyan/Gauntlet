@@ -1,46 +1,40 @@
-# Design, Build, Verify, Ship
+# Design, Build, Implement, Verify, Land, Ship
 
-Gauntlet carries a user request through implementation and non-production merge
-without human approval pauses, while keeping design, proof, and production
-authority distinct.
+Gauntlet Lite carries a non-trivial request from an accepted Design/PRD through production follow-through without sensor infrastructure or a second deployment acceptance pause.
 
 ## Design
 
-Design clarifies what outcome should exist, what choices were made, and what
-would count as done. A permanent document is optional and is created only with
-user authority. When accepted, its exact `Acceptance` section is the Build
-Contract for the optional exact-design proof path.
+Design establishes the complete requested outcome, material decisions, user-visible states, edge cases, and required non-effects. Gauntlet Lite compares materially different approaches and runs independent product-completeness, engineering-shape, and proof/consequence reviews.
 
-Brainstorm materially different approaches, resolve assumptions and feature-level
-edge cases, and use product, engineering, and proof lenses when they add value.
-Gauntlet resolves routine decisions independently and records them. Design
-acceptance and advisory findings do not block implementation or non-production
-landing.
+For stateful or broad changes, review explicitly examines state transitions, retries, idempotency, recovery after partial failure, concurrency, and behavior that must remain unchanged.
+
+The user must accept the exact `Acceptance` section before implementation begins. That section is the canonical Build Contract. Its accepted scope authorizes implementation, verification, commit, push, pull-request creation, default-branch merge, and the repository's ordinary declared production deployment.
 
 ## Build
 
-Build decides how to make the requested outcome real. Its code-level plan is
-temporary. It may use compact parallel workstreams, but those assignments never
-become product truth.
+Build creates the internal ephemeral plan, assigns genuinely independent lanes,
+and stops planning when the first coherent implementation step and proof path
+are clear. It is a workflow phase, not a separate installed skill package.
+
+## Implement
+
+Implementation reads the accepted Design/PRD and repository context directly. Its code-level plan and child assignments are temporary. Native delegation is used only when independent ownership or evidence makes it worthwhile; there is no profile router, token-audit layer, or durable workstream queue.
 
 ## Verify
 
-Verify independently checks the exact integrated revision against:
+Independent Verify checks the exact integrated revision against:
 
-- the user request and any Build Contract for product outcomes;
-- the Architecture Contract for required code shape;
-- the Sensor Contract for configured checks and evidence.
+- the user request and accepted Build Contract for product outcomes and required non-effects;
+- the Architecture Contract for applicable boundaries, dependencies, compatibility, and code shape.
 
-Each verdict stands separately. The GAUNTLET-009 failure is the negative control:
-planning or sensor success must fail completion when a requested end-to-end
-outcome is absent.
+Build and Architecture verdicts remain separate. Direct tests, black-box behavior, targeted inspection, and independent review provide the evidence. A plan, receipt, PR summary, or green command cannot substitute for an absent end-to-end outcome.
+
+## Land
+
+Land pushes the verified branch, opens or updates the pull request, waits for required checks and blocking reviews, merges to the default branch, verifies the landed revision, and cleans up only safe Git state. It inspects repository automation before merge so the expected production effect remains inside the accepted scope.
 
 ## Ship
 
-An implementation request authorizes local commits, an implementation branch
-push, pull-request creation, and non-production merge. Ship inspects repository
-automation before landing because merge itself may be the production boundary.
-Every production change requires separate explicit acceptance accompanied by
-met criteria and evidence, independent implementation decisions, remaining
-risks, exact revision, and rollback. Installation, destructive or paid actions,
-credential use, rollback, and archival retain separately scoped authority.
+Ship begins after merge without a second acceptance pause. It lets merge-triggered deployment run or invokes the repository's declared standard deployment mechanism, monitors the landed revision, and verifies attributable production behavior.
+
+Unexpected destructive, paid, credential, migration, privacy, security, or production effects outside the accepted Design/PRD stop for a scope decision. Installation and rollback retain separately scoped authority.

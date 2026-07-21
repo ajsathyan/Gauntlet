@@ -23,9 +23,8 @@ documentation location.
 ## What the lifecycle keeps
 
 A bounded Normal Request does not create a durable design. For non-trivial
-product or implementation work, a permanent Design may preserve accepted product
-meaning when the user explicitly requests that artifact. Design creation and
-acceptance do not authorize or block implementation or non-production landing.
+product or implementation work, a permanent Design preserves accepted product
+meaning. Its acceptance is required before implementation.
 Before acceptance, the conversation explicitly considers material alternatives,
 assumptions, completeness, edge cases, observable outcomes, and required
 non-effects.
@@ -53,19 +52,18 @@ Profile initialization and Design commands do not rewrite them.
 
 - The user request and conversation decisions own implementation intent.
 - An accepted Design preserves user-authorized durable intent and observable outcomes.
-- Its exact `## Acceptance` section owns the optional exact-design Build Contract.
+- Its exact `## Acceptance` section owns the Build Contract and authorizes the scoped lifecycle through ordinary production deployment.
 - Research owns evidence and uncertainty; it does not authorize implementation.
 - Decisions preserve reasoning that would otherwise be lost.
-- Architecture and Sensor Contracts remain separate from product acceptance.
+- The Architecture Contract remains separate from product acceptance.
 - The index is navigational, not proof.
 - Build plans and workstream assignments are ephemeral implementation aids.
 
 Before or during Build, product-completeness, engineering-shape, and
 proof/consequence lenses may inspect the same request or Design. Material
-findings receive implementation dispositions but do not become human-approval
-gates. Independent Verify reads the request, any accepted Design, and the exact
-integrated revision and returns separate Build, Architecture, and Sensor
-verdicts. Green sensors cannot compensate for a missing requested outcome.
+findings receive implementation dispositions before the user accepts the Design.
+Independent Verify reads the request, accepted Design, and exact integrated
+revision and returns separate Build and Architecture verdicts.
 
 ## Commands
 
