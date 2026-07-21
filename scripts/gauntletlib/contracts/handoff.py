@@ -14,8 +14,9 @@ REQUIRED_HANDOFF_FIELDS = {
     "changelog",
     "testing",
     "securityRisk",
+    "sourceBinding",
 }
-SOURCE_BINDING_FIELDS = {"repository", "commit", "tree"}
+SOURCE_BINDING_FIELDS = {"repository", "commit", "tree", "base"}
 OBJECT_ID = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?").fullmatch
 
 
@@ -28,13 +29,11 @@ def nonempty_string(value):
 
 
 def _validate_source_binding(findings, binding):
-    if binding is None:
-        return
     if not isinstance(binding, dict) or set(binding) != SOURCE_BINDING_FIELDS:
         findings.append(
             handoff_finding(
                 "invalid_source_binding",
-                "sourceBinding must contain exactly repository, commit, and tree.",
+                "sourceBinding must contain exactly repository, commit, tree, and base.",
             )
         )
         return
@@ -45,7 +44,7 @@ def _validate_source_binding(findings, binding):
                 "sourceBinding.repository must be non-empty.",
             )
         )
-    for field in ("commit", "tree"):
+    for field in ("commit", "tree", "base"):
         if (
             not isinstance(binding.get(field), str)
             or OBJECT_ID(binding[field]) is None

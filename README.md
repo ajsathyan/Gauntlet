@@ -1,120 +1,81 @@
 # Gauntlet Lite
 
-Gauntlet Lite is a product-thinking, adversarial-review, and verification workflow for Codex. It keeps the parts of Gauntlet that shape a complete change—an accepted Design/PRD, independent review, implementation orchestration, exact-revision verification, pull-request landing, and post-merge production follow-through—without the sensor runtime, custom agent profiles, or durable workstream queue.
+Gauntlet Lite is a compact workflow for shaping, proving, landing, and shipping
+Codex work. It keeps the safety and product decisions that matter without custom
+agent routing, sensors, durable queues, role handoffs, or simulated release stages.
 
-The repository is a history-preserving fork of Gauntlet. Git ancestry remains available for blame, comparison, recovery, and selective upstream updates; retired runtime files are not kept merely for history.
-
-## Workflow
+## Flow
 
 ```text
-Design / PRD acceptance
-  -> Build (ephemeral plan)
-  -> Implement
-  -> Verify
-  -> Land
+Normal request or accepted Design
+  -> implement and commit candidate
+  -> exact-revision Verify
+  -> Land through pull request
   -> Ship and monitor
 ```
 
-### Design / PRD acceptance
+Research remains read-only and pays no implementation ceremony. Non-trivial work
+uses one accepted outcome contract and a mandatory main-agent review through six
+lenses: Product, Engineering, Design, Analytics, QA, and Performance. Irrelevant
+lenses say `Not applicable` with a reason. Recommendations are shown before
+implementation and never silently adopted.
 
-Normal requests remain direct: make the bounded, reversible change and run its smoke check.
+Verify evaluates every outcome independently, separating behavior from proof
+availability. Land preserves the existing Problem, Solution, Changelog, Testing,
+and conditional Security / Risk pull-request format. It directly merges without a
+Gauntlet or GitHub queue requirement. Ship accounts separately for deployment and
+attributable production proof.
 
-Before non-trivial implementation, Gauntlet Lite creates or updates one Design/PRD, considers materially different approaches, resolves assumptions and edge cases, and runs three independent lenses:
+## Retained skills
 
-- product completeness and user-visible states;
-- engineering boundaries, dependencies, compatibility, and migrations;
-- proof, false-green paths, consequences, and required non-effects.
+- `design`
+- `adversarial-reviewer`
+- `researcher`
+- `debugger`
+- `verify`
+- `land`
+- `ship`
+- `refactor-codebase`
+- `refactor-performance`
 
-For stateful or cross-cutting work, adversarial review explicitly examines state transitions, retries, idempotency, recovery after partial failure, concurrency, and behavior that must remain unchanged. These are the cases where a small happy-path benchmark is least representative of real engineering risk.
+Planning, implementation, and finding disposition are native agent behavior.
+Black-box, code, and experience review are triggered Verify modes. Comprehensive
+refactoring keeps capability, compatibility, ownership, rollback, and
+proof-before-retirement safeguards while making extra destinations, ledgers,
+proposal rounds, and specialist passes conditional.
 
-The user must accept the exact `Acceptance` section before implementation begins. That accepted section is the canonical Build Contract and authorizes the scoped lifecycle through the repository's ordinary declared production deployment. Gauntlet Lite does not ask for a second production acceptance after merge.
+## Install
 
-### Build and implement
-
-Build is the ephemeral planning and orchestration phase; it no longer needs a separate `build` skill package. Implementation follows that plan. The parent task keeps product meaning, shared contracts, integration, publication, and external authority. Native subagents are used only for genuinely independent files, state, or evidence; each receives a compact assignment and returns changed artifacts, proof, and risk.
-
-There is no custom-profile classifier, token-usage audit, or durable queue. Parallel candidates are integrated deliberately against the current base, and base drift invalidates stale proof.
-
-### Verify
-
-Independent Verify reads the original request, accepted Design/PRD, and exact integrated revision. It returns two separate verdicts:
-
-- **Build:** every accepted outcome and required non-effect is observably true.
-- **Architecture:** applicable boundaries, dependencies, compatibility, and code shape hold.
-
-Proof comes from direct repository tests, black-box behavior, targeted inspections, and independent review. A green command counts only when its oracle would reject a plausible wrong implementation. Gauntlet Lite has no Sensor Contract, Sensor verdict, sensor CLI, or managed sensor toolchain.
-
-### Land and ship
-
-After verification, `land` pushes the implementation branch, creates or updates the pull request, waits for required CI and blocking review state, merges to the default branch, verifies the landed revision, and performs only safe cleanup.
-
-After merge, `ship` continues automatically within the accepted scope. It lets merge-triggered deployment run or invokes the repository's declared standard deployment mechanism, monitors the landed revision, and checks attributable production behavior. Pull-request CI alone is not production proof.
-
-Unexpected destructive, paid, credential, migration, privacy, security, or production effects outside the accepted Design/PRD still stop for a real scope decision. Installation and rollback also retain separately scoped authority.
-
-## Durable local Designs
-
-Private product documents are materialized only for covered document work:
-
-```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs ensure \
-  --project-root "$PROJECT_ROOT"
-
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs design create \
-  --project-root "$PROJECT_ROOT" --title "Message surfaces"
-
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs design accept \
-  --project-root "$PROJECT_ROOT" --design PROJECT-001
-```
-
-The profile uses ignored `doc_org.md` and `local-docs/` paths in the primary worktree. Direct user edits, arbitrary sections, and legacy accepted PRDs remain valid. See [Local Design Documentation](docs/local-documentation.md).
-
-## Skills kept in Lite
-
-Gauntlet Lite installs one canonical copy of each retained skill:
-
-- core flow: `design`, `implementer`, `verify`, `land`, `ship`;
-- shaping and coordination: `intake`, `product-architect`, `planner`, `issue-triager`;
-- research and debugging: `researcher`, `debugger`;
-- independent review: `adversarial-reviewer`, `black-box-tester`, `experience-reviewer`, `deep-code-reviewer`;
-- focused workflows: `craft-customer-email`, `craft-product-terminology`, `promotion-scanner`, `refactor-codebase`, `refactor-performance`.
-
-The former `archive`, `build`, and `eval-*` skill packages are intentionally absent. Implementation remains a workflow phase driven by the accepted Design/PRD and the `implementer` skill; removing the `build` package does not remove implementation planning or orchestration.
-
-## Install, replace, and uninstall
-
-Gauntlet Lite installs only for Codex on this machine:
+Gauntlet Lite installs only for Codex:
 
 ```sh
 ./scripts/install.sh --target codex --instructions-reviewed
 ```
 
-When replacing full Gauntlet, first run its currently installed preservation-safe
-`--uninstall`, then run the Lite installer. Lite refuses a direct replacement
-when it detects the old custom-profile or managed-tool footprint, because those
-files live outside the main payload receipt. Once Lite is installed, repeating
-the Lite installer performs a receipt-safe update.
+The installer owns only its marked router block and receipt-listed runtime files.
+It preserves unrelated instructions and files, safely removes unchanged stale
+Gauntlet files, and leaves the existing personal email, terminology, and promotion
+skills installed but outside Gauntlet ownership.
 
-The installer preserves unrelated instructions and configuration, records ownership, removes only safe stale managed files during upgrades, and leaves modified or unowned files with a finding.
-
-Uninstall removes receipt-owned Gauntlet Lite files and its managed instruction block while preserving user-owned and modified files:
+Uninstall removes only receipt-owned files:
 
 ```sh
 ./scripts/install.sh --target codex --uninstall
 ```
 
-Restart Codex after installing or upgrading so the new global instructions and skills are loaded.
+Restart or reload Codex after installation.
 
-## References
+## Development
 
-- [Design, Implement, Verify, Land, Ship](docs/design-build-verify.md)
-- [Workflow Etiquette](docs/workflow-etiquette.md)
-- [Meaningful Proof](docs/meaningful-proof.md)
-- [GitHub Discipline](docs/github-discipline.md)
-- [Local Design Documentation](docs/local-documentation.md)
-- [Skill Quality Bar](docs/skill-quality-bar.md)
-- [Skills](skills)
-- [Workflow helper CLI](scripts/gauntlet.py)
-- [Deterministic evaluation harness](evals)
+```sh
+scripts/run-skill-change-checks.sh
+python3 scripts/check-gauntlet-workflow.py
+```
 
-Gauntlet Lite is released under the [MIT License](LICENSE).
+The deterministic evaluation tools remain repository development infrastructure;
+they are not installed into the Codex runtime.
+
+See `docs/design-build-verify.md`, `docs/meaningful-proof.md`,
+`docs/github-discipline.md`, and `docs/local-documentation.md`.
+
+Gauntlet Lite is released under the MIT License.

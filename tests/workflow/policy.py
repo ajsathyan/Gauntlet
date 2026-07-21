@@ -1,4 +1,4 @@
-"""Portable workflow and plugin policy cases."""
+"""Router and skill policy checks."""
 
 import json
 
@@ -6,58 +6,35 @@ from tests.workflow.fixtures import ROOT, ROUTER_MD, SKILLS, assert_contains, re
 
 
 def test_plugin_manifests_bundle_shared_skills():
-    codex_manifest = json.loads(read(ROOT / ".codex-plugin" / "plugin.json"))
-    if codex_manifest["name"] != "gauntlet-lite":
-        raise AssertionError("Codex plugin manifest must use the Gauntlet Lite identity")
-    if codex_manifest.get("skills") != "./skills/":
-        raise AssertionError("Codex plugin manifest must bundle the shared skills directory")
-    for path in sorted(SKILLS.glob("*/SKILL.md")):
-        assert_contains(
-            read(path),
-            f"name: {path.parent.name}",
-            f"skill name for {path.parent.name}",
-        )
-
-    marketplace = json.loads(read(ROOT / ".agents" / "plugins" / "marketplace.json"))
-    if marketplace["plugins"][0]["name"] != "gauntlet-lite":
-        raise AssertionError("Codex marketplace must expose Gauntlet Lite")
+    manifest = json.loads(read(ROOT / ".codex-plugin" / "plugin.json"))
+    if manifest["name"] != "gauntlet-lite" or manifest.get("skills") != "./skills/":
+        raise AssertionError("plugin manifest must expose shared Gauntlet Lite skills")
+    names = sorted(path.parent.name for path in SKILLS.glob("*/SKILL.md"))
+    expected = sorted(
+        [
+            "adversarial-reviewer", "debugger", "design", "land",
+            "refactor-codebase", "refactor-performance", "researcher", "ship", "verify",
+        ]
+    )
+    if names != expected:
+        raise AssertionError(f"unexpected installed skill surface: {names}")
 
 
-def test_normal_requests_use_minimum_scope_before_design():
+def test_normal_requests_and_research_use_minimum_scope():
     router = read(ROUTER_MD)
-    for marker in (
-        "## Minimum scope",
-        "bounded, low-consequence, reversible, directly checkable",
-        "Deliver it directly in the main task",
-        "run its smoke check",
-    ):
-        assert_contains(router, marker, "normal-request minimum-scope routing")
+    for marker in ("**Normal:**", "**Research:**", "Use the lightest workflow"):
+        assert_contains(router, marker, "minimum-scope routing")
 
 
-def test_merge_and_archive_authority_requires_complete_safe_closeout():
+def test_lifecycle_authority_and_six_lenses():
     router = read(ROUTER_MD)
-    design = read(SKILLS / "design" / "SKILL.md")
-    land = read(SKILLS / "land" / "SKILL.md")
-    ship = read(SKILLS / "ship" / "SKILL.md")
+    reviewer = read(SKILLS / "adversarial-reviewer" / "SKILL.md")
+    for lens in ("Product", "Engineering", "Design", "Analytics", "QA", "Performance"):
+        assert_contains(reviewer, f"**{lens}:**", "six-lens review")
     for marker in (
-        "require the user to accept its exact `Acceptance` section",
-        "merge to the default branch",
-        "Do not request a second production acceptance",
-        "ordinary declared production deployment",
+        "main agent reviews",
+        "Show every material recommendation",
+        "without another routine prompt",
+        "Gauntlet has no merge queue",
     ):
-        assert_contains(router, marker, "accepted lifecycle authority")
-    for marker in (
-        "No second acceptance is required",
-        "Inspect repository automation",
-        "waits for required CI",
-        "tree-equivalent merge",
-    ):
-        assert_contains(land, marker, "land closeout")
-    for marker in (
-        "Do not request another acceptance",
-        "Merge-triggered deployment proceeds automatically",
-        "attributable production oracle",
-        "rollback",
-    ):
-        assert_contains(ship, marker, "automatic production follow-through")
-    assert_contains(design, "stop before implementation", "design acceptance gate")
+        assert_contains(router, marker, "lifecycle policy")

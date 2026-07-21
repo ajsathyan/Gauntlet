@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 
-from gauntletlib.cli import EXIT_CODES
+from gauntletlib.cli_support import EXIT_CODES
 from gauntletlib.core.findings import add_finding
 from gauntletlib.core.findings import status_for
 from gauntletlib.core.proc import gh, git, run_cmd
@@ -36,7 +36,7 @@ def register(subparsers):
 
 
 def configured_push_workflows(repo, default_branch):
-    """Return workflow files that visibly declare a push trigger for default."""
+    """Return named workflows that visibly declare a push trigger for default."""
     workflows = []
     workflow_root = Path(repo) / ".github" / "workflows"
     for path in sorted([*workflow_root.glob("*.yml"), *workflow_root.glob("*.yaml")]):
@@ -63,7 +63,17 @@ def configured_push_workflows(repo, default_branch):
             if line.startswith("-")
         ]
         if not branch_filters or default_branch in branch_filters:
-            workflows.append(str(path.relative_to(repo)))
+            workflow_name = next(
+                (
+                    line.split(":", 1)[1].strip().strip("'\"")
+                    for line in lines
+                    if line.startswith("name:") and line.split(":", 1)[1].strip()
+                ),
+                path.stem,
+            )
+            workflows.append(
+                {"path": str(path.relative_to(repo)), "name": workflow_name}
+            )
     return workflows
 
 
@@ -85,7 +95,7 @@ def monitor_landed_revision(
     gh_runner=None,
     sleep_fn=None,
 ):
-    """Wait for every exact-SHA push run and require each to pass."""
+    """Wait for every declared exact-SHA push workflow and require each to pass."""
     gh_runner = gh_runner or gh
     sleep_fn = sleep_fn or time.sleep
     workflows = configured_push_workflows(repo, default_branch)
@@ -100,6 +110,8 @@ def monitor_landed_revision(
 
     deadline = time.monotonic() + timeout_seconds
     last_error = ""
+    expected_names = {workflow["name"] for workflow in workflows}
+    exact = []
     while True:
         listed = gh_runner(
             [
@@ -122,12 +134,17 @@ def monitor_landed_revision(
             except json.JSONDecodeError as error:
                 last_error = f"GitHub Actions returned invalid JSON: {error}"
                 exact = []
-            if exact:
+            observed_names = {record.get("workflowName") for record in exact}
+            if expected_names <= observed_names:
                 break
         else:
             last_error = listed.stderr.strip() or listed.stdout.strip()
         if time.monotonic() >= deadline:
-            return result, last_error or f"No push run appeared for landed revision {landed_sha} within {timeout_seconds} seconds."
+            missing = sorted(expected_names - {record.get("workflowName") for record in exact})
+            return result, last_error or (
+                f"No exact-revision run appeared for declared workflow(s) "
+                f"{', '.join(missing)} within {timeout_seconds} seconds."
+            )
         sleep_fn(poll_seconds)
 
     for record in exact:
@@ -172,7 +189,7 @@ def default_worktree(repo, default_branch):
     return None
 
 
-def sync_default_worktree(repo, default_branch, landed_sha):
+def sync_default_worktree(repo, default_branch, landed_sha, base_remote):
     main_worktree = default_worktree(repo, default_branch)
     if main_worktree is None:
         repo = Path(repo).resolve()
@@ -183,7 +200,7 @@ def sync_default_worktree(repo, default_branch, landed_sha):
         if switched.returncode != 0:
             return None, switched.stderr.strip() or switched.stdout.strip()
         main_worktree = repo
-    pulled = git(["pull", "--ff-only", "origin", default_branch], main_worktree)
+    pulled = git(["pull", "--ff-only", base_remote, default_branch], main_worktree)
     if pulled.returncode != 0:
         return main_worktree, pulled.stderr.strip() or pulled.stdout.strip()
     head = git(["rev-parse", "HEAD"], main_worktree)
@@ -285,10 +302,22 @@ def command_land_execute(args):
 
     if not payload["findings"]:
         default_branch = payload["merge"].get("defaultBranch") or "main"
-        fetched = git(["fetch", "origin", default_branch], repo)
-        landed = git(["rev-parse", f"origin/{default_branch}"], repo)
-        if fetched.returncode != 0 or landed.returncode != 0:
-            add_finding(payload["findings"], "landed_revision_unresolved", "fail", fetched.stderr.strip() or landed.stderr.strip())
+        repository_context = payload["merge"].get("repositoryContext") or {}
+        base_remote = repository_context.get("baseRemote")
+        if not base_remote:
+            add_finding(
+                payload["findings"],
+                "landed_repository_context_missing",
+                "fail",
+                "Merge did not return the resolved PR base remote.",
+            )
+            fetched = landed = None
+        else:
+            fetched = git(["fetch", base_remote, default_branch], repo)
+            landed = git(["rev-parse", f"{base_remote}/{default_branch}"], repo)
+        if fetched is None or fetched.returncode != 0 or landed.returncode != 0:
+            if fetched is not None:
+                add_finding(payload["findings"], "landed_revision_unresolved", "fail", fetched.stderr.strip() or landed.stderr.strip())
         else:
             landed_sha = landed.stdout.strip()
             payload["landedSha"] = landed_sha
@@ -303,7 +332,9 @@ def command_land_execute(args):
                 add_finding(payload["findings"], "landed_revision_monitor_failed", "fail", error)
 
     if not payload["findings"]:
-        main_worktree, error = sync_default_worktree(repo, default_branch, payload["landedSha"])
+        main_worktree, error = sync_default_worktree(
+            repo, default_branch, payload["landedSha"], base_remote
+        )
         if error:
             add_finding(payload["findings"], "default_branch_sync_failed", "fail", error)
         else:

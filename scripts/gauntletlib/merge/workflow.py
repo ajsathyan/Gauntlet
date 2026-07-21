@@ -1,11 +1,12 @@
 """Generic contextual pull-request preparation, planning, and execution."""
 
 import json
+import re
 import subprocess
 import time
 from pathlib import Path
 
-from gauntletlib.cli import EXIT_CODES
+from gauntletlib.cli_support import EXIT_CODES
 from gauntletlib.contracts import validate_merge_handoff
 from gauntletlib.core.findings import add_finding as _add_finding
 from gauntletlib.core.findings import status_for as _status_for
@@ -13,6 +14,7 @@ from gauntletlib.core.proc import gh, git
 
 PASSING_CHECK_CONCLUSIONS = {"SUCCESS", "SKIPPED", "NEUTRAL"}
 PASSING_STATUS_STATES = {"SUCCESS", "SKIPPED", "NEUTRAL"}
+WRITABLE_PERMISSIONS = {"ADMIN", "MAINTAIN", "WRITE"}
 
 _print_payload = None
 
@@ -36,31 +38,84 @@ def status_for(payload):
     return _status_for(payload.get("findings", []))
 
 
-def current_default_head(repo):
-    symbolic = git(
-        ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
-        repo,
+def _github_slug(url):
+    value = (url or "").strip()
+    match = re.search(r"github\.com[/:]([^/]+/[^/]+?)(?:\.git)?$", value)
+    return match.group(1) if match else None
+
+
+def resolve_repository_context(repo):
+    viewed = gh(
+        ["repo", "view", "--json", "nameWithOwner,defaultBranchRef"], repo
     )
-    remote_ref = symbolic.stdout.strip() if symbolic.returncode == 0 else "origin/main"
+    if viewed.returncode != 0:
+        raise ValueError(viewed.stderr.strip() or "Cannot resolve the PR base repository")
+    base = json.loads(viewed.stdout)
+    base_repository = base.get("nameWithOwner")
+    default_branch = ((base.get("defaultBranchRef") or {}).get("name") or "main")
+    remotes = git(["remote"], repo)
+    if remotes.returncode != 0:
+        raise ValueError(remotes.stderr.strip() or "Cannot list Git remotes")
+    records = []
+    for name in [line.strip() for line in remotes.stdout.splitlines() if line.strip()]:
+        url = git(["remote", "get-url", name], repo)
+        if url.returncode != 0:
+            continue
+        slug = _github_slug(url.stdout)
+        if not slug:
+            continue
+        permission = gh(
+            ["repo", "view", slug, "--json", "viewerPermission"], repo
+        )
+        if permission.returncode != 0:
+            continue
+        records.append(
+            {
+                "name": name,
+                "repository": slug,
+                "permission": json.loads(permission.stdout).get("viewerPermission"),
+            }
+        )
+    writable = [row for row in records if row["permission"] in WRITABLE_PERMISSIONS]
+    if len(writable) != 1:
+        raise ValueError(
+            "Land requires exactly one writable GitHub head remote; found "
+            + str(len(writable))
+        )
+    base_remotes = [row for row in records if row["repository"] == base_repository]
+    if len(base_remotes) != 1:
+        raise ValueError(
+            "Land requires exactly one remote for the PR base repository; found "
+            + str(len(base_remotes))
+        )
+    return {
+        "headRemote": writable[0]["name"],
+        "headRepository": writable[0]["repository"],
+        "baseRemote": base_remotes[0]["name"],
+        "baseRepository": base_repository,
+        "defaultBranch": default_branch,
+    }
+
+
+def current_default_head(repo, context=None):
+    context = context or resolve_repository_context(repo)
+    remote_ref = f"{context['baseRemote']}/{context['defaultBranch']}"
     result = git(["rev-parse", remote_ref], repo)
-    if result.returncode != 0:
-        result = git(["rev-parse", "main"], repo)
     if result.returncode != 0:
         raise ValueError("Cannot resolve the current default-branch head")
     return result.stdout.strip(), remote_ref
 
 
-def refresh_default_head(repo):
-    remote = git(["remote", "get-url", "origin"], repo)
-    if remote.returncode == 0:
-        fetched = git(["fetch", "origin"], repo)
-        if fetched.returncode != 0:
-            raise ValueError(
-                fetched.stderr.strip()
-                or fetched.stdout.strip()
-                or "Cannot refresh origin before merge"
-            )
-    return current_default_head(repo)
+def refresh_default_head(repo, context=None):
+    context = context or resolve_repository_context(repo)
+    fetched = git(
+        ["fetch", context["baseRemote"], context["defaultBranch"]], repo
+    )
+    if fetched.returncode != 0:
+        raise ValueError(
+            fetched.stderr.strip() or fetched.stdout.strip() or "Cannot refresh PR base"
+        )
+    return current_default_head(repo, context)
 
 
 def default_represents_candidate(repo, candidate, default_head, *, git_fn=None):
@@ -177,9 +232,6 @@ def ensure_unreleased_changelog(changelog_path, entry):
 
 
 def repository_identity(repo):
-    remote = git(["config", "--get", "remote.origin.url"], repo)
-    if remote.returncode == 0 and remote.stdout.strip():
-        return remote.stdout.strip()
     return str(Path(repo).resolve())
 
 
@@ -199,34 +251,38 @@ def merge_input_path(repo, path):
 
 
 def _validate_source_binding(repo, data, payload):
-    """Validate an optional exact-revision binding without requiring one."""
-
     binding = data.get("sourceBinding")
-    if binding is None:
-        return
     if not isinstance(binding, dict) or set(binding) != {
         "repository",
         "commit",
         "tree",
+        "base",
     }:
         add_finding(
             payload,
             "invalid_source_binding",
             "fail",
-            "sourceBinding must contain exactly repository, commit, and tree.",
+            "sourceBinding must contain exactly repository, commit, tree, and base.",
         )
+        return
+    try:
+        context = resolve_repository_context(repo)
+        base, _ = refresh_default_head(repo, context)
+    except (ValueError, json.JSONDecodeError) as error:
+        add_finding(payload, "repository_context_unresolved", "fail", str(error))
         return
     expected = {
         "repository": repository_identity(repo),
         "commit": current_head(repo),
         "tree": current_tree(repo),
+        "base": base,
     }
     if binding != expected:
         add_finding(
             payload,
             "source_binding_drift",
             "fail",
-            "The handoff is bound to a different repository, commit, or tree.",
+            "The handoff is bound to a different repository, candidate, or base.",
             expected=expected,
             supplied=binding,
         )
@@ -403,12 +459,21 @@ def collect_merge_state(git_root, handoff, body):
     branch = branch_name(repo)
     settings, settings_error = repository_merge_settings(repo)
     pr, pr_error = current_pr(repo)
+    try:
+        repository_context = resolve_repository_context(repo)
+        context_error = None
+    except (ValueError, json.JSONDecodeError) as error:
+        repository_context = None
+        context_error = str(error)
     default_branch = (
-        ((settings or {}).get("defaultBranchRef") or {}).get("name") or "main"
+        (repository_context or {}).get("defaultBranch")
+        or ((settings or {}).get("defaultBranchRef") or {}).get("name")
+        or "main"
     )
     default_counts = None
-    remote_default = f"origin/{default_branch}"
-    if git(["rev-parse", "--verify", remote_default], repo).returncode == 0:
+    base_remote = (repository_context or {}).get("baseRemote")
+    remote_default = f"{base_remote}/{default_branch}" if base_remote else None
+    if remote_default and git(["rev-parse", "--verify", remote_default], repo).returncode == 0:
         counts = git(
             ["rev-list", "--left-right", "--count", f"{remote_default}...HEAD"],
             repo,
@@ -426,6 +491,8 @@ def collect_merge_state(git_root, handoff, body):
         "body": body,
         "settings": settings,
         "settingsError": settings_error,
+        "repositoryContext": repository_context,
+        "repositoryContextError": context_error,
         "defaultBranch": default_branch,
         "defaultCounts": default_counts,
         "pr": pr,
@@ -451,6 +518,7 @@ def build_merge_plan(state):
             "tree": state.get("tree"),
         },
         "pr": state.get("pr"),
+        "repositoryContext": state.get("repositoryContext"),
     }
     handoff = state.get("handoff") or {}
     branch = state.get("branch") or ""
@@ -509,8 +577,15 @@ def build_merge_plan(state):
             payload,
             "branch_behind_default",
             "review",
-            f"Task branch is behind origin/{state['defaultBranch']} by "
+            f"Task branch is behind {(state.get('repositoryContext') or {}).get('baseRemote', 'base')}/{state['defaultBranch']} by "
             f"{counts['behind']} commit(s); update and verify again before merge.",
+        )
+    if state.get("repositoryContextError"):
+        add_finding(
+            payload,
+            "repository_context_unresolved",
+            "fail",
+            state["repositoryContextError"],
         )
     if state.get("settingsError"):
         add_finding(
@@ -645,10 +720,12 @@ def wait_for_pr_checks(repo, timeout_seconds=60, poll_seconds=2):
         time.sleep(poll_seconds)
 
 
-def delete_remote_branch(repo, branch, expected_sha=None, git_runner=None):
+def delete_remote_branch(
+    repo, branch, expected_sha=None, git_runner=None, remote="origin"
+):
     git_runner = git_runner or git
     probe = git_runner(
-        ["ls-remote", "--exit-code", "--heads", "origin", branch],
+        ["ls-remote", "--exit-code", "--heads", remote, branch],
         repo,
     )
     if probe.returncode == 2:
@@ -671,7 +748,7 @@ def delete_remote_branch(repo, branch, expected_sha=None, git_runner=None):
             f"to {remote_sha}; refusing cleanup",
         )
 
-    deletion_args = ["push", "origin", f":refs/heads/{branch}"]
+    deletion_args = ["push", remote, f":refs/heads/{branch}"]
     if expected_sha:
         deletion_args.append(
             f"--force-with-lease=refs/heads/{branch}:{expected_sha}"
@@ -680,7 +757,7 @@ def delete_remote_branch(repo, branch, expected_sha=None, git_runner=None):
     if deletion.returncode == 0:
         return deletion
     confirmation = git_runner(
-        ["ls-remote", "--exit-code", "--heads", "origin", branch],
+        ["ls-remote", "--exit-code", "--heads", remote, branch],
         repo,
     )
     if confirmation.returncode == 2:
@@ -706,6 +783,11 @@ def execute_merge_plan(payload, git_root, handoff_source, body_path):
     pr = payload.get("pr")
     expected_head = (payload.get("candidate") or {}).get("commit")
     expected_tree = (payload.get("candidate") or {}).get("tree")
+    expected_base = (handoff.get("sourceBinding") or {}).get("base")
+    repository_context = payload.get("repositoryContext") or {}
+    head_remote = repository_context.get("headRemote")
+    base_remote = repository_context.get("baseRemote")
+    base_repository = repository_context.get("baseRepository")
     if current_head(repo) != expected_head or current_tree(repo) != expected_tree:
         add_finding(
             payload,
@@ -719,7 +801,7 @@ def execute_merge_plan(payload, git_root, handoff_source, body_path):
     for action in payload.get("mergePlan", {}).get("actions", []):
         action_type = action["type"]
         if action_type == "git_push":
-            result = git(["push", "-u", "origin", f"HEAD:{branch}"], repo)
+            result = git(["push", "-u", head_remote, f"HEAD:{branch}"], repo)
         elif action_type == "gh_pr_create":
             result = gh(
                 [
@@ -732,7 +814,13 @@ def execute_merge_plan(payload, git_root, handoff_source, body_path):
                     "--base",
                     default_branch,
                     "--head",
-                    branch,
+                    (
+                        f"{repository_context['headRepository'].split('/', 1)[0]}:{branch}"
+                        if repository_context.get("headRepository") != base_repository
+                        else branch
+                    ),
+                    "--repo",
+                    base_repository,
                 ],
                 repo,
             )
@@ -776,6 +864,21 @@ def execute_merge_plan(payload, git_root, handoff_source, body_path):
             pr, _ = current_pr(repo)
             if not refreshed_pr_is_mergeable(payload, pr, expected_head):
                 break
+            try:
+                refreshed_base, _ = refresh_default_head(repo, repository_context)
+            except ValueError as error:
+                add_finding(payload, "base_refresh_failed", "fail", str(error))
+                break
+            if refreshed_base != expected_base:
+                add_finding(
+                    payload,
+                    "base_revision_drift",
+                    "fail",
+                    "The PR base changed after Verify; update and rerun affected proof.",
+                    expected=expected_base,
+                    actual=refreshed_base,
+                )
+                break
             action["prNumber"] = pr.get("number")
             method = action.get("mergeMethod") or "merge"
             result = gh(
@@ -794,16 +897,17 @@ def execute_merge_plan(payload, git_root, handoff_source, body_path):
                 repo,
                 branch,
                 expected_sha=expected_head,
+                remote=head_remote,
             )
         elif action_type == "verify_default_branch":
-            fetch = git(["fetch", "origin", default_branch], repo)
+            fetch = git(["fetch", base_remote, default_branch], repo)
             if fetch.returncode != 0:
                 result = fetch
             else:
                 represented = default_represents_candidate(
                     repo,
                     expected_head,
-                    f"origin/{default_branch}",
+                    f"{base_remote}/{default_branch}",
                 )
                 result = subprocess.CompletedProcess(
                     ["verify-default-branch"],

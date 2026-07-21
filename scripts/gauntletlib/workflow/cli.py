@@ -91,6 +91,7 @@ def command_bind_candidate(args):
                 contract=_read_json(args.contract, "workflow contract"),
                 commit=args.commit,
                 tree=args.tree,
+                base=args.base,
                 accepted_design_reader=load_accepted_design,
                 git_repository=GIT_REPOSITORY,
             )
@@ -177,6 +178,7 @@ def register(subparsers):
     bind.add_argument("--reviews", type=Path, required=True)
     bind.add_argument("--commit", required=True)
     bind.add_argument("--tree", required=True)
+    bind.add_argument("--base", required=True)
     bind.set_defaults(func=command_bind_candidate)
 
     verify = commands.add_parser("verify-entry")
@@ -190,7 +192,7 @@ def register(subparsers):
     verdict.add_argument("--area", choices=("build", "architecture"), required=True)
     verdict.add_argument(
         "--verdict",
-        choices=("pass", "fail", "not-applicable", "cannot-verify"),
+        choices=("passed", "failed", "blocked", "not-applicable"),
         required=True,
     )
     verdict.add_argument("--evidence", type=Path, required=True)

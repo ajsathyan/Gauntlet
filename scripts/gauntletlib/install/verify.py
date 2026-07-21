@@ -1,8 +1,6 @@
 """Installed-runtime verification command and parser registration."""
 
 import json
-import subprocess
-import sys
 from pathlib import Path
 
 from gauntletlib.cli_support import EXIT_CODES
@@ -49,38 +47,8 @@ def _verify_codex(agent_home, findings):
         text = codex_agents.read_text(encoding="utf-8")
         if text.count("BEGIN GAUNTLET MANAGED BLOCK") != 1 or text.count("END GAUNTLET MANAGED BLOCK") != 1:
             findings.append({"code": "invalid_codex_managed_block", "severity": "fail", "message": "Codex AGENTS.md must contain exactly one complete Gauntlet managed block."})
-        if "Gauntlet Lite Workflow Router" not in text:
+        if "# Gauntlet Lite" not in text:
             findings.append({"code": "missing_codex_router", "severity": "fail", "message": "Codex AGENTS.md lacks the installed Gauntlet router."})
-    hook_installer = agent_home / "gauntlet" / "scripts" / "install-codex-hooks.py"
-    hook_runtime = agent_home / "gauntlet" / "scripts" / "workflow-mode.py"
-    if hook_installer.is_file():
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(hook_installer),
-                "verify",
-                "--agent-home",
-                str(agent_home),
-                "--runtime",
-                str(hook_runtime),
-            ],
-            text=True,
-            capture_output=True,
-        )
-        if result.returncode:
-            message = result.stderr.strip() or result.stdout.strip()
-            code = (
-                "missing_codex_hook"
-                if message.startswith("missing_codex_hook:")
-                else "invalid_codex_hook"
-            )
-            findings.append(
-                {
-                    "code": code,
-                    "severity": "fail",
-                    "message": message,
-                }
-            )
 
 
 def command_verify(args):

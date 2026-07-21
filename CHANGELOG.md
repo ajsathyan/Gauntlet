@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-- Fork Gauntlet Lite from Gauntlet with history preserved in Git for comparison, recovery, and selective upstream updates.
-- Require exact Design/PRD `Acceptance` approval before non-trivial implementation, then carry the accepted scope through Implement → Verify → Land → Ship without a second production-acceptance pause.
-- Keep adversarial product, engineering, and proof review with explicit coverage of state transitions, retries, idempotency, recovery, concurrency, and required non-effects.
-- Keep direct tests, exact-revision Build and Architecture verdicts, pull-request creation, required-check waiting, merge, post-merge deployment, and attributable monitoring.
-- Remove the sensor runtime and managed sensor toolchain, custom agent profiles and token-audit history, the durable workstream queue, duplicate skill snapshots, and obsolete documentation for those systems.
-- Remove the `archive`, `build`, and `eval-*` skill packages while retaining one canonical copy of the focused product, implementation, review, verification, landing, shipping, research, debugging, and refactoring skills.
+- Replace universal workflow ceremony with a compact behavior-first core: one accepted outcome contract, six main-agent adversarial lenses before implementation, two-axis exact-revision verification, direct PR landing without a merge queue, and release follow-through only when a real repository mechanism exists.
+- Retire unsupported compatibility commands, generated-context infrastructure, generic role handoffs, and non-core skill ownership while preserving existing personal copies of customer-email, product-terminology, and promotion-scanner skills.
+- Preserve Design acceptance, direct behavioral proof, separate Build and Architecture verdicts, pull-request creation, required-check waiting, merge, declared deployment, and attributable monitoring without a second routine acceptance pause.
+- Keep the refactor safety core: capability, parity, compatibility, ownership, state, side-effect, migration, rollback, and proof-before-retirement checks.
+- Remove sensors, custom agent profiles, token auditing, durable workstream queues, merge-queue machinery, generic stage tracking, generated context, duplicate skill snapshots, unsupported compatibility commands, and their obsolete fixtures and documentation.
+- Keep nine canonical Gauntlet skills: Design, adversarial review, research, debugging, verification, landing, shipping, codebase refactoring, and performance refactoring.

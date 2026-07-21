@@ -1,108 +1,18 @@
 # Local Design Documentation
 
-Gauntlet keeps private product designs in the primary checkout. The profile is
-default-on, but it materializes only for an explicit covered document action.
+Durable local documents are optional. Use them only when product meaning,
+authority, or decisions need to survive the conversation. Research notes and
+ordinary implementation plans remain ephemeral unless the task needs durable
+meaning.
 
-```text
-doc_org.md
-local-docs/
-  INDEX.md
-  designs/
-  research/
-  decisions/
-  epics/        # optional legacy files, preserved as-is
-  executions/   # optional legacy files, preserved as-is
-```
-
-These paths are added to the repository's local Git exclude file. They are not a
-security boundary and must not contain credentials, secret values, personal data,
-or sensitive resource identifiers. Documentation needed by another checkout,
-contributor, CI process, or operator remains tracked in the repository's normal
-documentation location.
-
-## What the lifecycle keeps
-
-A bounded Normal Request does not create a durable design. For non-trivial
-product or implementation work, a permanent Design preserves accepted product
-meaning. Its acceptance is required before implementation.
-Before acceptance, the conversation explicitly considers material alternatives,
-assumptions, completeness, edge cases, observable outcomes, and required
-non-effects.
-
-The template contains prompts, not decisions. Users may add, remove, or rename
-sections. Agents write only stated or explicitly requested content and keep
-unaccepted suggestions outside the document. Empty prompts never create non-goals,
-security boundaries, rollout constraints, quality gates, or other product limits.
-
-`docs design create` creates the durable Design directly. There is no separate
-draft promotion, implementation-plan document, Epic compilation, or controller
-run. Direct user edits and arbitrary sections remain untouched.
-
-Explicit acceptance requires one answered exact `## Acceptance` section. Gauntlet
-stores the whole-file digest and the Acceptance-section digest in an adjacent
-acceptance record, updates only the navigational index, and does not edit the
-Design. The exact section is the Build Contract for optional exact-design proof.
-A later semantic edit requires new explicit acceptance before reusing that proof
-binding.
-
-Legacy PRD, Epic, and execution files remain readable at their existing paths.
-Profile initialization and Design commands do not rewrite them.
-
-## Artifact ownership
-
-- The user request and conversation decisions own implementation intent.
-- An accepted Design preserves user-authorized durable intent and observable outcomes.
-- Its exact `## Acceptance` section owns the Build Contract and authorizes the scoped lifecycle through ordinary production deployment.
-- Research owns evidence and uncertainty; it does not authorize implementation.
-- Decisions preserve reasoning that would otherwise be lost.
-- The Architecture Contract remains separate from product acceptance.
-- The index is navigational, not proof.
-- Build plans and workstream assignments are ephemeral implementation aids.
-
-Before or during Build, product-completeness, engineering-shape, and
-proof/consequence lenses may inspect the same request or Design. Material
-findings receive implementation dispositions before the user accepts the Design.
-Independent Verify reads the request, accepted Design, and exact integrated
-revision and returns separate Build and Architecture verdicts.
-
-## Commands
-
-Check without writing:
+When the profile is active:
 
 ```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs check \
-  --project-root "$PROJECT_ROOT"
+python3 scripts/gauntlet.py docs ensure --project-root "$PROJECT_ROOT"
+python3 scripts/gauntlet.py docs design create --project-root "$PROJECT_ROOT" --title "Title"
+python3 scripts/gauntlet.py docs design accept --project-root "$PROJECT_ROOT" --design PROJECT-001
 ```
 
-Materialize the default profile:
-
-```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs ensure \
-  --project-root "$PROJECT_ROOT"
-```
-
-Create one durable Design:
-
-```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs design create \
-  --project-root "$PROJECT_ROOT" --title "Message surfaces"
-```
-
-After editing and explicit user review, accept its exact bytes:
-
-```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs design accept \
-  --project-root "$PROJECT_ROOT" --design PROJECT-001
-```
-
-Opt out or return to the default:
-
-```sh
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs disable \
-  --project-root "$PROJECT_ROOT"
-python3 "$GAUNTLET_ROOT/scripts/gauntlet.py" docs enable \
-  --project-root "$PROJECT_ROOT"
-```
-
-Canonical documents exist only in the primary worktree. Linked worktrees resolve
-there and must not create alternate copies.
+Canonical private documents stay under ignored `local-docs/` in the primary
+worktree. The accepted record binds the exact source and Acceptance section.
+Unsupported old Epic and PRD schemas are not migrated or interpreted.

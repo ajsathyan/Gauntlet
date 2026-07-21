@@ -297,43 +297,6 @@ class DocumentLifecycleTests(unittest.TestCase):
             (repo / "local-docs" / "INDEX.md").read_text(encoding="utf-8"),
         )
 
-    def test_legacy_files_are_never_rewritten(self):
-        repo = self.root / "legacy"
-        init_repo(repo)
-        run(
-            [
-                "docs",
-                "init",
-                "--project-root",
-                str(repo),
-                "--prefix",
-                "LEGACY",
-                "--json",
-            ]
-        )
-        epic = repo / "local-docs" / "epics" / "009" / "009_OLD_PRD.md"
-        execution = repo / "local-docs" / "executions" / "OLD-RUN" / "state.json"
-        epic.parent.mkdir(parents=True)
-        execution.parent.mkdir(parents=True)
-        epic.write_bytes(b"# Legacy PRD\r\n\r\nDo not migrate me.\r\n")
-        execution.write_bytes(b'{ "status": "historical" }\\n')
-        before = (epic.read_bytes(), execution.read_bytes())
-
-        run(["docs", "ensure", "--project-root", str(repo), "--json"])
-        run(
-            [
-                "docs",
-                "design",
-                "create",
-                "--project-root",
-                str(repo),
-                "--title",
-                "New design",
-                "--json",
-            ]
-        )
-        self.assertEqual(before, (epic.read_bytes(), execution.read_bytes()))
-
     def test_collision_symlink_and_opt_out_fail_without_partial_writes(self):
         collision = self.root / "collision"
         init_repo(collision)
