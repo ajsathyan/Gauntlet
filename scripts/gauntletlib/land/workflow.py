@@ -158,12 +158,40 @@ def monitor_landed_revision(
             ["run", "watch", str(record["databaseId"]), "--exit-status"],
             repo,
         )
-        record = dict(record)
-        record["watchExitCode"] = watched.returncode
-        result["runs"].append(record)
         if watched.returncode != 0:
+            record = dict(record)
+            record["watchExitCode"] = watched.returncode
+            result["runs"].append(record)
             result["status"] = "fail"
             return result, watched.stderr.strip() or watched.stdout.strip() or f"Push run {record['databaseId']} failed."
+        refreshed = gh_runner(
+            [
+                "run",
+                "view",
+                str(record["databaseId"]),
+                "--json",
+                "databaseId,status,conclusion,headSha,event,url,workflowName",
+            ],
+            repo,
+        )
+        if refreshed.returncode != 0:
+            result["status"] = "fail"
+            return result, refreshed.stderr.strip() or refreshed.stdout.strip() or f"Could not refresh push run {record['databaseId']}."
+        try:
+            record = json.loads(refreshed.stdout)
+        except json.JSONDecodeError as error:
+            result["status"] = "fail"
+            return result, f"GitHub Actions returned invalid run JSON: {error}"
+        record["watchExitCode"] = watched.returncode
+        result["runs"].append(record)
+        if (
+            record.get("headSha") != landed_sha
+            or record.get("event") != "push"
+            or record.get("status") != "completed"
+            or record.get("conclusion") != "success"
+        ):
+            result["status"] = "fail"
+            return result, f"Push run {record.get('databaseId')} did not finish successfully on {landed_sha}."
     result["status"] = "pass"
     return result, None
 

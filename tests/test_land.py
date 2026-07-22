@@ -9,6 +9,7 @@ from gauntletlib.land.workflow import clean_task_checkout
 from gauntletlib.land.workflow import configured_push_workflows
 from gauntletlib.land.workflow import monitor_landed_revision
 from gauntletlib.land.workflow import select_exact_sha_runs
+from gauntletlib.merge.workflow import add_existing_pr_blockers
 
 
 def completed(args, returncode=0, stdout="", stderr=""):
@@ -54,6 +55,20 @@ class LandWorkflowTests(unittest.TestCase):
                             ]
                         ),
                     )
+                if args[:2] == ["run", "view"]:
+                    return completed(
+                        args,
+                        stdout=json.dumps(
+                            {
+                                "databaseId": 11,
+                                "event": "push",
+                                "headSha": "abc",
+                                "status": "completed",
+                                "conclusion": "success",
+                                "workflowName": "ci",
+                            }
+                        ),
+                    )
                 return completed(args)
 
             result, error = monitor_landed_revision(
@@ -66,8 +81,53 @@ class LandWorkflowTests(unittest.TestCase):
             )
             self.assertIsNone(error)
             self.assertEqual(result["status"], "pass")
-            self.assertEqual([run["databaseId"] for run in result["runs"]], [11])
+            self.assertEqual(
+                result["runs"],
+                [
+                    {
+                        "databaseId": 11,
+                        "event": "push",
+                        "headSha": "abc",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "workflowName": "ci",
+                        "watchExitCode": 0,
+                    }
+                ],
+            )
             self.assertIn(["run", "watch", "11", "--exit-status"], calls)
+            self.assertIn(
+                [
+                    "run",
+                    "view",
+                    "11",
+                    "--json",
+                    "databaseId,status,conclusion,headSha,event,url,workflowName",
+                ],
+                calls,
+            )
+
+    def test_stale_failed_checks_do_not_block_publishing_new_head(self):
+        pull_request = {
+            "state": "OPEN",
+            "isDraft": False,
+            "reviewDecision": "",
+            "mergeable": "MERGEABLE",
+            "headRefOid": "old",
+            "statusCheckRollup": [
+                {"name": "policy", "status": "COMPLETED", "conclusion": "FAILURE"}
+            ],
+        }
+        stale_payload = {"findings": []}
+        add_existing_pr_blockers(stale_payload, pull_request, expected_head="new")
+        self.assertEqual(stale_payload["findings"], [])
+
+        current_payload = {"findings": []}
+        add_existing_pr_blockers(current_payload, pull_request, expected_head="old")
+        self.assertEqual(
+            [finding["code"] for finding in current_payload["findings"]],
+            ["pull_request_checks_failing"],
+        )
 
     def test_monitor_failure_is_not_accepted(self):
         with tempfile.TemporaryDirectory() as directory:
