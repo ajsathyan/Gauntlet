@@ -22,4 +22,5 @@ and Security / Risk only when material. Testing prose points to evidence; it is
 not proof.
 
 Clean up only state represented by the landed revision. Preserve modified files,
-unique commits, branch drift, other worktrees, and failed-monitoring evidence.
+unique commits, branch drift, and other worktrees. Deployment and monitoring begin
+in Ship, after Land has confirmed the merge and synchronized local state.

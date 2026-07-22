@@ -1,4 +1,3 @@
-import json
 import os
 import subprocess
 import tempfile
@@ -6,9 +5,6 @@ import unittest
 from pathlib import Path
 
 from gauntletlib.land.workflow import clean_task_checkout
-from gauntletlib.land.workflow import configured_push_workflows
-from gauntletlib.land.workflow import monitor_landed_revision
-from gauntletlib.land.workflow import select_exact_sha_runs
 from gauntletlib.merge.workflow import add_existing_pr_blockers
 
 
@@ -17,96 +13,6 @@ def completed(args, returncode=0, stdout="", stderr=""):
 
 
 class LandWorkflowTests(unittest.TestCase):
-    def test_exact_sha_selection_rejects_stale_push_runs(self):
-        records = [
-            {"databaseId": 1, "event": "push", "headSha": "stale"},
-            {"databaseId": 2, "event": "pull_request", "headSha": "landed"},
-            {"databaseId": 3, "event": "push", "headSha": "landed"},
-        ]
-        self.assertEqual(
-            [record["databaseId"] for record in select_exact_sha_runs(records, "landed")],
-            [3],
-        )
-
-    def test_monitor_requires_exact_revision_and_successful_watch(self):
-        with tempfile.TemporaryDirectory() as directory:
-            repo = Path(directory)
-            workflow = repo / ".github/workflows/ci.yml"
-            workflow.parent.mkdir(parents=True)
-            workflow.write_text("on:\n  push:\n    branches:\n      - main\n", encoding="utf-8")
-            calls = []
-
-            def fake_gh(args, cwd):
-                calls.append(args)
-                if args[:2] == ["run", "list"]:
-                    return completed(
-                        args,
-                        stdout=json.dumps(
-                            [
-                                {"databaseId": 10, "event": "push", "headSha": "old"},
-                                {
-                                    "databaseId": 11,
-                                    "event": "push",
-                                    "headSha": "abc",
-                                    "status": "completed",
-                                    "conclusion": "success",
-                                    "workflowName": "ci",
-                                },
-                            ]
-                        ),
-                    )
-                if args[:2] == ["run", "view"]:
-                    return completed(
-                        args,
-                        stdout=json.dumps(
-                            {
-                                "databaseId": 11,
-                                "event": "push",
-                                "headSha": "abc",
-                                "status": "completed",
-                                "conclusion": "success",
-                                "workflowName": "ci",
-                            }
-                        ),
-                    )
-                return completed(args)
-
-            result, error = monitor_landed_revision(
-                repo,
-                "abc",
-                "main",
-                timeout_seconds=1,
-                gh_runner=fake_gh,
-                sleep_fn=lambda _: None,
-            )
-            self.assertIsNone(error)
-            self.assertEqual(result["status"], "pass")
-            self.assertEqual(
-                result["runs"],
-                [
-                    {
-                        "databaseId": 11,
-                        "event": "push",
-                        "headSha": "abc",
-                        "status": "completed",
-                        "conclusion": "success",
-                        "workflowName": "ci",
-                        "watchExitCode": 0,
-                    }
-                ],
-            )
-            self.assertIn(["run", "watch", "11", "--exit-status"], calls)
-            self.assertIn(
-                [
-                    "run",
-                    "view",
-                    "11",
-                    "--json",
-                    "databaseId,status,conclusion,headSha,event,url,workflowName",
-                ],
-                calls,
-            )
-
     def test_stale_failed_checks_do_not_block_publishing_new_head(self):
         pull_request = {
             "state": "OPEN",
@@ -128,67 +34,6 @@ class LandWorkflowTests(unittest.TestCase):
             [finding["code"] for finding in current_payload["findings"]],
             ["pull_request_checks_failing"],
         )
-
-    def test_monitor_failure_is_not_accepted(self):
-        with tempfile.TemporaryDirectory() as directory:
-            repo = Path(directory)
-            workflow = repo / ".github/workflows/ci.yml"
-            workflow.parent.mkdir(parents=True)
-            workflow.write_text("on:\n  push:\n", encoding="utf-8")
-
-            def fake_gh(args, cwd):
-                if args[:2] == ["run", "list"]:
-                    return completed(
-                        args,
-                        stdout=json.dumps([{"databaseId": 12, "event": "push", "headSha": "abc", "workflowName": "ci"}]),
-                    )
-                return completed(args, returncode=1, stderr="failed")
-
-            result, error = monitor_landed_revision(
-                repo,
-                "abc",
-                "main",
-                timeout_seconds=1,
-                gh_runner=fake_gh,
-                sleep_fn=lambda _: None,
-            )
-            self.assertEqual(result["status"], "fail")
-            self.assertEqual(error, "failed")
-
-    def test_push_monitoring_is_not_invented_when_unconfigured(self):
-        with tempfile.TemporaryDirectory() as directory:
-            self.assertEqual(configured_push_workflows(Path(directory), "main"), [])
-
-    def test_monitor_waits_for_every_declared_workflow(self):
-        with tempfile.TemporaryDirectory() as directory:
-            repo = Path(directory)
-            root = repo / ".github/workflows"
-            root.mkdir(parents=True)
-            (root / "one.yml").write_text("name: One\non:\n  push:\n", encoding="utf-8")
-            (root / "two.yml").write_text("name: Two\non:\n  push:\n", encoding="utf-8")
-
-            def fake_gh(args, cwd):
-                if args[:2] == ["run", "list"]:
-                    return completed(
-                        args,
-                        stdout=json.dumps([
-                            {"databaseId": 1, "event": "push", "headSha": "abc", "workflowName": "One"}
-                        ]),
-                    )
-                return completed(args)
-
-            result, error = monitor_landed_revision(
-                repo,
-                "abc",
-                "main",
-                timeout_seconds=0,
-                gh_runner=fake_gh,
-                sleep_fn=lambda _: None,
-            )
-            self.assertEqual(result["status"], "pending")
-            self.assertIsNotNone(error)
-            assert error is not None
-            self.assertIn("Two", error)
 
     def test_cleanup_preserves_unique_task_commit(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -325,11 +170,6 @@ class LandWorkflowTests(unittest.TestCase):
 def test_land_workflow_behavior():
     case = LandWorkflowTests()
     for name in (
-        "test_exact_sha_selection_rejects_stale_push_runs",
-        "test_monitor_requires_exact_revision_and_successful_watch",
-        "test_monitor_failure_is_not_accepted",
-        "test_push_monitoring_is_not_invented_when_unconfigured",
-        "test_monitor_waits_for_every_declared_workflow",
         "test_cleanup_preserves_unique_task_commit",
         "test_cleanup_removes_landed_isolated_worktree_and_branch",
     ):
