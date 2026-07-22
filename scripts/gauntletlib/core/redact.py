@@ -12,10 +12,3 @@ SECRET_PATTERNS = [
 
 def has_secret(text):
     return any(pattern.search(text or "") for pattern in SECRET_PATTERNS)
-
-
-def redact_secrets(text):
-    redacted = text or ""
-    for pattern in SECRET_PATTERNS:
-        redacted = pattern.sub("[REDACTED_SECRET]", redacted)
-    return redacted

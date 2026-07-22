@@ -69,7 +69,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/core/fsio.py",
       "executable": false,
-      "sha256": "3c7f9c997734eb9671475edce7cd28548c85e6f498b2a0a25631fcdafb6f196c",
+      "sha256": "ffe159d7c9e87cb5664c87859a2ffe5698e6cda510a3ff04d17ad96d712b9ff0",
       "source": "scripts/gauntletlib/core/fsio.py"
     },
     {
@@ -81,7 +81,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/core/jsonio.py",
       "executable": false,
-      "sha256": "7dbf62ee230febd237cbdf61923581078c516301bfcdd2529233383131b17eb9",
+      "sha256": "4f51083dd9768a48d749bbf0549b1e4b85de317ead91a543a993f2794b861395",
       "source": "scripts/gauntletlib/core/jsonio.py"
     },
     {
@@ -93,14 +93,8 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/core/redact.py",
       "executable": false,
-      "sha256": "e7cc4edcbf1e78c005e5d47a68753cd1bb987020815e428af9c3d51efae8085d",
+      "sha256": "5f4381666c6dde0c2e0ab2d84dacea5df4b1d76cedeff843c976d227694bfc20",
       "source": "scripts/gauntletlib/core/redact.py"
-    },
-    {
-      "destination": "gauntlet/scripts/gauntletlib/core/timefmt.py",
-      "executable": false,
-      "sha256": "a185494c9c28569fc5d7ea246e6f59f029bfa0f3d99d38d2cee664ef7f1cd063",
-      "source": "scripts/gauntletlib/core/timefmt.py"
     },
     {
       "destination": "gauntlet/scripts/gauntletlib/install/__init__.py",
