@@ -1,4 +1,5 @@
 .DS_Store
+/*.egg-info/
 /implementation-notes.html
 /.gauntlet-notes-server.log
 /.gauntlet-notes-server.pid

@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "gauntlet-lite"
 version = "0.1.0"
@@ -15,6 +19,9 @@ dev = [
 include = ["scripts", "tests"]
 extraPaths = ["scripts"]
 pythonVersion = "3.9"
+
+[tool.setuptools]
+packages = []
 
 [tool.ruff]
 target-version = "py39"
