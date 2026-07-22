@@ -6,6 +6,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class WorkflowPolicyTests(unittest.TestCase):
+    def test_ci_matrix_matches_supported_groups(self):
+        workflow = (ROOT / ".github" / "workflows" / "gauntlet.yml").read_text()
+        groups = {
+            line.removeprefix("          - ")
+            for line in workflow.splitlines()
+            if line.startswith("          - ")
+        }
+        self.assertEqual(groups, {"policy", "install", "contracts", "evals"})
+
     def test_active_policy_has_no_retired_machinery(self):
         paths = [
             ROOT / "AGENTS.md",
