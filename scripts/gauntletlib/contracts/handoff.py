@@ -148,7 +148,7 @@ def validate_handoff_v1_fields(data, expected_schema="1.0"):
                 "changelog must be non-empty.",
             )
         )
-    elif "\n" in changelog or "\r" in changelog:
+    elif isinstance(changelog, str) and ("\n" in changelog or "\r" in changelog):
         findings.append(
             handoff_finding(
                 "multiline_changelog_entry",

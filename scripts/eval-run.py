@@ -493,7 +493,10 @@ def nested_estimate(pairs: list[tuple[dict[str, Any], dict[str, Any]]], metric) 
         value = metric(baseline, comparison)
         if value is not None:
             by_task.setdefault(baseline["task_id"], []).append(value)
-    task_effects = {key: mean(values) for key, values in sorted(by_task.items())}
+    task_effects = {
+        key: sum(task_values) / len(task_values)
+        for key, task_values in sorted(by_task.items())
+    }
     values = list(task_effects.values())
     standard_error = statistics.stdev(values) / math.sqrt(len(values)) if len(values) > 1 else None
     return {

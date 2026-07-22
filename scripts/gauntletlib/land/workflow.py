@@ -4,7 +4,9 @@ import json
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from gauntletlib.cli_support import EXIT_CODES
 from gauntletlib.core.findings import add_finding
@@ -12,10 +14,14 @@ from gauntletlib.core.findings import status_for
 from gauntletlib.core.proc import gh, git, run_cmd
 from gauntletlib.merge import branch_name, default_represents_candidate, dirty_paths
 
-_print_payload = None
+def _missing_payload_printer(_payload: dict[str, Any], _as_json: bool) -> None:
+    raise RuntimeError("land payload printer is not configured")
 
 
-def configure(*, print_payload):
+_print_payload: Callable[[dict[str, Any], bool], None] = _missing_payload_printer
+
+
+def configure(*, print_payload: Callable[[dict[str, Any], bool], None]) -> None:
     global _print_payload
     _print_payload = print_payload
 
@@ -263,7 +269,7 @@ def merge_command(args):
 def command_land_execute(args):
     repo = Path(args.git_root).resolve()
     if not repo.is_dir():
-        payload = {
+        payload: dict[str, Any] = {
             "schemaVersion": "gauntlet.land.v1",
             "status": "fail",
             "findings": [],
@@ -274,7 +280,7 @@ def command_land_execute(args):
         return EXIT_CODES[payload["status"]]
     branch = branch_name(repo)
     task_head = git(["rev-parse", "HEAD"], repo)
-    payload = {
+    payload: dict[str, Any] = {
         "schemaVersion": "gauntlet.land.v1",
         "status": "pass",
         "findings": [],
@@ -300,9 +306,21 @@ def command_land_execute(args):
         message = merged.stderr.strip() or (payload["merge"] or {}).get("findings") or merged.stdout.strip()
         add_finding(payload["findings"], "merge_failed", "fail", str(message))
 
+    default_branch = "main"
+    base_remote = None
     if not payload["findings"]:
-        default_branch = payload["merge"].get("defaultBranch") or "main"
-        repository_context = payload["merge"].get("repositoryContext") or {}
+        merge_payload = payload["merge"]
+        if not isinstance(merge_payload, dict):
+            add_finding(
+                payload["findings"],
+                "merge_output_invalid",
+                "fail",
+                "Merge did not return an object payload.",
+            )
+            repository_context = {}
+        else:
+            default_branch = merge_payload.get("defaultBranch") or "main"
+            repository_context = merge_payload.get("repositoryContext") or {}
         base_remote = repository_context.get("baseRemote")
         if not base_remote:
             add_finding(
@@ -315,9 +333,15 @@ def command_land_execute(args):
         else:
             fetched = git(["fetch", base_remote, default_branch], repo)
             landed = git(["rev-parse", f"{base_remote}/{default_branch}"], repo)
-        if fetched is None or fetched.returncode != 0 or landed.returncode != 0:
+        if (
+            fetched is None
+            or landed is None
+            or fetched.returncode != 0
+            or landed.returncode != 0
+        ):
             if fetched is not None:
-                add_finding(payload["findings"], "landed_revision_unresolved", "fail", fetched.stderr.strip() or landed.stderr.strip())
+                landed_error = landed.stderr.strip() if landed is not None else ""
+                add_finding(payload["findings"], "landed_revision_unresolved", "fail", fetched.stderr.strip() or landed_error)
         else:
             landed_sha = landed.stdout.strip()
             payload["landedSha"] = landed_sha
@@ -331,7 +355,7 @@ def command_land_execute(args):
             if error:
                 add_finding(payload["findings"], "landed_revision_monitor_failed", "fail", error)
 
-    if not payload["findings"]:
+    if not payload["findings"] and isinstance(base_remote, str):
         main_worktree, error = sync_default_worktree(
             repo, default_branch, payload["landedSha"], base_remote
         )

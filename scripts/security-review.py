@@ -10,6 +10,7 @@ import signal
 import subprocess
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 
 MODEL = "gpt-5.6-sol"
@@ -35,7 +36,7 @@ no findings, say so and name the material limits of the review.
 """
 
 
-def fail(parser: argparse.ArgumentParser, message: str) -> None:
+def fail(parser: argparse.ArgumentParser, message: str) -> NoReturn:
     parser.error(message)
 
 

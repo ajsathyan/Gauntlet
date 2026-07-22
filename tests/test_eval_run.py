@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import copy
-import importlib.util
 import json
 import os
 import sys
@@ -13,14 +12,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from support import SCRIPTS
+from support import SCRIPTS, load_script_module
 
 
 SCRIPT = SCRIPTS / "eval-run.py"
-SPEC = importlib.util.spec_from_file_location("eval_run", SCRIPT)
-eval_run = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader is not None
-SPEC.loader.exec_module(eval_run)
+eval_run = load_script_module("eval_run", "eval-run.py")
 
 
 ADAPTER = r'''#!/usr/bin/env python3

@@ -51,7 +51,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/contracts/handoff.py",
       "executable": false,
-      "sha256": "2e711301780eae6ef021e7418fc4c733f794fa4f66a9f93479a6e6db44ccd6b8",
+      "sha256": "fb030a8948208516671cf69f59755a3235c48d2c547b7f0037a62d78c50a1ba7",
       "source": "scripts/gauntletlib/contracts/handoff.py"
     },
     {
@@ -123,7 +123,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/land/workflow.py",
       "executable": false,
-      "sha256": "7575665c0b641ab6911828150b690a70e95a95b777841222d508f45387cc4970",
+      "sha256": "e6731f4e6d15080cf305b195b74b83862fdba90e7311ac4f83e66c6b7c9f5942",
       "source": "scripts/gauntletlib/land/workflow.py"
     },
     {
@@ -135,7 +135,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/merge/workflow.py",
       "executable": false,
-      "sha256": "ce18d60cb81261834250dd40ef18847935a72f85481bfcdc7382bfd6a1c40125",
+      "sha256": "4b54def7859673a7ae71cdf295a4f69714ea142aea2299f585387b27895f8b1f",
       "source": "scripts/gauntletlib/merge/workflow.py"
     },
     {
@@ -153,7 +153,7 @@
     {
       "destination": "gauntlet/scripts/security-review.py",
       "executable": true,
-      "sha256": "bcbd849675260cedf1d7ecbf9ed3c1fb26cb026d1893d2b656dcf8764dceb5ed",
+      "sha256": "50b0a80b7f349dd26be7ac8c1af16ccbcb3d8b3b882b7569eab4453b1bd77226",
       "source": "scripts/security-review.py"
     },
     {

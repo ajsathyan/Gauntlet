@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Configure and enforce Pyright for the Python 3.9 runtime, resolving nullable callbacks, unchecked merge context, dynamic test loading, and optional-value diagnostics without suppressions.
 - Remove unreferenced evaluation aliases, file/JSON writers, redaction and time helpers, and test fixtures identified by Deadcode and repository-wide reference checks.
 - Remove local-document and exact-design workflow commands, templates, tests, and guidance so Gauntlet no longer creates PRDs, Epic indexes, document logs, or workflow-mode state.
 - Replace universal workflow ceremony with a compact behavior-first core: one accepted outcome contract, six main-agent adversarial lenses before implementation, two-axis exact-revision verification, direct PR landing without a merge queue, and release follow-through only when a real repository mechanism exists.

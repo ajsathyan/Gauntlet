@@ -64,6 +64,19 @@ if [ "$detect_only" -eq 0 ] && [ "${#changed_python_files[@]}" -gt 0 ]; then
     cd "$ROOT"
     "${ruff_command[@]}" check --config "$ROOT/pyproject.toml" -- "${changed_python_files[@]}"
   )
+  if command -v pyright >/dev/null 2>&1; then
+    pyright_command=(pyright)
+  elif python3 -m pyright --version >/dev/null 2>&1; then
+    pyright_command=(python3 -m pyright)
+  else
+    echo "Changed Python files require Pyright. Install the dev tools with: python3 -m pip install '.[dev]'" >&2
+    exit 1
+  fi
+  echo "Changed Python files detected; running Pyright."
+  (
+    cd "$ROOT"
+    "${pyright_command[@]}"
+  )
 fi
 
 if [ "${#changed_skill_names[@]}" -eq 0 ]; then

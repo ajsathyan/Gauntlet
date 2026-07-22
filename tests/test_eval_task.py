@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import subprocess
 import sys
@@ -11,14 +10,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from support import SCRIPTS
+from support import SCRIPTS, load_script_module
 
 
 SCRIPT = SCRIPTS / "eval-task.py"
-SPEC = importlib.util.spec_from_file_location("eval_task", SCRIPT)
-eval_task = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader is not None
-SPEC.loader.exec_module(eval_task)
+eval_task = load_script_module("eval_task", "eval-task.py")
 
 
 ADAPTER = r'''#!/usr/bin/env python3

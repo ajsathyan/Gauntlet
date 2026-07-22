@@ -68,6 +68,7 @@ Restart or reload Codex after installation.
 ## Development
 
 ```sh
+python3 -m pip install -e '.[dev]'
 scripts/run-skill-change-checks.sh
 python3 scripts/check-gauntlet-workflow.py
 ```
