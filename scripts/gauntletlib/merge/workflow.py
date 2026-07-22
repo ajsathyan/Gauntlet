@@ -417,7 +417,7 @@ def load_merge_inputs(args, payload):
     return repo, data, body
 
 
-def add_existing_pr_blockers(payload, pr):
+def add_existing_pr_blockers(payload, pr, expected_head=None):
     if not pr:
         return
     if pr.get("state") != "OPEN":
@@ -441,23 +441,25 @@ def add_existing_pr_blockers(payload, pr):
             "review",
             f"Pull request review decision is {pr.get('reviewDecision')}.",
         )
-    if pr.get("mergeable") not in {"MERGEABLE", "UNKNOWN"}:
+    head_is_current = expected_head is None or pr.get("headRefOid") == expected_head
+    if head_is_current and pr.get("mergeable") not in {"MERGEABLE", "UNKNOWN"}:
         add_finding(
             payload,
             "pull_request_not_mergeable",
             "review",
             f"Pull request mergeable state is {pr.get('mergeable')}.",
         )
-    check_status, check_message = checks_state(
-        pr.get("statusCheckRollup", [])
-    )
-    if check_status == "failing":
-        add_finding(
-            payload,
-            "pull_request_checks_failing",
-            "review",
-            check_message,
+    if head_is_current:
+        check_status, check_message = checks_state(
+            pr.get("statusCheckRollup", [])
         )
+        if check_status == "failing":
+            add_finding(
+                payload,
+                "pull_request_checks_failing",
+                "review",
+                check_message,
+            )
 
 
 def collect_merge_state(git_root, handoff, body):
@@ -608,7 +610,11 @@ def build_merge_plan(state):
             "fail",
             "Repository reports no allowed pull-request merge method.",
         )
-    add_existing_pr_blockers(payload, state.get("pr"))
+    add_existing_pr_blockers(
+        payload,
+        state.get("pr"),
+        expected_head=state.get("head"),
+    )
     if state.get("pr"):
         if state["pr"].get("headRefName") != branch:
             add_finding(

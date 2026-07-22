@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Allow Land to update an existing PR when failed checks belong to an older head, and refresh exact-revision workflow evidence after each successful watch.
 - Configure and enforce Pyright for the Python 3.9 runtime, resolving nullable callbacks, unchecked merge context, dynamic test loading, and optional-value diagnostics without suppressions.
 - Remove unreferenced evaluation aliases, file/JSON writers, redaction and time helpers, and test fixtures identified by Deadcode and repository-wide reference checks.
 - Remove local-document and exact-design workflow commands, templates, tests, and guidance so Gauntlet no longer creates PRDs, Epic indexes, document logs, or workflow-mode state.
