@@ -36,24 +36,3 @@ def run(args, cwd=None, check=True, input_text=None):
 def assert_contains(text, needle, label):
     if needle not in text:
         raise AssertionError(f"{label} missing: {needle}")
-
-
-def assert_not_contains(text, needle, label):
-    if needle in text:
-        raise AssertionError(f"{label} should not contain: {needle}")
-
-
-def git(args, cwd):
-    return run(["git", *args], cwd=cwd)
-
-
-def init_repo(root):
-    root.mkdir()
-    git(["init"], cwd=root)
-    git(["config", "user.email", "gauntlet@example.test"], cwd=root)
-    git(["config", "user.name", "Gauntlet Test"], cwd=root)
-
-
-def commit_all(root, message):
-    git(["add", "."], cwd=root)
-    git(["commit", "-m", message], cwd=root)

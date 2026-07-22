@@ -137,9 +137,6 @@ def validate_equivalence_record(proof: Any, adapter_id: str) -> dict[str, Any]:
     return proof
 
 
-validate_conformance_record = validate_equivalence_record
-
-
 def validate_adapters(raw: Any, used: set[str]) -> dict[str, dict[str, Any]]:
     registry = require_object(raw, "adapter registry")
     if registry.get("schema_version") != SCHEMA_VERSION:
@@ -380,10 +377,6 @@ def adapter_equivalence(native: list[str], wrapped: list[str], timeout: float = 
     record["suite_digest"] = "sha256:" + digest(comparisons)
     record["comparisons"] = comparisons
     return record
-
-
-conformance_request = equivalence_request
-conformance = adapter_equivalence
 
 
 def identity(condition: dict[str, Any]) -> str:
