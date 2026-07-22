@@ -34,6 +34,16 @@ jobs:
         if: matrix.group == 'policy'
         run: python3 scripts/generate-install-manifest.py --check
 
+      - name: Install Python quality tools
+        if: matrix.group == 'policy'
+        run: python3 -m pip install '.[dev]'
+
+      - name: Check Python quality
+        if: matrix.group == 'policy'
+        run: |
+          python3 -m ruff check .
+          python3 -m pyright
+
       - name: Run ${{ matrix.group }} checks
         run: python3 scripts/check-gauntlet-workflow.py --group "${{ matrix.group }}"
 

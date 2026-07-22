@@ -7,8 +7,14 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = [
+  "pyright>=1.1.411,<2",
   "ruff>=0.12,<1",
 ]
+
+[tool.pyright]
+include = ["scripts", "tests"]
+extraPaths = ["scripts"]
+pythonVersion = "3.9"
 
 [tool.ruff]
 target-version = "py39"

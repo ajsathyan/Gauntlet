@@ -4,7 +4,9 @@ import json
 import re
 import subprocess
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from gauntletlib.cli_support import EXIT_CODES
 from gauntletlib.contracts import validate_merge_handoff
@@ -16,10 +18,14 @@ PASSING_CHECK_CONCLUSIONS = {"SUCCESS", "SKIPPED", "NEUTRAL"}
 PASSING_STATUS_STATES = {"SUCCESS", "SKIPPED", "NEUTRAL"}
 WRITABLE_PERMISSIONS = {"ADMIN", "MAINTAIN", "WRITE"}
 
-_print_payload = None
+def _missing_payload_printer(_payload: dict[str, Any], _as_json: bool) -> None:
+    raise RuntimeError("merge payload printer is not configured")
 
 
-def configure(*, print_payload):
+_print_payload: Callable[[dict[str, Any], bool], None] = _missing_payload_printer
+
+
+def configure(*, print_payload: Callable[[dict[str, Any], bool], None]) -> None:
     global _print_payload
     _print_payload = print_payload
 
@@ -770,7 +776,9 @@ def delete_remote_branch(
     return deletion
 
 
-def execute_merge_plan(payload, git_root, handoff_source, body_path):
+def execute_merge_plan(
+    payload: dict[str, Any], git_root, handoff_source, body_path
+) -> dict[str, Any]:
     repo = Path(git_root).resolve()
     executed = []
     branch = payload.get("branch")
@@ -780,7 +788,8 @@ def execute_merge_plan(payload, git_root, handoff_source, body_path):
         if isinstance(handoff_source, dict)
         else load_merge_handoff(handoff_source)
     )
-    pr = payload.get("pr")
+    raw_pr = payload.get("pr")
+    pr = raw_pr if isinstance(raw_pr, dict) else None
     expected_head = (payload.get("candidate") or {}).get("commit")
     expected_tree = (payload.get("candidate") or {}).get("tree")
     expected_base = (handoff.get("sourceBinding") or {}).get("base")
@@ -788,6 +797,30 @@ def execute_merge_plan(payload, git_root, handoff_source, body_path):
     head_remote = repository_context.get("headRemote")
     base_remote = repository_context.get("baseRemote")
     base_repository = repository_context.get("baseRepository")
+    if (
+        not isinstance(branch, str)
+        or not branch
+        or not isinstance(expected_head, str)
+        or not expected_head
+        or not isinstance(expected_tree, str)
+        or not expected_tree
+        or not isinstance(expected_base, str)
+        or not expected_base
+        or not isinstance(head_remote, str)
+        or not head_remote
+        or not isinstance(base_remote, str)
+        or not base_remote
+        or not isinstance(base_repository, str)
+        or not base_repository
+    ):
+        add_finding(
+            payload,
+            "merge_execution_context_invalid",
+            "fail",
+            "Merge plan lacks a complete candidate or repository context.",
+        )
+        payload["status"] = status_for(payload)
+        return payload
     if current_head(repo) != expected_head or current_tree(repo) != expected_tree:
         add_finding(
             payload,
@@ -825,6 +858,14 @@ def execute_merge_plan(payload, git_root, handoff_source, body_path):
                 repo,
             )
         elif action_type == "gh_pr_edit":
+            if pr is None:
+                add_finding(
+                    payload,
+                    "pull_request_missing_after_publish",
+                    "fail",
+                    "The planned pull request is unavailable for editing.",
+                )
+                break
             result = gh(
                 [
                     "pr",
@@ -847,6 +888,14 @@ def execute_merge_plan(payload, git_root, handoff_source, body_path):
                     checks_error,
                 )
                 break
+            if pr is None:
+                add_finding(
+                    payload,
+                    "pull_request_missing_after_publish",
+                    "fail",
+                    "Could not find the pull request while waiting for checks.",
+                )
+                break
             if pr.get("headRefOid") != expected_head:
                 add_finding(
                     payload,
@@ -864,6 +913,7 @@ def execute_merge_plan(payload, git_root, handoff_source, body_path):
             pr, _ = current_pr(repo)
             if not refreshed_pr_is_mergeable(payload, pr, expected_head):
                 break
+            assert pr is not None
             try:
                 refreshed_base, _ = refresh_default_head(repo, repository_context)
             except ValueError as error:

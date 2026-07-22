@@ -126,6 +126,8 @@ class LandWorkflowTests(unittest.TestCase):
                 sleep_fn=lambda _: None,
             )
             self.assertEqual(result["status"], "pending")
+            self.assertIsNotNone(error)
+            assert error is not None
             self.assertIn("Two", error)
 
     def test_cleanup_preserves_unique_task_commit(self):
@@ -149,6 +151,8 @@ class LandWorkflowTests(unittest.TestCase):
 
             cleanup, error = clean_task_checkout(repo, repo, "task", "main", task, landed)
             self.assertFalse(cleanup["branchDeleted"])
+            self.assertIsNotNone(error)
+            assert error is not None
             self.assertIn("does not preserve", error)
             branch = subprocess.run(
                 ["git", "branch", "--show-current"], cwd=repo, check=True, capture_output=True, text=True

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import copy
-import importlib.util
 import json
 import os
 import sys
@@ -13,19 +12,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from support import SCRIPTS
+from support import SCRIPTS, load_script_module
 
 
 SCRIPT = SCRIPTS / "eval-harness.py"
-SPEC = importlib.util.spec_from_file_location("eval_harness", SCRIPT)
-eval_harness = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader is not None
-SPEC.loader.exec_module(eval_harness)
-TASK_SCRIPT = SCRIPTS / "eval-task.py"
-TASK_SPEC = importlib.util.spec_from_file_location("eval_task_for_digest", TASK_SCRIPT)
-eval_task = importlib.util.module_from_spec(TASK_SPEC)
-assert TASK_SPEC.loader is not None
-TASK_SPEC.loader.exec_module(eval_task)
+eval_harness = load_script_module("eval_harness", "eval-harness.py")
+eval_task = load_script_module("eval_task_for_digest", "eval-task.py")
 
 
 FAKE_CLI = r'''#!/usr/bin/env python3
