@@ -19,7 +19,6 @@ jobs:
         group:
           - policy
           - install
-          - design
           - contracts
           - evals
     steps:

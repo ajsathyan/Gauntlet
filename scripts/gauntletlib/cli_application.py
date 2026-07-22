@@ -2,14 +2,12 @@
 
 from gauntletlib.cli_support import build_parser as build_cli_parser
 from gauntletlib.cli_support import dispatch
-from gauntletlib.docs import register as register_docs
 from gauntletlib.install.verify import command_verify as command_install_verify
 from gauntletlib.install.verify import register as register_install
 from gauntletlib.land import configure as configure_land
 from gauntletlib.land import register as register_land
 from gauntletlib.merge import configure as configure_merge
 from gauntletlib.merge import register as register_merge
-from gauntletlib.workflow import register as register_workflow
 
 def print_payload(payload, as_json):
     import json
@@ -28,11 +26,9 @@ def print_payload(payload, as_json):
 def register(subcommands):
     configure_land(print_payload=print_payload)
     configure_merge(print_payload=print_payload)
-    register_docs(subcommands)
     register_install(subcommands, command=command_install_verify)
     register_merge(subcommands)
     register_land(subcommands)
-    register_workflow(subcommands)
 
 
 def build_parser():

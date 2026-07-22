@@ -32,9 +32,6 @@ implementation, verification, commit, push, pull request, merge, ordinary declar
 deployment, and monitoring. Stop for an unaccepted destructive, credential,
 migration, privacy, security, data-loss, or production effect.
 
-Durable local documents are conditional. When active, run
-`python3 {{GAUNTLET_ROOT}}/scripts/gauntlet.py docs ensure --project-root "$PROJECT_ROOT"`.
-
 ## Build and verify
 
 Plan ephemerally and stop planning when the first coherent implementation and

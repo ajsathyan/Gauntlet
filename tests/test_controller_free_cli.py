@@ -48,10 +48,18 @@ class ControllerFreeCliTests(unittest.TestCase):
     def test_help_exposes_only_supported_workflow_commands(self):
         result = run_cli("--help")
         self.assertEqual(result.returncode, 0, result.stderr)
-        for command in ("docs", "install", "workflow", "merge", "land"):
+        for command in ("install", "merge", "land"):
             self.assertIn(command, result.stdout)
-        for retired in ("archive", "closeout", "followup", "changelog", "diagram", "sensors"):
+        for retired in (
+            "archive", "closeout", "followup", "changelog", "diagram", "sensors",
+        ):
             self.assertNotIn(retired, result.stdout)
+        self.assertIn("{install,merge,land}", result.stdout)
+
+        for removed_command in ("docs", "workflow"):
+            removed = run_cli(removed_command)
+            self.assertNotEqual(removed.returncode, 0)
+            self.assertIn("invalid choice", removed.stderr)
 
     def test_source_binding_is_required_and_includes_base(self):
         value = valid_handoff()

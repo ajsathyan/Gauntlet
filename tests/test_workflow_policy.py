@@ -6,6 +6,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class WorkflowPolicyTests(unittest.TestCase):
+    def test_ci_matrix_matches_supported_groups(self):
+        workflow = (ROOT / ".github" / "workflows" / "gauntlet.yml").read_text()
+        groups = {
+            line.removeprefix("          - ")
+            for line in workflow.splitlines()
+            if line.startswith("          - ")
+        }
+        self.assertEqual(groups, {"policy", "install", "contracts", "evals"})
+
     def test_active_policy_has_no_retired_machinery(self):
         paths = [
             ROOT / "AGENTS.md",
@@ -27,6 +36,15 @@ class WorkflowPolicyTests(unittest.TestCase):
             ROOT / "scripts" / "gauntletlib" / "closeout",
             ROOT / "scripts" / "generated_context.py",
             ROOT / "scripts" / "workflow-mode.py",
+            ROOT / "scripts" / "gauntletlib" / "docs",
+            ROOT / "scripts" / "gauntletlib" / "workflow",
+            ROOT / "scripts" / "test-doc-lifecycle.py",
+            ROOT / "scripts" / "test-flexible-prd.py",
+            ROOT / "templates" / "local-docs",
+            ROOT / "docs" / "local-documentation.md",
+            ROOT / "tests" / "test_doc_lifecycle.py",
+            ROOT / "tests" / "test_flexible_prd.py",
+            ROOT / "tests" / "test_workflow_contracts.py",
             ROOT / "skills" / "implementer",
             ROOT / "skills" / "planner",
             ROOT / "skills" / "black-box-tester",
