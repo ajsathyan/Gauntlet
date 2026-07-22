@@ -73,6 +73,22 @@ class ControllerFreeCliTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("unrecognized arguments", result.stderr)
 
+    def test_land_does_not_expose_post_merge_monitoring(self):
+        help_result = run_cli("land", "execute", "--help")
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+        self.assertNotIn("monitor", help_result.stdout.lower())
+
+        rejected = run_cli(
+            "land",
+            "execute",
+            "--handoff",
+            "handoff.json",
+            "--monitor-timeout",
+            "1",
+        )
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("unrecognized arguments", rejected.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -35,7 +35,7 @@ after the last base comparison; verify the landed revision and recover ad hoc if
 integration changed behavior.
 
 Clean up only state proven represented by the landed revision. Preserve modified
-files, unique commits, drift, other worktrees, or failed monitoring.
+files, unique commits, drift, or other worktrees.
 
-Return PR and merge state, exact landed proof, monitoring state, cleanup state,
-and unresolved risk.
+Return PR and merge state, exact landed proof, cleanup state, and unresolved risk.
+Deployment and monitoring belong to Ship.

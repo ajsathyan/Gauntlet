@@ -1,9 +1,8 @@
-"""Merge, monitor, synchronize, and safely clean up one landed branch."""
+"""Merge, synchronize, and safely clean up one landed branch."""
 
 import json
 import os
 import sys
-import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -11,7 +10,7 @@ from typing import Any
 from gauntletlib.cli_support import EXIT_CODES
 from gauntletlib.core.findings import add_finding
 from gauntletlib.core.findings import status_for
-from gauntletlib.core.proc import gh, git, run_cmd
+from gauntletlib.core.proc import git, run_cmd
 from gauntletlib.merge import branch_name, default_represents_candidate, dirty_paths
 
 def _missing_payload_printer(_payload: dict[str, Any], _as_json: bool) -> None:
@@ -29,171 +28,15 @@ def configure(*, print_payload: Callable[[dict[str, Any], bool], None]) -> None:
 def register(subparsers):
     land = subparsers.add_parser(
         "land",
-        help="Merge through a PR, monitor the landed revision, and clean up safely.",
+        help="Merge through a PR, confirm the landed revision, and clean up safely.",
     )
     commands = land.add_subparsers(dest="land_command", required=True)
     execute = commands.add_parser("execute")
     execute.add_argument("--git-root", type=Path, default=Path.cwd())
     execute.add_argument("--handoff", type=Path, required=True)
     execute.add_argument("--body", type=Path, default=Path(".gauntlet/pr-body.md"))
-    execute.add_argument("--monitor-timeout", type=int, default=180)
     execute.add_argument("--json", action="store_true")
     execute.set_defaults(func=command_land_execute)
-
-
-def configured_push_workflows(repo, default_branch):
-    """Return named workflows that visibly declare a push trigger for default."""
-    workflows = []
-    workflow_root = Path(repo) / ".github" / "workflows"
-    for path in sorted([*workflow_root.glob("*.yml"), *workflow_root.glob("*.yaml")]):
-        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
-        push_index = next(
-            (
-                index
-                for index, line in enumerate(lines)
-                if line.strip() == "push:" and len(line) - len(line.lstrip()) <= 2
-            ),
-            None,
-        )
-        if push_index is None:
-            continue
-        push_indent = len(lines[push_index]) - len(lines[push_index].lstrip())
-        block = []
-        for line in lines[push_index + 1 :]:
-            if line.strip() and len(line) - len(line.lstrip()) <= push_indent:
-                break
-            block.append(line.strip())
-        branch_filters = [
-            line.removeprefix("-").strip().strip("'\"")
-            for line in block
-            if line.startswith("-")
-        ]
-        if not branch_filters or default_branch in branch_filters:
-            workflow_name = next(
-                (
-                    line.split(":", 1)[1].strip().strip("'\"")
-                    for line in lines
-                    if line.startswith("name:") and line.split(":", 1)[1].strip()
-                ),
-                path.stem,
-            )
-            workflows.append(
-                {"path": str(path.relative_to(repo)), "name": workflow_name}
-            )
-    return workflows
-
-
-def select_exact_sha_runs(records, landed_sha):
-    return [
-        record
-        for record in records
-        if record.get("headSha") == landed_sha and record.get("event") == "push"
-    ]
-
-
-def monitor_landed_revision(
-    repo,
-    landed_sha,
-    default_branch,
-    *,
-    timeout_seconds=180,
-    poll_seconds=2,
-    gh_runner=None,
-    sleep_fn=None,
-):
-    """Wait for every declared exact-SHA push workflow and require each to pass."""
-    gh_runner = gh_runner or gh
-    sleep_fn = sleep_fn or time.sleep
-    workflows = configured_push_workflows(repo, default_branch)
-    result = {
-        "status": "not-configured" if not workflows else "pending",
-        "landedSha": landed_sha,
-        "workflows": workflows,
-        "runs": [],
-    }
-    if not workflows:
-        return result, None
-
-    deadline = time.monotonic() + timeout_seconds
-    last_error = ""
-    expected_names = {workflow["name"] for workflow in workflows}
-    exact = []
-    while True:
-        listed = gh_runner(
-            [
-                "run",
-                "list",
-                "--commit",
-                landed_sha,
-                "--event",
-                "push",
-                "--limit",
-                "100",
-                "--json",
-                "databaseId,status,conclusion,headSha,event,url,workflowName",
-            ],
-            repo,
-        )
-        if listed.returncode == 0:
-            try:
-                exact = select_exact_sha_runs(json.loads(listed.stdout or "[]"), landed_sha)
-            except json.JSONDecodeError as error:
-                last_error = f"GitHub Actions returned invalid JSON: {error}"
-                exact = []
-            observed_names = {record.get("workflowName") for record in exact}
-            if expected_names <= observed_names:
-                break
-        else:
-            last_error = listed.stderr.strip() or listed.stdout.strip()
-        if time.monotonic() >= deadline:
-            missing = sorted(expected_names - {record.get("workflowName") for record in exact})
-            return result, last_error or (
-                f"No exact-revision run appeared for declared workflow(s) "
-                f"{', '.join(missing)} within {timeout_seconds} seconds."
-            )
-        sleep_fn(poll_seconds)
-
-    for record in exact:
-        watched = gh_runner(
-            ["run", "watch", str(record["databaseId"]), "--exit-status"],
-            repo,
-        )
-        if watched.returncode != 0:
-            record = dict(record)
-            record["watchExitCode"] = watched.returncode
-            result["runs"].append(record)
-            result["status"] = "fail"
-            return result, watched.stderr.strip() or watched.stdout.strip() or f"Push run {record['databaseId']} failed."
-        refreshed = gh_runner(
-            [
-                "run",
-                "view",
-                str(record["databaseId"]),
-                "--json",
-                "databaseId,status,conclusion,headSha,event,url,workflowName",
-            ],
-            repo,
-        )
-        if refreshed.returncode != 0:
-            result["status"] = "fail"
-            return result, refreshed.stderr.strip() or refreshed.stdout.strip() or f"Could not refresh push run {record['databaseId']}."
-        try:
-            record = json.loads(refreshed.stdout)
-        except json.JSONDecodeError as error:
-            result["status"] = "fail"
-            return result, f"GitHub Actions returned invalid run JSON: {error}"
-        record["watchExitCode"] = watched.returncode
-        result["runs"].append(record)
-        if (
-            record.get("headSha") != landed_sha
-            or record.get("event") != "push"
-            or record.get("status") != "completed"
-            or record.get("conclusion") != "success"
-        ):
-            result["status"] = "fail"
-            return result, f"Push run {record.get('databaseId')} did not finish successfully on {landed_sha}."
-    result["status"] = "pass"
-    return result, None
 
 
 def worktrees(repo):
@@ -315,7 +158,6 @@ def command_land_execute(args):
         "branch": branch,
         "taskHead": task_head.stdout.strip() if task_head.returncode == 0 else None,
         "merge": None,
-        "monitor": None,
         "cleanup": {"defaultSynced": False, "worktreeRemoved": False, "branchDeleted": False},
     }
     if not branch or task_head.returncode != 0:
@@ -373,15 +215,6 @@ def command_land_execute(args):
         else:
             landed_sha = landed.stdout.strip()
             payload["landedSha"] = landed_sha
-            monitor, error = monitor_landed_revision(
-                repo,
-                landed_sha,
-                default_branch,
-                timeout_seconds=max(args.monitor_timeout, 1),
-            )
-            payload["monitor"] = monitor
-            if error:
-                add_finding(payload["findings"], "landed_revision_monitor_failed", "fail", error)
 
     if not payload["findings"] and isinstance(base_remote, str):
         main_worktree, error = sync_default_worktree(
