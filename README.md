@@ -75,7 +75,7 @@ python3 scripts/check-gauntlet-workflow.py
 The deterministic evaluation tools remain repository development infrastructure;
 they are not installed into the Codex runtime.
 
-See `docs/design-build-verify.md`, `docs/meaningful-proof.md`,
-`docs/github-discipline.md`, and `docs/local-documentation.md`.
+See `docs/design-build-verify.md`, `docs/meaningful-proof.md`, and
+`docs/github-discipline.md`.
 
 Gauntlet Lite is released under the MIT License.

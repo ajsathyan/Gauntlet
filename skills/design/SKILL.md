@@ -15,7 +15,8 @@ and research-only work do not use this gate.
 3. Resolve observable outcomes, user-visible states, edge cases, authority, and
    behavior that must remain unchanged.
 4. Use a complete user task as Design when it already resolves those points.
-   Otherwise create one concise durable Design with an `Acceptance` section.
+   Otherwise present one concise Design with an `Acceptance` section in the
+   conversation.
 5. Run the `adversarial-reviewer` six-lens pass against the exact final contract.
 6. Show every material recommendation before implementation. Record `accepted`,
    `rejected`, `deferred`, or `omitted` with a reason.
@@ -36,7 +37,7 @@ migration, privacy, security, data-loss, or production effect.
 ## Output
 
 Return the selected tradeoff, exact Acceptance, review recommendations and
-dispositions, durable Design path when one is needed, and unresolved limits.
+dispositions, and unresolved limits.
 
 Complete when the exact final Acceptance has received all six lenses and the user
 has accepted it.

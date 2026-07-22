@@ -13,7 +13,6 @@ from tests.workflow.install import (
     test_install_rejects_malformed_and_modified_owned_state,
     test_install_transfers_personal_skills_and_retires_stale_payload,
 )
-from tests.workflow.lifecycle import test_design_document_lifecycle_behavior
 from tests.workflow.policy import (
     test_lifecycle_authority_and_six_lenses,
     test_normal_requests_and_research_use_minimum_scope,
@@ -46,7 +45,6 @@ def _files(name, *files):
 test_cli_policy = _modules(
     "test_cli_policy", "tests.test_workflow_policy", "tests.test_controller_free_cli"
 )
-test_contracts = _modules("test_contracts", "tests.test_workflow_contracts")
 test_security = _modules("test_security", "tests.test_security_review_cli")
 test_evals = _files(
     "test_evals",
@@ -70,15 +68,14 @@ GROUP_CASES = {
         test_install_transfers_personal_skills_and_retires_stale_payload,
         test_install_rejects_malformed_and_modified_owned_state,
     ),
-    "design": (test_design_document_lifecycle_behavior,),
-    "contracts": (test_contracts, test_security),
+    "contracts": (test_security,),
     "evals": (test_evals,),
 }
 FULL_CASES = tuple(case for name in GROUP_CASES for case in GROUP_CASES[name])
 SMOKE_CASES = (
     test_normal_requests_and_research_use_minimum_scope,
     test_cli_policy,
-    test_contracts,
+    test_security,
 )
 
 

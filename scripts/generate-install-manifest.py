@@ -32,7 +32,6 @@ def digest(path: Path) -> str:
 def source_files() -> list[Path]:
     files = []
     files.extend(path for path in (ROOT / "router").rglob("*") if path.is_file())
-    files.extend(path for path in (ROOT / "templates" / "local-docs").rglob("*") if path.is_file())
     files.extend(path for path in (ROOT / "skills").rglob("*") if path.is_file())
     files.extend(
         path

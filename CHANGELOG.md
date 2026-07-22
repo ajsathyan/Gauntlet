@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Remove local-document and exact-design workflow commands, templates, tests, and guidance so Gauntlet no longer creates PRDs, Epic indexes, document logs, or workflow-mode state.
 - Replace universal workflow ceremony with a compact behavior-first core: one accepted outcome contract, six main-agent adversarial lenses before implementation, two-axis exact-revision verification, direct PR landing without a merge queue, and release follow-through only when a real repository mechanism exists.
 - Retire unsupported compatibility commands, generated-context infrastructure, generic role handoffs, and non-core skill ownership while preserving existing personal copies of customer-email, product-terminology, and promotion-scanner skills.
 - Preserve Design acceptance, direct behavioral proof, separate Build and Architecture verdicts, pull-request creation, required-check waiting, merge, declared deployment, and attributable monitoring without a second routine acceptance pause.
