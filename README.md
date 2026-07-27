@@ -30,6 +30,7 @@ attributable production proof.
 
 - `design`
 - `adversarial-reviewer`
+- `orchestrate`
 - `researcher`
 - `debugger`
 - `verify`
@@ -38,7 +39,8 @@ attributable production proof.
 - `refactor-codebase`
 - `refactor-performance`
 
-Planning, implementation, and finding disposition are native agent behavior.
+Planning and finding disposition are native agent behavior. Implementation uses
+`orchestrate`.
 Black-box, code, and experience review are triggered Verify modes. Comprehensive
 refactoring keeps capability, compatibility, ownership, rollback, and
 proof-before-retirement safeguards while making extra destinations, ledgers,
