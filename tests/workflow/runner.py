@@ -1,4 +1,4 @@
-"""Grouped Gauntlet Lite regression runner."""
+"""Grouped Gauntlet regression runner."""
 
 from __future__ import annotations
 
@@ -16,7 +16,8 @@ from tests.workflow.install import (
 from tests.workflow.policy import (
     test_lifecycle_authority_and_six_lenses,
     test_normal_requests_and_research_use_minimum_scope,
-    test_plugin_manifests_bundle_shared_skills,
+    test_package_and_plugin_identity,
+    test_plugin_bundles_shared_skills,
 )
 from tests.workflow.quality import test_skill_changes_are_guarded_by_pre_commit
 from tests.test_land import test_land_workflow_behavior
@@ -56,7 +57,8 @@ test_evals = _files(
 
 GROUP_CASES = {
     "policy": (
-        test_plugin_manifests_bundle_shared_skills,
+        test_package_and_plugin_identity,
+        test_plugin_bundles_shared_skills,
         test_normal_requests_and_research_use_minimum_scope,
         test_lifecycle_authority_and_six_lenses,
         test_skill_changes_are_guarded_by_pre_commit,

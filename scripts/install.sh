@@ -228,5 +228,5 @@ if [ "$SKIP_GIT_HOOKS" = "0" ] && [ -d "$ROOT/.git" ]; then
   "$ROOT/scripts/install-git-hooks.sh" --repo "$ROOT" --gauntlet-root "$ROOT" >/dev/null
 fi
 
-echo "Installed Gauntlet Lite for Codex to $AGENT_HOME"
+echo "Installed Gauntlet for Codex to $AGENT_HOME"
 echo "Restart or reload Codex to use the new workflow."

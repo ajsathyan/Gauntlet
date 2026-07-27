@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: Coordinate multiple agents for implementation. Use for every implementation in Gauntlet Lite.
+description: Coordinate multiple agents for implementation. Use for every implementation in Gauntlet.
 ---
 
 # Orchestrate

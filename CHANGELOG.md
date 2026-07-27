@@ -2,15 +2,9 @@
 
 ## Unreleased
 
-- Add an orchestrate skill that is invoked for every Gauntlet Lite implementation.
-- Remove Land's duplicate post-merge GitHub Actions monitor and its monitor-specific API, output, tests, and guidance.
-- Allow Land to update an existing PR when failed checks belong to an older head.
-- Configure and enforce Pyright for the Python 3.9 runtime, resolving nullable callbacks, unchecked merge context, dynamic test loading, and optional-value diagnostics without suppressions.
-- Remove unreferenced evaluation aliases, file/JSON writers, redaction and time helpers, and test fixtures identified by Deadcode and repository-wide reference checks.
-- Remove local-document and exact-design workflow commands, templates, tests, and guidance so Gauntlet no longer creates PRDs, Epic indexes, document logs, or workflow-mode state.
-- Replace universal workflow ceremony with a compact behavior-first core: one accepted outcome contract, six main-agent adversarial lenses before implementation, two-axis exact-revision verification, direct PR landing without a merge queue, and release follow-through only when a real repository mechanism exists.
-- Retire unsupported compatibility commands, generated-context infrastructure, generic role handoffs, and non-core skill ownership while preserving existing personal copies of customer-email, product-terminology, and promotion-scanner skills.
-- Preserve Design acceptance, direct behavioral proof, separate Build and Architecture verdicts, pull-request creation, required-check waiting, merge, declared deployment, and attributable monitoring without a second routine acceptance pause.
-- Keep the refactor safety core: capability, parity, compatibility, ownership, state, side-effect, migration, rollback, and proof-before-retirement checks.
-- Remove sensors, custom agent profiles, token auditing, durable workstream queues, merge-queue machinery, generic stage tracking, generated context, duplicate skill snapshots, unsupported compatibility commands, and their obsolete fixtures and documentation.
-- Keep nine canonical Gauntlet skills: Design, adversarial review, research, debugging, verification, landing, shipping, codebase refactoring, and performance refactoring.
+## 3.0.0 - 2026-07-27
+
+- Reset Gauntlet around a compact, proportional workflow and removed controllers, queues, context machinery, specialist handoffs, release simulations, unsupported compatibility paths, and obsolete infrastructure.
+- Renamed the current product to Gauntlet and rewrote the README around Gauntlet 3, GPT-5.6 Sol in Codex, the Research/Normal/Material request paths, and the owner-controlled repository lifecycle.
+- Added `orchestrate` as the required implementation procedure while keeping requirements, approvals, and integration in the main Codex task.
+- Kept exact-candidate verification, consistent pull-request landing, declared deployment follow-through, the six-lens Design review for material work, and the refactor safety core.

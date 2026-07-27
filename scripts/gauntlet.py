@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gauntlet Lite command-line entrypoint."""
+"""Gauntlet command-line entrypoint."""
 
 from gauntletlib.cli import main
 

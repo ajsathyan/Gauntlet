@@ -1,4 +1,4 @@
-# Gauntlet Lite
+# Gauntlet
 
 {{RESPONSE_STYLE}}
 

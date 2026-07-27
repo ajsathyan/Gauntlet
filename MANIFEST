@@ -3,7 +3,7 @@
     {
       "destination": "gauntlet/router/AGENTS.md",
       "executable": false,
-      "sha256": "d408f90c5bc60cd02594033f0c32ad2c6ea3dc439ddb4c0efd24702100620ec0",
+      "sha256": "476b4693c91579191594ae66aac87d972680a926c40aaad99bc6da02579d2513",
       "source": "router/AGENTS.md"
     },
     {
@@ -15,7 +15,7 @@
     {
       "destination": "gauntlet/scripts/gauntlet.py",
       "executable": true,
-      "sha256": "97944b39c3388791d92f75d8e09f4840376490545a1d0cef88fa2ebff20b39d8",
+      "sha256": "40ebd1ab400264d5a429f70523e416a4c25d2074d4826082b05d228085a6d594",
       "source": "scripts/gauntlet.py"
     },
     {
@@ -33,7 +33,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/cli_application.py",
       "executable": false,
-      "sha256": "4b27f47fbaa59cdbfec369335ce0b95a3acba38e5450645b06e57879005ddb18",
+      "sha256": "a7b8dfa4bd91d93fd86fee70509f679d862bc842579e6f1a6ed0511c9bfcdd36",
       "source": "scripts/gauntletlib/cli_application.py"
     },
     {
@@ -111,7 +111,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/install/verify.py",
       "executable": false,
-      "sha256": "ada8037cfa5c6367839a4759fb249ff1f0dc6f81ea6c2015621a653194978d76",
+      "sha256": "4001bc4835bd3ae7de7b6e20b050dd775536203eb2b9a66f24dd96fe4eae8728",
       "source": "scripts/gauntletlib/install/verify.py"
     },
     {
@@ -147,7 +147,7 @@
     {
       "destination": "gauntlet/scripts/install.sh",
       "executable": true,
-      "sha256": "71d4e69e33da783f9329d0cfd16ccf1d6538faf11522c5c575f9f6d4e29e264c",
+      "sha256": "277d7e80ffedd34323459e261d18af0105128a86a6d7571734e49f07fea87ead",
       "source": "scripts/install.sh"
     },
     {
@@ -183,7 +183,7 @@
     {
       "destination": "skills/orchestrate/SKILL.md",
       "executable": false,
-      "sha256": "440cbbf837ad7f01316c19098e22dab6e3b10d257a8db68c169b311389d113fb",
+      "sha256": "e4c2b7171d14bd16985d9d2eb43786d995b1a89d3ffb9db8834cf56352e36186",
       "source": "skills/orchestrate/SKILL.md"
     },
     {

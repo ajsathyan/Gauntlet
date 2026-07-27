@@ -5,10 +5,42 @@ import json
 from tests.workflow.fixtures import ROOT, ROUTER_MD, SKILLS, assert_contains, read
 
 
-def test_plugin_manifests_bundle_shared_skills():
+def test_package_and_plugin_identity():
     manifest = json.loads(read(ROOT / ".codex-plugin" / "plugin.json"))
-    if manifest["name"] != "gauntlet-lite" or manifest.get("skills") != "./skills/":
-        raise AssertionError("plugin manifest must expose shared Gauntlet Lite skills")
+    expected = {
+        "name": "gauntlet",
+        "version": "3.0.0",
+        "description": "A lean implementation and release workflow for GPT-5.6 Sol in Codex.",
+        "homepage": "https://github.com/ajsathyan/Gauntlet",
+        "repository": "https://github.com/ajsathyan/Gauntlet",
+        "keywords": [
+            "codex", "gpt-5.6-sol", "product", "engineering", "verification", "release",
+        ],
+        "skills": "./skills/",
+    }
+    for key, value in expected.items():
+        if manifest.get(key) != value:
+            raise AssertionError(f"unexpected plugin {key}: {manifest.get(key)!r}")
+    interface = manifest.get("interface", {})
+    expected_interface = {
+        "displayName": "Gauntlet",
+        "shortDescription": "Lean Codex workflow for GPT-5.6 Sol",
+        "longDescription": "Proportional planning, orchestrated implementation, Verify, consistent pull requests, and explicit deployment accounting for Codex.",
+        "websiteURL": "https://github.com/ajsathyan/Gauntlet",
+    }
+    for key, value in expected_interface.items():
+        if interface.get(key) != value:
+            raise AssertionError(f"unexpected plugin interface {key}: {interface.get(key)!r}")
+    package = read(ROOT / "pyproject.toml")
+    for marker in (
+        'name = "gauntlet"',
+        'version = "3.0.0"',
+        'description = "A lean implementation and release workflow for GPT-5.6 Sol in Codex."',
+    ):
+        assert_contains(package, marker, "Python package identity")
+
+
+def test_plugin_bundles_shared_skills():
     names = sorted(path.parent.name for path in SKILLS.glob("*/SKILL.md"))
     expected = sorted(
         [

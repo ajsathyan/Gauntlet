@@ -6,7 +6,7 @@ import unittest
 from support import ROOT
 
 
-class LiteSkillContractTests(unittest.TestCase):
+class SkillContractTests(unittest.TestCase):
     def test_skill_eval_fixtures_target_retained_surface(self):
         cases = json.loads((ROOT / "evals" / "skill-evals.json").read_text())["cases"]
         retained = {

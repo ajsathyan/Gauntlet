@@ -47,7 +47,7 @@ def _verify_codex(agent_home, findings):
         text = codex_agents.read_text(encoding="utf-8")
         if text.count("BEGIN GAUNTLET MANAGED BLOCK") != 1 or text.count("END GAUNTLET MANAGED BLOCK") != 1:
             findings.append({"code": "invalid_codex_managed_block", "severity": "fail", "message": "Codex AGENTS.md must contain exactly one complete Gauntlet managed block."})
-        if "# Gauntlet Lite" not in text:
+        if "# Gauntlet" not in text.splitlines():
             findings.append({"code": "missing_codex_router", "severity": "fail", "message": "Codex AGENTS.md lacks the installed Gauntlet router."})
 
 
