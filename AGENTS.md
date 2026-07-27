@@ -1,7 +1,7 @@
 # Gauntlet Lite Contributor Guide
 
 Gauntlet Lite is a compact product, proof, and release workflow for Codex. The
-installed router is `router/AGENTS.md`; procedures live in the nine retained
+installed router is `router/AGENTS.md`; procedures live in the ten retained
 `skills/` packages.
 
 ## Workflow
@@ -10,7 +10,7 @@ installed router is `router/AGENTS.md`; procedures live in the nine retained
 - Before non-trivial implementation, use `design` and the main-agent six-lens
   review: Product, Engineering, Design, Analytics, QA, and Performance.
 - Require acceptance of the exact final `Acceptance` section.
-- Plan and implement natively in the main task. Use subagents only when AJS asks.
+- Use `orchestrate` for every implementation and keep approvals in the main task.
 - Commit a coherent candidate, then use `verify` on that exact commit/tree/base.
 - After passing proof, use `land` and `ship` without another routine prompt.
 

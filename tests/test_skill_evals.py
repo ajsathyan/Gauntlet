@@ -27,9 +27,9 @@ class LiteSkillContractTests(unittest.TestCase):
             self.assertIn(marker, text)
         self.assertIn("does not end", text)
 
-    def test_only_nine_canonical_skills_remain(self):
+    def test_only_ten_canonical_skills_remain(self):
         skills = sorted(path.parent.name for path in (ROOT / "skills").glob("*/SKILL.md"))
-        self.assertEqual(len(skills), 9)
+        self.assertEqual(len(skills), 10)
         self.assertFalse(list((ROOT / "skills").glob("*/*/SKILL.md")))
 
 

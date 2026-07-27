@@ -13,7 +13,8 @@ def test_plugin_manifests_bundle_shared_skills():
     expected = sorted(
         [
             "adversarial-reviewer", "debugger", "design", "land",
-            "refactor-codebase", "refactor-performance", "researcher", "ship", "verify",
+            "orchestrate", "refactor-codebase", "refactor-performance", "researcher",
+            "ship", "verify",
         ]
     )
     if names != expected:
@@ -34,6 +35,7 @@ def test_lifecycle_authority_and_six_lenses():
     for marker in (
         "main agent reviews",
         "Show every material recommendation",
+        "Always invoke `orchestrate` for implementation",
         "without another routine prompt",
         "Gauntlet has no merge queue",
     ):

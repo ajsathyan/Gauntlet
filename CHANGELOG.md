@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add an orchestrate skill that is invoked for every Gauntlet Lite implementation.
 - Remove Land's duplicate post-merge GitHub Actions monitor and its monitor-specific API, output, tests, and guidance.
 - Allow Land to update an existing PR when failed checks belong to an older head.
 - Configure and enforce Pyright for the Python 3.9 runtime, resolving nullable callbacks, unchecked merge context, dynamic test loading, and optional-value diagnostics without suppressions.

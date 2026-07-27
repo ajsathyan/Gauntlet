@@ -25,7 +25,7 @@ Before non-trivial implementation, the main agent reviews the final contract
 through six lenses: Product, Engineering, Design, Analytics, QA, and Performance.
 Show every material recommendation before implementation; a recommendation never
 changes scope without user acceptance. A lens may say `Not applicable` with a
-reason. Use subagents only when the user explicitly requests them.
+reason. Always invoke `orchestrate` for implementation; approvals remain with the user.
 
 Require acceptance of the exact `Acceptance` section. It authorizes the scoped
 implementation, verification, commit, push, pull request, merge, ordinary declared

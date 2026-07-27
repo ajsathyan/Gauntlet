@@ -3,7 +3,7 @@
     {
       "destination": "gauntlet/router/AGENTS.md",
       "executable": false,
-      "sha256": "8e6043f28ee7b66781036e324b4676806797a8ecee729123829da26d2da89799",
+      "sha256": "d408f90c5bc60cd02594033f0c32ad2c6ea3dc439ddb4c0efd24702100620ec0",
       "source": "router/AGENTS.md"
     },
     {
@@ -179,6 +179,12 @@
       "executable": false,
       "sha256": "af21461fc77f0818e2e1c58279d92f6d0e32f0d9fc690bd42eab20ebc7385fa5",
       "source": "skills/land/SKILL.md"
+    },
+    {
+      "destination": "skills/orchestrate/SKILL.md",
+      "executable": false,
+      "sha256": "440cbbf837ad7f01316c19098e22dab6e3b10d257a8db68c169b311389d113fb",
+      "source": "skills/orchestrate/SKILL.md"
     },
     {
       "destination": "skills/refactor-codebase/SKILL.md",
