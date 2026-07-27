@@ -24,7 +24,7 @@ def run_cli(*arguments):
 def valid_handoff():
     return {
         "schemaVersion": "1.0",
-        "title": "workflow: simplify Gauntlet Lite",
+        "title": "workflow: simplify Gauntlet",
         "problem": {"context": "The workflow is costly.", "impact": "Routine work pays ceremony."},
         "solution": {
             "outcome": "Retain a compact behavior-first workflow.",
@@ -32,7 +32,7 @@ def valid_handoff():
             "preserved": ["Established PR format."],
             "nonGoals": ["Merge queues."],
         },
-        "changelog": "Simplify Gauntlet Lite around behavior-first proof.",
+        "changelog": "Simplify Gauntlet around behavior-first proof.",
         "testing": [{"command": "python3 scripts/check-gauntlet-workflow.py", "result": "pass", "proves": "Supported workflow checks pass."}],
         "securityRisk": None,
         "sourceBinding": {

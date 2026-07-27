@@ -1,6 +1,6 @@
-# Gauntlet Lite Contributor Guide
+# Gauntlet Contributor Guide
 
-Gauntlet Lite is a compact product, proof, and release workflow for Codex. The
+Gauntlet is a compact product, proof, and release workflow for Codex. The
 installed router is `router/AGENTS.md`; procedures live in the ten retained
 `skills/` packages.
 

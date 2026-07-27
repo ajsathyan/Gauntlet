@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0",
-  "description": "Structural matcher cases for retained Gauntlet Lite skills. These do not claim agent behavior.",
+  "description": "Structural matcher cases for retained Gauntlet skills. These do not claim agent behavior.",
   "cases": [
     {
       "id": "design-task-as-contract",

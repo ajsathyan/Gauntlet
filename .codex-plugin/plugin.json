@@ -1,32 +1,34 @@
 {
-  "name": "gauntlet-lite",
-  "version": "0.1.0",
-  "description": "Sensor-free Gauntlet orchestration for product, implementation, review, and release work.",
+  "name": "gauntlet",
+  "version": "3.0.0",
+  "description": "A lean implementation and release workflow for GPT-5.6 Sol in Codex.",
   "author": {
     "name": "AJS Sathyan",
     "url": "https://github.com/ajsathyan"
   },
-  "homepage": "https://github.com/ajsathyan/Gauntlet-lite",
-  "repository": "https://github.com/ajsathyan/Gauntlet-lite",
+  "homepage": "https://github.com/ajsathyan/Gauntlet",
+  "repository": "https://github.com/ajsathyan/Gauntlet",
   "license": "MIT",
   "keywords": [
-    "workflow",
+    "codex",
+    "gpt-5.6-sol",
     "product",
-    "review",
+    "engineering",
+    "verification",
     "release"
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Gauntlet Lite",
-    "shortDescription": "Sensor-free product and engineering workflow",
-    "longDescription": "Shape, accept, implement, review, verify, land, and ship product and engineering work with proportional direct proof.",
+    "displayName": "Gauntlet",
+    "shortDescription": "Lean Codex workflow for GPT-5.6 Sol",
+    "longDescription": "Proportional planning, orchestrated implementation, Verify, consistent pull requests, and explicit deployment accounting for Codex.",
     "developerName": "AJS Sathyan",
     "category": "Productivity",
     "capabilities": [
       "Read",
       "Write"
     ],
-    "websiteURL": "https://github.com/ajsathyan/Gauntlet-lite",
+    "websiteURL": "https://github.com/ajsathyan/Gauntlet",
     "defaultPrompt": [
       "Shape this feature and identify the first useful build step.",
       "Implement this accepted change and prove the result.",

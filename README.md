@@ -1,73 +1,88 @@
-# Gauntlet Lite
+# Gauntlet 3
 
-Gauntlet Lite is a compact workflow for shaping, proving, landing, and shipping
-Codex work. It keeps the safety and product decisions that matter without custom
-agent routing, sensors, durable queues, role handoffs, or simulated release stages.
+Gauntlet is a lean implementation and release workflow for GPT-5.6 Sol in Codex. It is designed primarily for hobbyists and independent builders who want Codex to carry a change from an idea to verified code and a consistently structured pull request without accumulating unnecessary process.
 
-## Flow
+Version 3 removes controllers, queues, context machinery, specialist handoffs, and release simulations.
+
+The remaining workflow is intentionally small: classify the request, accept material decisions once, orchestrate implementation, verify the exact candidate, land it through a consistent pull request, and follow the repository’s declared deployment path when appropriate.
+
+Gauntlet is designed to reduce repeated instructions and process overhead, unnecessary hedging after approval, speculative architecture or performance work, unsupported completion claims, and inconsistent pull requests.
+
+## Workflow
 
 ```text
-Normal request or accepted Design
-  -> implement and commit candidate
-  -> exact-revision Verify
-  -> Land through pull request
-  -> Ship and monitor
+Research
+  -> inspect and report
+
+Normal request
+  -> Orchestrate
+  -> Verify
+  -> Land
+  -> Ship
+
+Material request
+  -> Design and acceptance
+  -> Orchestrate
+  -> Verify
+  -> Land
+  -> Ship
 ```
 
-Research remains read-only and pays no implementation ceremony. Non-trivial work
-uses one accepted outcome contract and a mandatory main-agent review through six
-lenses: Product, Engineering, Design, Analytics, QA, and Performance. Irrelevant
-lenses say `Not applicable` with a reason. Recommendations are shown before
-implementation and never silently adopted.
+- **Proportional workflow:** routine and reversible work proceeds directly, research remains read-only, and only material decisions require Design and explicit acceptance.
+- **Orchestrate:** every implementation can use as many agents as the work warrants. The main Codex task retains the requirements, approvals, and final integration.
+- **Verify:** checks every accepted outcome using observable evidence from the exact candidate commit, tree, and base. A known failure fails verification, while missing required proof blocks landing.
+- **Land:** creates or updates a pull request using the same Problem, Solution, Changelog, and Testing format, waits for required checks and blocking reviews, and merges the verified candidate.
+- **Ship:** follows the repository’s declared deployment and monitoring path while keeping merged, deployed, and production-proved status separate.
 
-Verify evaluates every outcome independently, separating behavior from proof
-availability. Land preserves the existing Problem, Solution, Changelog, Testing,
-and conditional Security / Risk pull-request format. It directly merges without a
-Gauntlet or GitHub queue requirement. Ship accounts separately for deployment and
-attributable production proof.
+## Who it is for
 
-## Retained skills
+Gauntlet’s default lifecycle is best suited to personal and owner-controlled repositories.
+
+**Work repositories:** Land creates the pull request, waits for required checks and reviews, and then merges it. Ship handles deployment and monitoring. If your organization requires human merge approval, make Land PR-only and disable Ship unless it matches your production controls.
+
+## Included skills
+
+The core workflow uses:
 
 - `design`
 - `adversarial-reviewer`
 - `orchestrate`
-- `researcher`
-- `debugger`
 - `verify`
 - `land`
 - `ship`
+
+Gauntlet also includes focused procedures for research, debugging, broad codebase refactoring, and performance refactoring:
+
+- `researcher`
+- `debugger`
 - `refactor-codebase`
 - `refactor-performance`
 
-Planning and finding disposition are native agent behavior. Implementation uses
-`orchestrate`.
-Black-box, code, and experience review are triggered Verify modes. Comprehensive
-refactoring keeps capability, compatibility, ownership, rollback, and
-proof-before-retirement safeguards while making extra destinations, ledgers,
-proposal rounds, and specialist passes conditional.
+Planning and implementation remain native Codex behavior. The skills add durable guidance where consistency, proof, or release authority matters.
 
 ## Install
 
-Gauntlet Lite installs only for Codex:
+Gauntlet installs only for Codex:
 
 ```sh
 ./scripts/install.sh --target codex --instructions-reviewed
 ```
 
-The installer owns only its marked router block and receipt-listed runtime files.
-It preserves unrelated instructions and files, safely removes unchanged stale
-Gauntlet files, and leaves the existing personal email, terminology, and promotion
-skills installed but outside Gauntlet ownership.
+The installer owns only its marked router block and receipt-listed runtime files. It preserves unrelated instructions and files, removes unchanged stale Gauntlet files during upgrades, and leaves separately installed personal skills outside Gauntlet’s ownership.
 
-Uninstall removes only receipt-owned files:
+Restart or reload Codex after installation.
+
+To uninstall Gauntlet:
 
 ```sh
 ./scripts/install.sh --target codex --uninstall
 ```
 
-Restart or reload Codex after installation.
+Uninstall removes only files owned by the Gauntlet installation receipt.
 
 ## Development
+
+Install the development dependencies and run the repository checks:
 
 ```sh
 python3 -m pip install -e '.[dev]'
@@ -75,10 +90,12 @@ scripts/run-skill-change-checks.sh
 python3 scripts/check-gauntlet-workflow.py
 ```
 
-The deterministic evaluation tools remain repository development infrastructure;
-they are not installed into the Codex runtime.
+The deterministic evaluation tools are repository development infrastructure. They are not installed into the Codex runtime.
 
-See `docs/design-build-verify.md`, `docs/meaningful-proof.md`, and
-`docs/github-discipline.md`.
+Additional documentation:
 
-Gauntlet Lite is released under the MIT License.
+- [`docs/design-build-verify.md`](docs/design-build-verify.md)
+- [`docs/meaningful-proof.md`](docs/meaningful-proof.md)
+- [`docs/github-discipline.md`](docs/github-discipline.md)
+
+Gauntlet is released under the MIT License.

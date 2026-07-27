@@ -3,9 +3,9 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gauntlet-lite"
-version = "0.1.0"
-description = "A sensor-free product, implementation, review, and release workflow for Codex"
+name = "gauntlet"
+version = "3.0.0"
+description = "A lean implementation and release workflow for GPT-5.6 Sol in Codex."
 requires-python = ">=3.9"
 dependencies = []
 

@@ -1,4 +1,4 @@
-"""Construction and wiring for the Gauntlet Lite CLI."""
+"""Construction and wiring for the Gauntlet CLI."""
 
 from gauntletlib.cli_support import build_parser as build_cli_parser
 from gauntletlib.cli_support import dispatch
