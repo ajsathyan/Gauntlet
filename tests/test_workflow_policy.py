@@ -63,7 +63,6 @@ class WorkflowPolicyTests(unittest.TestCase):
             ROOT / "scripts" / "gauntletlib" / "workflow",
             ROOT / "scripts" / "test-doc-lifecycle.py",
             ROOT / "scripts" / "test-flexible-prd.py",
-            ROOT / "templates" / "local-docs",
             ROOT / "docs" / "local-documentation.md",
             ROOT / "tests" / "test_doc_lifecycle.py",
             ROOT / "tests" / "test_flexible_prd.py",
