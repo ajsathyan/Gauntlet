@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Make Gauntlet the single canonical workflow source and remove the final retired local-document reference.
 - Reduce CI consumption by running Gauntlet's complete pull-request verification in one job without a duplicate main-branch run, enforcing only repository-required checks during Land, and limiting Ship to observation of already-triggered deployments.
 
 ## 3.0.0 - 2026-07-27
