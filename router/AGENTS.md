@@ -51,10 +51,15 @@ are not behavioral proof.
 After Verify passes, use `land` without another routine prompt. Land binds the
 verified candidate commit, tree, and checked base; resolves writable-head and PR-base
 identities; preserves the established PR format; refuses ambiguity or known drift;
-and directly merges. Gauntlet has no merge queue. Rare direct-merge races are checked
-on the landed revision and recovered ad hoc.
+and directly merges. Only repository-required checks block Land. If none are
+required, CI is not required; never recommend adding CI solely for Gauntlet.
+Gauntlet has no merge queue. Rare direct-merge races are checked on the landed
+revision and recovered ad hoc.
 
-Then use `ship` for the repository's declared deployment and attributable
-monitoring. Keep implemented, committed, pushed, merged, deployed, and
-production-proved claims separate. Missing production proof is `Cannot verify`,
-never proof of health.
+Then use `ship` to observe declared deployments already triggered by the merge
+and their attributable monitoring. Never dispatch or rerun deployment or generic
+CI workflows. Require neither generic CI nor synthetic monitoring, and never
+create synthetic monitoring. Preserve intentionally configured merge-triggered
+deployments. No declared deployment is `Not configured`. Keep implemented,
+committed, pushed, merged, deployed, and production-proved claims separate.
+Missing production proof is `Cannot verify`, never proof of health.

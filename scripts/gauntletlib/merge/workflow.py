@@ -450,9 +450,14 @@ def add_existing_pr_blockers(payload, pr, expected_head=None):
             f"Pull request mergeable state is {pr.get('mergeable')}.",
         )
     if head_is_current:
-        check_status, check_message = checks_state(
-            pr.get("statusCheckRollup", [])
-        )
+        check_status, check_message = required_checks_state(pr)
+        if check_status == "error":
+            add_finding(
+                payload,
+                "pull_request_required_checks_unresolved",
+                "review",
+                check_message,
+            )
         if check_status == "failing":
             add_finding(
                 payload,
@@ -703,9 +708,7 @@ def refreshed_pr_is_mergeable(payload, pr, expected_head=None):
             "fail",
             "Pull request head no longer matches the planned candidate revision.",
         )
-    check_status, check_message = checks_state(
-        pr.get("statusCheckRollup", [])
-    )
+    check_status, check_message = required_checks_state(pr)
     if check_status != "passing":
         add_finding(
             payload,
@@ -719,15 +722,32 @@ def refreshed_pr_is_mergeable(payload, pr, expected_head=None):
 def wait_for_pr_checks(repo, timeout_seconds=60, poll_seconds=2):
     deadline = time.monotonic() + timeout_seconds
     last_error = None
+    last_pr = None
     while True:
         pr, last_error = current_pr(repo)
-        if pr and pr.get("statusCheckRollup"):
-            return pr, None
+        if pr:
+            last_pr = pr
+            discovery_error = pr.get("requiredStatusChecksError")
+            if (
+                discovery_error is None
+                and pr.get("requiredStatusChecksReported") is not False
+            ):
+                return pr, None
+            last_error = discovery_error
         if time.monotonic() >= deadline:
+            if (
+                last_pr
+                and last_pr.get("requiredStatusChecksError") is None
+                and last_pr.get("requiredStatusChecksReported") is False
+            ):
+                # `gh` cannot distinguish no configured checks from required
+                # workflows that have not registered yet. Only accept the empty
+                # result after preserving a registration window.
+                return last_pr, None
             return (
                 pr,
                 last_error
-                or f"No PR status checks were reported within {timeout_seconds} seconds.",
+                or f"Required PR checks could not be discovered within {timeout_seconds} seconds.",
             )
         time.sleep(poll_seconds)
 
@@ -911,10 +931,24 @@ def execute_merge_plan(
                 )
                 break
             action["prNumber"] = pr.get("number")
-            result = gh(
-                ["pr", "checks", str(pr.get("number")), "--watch"],
-                repo,
-            )
+            if pr.get("requiredStatusChecks"):
+                result = gh(
+                    [
+                        "pr",
+                        "checks",
+                        str(pr.get("number")),
+                        "--watch",
+                        "--required",
+                    ],
+                    repo,
+                )
+            else:
+                result = subprocess.CompletedProcess(
+                    ["pr", "checks", str(pr.get("number")), "--required"],
+                    0,
+                    "No required checks are configured.\n",
+                    "",
+                )
         elif action_type == "gh_pr_merge":
             pr, _ = current_pr(repo)
             if not refreshed_pr_is_mergeable(payload, pr, expected_head):
@@ -1068,6 +1102,14 @@ def checks_state(status_rollup):
     pending = []
     failing = []
     for check in status_rollup:
+        bucket = str(check.get("bucket") or "").lower()
+        name = check.get("name") or check.get("context") or "check"
+        if bucket:
+            if bucket == "pending":
+                pending.append(name)
+            elif bucket not in {"pass", "skipping"}:
+                failing.append(f"{name}={check.get('state') or bucket}")
+            continue
         typename = check.get("__typename")
         if typename == "CheckRun":
             status = check.get("status")
@@ -1096,6 +1138,50 @@ def checks_state(status_rollup):
     return "passing", "PR checks passed."
 
 
+def required_checks_state(pr):
+    error = pr.get("requiredStatusChecksError")
+    if error:
+        return "error", f"Could not discover required PR checks: {error}"
+    checks = pr.get("requiredStatusChecks")
+    if checks is None:
+        return "error", "Required PR check discovery was not performed."
+    if not checks:
+        return "passing", "No required PR checks are configured."
+    return checks_state(checks)
+
+
+def required_pr_checks(repo, number):
+    result = gh(
+        [
+            "pr",
+            "checks",
+            str(number),
+            "--required",
+            "--json",
+            "bucket,name,state",
+        ],
+        repo,
+    )
+    try:
+        checks = json.loads(result.stdout)
+    except (json.JSONDecodeError, TypeError):
+        checks = None
+    if isinstance(checks, list):
+        # `gh pr checks` uses non-zero status codes for failed or pending checks;
+        # valid JSON still proves that required-check discovery succeeded.
+        return checks, None, bool(checks)
+    message = result.stderr.strip() or result.stdout.strip()
+    if message.lower().startswith("no required checks reported on the "):
+        # GitHub CLI exits 1 and emits no JSON both when no checks are required
+        # and while a configured required workflow has not registered yet.
+        return [], None, False
+    return (
+        None,
+        message or "GitHub returned no required-check data.",
+        False,
+    )
+
+
 def current_pr(repo):
     result = gh(
         [
@@ -1109,4 +1195,11 @@ def current_pr(repo):
     )
     if result.returncode != 0:
         return None, result.stderr.strip() or result.stdout.strip()
-    return json.loads(result.stdout), None
+    pr = json.loads(result.stdout)
+    required, required_error, required_reported = required_pr_checks(
+        repo, pr.get("number")
+    )
+    pr["requiredStatusChecks"] = required
+    pr["requiredStatusChecksError"] = required_error
+    pr["requiredStatusChecksReported"] = required_reported
+    return pr, None

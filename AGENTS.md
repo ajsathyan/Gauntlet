@@ -31,7 +31,14 @@ privacy, security, data-loss, or production effects.
 
 Preserve unrelated work. Gauntlet has no merge queue. Land fails on ambiguous
 remotes or known stale proof, verifies the landed revision, and handles rare
-direct-merge races ad hoc.
+direct-merge races ad hoc. Only repository-required checks block Land; when none
+are required, CI is not required, and Gauntlet never recommends adding CI solely
+for itself. Ship only observes declared deployments already triggered by the
+merge. It never dispatches or reruns deployment or generic CI workflows. It
+requires neither generic CI nor synthetic monitoring and never creates synthetic
+monitoring. Preserve intentionally configured merge-triggered deployments. No
+declared deployment is `Not configured`; missing attributable proof is `Cannot
+verify`.
 
 ## Repository checks
 
