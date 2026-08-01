@@ -3,7 +3,7 @@
     {
       "destination": "gauntlet/router/AGENTS.md",
       "executable": false,
-      "sha256": "476b4693c91579191594ae66aac87d972680a926c40aaad99bc6da02579d2513",
+      "sha256": "962e5f152515191753b0f504d4b6f8812318056d1cd362bda182f30bfb9698db",
       "source": "router/AGENTS.md"
     },
     {
@@ -135,7 +135,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/merge/workflow.py",
       "executable": false,
-      "sha256": "cd4e334822744ee1ca06aa81248a9ede5bdb3a97c3f3babc14b4ef809397204e",
+      "sha256": "d33f53623899d813424c2b704c9d56528701cec1d39edced9f5e6726c78cac13",
       "source": "scripts/gauntletlib/merge/workflow.py"
     },
     {
@@ -177,7 +177,7 @@
     {
       "destination": "skills/land/SKILL.md",
       "executable": false,
-      "sha256": "af21461fc77f0818e2e1c58279d92f6d0e32f0d9fc690bd42eab20ebc7385fa5",
+      "sha256": "5b0b1d6d9db3b52dcbffa64e1a55d74b3950f18bfb95175d402185d02d6aee3b",
       "source": "skills/land/SKILL.md"
     },
     {
@@ -207,7 +207,7 @@
     {
       "destination": "skills/ship/SKILL.md",
       "executable": false,
-      "sha256": "321167f8ac08f6852a49d9d393b9e47beb69e49811170c1c9bcfba44aa9d0d94",
+      "sha256": "2be03358a94ec0b78f4dbd7c13b9ec462aa701129d320234f4e009d62295e8fa",
       "source": "skills/ship/SKILL.md"
     },
     {

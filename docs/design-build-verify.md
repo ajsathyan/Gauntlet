@@ -25,12 +25,18 @@ behavior.
 ## Land
 
 Land compares the candidate and base binding, resolves the writable head and PR
-base independently, pushes, prepares the established PR format, waits for required
-checks and blocking reviews, and directly merges. Known drift requires update and
-affected re-verification. The landed revision is checked after merge.
+base independently, pushes, prepares the established PR format, waits only for
+repository-required checks and blocking reviews, and directly merges. When no
+checks are required, CI is not required; do not recommend adding CI solely for
+Gauntlet. Known drift requires update and affected re-verification. The landed
+revision is checked after merge.
 
 ## Ship
 
-Ship observes the repository's declared deployment and monitoring mechanisms.
-Merged, deployed, and production-proved are separate claims. Missing attributable
-production proof is `Cannot verify`, never a pass.
+Ship observes only declared deployments already triggered by the merge and their
+attributable monitoring. It does not dispatch or rerun deployment or generic CI
+workflows. It requires neither generic CI nor synthetic monitoring and never
+creates synthetic monitoring. Intentionally configured merge-triggered
+deployments remain intact. No declared deployment is `Not configured`. Merged,
+deployed, and production-proved are separate claims. Missing attributable proof
+is `Cannot verify`, never a pass.

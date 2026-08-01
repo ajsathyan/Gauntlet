@@ -2,25 +2,14 @@ name: Gauntlet
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
 
 jobs:
   checks:
-    name: ${{ matrix.group }}
+    name: Verify Gauntlet
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        group:
-          - policy
-          - install
-          - contracts
-          - evals
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -31,27 +20,24 @@ jobs:
           python-version: "3.12"
 
       - name: Check install manifest
-        if: matrix.group == 'policy'
         run: python3 scripts/generate-install-manifest.py --check
 
       - name: Install Python quality tools
-        if: matrix.group == 'policy'
         run: python3 -m pip install '.[dev]'
 
       - name: Check Python quality
-        if: matrix.group == 'policy'
         run: |
           python3 -m ruff check .
           python3 -m pyright
 
-      - name: Run ${{ matrix.group }} checks
-        run: python3 scripts/check-gauntlet-workflow.py --group "${{ matrix.group }}"
+      - name: Run policy checks
+        run: python3 scripts/check-gauntlet-workflow.py --group policy
 
-  gauntlet:
-    if: always()
-    needs:
-      - checks
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require every check group
-        run: test "${{ needs.checks.result }}" = "success"
+      - name: Run install checks
+        run: python3 scripts/check-gauntlet-workflow.py --group install
+
+      - name: Run contract checks
+        run: python3 scripts/check-gauntlet-workflow.py --group contracts
+
+      - name: Run eval checks
+        run: python3 scripts/check-gauntlet-workflow.py --group evals

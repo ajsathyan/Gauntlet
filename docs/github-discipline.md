@@ -23,4 +23,10 @@ not proof.
 
 Clean up only state represented by the landed revision. Preserve modified files,
 unique commits, branch drift, and other worktrees. Deployment and monitoring begin
-in Ship, after Land has confirmed the merge and synchronized local state.
+in Ship, after Land has confirmed the merge and synchronized local state. Only
+repository-required checks block Land; absent required checks, CI is not required,
+and Gauntlet does not recommend adding it solely for its own workflow. Ship
+observes intentionally configured deployments already triggered by the merge; it
+does not dispatch or rerun them or generic CI, require generic CI, or invent
+or require synthetic monitoring. With no declared deployment, report `Not
+configured`; with missing attributable proof, report `Cannot verify`.

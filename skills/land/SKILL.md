@@ -28,11 +28,13 @@ python3 scripts/gauntlet.py land execute \
   --git-root "$PROJECT_ROOT" --handoff "$HANDOFF" --body "$PR_BODY" --json
 ```
 
-Land pushes, creates or updates the ready PR, waits for required checks and
-blocking reviews, and directly merges with the expected head. Gauntlet has no
-queue or auto-merge requirement. Direct unprotected merge retains a narrow race
-after the last base comparison; verify the landed revision and recover ad hoc if
-integration changed behavior.
+Land pushes, creates or updates the ready PR, waits only for checks required by
+the repository's branch policy and for blocking reviews, and directly merges with
+the expected head. When no checks are required, Land does not require CI and
+proceeds without it. Never recommend adding CI solely to satisfy Gauntlet.
+Gauntlet has no queue or auto-merge requirement. Direct unprotected merge retains
+a narrow race after the last base comparison; verify the landed revision and
+recover ad hoc if integration changed behavior.
 
 Clean up only state proven represented by the landed revision. Preserve modified
 files, unique commits, drift, or other worktrees.

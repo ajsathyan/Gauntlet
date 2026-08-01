@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reduce CI consumption by running Gauntlet's complete pull-request verification in one job without a duplicate main-branch run, enforcing only repository-required checks during Land, and limiting Ship to observation of already-triggered deployments.
+
 ## 3.0.0 - 2026-07-27
 
 - Reset Gauntlet around a compact, proportional workflow and removed controllers, queues, context machinery, specialist handoffs, release simulations, unsupported compatibility paths, and obsolete infrastructure.
