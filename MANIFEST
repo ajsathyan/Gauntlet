@@ -183,7 +183,7 @@
     {
       "destination": "skills/orchestrate/SKILL.md",
       "executable": false,
-      "sha256": "e4c2b7171d14bd16985d9d2eb43786d995b1a89d3ffb9db8834cf56352e36186",
+      "sha256": "bb9dd1d2be50feb40638cd3d76f8a38b0f799d563c5d6119317e645277be37fc",
       "source": "skills/orchestrate/SKILL.md"
     },
     {

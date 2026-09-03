@@ -5,4 +5,11 @@ description: Coordinate multiple agents for implementation. Use for every implem
 
 # Orchestrate
 
-Remain available to the user while delegating substantive work. Run narrow, read-only scouts in parallel with `reasoning_effort: "low"` and `fork_turns: "none"`. Use `reasoning_effort: "medium"` for routine implementation and `"high"` for difficult work. Give each agent distinct ownership, prevent overlapping assignments, and instruct leaf workers not to delegate. Integrate the results and keep approvals with the user.
+Remain available to the user while delegating substantive work. Route agents by role and consequence:
+
+- Run narrow, read-only scouts on `gpt-5.6-luna` with `reasoning_effort: "medium"`.
+- Run clear, bounded leaf implementations that do not need delegation on `gpt-5.6-luna` with `reasoning_effort: "high"`. Use `"xhigh"` when the bounded task is unusually difficult or fragile.
+- Use `gpt-5.6-sol` with `reasoning_effort: "high"` for coordinators or agents that must resolve material ambiguity, synthesize across workstreams, message peers, or delegate recursively. Their clearly bounded leaf workers may still use Luna.
+- Use Sol for high-consequence security, migration, architecture, or difficult debugging work even when the task appears bounded.
+
+An explicit model override cannot use `fork_turns: "all"`; use `"none"` or a positive number of turns and provide a self-contained assignment with the necessary context. Give each agent distinct ownership, prevent overlapping assignments, and instruct leaf workers not to delegate. Integrate the results and keep approvals with the user.
