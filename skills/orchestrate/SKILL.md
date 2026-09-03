@@ -5,6 +5,8 @@ description: Coordinate multiple agents for implementation. Use for every implem
 
 # Orchestrate
 
+All delegated work runs through internal subagents. Do not create new user-visible Codex tasks or threads unless the user explicitly asks for them.
+
 Remain available to the user while delegating substantive work. Route agents by role and consequence:
 
 - Run narrow, read-only scouts on `gpt-5.6-luna` with `reasoning_effort: "medium"`.
