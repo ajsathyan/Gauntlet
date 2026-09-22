@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO=""
 GAUNTLET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CHECK_ONLY=0
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -13,6 +14,10 @@ while [ "$#" -gt 0 ]; do
     --gauntlet-root)
       GAUNTLET_ROOT="$2"
       shift 2
+      ;;
+    --check)
+      CHECK_ONLY=1
+      shift
       ;;
     *)
       echo "unknown argument: $1" >&2
@@ -30,6 +35,17 @@ case "$GIT_DIR" in
   /*) ;;
   *) GIT_DIR="$REPO/$GIT_DIR" ;;
 esac
+
+REPO_RUNNER="$REPO/scripts/run-skill-change-checks.sh"
+FALLBACK_RUNNER="$GAUNTLET_ROOT/scripts/run-skill-change-checks.sh"
+if [ ! -x "$REPO_RUNNER" ] && [ ! -x "$FALLBACK_RUNNER" ]; then
+  echo "Cannot install Gauntlet pre-commit hook: no executable run-skill-change-checks.sh is available." >&2
+  exit 1
+fi
+
+if [ "$CHECK_ONLY" = "1" ]; then
+  exit 0
+fi
 
 HOOK_DIR="$GIT_DIR/hooks"
 HOOK="$HOOK_DIR/pre-commit"

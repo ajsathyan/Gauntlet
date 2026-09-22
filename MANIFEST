@@ -3,7 +3,7 @@
     {
       "destination": "gauntlet/router/AGENTS.md",
       "executable": false,
-      "sha256": "962e5f152515191753b0f504d4b6f8812318056d1cd362bda182f30bfb9698db",
+      "sha256": "8dfed9ad8fac5f4c248ef75953726bc91957b77b91b4934dfc17e043377cfb45",
       "source": "router/AGENTS.md"
     },
     {
@@ -45,13 +45,13 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/contracts/__init__.py",
       "executable": false,
-      "sha256": "5d8771e859e0c094ac69b28fa30205a3e9e5b342e8a27910653ba3780968cc66",
+      "sha256": "6d0ce04003b6fef61c40defd3b63774bca8713feedcf65eedde0c5c724985654",
       "source": "scripts/gauntletlib/contracts/__init__.py"
     },
     {
       "destination": "gauntlet/scripts/gauntletlib/contracts/handoff.py",
       "executable": false,
-      "sha256": "fb030a8948208516671cf69f59755a3235c48d2c547b7f0037a62d78c50a1ba7",
+      "sha256": "24f8488cc3f8c2d41d2c2752fb8bda995c0acb6cb66726a9994ef5e7f4387eca",
       "source": "scripts/gauntletlib/contracts/handoff.py"
     },
     {
@@ -111,7 +111,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/install/verify.py",
       "executable": false,
-      "sha256": "4001bc4835bd3ae7de7b6e20b050dd775536203eb2b9a66f24dd96fe4eae8728",
+      "sha256": "0fc56d2d5543cb7e0c5da440242b71754341b4f9185206d5e4cf0a386bbd66fb",
       "source": "scripts/gauntletlib/install/verify.py"
     },
     {
@@ -129,25 +129,25 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/merge/__init__.py",
       "executable": false,
-      "sha256": "7267614cd9f7898c1ace6af342220a30919aca1530e49677e0bd957027638b08",
+      "sha256": "4186b3aff2263953773c0c33900bf0954900d2f01ec4642ceb72ce286f361233",
       "source": "scripts/gauntletlib/merge/__init__.py"
     },
     {
       "destination": "gauntlet/scripts/gauntletlib/merge/workflow.py",
       "executable": false,
-      "sha256": "d33f53623899d813424c2b704c9d56528701cec1d39edced9f5e6726c78cac13",
+      "sha256": "cce608e5af606dbb0784531808afd86305f5f8332ed9444d87f38ea9aa54a7f2",
       "source": "scripts/gauntletlib/merge/workflow.py"
     },
     {
       "destination": "gauntlet/scripts/install-git-hooks.sh",
       "executable": true,
-      "sha256": "32471de6272fee76b7d56abd97e0c8a5430228d470a9b755665849095c85475f",
+      "sha256": "489a37ff0b67768898af82c23c5e815c1f4068e9e27ab8cf3e766bc7d20f4b90",
       "source": "scripts/install-git-hooks.sh"
     },
     {
       "destination": "gauntlet/scripts/install.sh",
       "executable": true,
-      "sha256": "277d7e80ffedd34323459e261d18af0105128a86a6d7571734e49f07fea87ead",
+      "sha256": "02877c0bac7cd4e7dd1f273c0c281977319cbab09a172db2524439d815b27dab",
       "source": "scripts/install.sh"
     },
     {
@@ -171,13 +171,13 @@
     {
       "destination": "skills/design/SKILL.md",
       "executable": false,
-      "sha256": "bc47f66bac682a7e6e1dde9cf699b406b68e3371aaaaba47fc0156414a911668",
+      "sha256": "5a8d19433f880de6d92f0bb99fe2de773bcfff2ccd5b2082aecc873833838a09",
       "source": "skills/design/SKILL.md"
     },
     {
       "destination": "skills/land/SKILL.md",
       "executable": false,
-      "sha256": "5b0b1d6d9db3b52dcbffa64e1a55d74b3950f18bfb95175d402185d02d6aee3b",
+      "sha256": "2fffba6d8bd16c077a6e5c07489d7ffe1f7618bd8ee6713e15a6d0977a9e6fb1",
       "source": "skills/land/SKILL.md"
     },
     {
@@ -213,7 +213,7 @@
     {
       "destination": "skills/verify/SKILL.md",
       "executable": false,
-      "sha256": "de2205251a37d9e58e2738804908547aa7fe17e58134b1446eeba9c4d372f545",
+      "sha256": "b43697fddd7f18d0acbf3f6d8d940ff3ef94cf242586ce6549886226a0447e7b",
       "source": "skills/verify/SKILL.md"
     }
   ],

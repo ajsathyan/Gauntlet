@@ -2,11 +2,17 @@
 
 ## Design
 
+Research remains read-only. Bounded, reversible Normal Requests proceed directly
+to implementation and checks without this gate.
+
 A complete task can be the Design. Otherwise one concise Design resolves material
 behavior, authority, edge cases, required non-effects, and observable acceptance.
 The main agent reviews the exact contract through Product, Engineering, Design,
 Analytics, QA, and Performance lenses. The user sees material recommendations and
 accepts the exact final `Acceptance` section before implementation.
+Present Acceptance in delivery phases for readability, not repeated approvals.
+Carry existing approval forward; ask again only for material changes to scope or
+consequences outside the accepted contract.
 
 ## Build
 

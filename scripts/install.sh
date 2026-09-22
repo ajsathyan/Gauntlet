@@ -202,6 +202,10 @@ for finding in preflight_payload(root, home):
 preflight_generated_payload(home, "gauntlet/AGENTS.md", router)
 PY
 
+if [ "$SKIP_GIT_HOOKS" = "0" ] && [ -d "$ROOT/.git" ]; then
+  "$ROOT/scripts/install-git-hooks.sh" --repo "$ROOT" --gauntlet-root "$ROOT" --check
+fi
+
 if [ "$CHECK_ONLY" = "1" ]; then exit 0; fi
 
 mkdir -p "$AGENT_HOME/gauntlet" "$AGENT_HOME/skills"

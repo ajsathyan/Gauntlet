@@ -20,7 +20,8 @@ and research-only work do not use this gate.
 5. Run the `adversarial-reviewer` six-lens pass against the exact final contract.
 6. Show every material recommendation before implementation. Record `accepted`,
    `rejected`, `deferred`, or `omitted` with a reason.
-7. Require the user to accept the exact `Acceptance` section. A semantic edit
+7. Present Acceptance in delivery phases for readability, not extra gates.
+   Require the user to accept the exact `Acceptance` section once. A semantic edit
    reruns affected lenses and requires acceptance of the revised section.
 
 Ask only when an answer changes scope, behavior, authority, risk, cost, or an
@@ -31,7 +32,8 @@ implementation authority.
 
 Acceptance authorizes the scoped implementation, verification, commit, push,
 pull request, merge, ordinary declared deployment, and monitoring. Explicit
-narrower limits win. Stop for an unexpected destructive, credential,
+narrower limits win. Carry that authority forward without routine reapproval.
+Stop for an unexpected destructive, credential,
 migration, privacy, security, data-loss, or production effect.
 
 ## Output

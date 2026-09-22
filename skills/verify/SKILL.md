@@ -35,4 +35,25 @@ Report Architecture separately as `Passed`, `Failed`, `Blocked`, or
 Build and applicable Architecture to pass on the same commit, tree, and base.
 
 Return exact revision evidence, per-outcome results, both aggregate verdicts,
-negative-control result, environment limits, and the next unresolved check.
+negative-control result, environment limits, and the next unresolved check. For
+Land, record the aggregate result in the merge handoff using this exact shape:
+
+```json
+{
+  "verification": {
+    "build": "Passed",
+    "architecture": "Passed",
+    "sourceBinding": {
+      "repository": "/absolute/path/to/repository",
+      "commit": "<exact-git-object-id>",
+      "tree": "<exact-git-object-id>",
+      "base": "<exact-git-object-id>"
+    }
+  }
+}
+```
+
+Architecture may instead be `Not applicable`. The declarative handoff lets Land
+reject missing, non-passing, or stale verdicts; it does not authenticate evidence
+or user approval. Keep the handoff outside the candidate tree when needed to
+avoid changing the revision it describes.

@@ -8,6 +8,10 @@ from gauntletlib.core.findings import status_for
 from gauntletlib.install.manifest import verify_payload
 
 
+BEGIN = "<!-- BEGIN GAUNTLET MANAGED BLOCK -->"
+END = "<!-- END GAUNTLET MANAGED BLOCK -->"
+
+
 def _missing(findings, path, code):
     if not path.exists():
         findings.append(
@@ -45,10 +49,15 @@ def _verify_codex(agent_home, findings):
     _missing(findings, codex_agents, "missing_codex_agents")
     if codex_agents.exists():
         text = codex_agents.read_text(encoding="utf-8")
-        if text.count("BEGIN GAUNTLET MANAGED BLOCK") != 1 or text.count("END GAUNTLET MANAGED BLOCK") != 1:
+        if text.count(BEGIN) != 1 or text.count(END) != 1 or text.index(BEGIN) > text.index(END):
             findings.append({"code": "invalid_codex_managed_block", "severity": "fail", "message": "Codex AGENTS.md must contain exactly one complete Gauntlet managed block."})
-        if "# Gauntlet" not in text.splitlines():
-            findings.append({"code": "missing_codex_router", "severity": "fail", "message": "Codex AGENTS.md lacks the installed Gauntlet router."})
+            return
+        installed_router = agent_home / "gauntlet" / "AGENTS.md"
+        if not installed_router.is_file():
+            return
+        managed_router = text.split(BEGIN, 1)[1].split(END, 1)[0].strip()
+        if managed_router != installed_router.read_text(encoding="utf-8").strip():
+            findings.append({"code": "stale_codex_managed_router", "severity": "fail", "message": "Codex AGENTS.md managed block differs from the installed Gauntlet router."})
 
 
 def command_verify(args):

@@ -72,6 +72,32 @@ def test_install_preserves_personal_state_and_is_idempotent():
             raise AssertionError("install verify accepted a modified generated router")
         installed_router.write_bytes(router_bytes)
 
+        agents_before_drift = (home / "AGENTS.md").read_bytes()
+        route_start = agents_before_drift.index(b"## Route")
+        route_end = agents_before_drift.index(b"## Design", route_start)
+        (home / "AGENTS.md").write_bytes(
+            agents_before_drift[:route_start] + agents_before_drift[route_end:]
+        )
+        drift = subprocess.run(
+            [
+                "python3",
+                str(home / "gauntlet" / "scripts" / "gauntlet.py"),
+                "install",
+                "verify",
+                "--target",
+                "codex",
+                "--agent-home",
+                str(home),
+                "--json",
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if drift.returncode == 0 or "stale_codex_managed_router" not in drift.stdout:
+            raise AssertionError("install verify accepted a stale global managed router")
+        (home / "AGENTS.md").write_bytes(agents_before_drift)
+
         run_install(home)
         if (home / "AGENTS.md").read_bytes() != first_agents:
             raise AssertionError("repeat install changed router bytes")
@@ -83,6 +109,33 @@ def test_install_preserves_personal_state_and_is_idempotent():
             raise AssertionError("uninstall changed personal instructions")
         if (home / "config.toml").read_bytes() != config:
             raise AssertionError("uninstall changed unrelated config")
+
+    with tempfile.TemporaryDirectory() as temporary:
+        home = Path(temporary) / "codex"
+        home.mkdir()
+        personal = b"Keep this exact user instruction.\n"
+        (home / "AGENTS.md").write_bytes(personal)
+        run_install(home, "--instructions-reviewed", "--response-style", "existing")
+        verify = subprocess.run(
+            [
+                "python3",
+                str(home / "gauntlet" / "scripts" / "gauntlet.py"),
+                "install",
+                "verify",
+                "--target",
+                "codex",
+                "--agent-home",
+                str(home),
+                "--json",
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if verify.returncode:
+            raise AssertionError("existing-style install failed verification: " + verify.stdout + verify.stderr)
+        if not (home / "AGENTS.md").read_bytes().startswith(personal):
+            raise AssertionError("existing-style install changed personal instructions")
 
 
 def test_install_transfers_personal_skills_and_retires_stale_payload():

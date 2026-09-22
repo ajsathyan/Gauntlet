@@ -19,6 +19,37 @@ def completed(args, returncode=0, stdout="", stderr=""):
     return subprocess.CompletedProcess(args, returncode, stdout, stderr)
 
 
+def passing_handoff(repository="/repo", commit="c" * 40, tree="d" * 40, base="e" * 40):
+    binding = {
+        "repository": repository,
+        "commit": commit,
+        "tree": tree,
+        "base": base,
+    }
+    return {
+        "schemaVersion": "1.0",
+        "title": "workflow: land verified candidate",
+        "problem": {"context": "A candidate is ready.", "impact": "It is not landed."},
+        "solution": {
+            "outcome": "Land the verified candidate.",
+            "invariants": [],
+            "preserved": [],
+            "nonGoals": [],
+        },
+        "changelog": "Land the verified candidate.",
+        "testing": [
+            {"command": "test", "result": "Passed", "proves": "Candidate behavior."}
+        ],
+        "securityRisk": None,
+        "sourceBinding": binding,
+        "verification": {
+            "build": "Passed",
+            "architecture": "Not applicable",
+            "sourceBinding": dict(binding),
+        },
+    }
+
+
 class LandWorkflowTests(unittest.TestCase):
     def test_stale_failed_checks_do_not_block_publishing_new_head(self):
         pull_request = {
@@ -206,9 +237,12 @@ class LandWorkflowTests(unittest.TestCase):
         sleep_mock.assert_called_once_with(0)
 
     def test_check_watch_filters_to_required_checks(self):
+        candidate = "c" * 40
+        tree = "d" * 40
+        base = "e" * 40
         pull_request = {
             "number": 17,
-            "headRefOid": "candidate",
+            "headRefOid": candidate,
             "requiredStatusChecks": [
                 {"name": "policy", "state": "PENDING", "bucket": "pending"}
             ],
@@ -218,7 +252,7 @@ class LandWorkflowTests(unittest.TestCase):
             "findings": [],
             "branch": "task",
             "defaultBranch": "main",
-            "candidate": {"commit": "candidate", "tree": "tree"},
+            "candidate": {"commit": candidate, "tree": tree},
             "repositoryContext": {
                 "headRemote": "origin",
                 "baseRemote": "origin",
@@ -226,11 +260,14 @@ class LandWorkflowTests(unittest.TestCase):
             },
             "mergePlan": {"actions": [{"type": "gh_pr_checks_watch"}]},
         }
-        handoff = {"sourceBinding": {"base": "base"}}
+        handoff = passing_handoff(commit=candidate, tree=tree, base=base)
         with patch(
-            "gauntletlib.merge.workflow.current_head", return_value="candidate"
+            "gauntletlib.merge.workflow.current_head", return_value=candidate
         ), patch(
-            "gauntletlib.merge.workflow.current_tree", return_value="tree"
+            "gauntletlib.merge.workflow.current_tree", return_value=tree
+        ), patch(
+            "gauntletlib.merge.workflow.refresh_default_head",
+            return_value=(base, "origin/main"),
         ), patch(
             "gauntletlib.merge.workflow.wait_for_pr_checks",
             return_value=(pull_request, None),
@@ -246,9 +283,12 @@ class LandWorkflowTests(unittest.TestCase):
         )
 
     def test_zero_required_checks_skip_watch_command(self):
+        candidate = "c" * 40
+        tree = "d" * 40
+        base = "e" * 40
         pull_request = {
             "number": 17,
-            "headRefOid": "candidate",
+            "headRefOid": candidate,
             "requiredStatusChecks": [],
             "requiredStatusChecksError": None,
         }
@@ -256,7 +296,7 @@ class LandWorkflowTests(unittest.TestCase):
             "findings": [],
             "branch": "task",
             "defaultBranch": "main",
-            "candidate": {"commit": "candidate", "tree": "tree"},
+            "candidate": {"commit": candidate, "tree": tree},
             "repositoryContext": {
                 "headRemote": "origin",
                 "baseRemote": "origin",
@@ -264,11 +304,14 @@ class LandWorkflowTests(unittest.TestCase):
             },
             "mergePlan": {"actions": [{"type": "gh_pr_checks_watch"}]},
         }
-        handoff = {"sourceBinding": {"base": "base"}}
+        handoff = passing_handoff(commit=candidate, tree=tree, base=base)
         with patch(
-            "gauntletlib.merge.workflow.current_head", return_value="candidate"
+            "gauntletlib.merge.workflow.current_head", return_value=candidate
         ), patch(
-            "gauntletlib.merge.workflow.current_tree", return_value="tree"
+            "gauntletlib.merge.workflow.current_tree", return_value=tree
+        ), patch(
+            "gauntletlib.merge.workflow.refresh_default_head",
+            return_value=(base, "origin/main"),
         ), patch(
             "gauntletlib.merge.workflow.wait_for_pr_checks",
             return_value=(pull_request, None),
@@ -276,6 +319,34 @@ class LandWorkflowTests(unittest.TestCase):
             result = execute_merge_plan(payload, Path("/repo"), handoff, Path("body"))
 
         self.assertEqual(result["status"], "pass")
+        gh_mock.assert_not_called()
+
+    def test_execute_revalidates_verdict_before_any_mutation(self):
+        handoff = passing_handoff()
+        handoff["verification"]["build"] = "Failed"
+        payload = {
+            "findings": [],
+            "branch": "task",
+            "defaultBranch": "main",
+            "candidate": {"commit": "c" * 40, "tree": "d" * 40},
+            "repositoryContext": {
+                "headRemote": "origin",
+                "baseRemote": "origin",
+                "baseRepository": "owner/repo",
+            },
+            "mergePlan": {"actions": [{"type": "git_push"}]},
+        }
+        with patch("gauntletlib.merge.workflow.git") as git_mock, patch(
+            "gauntletlib.merge.workflow.gh"
+        ) as gh_mock:
+            result = execute_merge_plan(payload, Path("/repo"), handoff, Path("body"))
+
+        self.assertEqual(result["status"], "fail")
+        self.assertIn(
+            "unacceptable_verification_verdict",
+            [finding["code"] for finding in result["findings"]],
+        )
+        git_mock.assert_not_called()
         gh_mock.assert_not_called()
 
     def test_cleanup_preserves_unique_task_commit(self):
