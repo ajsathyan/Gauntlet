@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Allow freely edited global instructions without failing runtime verification and remove obsolete instruction-checking code.
 - Align installed routing and ownership checks, require revision-bound verification verdicts before merging, stop forcing repository changelog edits, and refuse incomplete pre-commit hook installs.
 - Make Gauntlet the single canonical workflow source and remove the final retired local-document reference.
 - Reduce CI consumption by running Gauntlet's complete pull-request verification in one job without a duplicate main-branch run, enforcing only repository-required checks during Land, and limiting Ship to observation of already-triggered deployments.

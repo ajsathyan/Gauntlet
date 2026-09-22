@@ -72,31 +72,32 @@ def test_install_preserves_personal_state_and_is_idempotent():
             raise AssertionError("install verify accepted a modified generated router")
         installed_router.write_bytes(router_bytes)
 
-        agents_before_drift = (home / "AGENTS.md").read_bytes()
-        route_start = agents_before_drift.index(b"## Route")
-        route_end = agents_before_drift.index(b"## Design", route_start)
-        (home / "AGENTS.md").write_bytes(
-            agents_before_drift[:route_start] + agents_before_drift[route_end:]
-        )
-        drift = subprocess.run(
-            [
-                "python3",
-                str(home / "gauntlet" / "scripts" / "gauntlet.py"),
-                "install",
-                "verify",
-                "--target",
-                "codex",
-                "--agent-home",
-                str(home),
-                "--json",
-            ],
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        if drift.returncode == 0 or "stale_codex_managed_router" not in drift.stdout:
-            raise AssertionError("install verify accepted a stale global managed router")
-        (home / "AGENTS.md").write_bytes(agents_before_drift)
+        # Global instructions belong to the user, not the runtime verifier.
+        for custom in (b"Use my own workflow.\n", b"<!-- BEGIN GAUNTLET MANAGED BLOCK -->\nMy rules.\n", None):
+            agents_path = home / "AGENTS.md"
+            if custom is None:
+                agents_path.unlink()
+            else:
+                agents_path.write_bytes(custom)
+            verify = subprocess.run(
+                [
+                    "python3",
+                    str(home / "gauntlet" / "scripts" / "gauntlet.py"),
+                    "install", "verify", "--target", "codex",
+                    "--agent-home", str(home), "--json",
+                ],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            if verify.returncode:
+                raise AssertionError("runtime verification rejected user instructions: " + verify.stdout + verify.stderr)
+            if custom is None:
+                if agents_path.exists():
+                    raise AssertionError("verification recreated global instructions")
+            elif agents_path.read_bytes() != custom:
+                raise AssertionError("verification changed user instructions")
+        (home / "AGENTS.md").write_bytes(first_agents)
 
         run_install(home)
         if (home / "AGENTS.md").read_bytes() != first_agents:

@@ -8,27 +8,10 @@ from gauntletlib.core.findings import status_for
 from gauntletlib.install.manifest import verify_payload
 
 
-BEGIN = "<!-- BEGIN GAUNTLET MANAGED BLOCK -->"
-END = "<!-- END GAUNTLET MANAGED BLOCK -->"
-
-
-def _missing(findings, path, code):
-    if not path.exists():
-        findings.append(
-            {"code": code, "severity": "fail", "message": f"Missing {path}"}
-        )
-
-
-def _required_runtime_paths(agent_home):
-    root = agent_home / "gauntlet"
-    return [
-        (root / "AGENTS.md", "missing_installed_agents"),
-    ]
-
-
 def _verify_router(agent_home, findings):
     installed_router = agent_home / "gauntlet" / "AGENTS.md"
     if not installed_router.exists():
+        findings.append({"code": "missing_installed_agents", "severity": "fail", "message": f"Missing {installed_router}"})
         return
     router_text = installed_router.read_text(encoding="utf-8")
     expected_root = str(agent_home / "gauntlet")
@@ -44,36 +27,17 @@ def _verify_router(agent_home, findings):
         findings.append({"code": "installed_router_too_large", "severity": "fail", "message": "Installed router exceeds the 32 KiB default instruction budget."})
 
 
-def _verify_codex(agent_home, findings):
-    codex_agents = agent_home / "AGENTS.md"
-    _missing(findings, codex_agents, "missing_codex_agents")
-    if codex_agents.exists():
-        text = codex_agents.read_text(encoding="utf-8")
-        if text.count(BEGIN) != 1 or text.count(END) != 1 or text.index(BEGIN) > text.index(END):
-            findings.append({"code": "invalid_codex_managed_block", "severity": "fail", "message": "Codex AGENTS.md must contain exactly one complete Gauntlet managed block."})
-            return
-        installed_router = agent_home / "gauntlet" / "AGENTS.md"
-        if not installed_router.is_file():
-            return
-        managed_router = text.split(BEGIN, 1)[1].split(END, 1)[0].strip()
-        if managed_router != installed_router.read_text(encoding="utf-8").strip():
-            findings.append({"code": "stale_codex_managed_router", "severity": "fail", "message": "Codex AGENTS.md managed block differs from the installed Gauntlet router."})
-
-
 def command_verify(args):
     agent_home = Path(args.agent_home).expanduser()
     if not agent_home.is_absolute():
         agent_home = (Path.cwd() / agent_home).absolute()
     findings = []
-    for path, code in _required_runtime_paths(agent_home):
-        _missing(findings, path, code)
     installed_root = agent_home / "gauntlet"
     for message in verify_payload(installed_root, agent_home):
         findings.append({"code": "invalid_manifest_payload", "severity": "fail", "message": message})
     if (installed_root / "ui").exists() or list(installed_root.rglob("node_modules")):
         findings.append({"code": "development_ui_installed", "severity": "fail", "message": "Installed runtime must not contain ui/ or node_modules/."})
     _verify_router(agent_home, findings)
-    _verify_codex(agent_home, findings)
     payload = {"schemaVersion": "1.0", "status": "pass", "target": args.target, "agentHome": str(agent_home), "findings": findings}
     payload["status"] = status_for(findings)
     if args.json:
