@@ -9,7 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from gauntletlib.cli_support import EXIT_CODES
-from gauntletlib.contracts import validate_merge_handoff
+from gauntletlib.contracts import (
+    validate_merge_handoff,
+    validate_merge_handoff_for_prepare,
+)
 from gauntletlib.core.findings import add_finding as _add_finding
 from gauntletlib.core.findings import status_for as _status_for
 from gauntletlib.core.proc import gh, git
@@ -198,45 +201,6 @@ def render_pr_body(data):
     return "\n".join(lines).rstrip() + "\n"
 
 
-def projection_changelog_entry(data):
-    return data["changelog"]
-
-
-def ensure_unreleased_changelog(changelog_path, entry):
-    changelog_path = Path(changelog_path)
-    bullet = f"- {entry.strip()}"
-    original = (
-        changelog_path.read_text(encoding="utf-8")
-        if changelog_path.exists()
-        else ""
-    )
-    if any(line.rstrip() == bullet for line in original.splitlines()):
-        return False
-
-    if not original.strip():
-        updated = f"# Changelog\n\n## Unreleased\n\n{bullet}\n"
-    else:
-        lines = original.rstrip().splitlines()
-        heading_index = next(
-            (
-                index
-                for index, line in enumerate(lines)
-                if line.strip().lower() == "## unreleased"
-            ),
-            None,
-        )
-        if heading_index is None:
-            updated = original.rstrip() + f"\n\n## Unreleased\n\n{bullet}\n"
-        else:
-            insert_at = heading_index + 1
-            while insert_at < len(lines) and not lines[insert_at].strip():
-                insert_at += 1
-            lines[insert_at:insert_at] = [bullet, ""]
-            updated = "\n".join(lines).rstrip() + "\n"
-    changelog_path.write_text(updated, encoding="utf-8")
-    return True
-
-
 def repository_identity(repo):
     return str(Path(repo).resolve())
 
@@ -254,6 +218,39 @@ def current_tree(repo):
 def merge_input_path(repo, path):
     path = Path(path)
     return path if path.is_absolute() else Path(repo) / path
+
+
+def bound_source_bindings(data):
+    bindings = [
+        (
+            "source_binding_drift",
+            "The handoff is bound to a different repository, candidate, or base.",
+            data.get("sourceBinding"),
+        )
+    ]
+    verification = data.get("verification")
+    if isinstance(verification, dict):
+        bindings.append(
+            (
+                "verification_binding_drift",
+                "The verification verdicts are bound to a different repository, candidate, or base.",
+                verification.get("sourceBinding"),
+            )
+        )
+    return bindings
+
+
+def add_binding_drift_findings(payload, data, expected):
+    for code, message, supplied in bound_source_bindings(data):
+        if supplied != expected:
+            add_finding(
+                payload,
+                code,
+                "fail",
+                message,
+                expected=expected,
+                supplied=supplied,
+            )
 
 
 def _validate_source_binding(repo, data, payload):
@@ -283,15 +280,7 @@ def _validate_source_binding(repo, data, payload):
         "tree": current_tree(repo),
         "base": base,
     }
-    if binding != expected:
-        add_finding(
-            payload,
-            "source_binding_drift",
-            "fail",
-            "The handoff is bound to a different repository, candidate, or base.",
-            expected=expected,
-            supplied=binding,
-        )
+    add_binding_drift_findings(payload, data, expected)
 
 
 def command_merge_prepare(args):
@@ -302,16 +291,13 @@ def command_merge_prepare(args):
     body_path = Path(args.body_output)
     if not body_path.is_absolute():
         body_path = repo / body_path
-    changelog_path = repo / "CHANGELOG.md"
     payload = {
         "schemaVersion": "1.0",
         "status": "pass",
         "findings": [],
         "title": None,
         "bodyPath": str(body_path),
-        "changelogPath": str(changelog_path),
         "changelogEntry": None,
-        "changelogChanged": False,
     }
     data = None
     if not handoff_path or not handoff_path.is_file():
@@ -327,18 +313,14 @@ def command_merge_prepare(args):
         except (json.JSONDecodeError, OSError) as error:
             add_finding(payload, "invalid_handoff_file", "fail", str(error))
         if data is not None:
-            payload["findings"].extend(validate_merge_handoff(data))
+            payload["findings"].extend(validate_merge_handoff_for_prepare(data))
             _validate_source_binding(repo, data, payload)
     if data is not None:
         payload["title"] = data.get("title")
         if not payload["findings"]:
-            payload["changelogEntry"] = projection_changelog_entry(data)
+            payload["changelogEntry"] = data["changelog"]
             body_path.parent.mkdir(parents=True, exist_ok=True)
             body_path.write_text(render_pr_body(data), encoding="utf-8")
-            payload["changelogChanged"] = ensure_unreleased_changelog(
-                changelog_path,
-                projection_changelog_entry(data),
-            )
     payload["status"] = status_for(payload)
     _print_payload(payload, args.json)
     return EXIT_CODES[payload["status"]]
@@ -565,25 +547,6 @@ def build_merge_plan(state):
                 "PR body does not match the current merge handoff; run merge "
                 "prepare again.",
             )
-        bullet = f"- {projection_changelog_entry(handoff).strip()}"
-        changelog_path = Path(state["repo"]) / "CHANGELOG.md"
-        changelog = (
-            changelog_path.read_text(encoding="utf-8")
-            if changelog_path.is_file()
-            else ""
-        )
-        if (
-            not bullet.strip("- ")
-            or sum(line.rstrip() == bullet for line in changelog.splitlines())
-            != 1
-        ):
-            add_finding(
-                payload,
-                "changelog_mismatch",
-                "fail",
-                "CHANGELOG.md must contain the exact PR changelog entry once.",
-            )
-
     counts = state.get("defaultCounts")
     if counts and counts.get("behind"):
         add_finding(
@@ -814,6 +777,10 @@ def execute_merge_plan(
         if isinstance(handoff_source, dict)
         else load_merge_handoff(handoff_source)
     )
+    payload.setdefault("findings", []).extend(validate_merge_handoff(handoff))
+    if any(item["severity"] == "fail" for item in payload["findings"]):
+        payload["status"] = status_for(payload)
+        return payload
     raw_pr = payload.get("pr")
     pr = raw_pr if isinstance(raw_pr, dict) else None
     expected_head = (payload.get("candidate") or {}).get("commit")
@@ -854,6 +821,25 @@ def execute_merge_plan(
             "fail",
             "The candidate commit or tree changed after merge planning.",
         )
+        payload["status"] = status_for(payload)
+        return payload
+    try:
+        refreshed_base, _ = refresh_default_head(repo, repository_context)
+    except ValueError as error:
+        add_finding(payload, "base_refresh_failed", "fail", str(error))
+        payload["status"] = status_for(payload)
+        return payload
+    add_binding_drift_findings(
+        payload,
+        handoff,
+        {
+            "repository": repository_identity(repo),
+            "commit": expected_head,
+            "tree": expected_tree,
+            "base": refreshed_base,
+        },
+    )
+    if any(item["severity"] == "fail" for item in payload.get("findings", [])):
         payload["status"] = status_for(payload)
         return payload
 

@@ -8,9 +8,9 @@
 
 ## Changelog
 
-<!-- One release-note bullet copied exactly into CHANGELOG.md under Unreleased. -->
+<!-- Summarize the change. Update a repository changelog only when its conventions require it. -->
 
-- <!-- Exact changelog entry -->
+- <!-- Release-note summary -->
 
 ## Testing
 

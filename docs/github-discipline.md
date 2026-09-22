@@ -17,9 +17,34 @@ again. Gauntlet has no durable queue, GitHub merge-queue requirement, or auto-me
 requirement. Direct unprotected merge retains a small comparison-to-merge race;
 verify the landed revision and recover ad hoc if it matters.
 
+The merge handoff declares verification separately from its general source
+binding:
+
+```json
+{
+  "verification": {
+    "build": "Passed",
+    "architecture": "Passed",
+    "sourceBinding": {
+      "repository": "/absolute/path/to/repository",
+      "commit": "<exact-git-object-id>",
+      "tree": "<exact-git-object-id>",
+      "base": "<exact-git-object-id>"
+    }
+  }
+}
+```
+
+Architecture may be `Not applicable`. Plan, execute, and Land reject missing,
+non-passing, or stale declarations before push or pull-request mutation. This is
+a declarative omission and drift check, not authentication of proof or approval.
+`merge prepare` may render local PR material before Verify without this block;
+handoff and body files can remain outside the candidate tree.
+
 Pull requests use one established format: Problem, Solution, Changelog, Testing,
 and Security / Risk only when material. Testing prose points to evidence; it is
-not proof.
+not proof. The Changelog section does not require a `CHANGELOG.md` file or mutate
+one automatically; follow the target repository's own release-note conventions.
 
 Clean up only state represented by the landed revision. Preserve modified files,
 unique commits, branch drift, and other worktrees. Deployment and monitoring begin

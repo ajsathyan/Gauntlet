@@ -9,7 +9,8 @@ Design, Analytics, QA, and Performance lenses. Show material recommendations;
 never adopt them silently. A lens may be `Not applicable` with a reason. Ask only
 when a choice changes behavior, scope, authority, risk, cost, or external effects.
 
-Plans are ephemeral. Preserve unrelated work and use subagents only when AJS asks.
+Plans are ephemeral. Preserve unrelated work and use `orchestrate` to delegate
+useful independent work; respect explicit user limits on delegation.
 Commit a coherent candidate before exact-revision Verify.
 
 Accepted scope authorizes routine implementation, verification, commit, push, PR,

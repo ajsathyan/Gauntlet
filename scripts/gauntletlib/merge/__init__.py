@@ -15,11 +15,9 @@ from .workflow import current_pr as current_pr
 from .workflow import default_represents_candidate as default_represents_candidate
 from .workflow import delete_remote_branch as delete_remote_branch
 from .workflow import dirty_paths as dirty_paths
-from .workflow import ensure_unreleased_changelog as ensure_unreleased_changelog
 from .workflow import execute_merge_plan as execute_merge_plan
 from .workflow import load_merge_handoff as load_merge_handoff
 from .workflow import merge_input_path as merge_input_path
-from .workflow import projection_changelog_entry as projection_changelog_entry
 from .workflow import refresh_default_head as refresh_default_head
 from .workflow import render_pr_body as render_pr_body
 from .workflow import repository_merge_settings as repository_merge_settings

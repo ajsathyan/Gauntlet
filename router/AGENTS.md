@@ -18,6 +18,7 @@ Preserve unrelated work and explicit user limits.
 
 ## Design
 
+This gate applies to material work, not Normal Requests or Research.
 A complete user task may serve as Design. Otherwise create one concise Design
 that resolves material choices and contains an exact `Acceptance` section.
 
@@ -27,7 +28,9 @@ Show every material recommendation before implementation; a recommendation never
 changes scope without user acceptance. A lens may say `Not applicable` with a
 reason. Always invoke `orchestrate` for implementation; approvals remain with the user.
 
-Require acceptance of the exact `Acceptance` section. It authorizes the scoped
+Present Acceptance in phases of delivered work for readability, not as extra
+approval gates. Require acceptance of the exact `Acceptance` section once; reuse
+that authority unless scope or consequences materially change. It authorizes the scoped
 implementation, verification, commit, push, pull request, merge, ordinary declared
 deployment, and monitoring. Stop for an unaccepted destructive, credential,
 migration, privacy, security, data-loss, or production effect.

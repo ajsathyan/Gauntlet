@@ -60,6 +60,12 @@ Gauntlet also includes focused procedures for research, debugging, broad codebas
 
 Planning and implementation remain native Codex behavior. The skills add durable guidance where consistency, proof, or release authority matters.
 
+The router and skills are agent instructions, not background enforcement. The
+merge helper checks explicit verification verdicts and their revision binding;
+it does not authenticate the reviewer or replace behavioral evidence. It keeps
+the PR Changelog section but does not create or edit a repository changelog file.
+Follow the repository's own release-note conventions.
+
 ## Install
 
 Gauntlet installs only for Codex:
@@ -69,6 +75,14 @@ Gauntlet installs only for Codex:
 ```
 
 The installer owns only its marked router block and receipt-listed runtime files. It preserves unrelated instructions and files, removes unchanged stale Gauntlet files during upgrades, and leaves separately installed personal skills outside Gauntlet’s ownership.
+
+Use `--response-style existing` to retain your personal response style without
+adding Gauntlet's style, and `--skip-git-hooks` to leave Git hooks untouched.
+The optional hook installer is for source checkouts with the development check
+runner available; runtime installation does not include those development tools.
+`python3 scripts/gauntlet.py install verify --target codex --agent-home ~/.codex`
+checks installed file ownership and that the global managed block matches the
+installed router.
 
 Restart or reload Codex after installation.
 
