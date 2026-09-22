@@ -111,7 +111,7 @@
     {
       "destination": "gauntlet/scripts/gauntletlib/install/verify.py",
       "executable": false,
-      "sha256": "0fc56d2d5543cb7e0c5da440242b71754341b4f9185206d5e4cf0a386bbd66fb",
+      "sha256": "efa2405ae4ed893b72901d2e279ce917a86a0ec44039133e536b97c0f191863e",
       "source": "scripts/gauntletlib/install/verify.py"
     },
     {

@@ -81,8 +81,9 @@ adding Gauntlet's style, and `--skip-git-hooks` to leave Git hooks untouched.
 The optional hook installer is for source checkouts with the development check
 runner available; runtime installation does not include those development tools.
 `python3 scripts/gauntlet.py install verify --target codex --agent-home ~/.codex`
-checks installed file ownership and that the global managed block matches the
-installed router.
+checks installed runtime files and ownership, not your editable global
+`AGENTS.md`. Changing or removing global instructions does not fail runtime
+verification. An explicit reinstall still refreshes Gauntlet's managed block.
 
 Restart or reload Codex after installation.
 
