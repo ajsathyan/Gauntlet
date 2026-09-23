@@ -28,12 +28,16 @@ ask for a second routine acceptance.
 
 ## Pull request and merge
 
-Push the exact candidate to the chosen head branch. For an existing remote branch,
-use a lease tied to its observed object ID; do not overwrite an unobserved update.
-Create or update a ready pull request with these sections: Problem, Solution,
-Changelog, Testing, and Security / Risk only when material. Testing points to
-evidence. The PR Changelog section is required, but a repository changelog file is
-changed only when that repository's own conventions require it.
+Push the exact candidate to the chosen head branch with a native non-force push.
+If an existing branch is not a fast-forward, stop, fetch it, inspect its unique
+commits, and preserve them. Ordinary lifecycle acceptance does not authorize
+rewriting published history. Rewrite only with existing explicit authority for
+that rewrite, proof that unrelated commits are preserved, and an exact observed
+lease; otherwise publish a new branch. Create or update a ready pull request with
+these sections: Problem, Solution, Changelog, Testing, and Security / Risk only
+when material. Testing points to evidence. The PR Changelog section is required,
+but a repository changelog file is changed only when that repository's own
+conventions require it.
 
 Use `gh pr checks --required --watch` or equivalent repository-policy evidence to
 wait only for required checks. If none are required, generic CI is not required.
@@ -58,11 +62,14 @@ must equal the candidate tree; otherwise do not claim the candidate landed.
 
 ## Cleanup
 
-Remove a remote branch, local branch, or worktree only when its tip is the exact
-verified candidate, the landed revision represents that candidate, and no dirty
-or unique work can be lost. Never remove another worktree just because it shares
-the branch name. Synchronize a local default branch only when it can fast-forward
-without overwriting changes.
+Remove a remote branch only with an expected-object-ID lease, for example
+`git push --force-with-lease=refs/heads/<branch>:<candidate> <head-remote> :refs/heads/<branch>`.
+A moved ref must make deletion fail. Immediately before local cleanup, recheck
+the worktree status and branch tip. Remove a local branch or worktree only when
+its tip is still the exact verified candidate, the landed revision represents it,
+and no dirty or unique work can be lost. Never remove another worktree just
+because it shares the branch name. Synchronize a local default branch only when
+it can fast-forward without overwriting changes.
 
 Return PR and merge state, writable-head and PR-base identities, exact landed
 proof, required-check/review evidence, cleanup state, and unresolved risk.

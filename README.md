@@ -59,13 +59,15 @@ Focused procedures:
 
 ## Install or update
 
-1. In `~/.codex/AGENTS.md`, replace only the text between
-   `BEGIN GAUNTLET MANAGED BLOCK` and `END GAUNTLET MANAGED BLOCK` with the block
-   from [`router/AGENTS.md`](router/AGENTS.md). Add the block if it is absent.
-   Preserve every byte outside those markers, including personal response style.
-2. Copy the ten named directories above from `skills/` into
-   `~/.codex/skills/`, replacing only directories with those exact names.
-   Preserve every other personal skill.
+1. In `~/.codex/AGENTS.md`, replace the entire existing Gauntlet block, including
+   both marker lines, with the full contents of
+   [`router/AGENTS.md`](router/AGENTS.md) exactly once. If no markers exist,
+   append the source block once. If markers are missing, duplicated, reversed, or
+   nested, inspect and resolve them instead of guessing. Preserve every byte
+   outside the replaced block, including personal response style.
+2. For each of the ten named skills above, create its target directory when
+   needed and copy only its owned `SKILL.md` into `~/.codex/skills/<name>/`.
+   Preserve other files in those directories and every unrelated personal skill.
 3. When upgrading from an executable Gauntlet release, inspect and then remove
    the retired `~/.codex/gauntlet` directory and any Gauntlet-owned source hook.
    Preserve unrelated hook content or a backed-up user hook.
@@ -74,8 +76,9 @@ Focused procedures:
 Global instructions are intentionally user-owned after copying. Editing or
 removing them is supported; there is no drift check or auto-restoration.
 
-To uninstall, remove only the marked Gauntlet block and the ten exact skill
-directories listed above. No other personal instructions or skills are owned.
+To uninstall, remove only the complete marked Gauntlet block and the ten owned
+`SKILL.md` files. Remove a skill directory only when it is empty; preserve every
+other file, instruction, and personal skill.
 
 ## Contributing
 

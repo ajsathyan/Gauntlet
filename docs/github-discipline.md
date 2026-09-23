@@ -17,20 +17,24 @@ remote URLs, and `gh repo view` distinguish them in fork workflows. Ambiguity is
 failure; creating an `origin` alias is not a fix.
 
 Fetch before push and immediately before merge. Refuse candidate, head, or known
-base drift until affected outcomes are verified again. Push updates with a lease
-tied to the remote object already observed. Use GitHub's expected-head match when
-merging. Gauntlet has no durable queue or auto-merge requirement. Direct merge on
-an unprotected base retains a narrow comparison-to-merge race, so fetch and prove
-the landed revision afterward.
+base drift until affected outcomes are verified again. Use non-force,
+fast-forward pushes by default. A divergent published branch is preserved unless
+an already-explicit rewrite authority covers it, unrelated commits are retained,
+and an exact observed lease guards the rewrite; otherwise use a new branch. Use
+GitHub's expected-head match when merging. Gauntlet has no durable queue or
+auto-merge requirement. Direct merge on an unprotected base retains a narrow
+comparison-to-merge race, so fetch and prove the landed revision afterward.
 
 Pull requests use the established Problem, Solution, Changelog, and Testing
 sections, plus Security / Risk when material. Testing prose points to evidence;
 it is not proof. The PR Changelog section never forces a `CHANGELOG.md` edit.
 
 Only repository-required checks and blocking reviews stop Land. No required
-checks means CI is not required. Clean up only refs and worktrees whose exact tip
-is represented by the landed revision, and preserve dirty paths, unique commits,
-branch drift, and unrelated worktrees.
+checks means CI is not required. Delete a remote branch only with an
+expected-object-ID lease so an intervening update makes deletion fail. Recheck
+local status and the local ref immediately before cleanup. Remove only refs and
+worktrees whose exact tip is represented by the landed revision, and preserve
+dirty paths, unique commits, branch drift, and unrelated worktrees.
 
 Ship begins after Land confirms the merge. It observes configured deployments
 already triggered by that merge; it does not dispatch CI or deployment workflows.
