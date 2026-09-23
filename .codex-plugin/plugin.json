@@ -1,7 +1,7 @@
 {
   "name": "gauntlet",
   "version": "3.0.0",
-  "description": "A lean implementation and release workflow for GPT-5.6 Sol in Codex.",
+  "description": "A markdown-only implementation and release workflow for Codex.",
   "author": {
     "name": "AJS Sathyan",
     "url": "https://github.com/ajsathyan"
@@ -20,8 +20,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Gauntlet",
-    "shortDescription": "Lean Codex workflow for GPT-5.6 Sol",
-    "longDescription": "Proportional planning, orchestrated implementation, Verify, consistent pull requests, and explicit deployment accounting for Codex.",
+    "shortDescription": "Markdown-only Codex workflow",
+    "longDescription": "Proportional planning, orchestrated implementation, independent Verify, native GitHub landing, and explicit deployment accounting for Codex.",
     "developerName": "AJS Sathyan",
     "category": "Productivity",
     "capabilities": [

@@ -11,13 +11,15 @@ from proof availability:
 - complete applicable proof -> `Passed`.
 
 Run all executable target-specific checks even when an unrelated broad check is
-blocked. A receipt, manifest, document, status, reviewer agreement, or green
-command proves only what its underlying oracle observes.
+blocked. A document, status, reviewer agreement, or green command proves only
+what its underlying oracle observes. Instruction text and revision fields
+coordinate work; they do not authenticate who performed it or prove behavior by
+themselves.
 
 Evidence is revision-bound. Reuse it only when the candidate commit/tree, checked
 base, command, fixture, toolchain, and relevant environment still match.
 Architecture is a separate verdict and cannot turn a behavior failure into success.
 
-Keep structural coverage, synthetic scorer smoke, execution-backed behavior, and
-calibrated judgment as distinct claim classes. Missing production proof is
-`Cannot verify`, never inferred health.
+Keep structural coverage, execution-backed behavior, and calibrated judgment as
+distinct claim classes. Missing production proof is `Cannot verify`, never
+inferred health.

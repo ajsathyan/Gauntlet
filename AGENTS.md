@@ -1,58 +1,33 @@
 # Gauntlet Contributor Guide
 
-Gauntlet is a compact product, proof, and release workflow for Codex. The
-installed router is `router/AGENTS.md`; procedures live in the ten retained
-`skills/` packages.
+Gauntlet is a markdown-only product, proof, and release workflow for Codex. Its
+operational surface is the short global policy in `router/AGENTS.md` plus the ten
+skill packages in `skills/`.
 
-## Workflow
+## Invariants
 
-- Use a Normal Request for bounded, reversible work and Research for read-only work.
-- Before non-trivial implementation, use `design` and the main-agent six-lens
-  review: Product, Engineering, Design, Analytics, QA, and Performance.
-- Require acceptance of the exact final `Acceptance` section.
-- Use `orchestrate` for every implementation and keep approvals in the main task.
-- Commit a coherent candidate, then use `verify` on that exact commit/tree/base.
-- After passing proof, use `land` and `ship` without another routine prompt.
+- Keep Research, Normal, and Material routing proportional to consequence.
+- Material work gets one accepted outcome contract and the main-agent Product,
+  Engineering, Design, Analytics, QA, and Performance review.
+- Invoke `orchestrate` for implementation while respecting explicit limits on
+  agents or delegation.
+- Verify observable behavior against an exact candidate commit, tree, and checked
+  base. Instructions and self-reports are not authenticated enforcement.
+- Land with native `git` and `gh`, only after independent Verify passes. Preserve
+  established PR sections, required checks, blocking reviews, drift checks, and
+  safe cleanup.
+- Ship only observes declared deployment and monitoring paths already triggered
+  by the merge.
 
-A complete user task may serve as Design. A lens may be `Not applicable` with a
-reason. Review recommendations are advisory until the user accepts them.
-
-## Proof and authority
-
-Verify reports behavior and proof availability for every accepted outcome. Known
-failure is `Failed`; no failure with missing required proof is `Blocked`; only
-complete applicable proof is `Passed`. Architecture remains a separate verdict.
-Manifests, documents, self-reports, and green commands do not prove behavior.
-
-Acceptance authorizes the scoped implementation, checks, commit, push, pull
-request, direct merge, ordinary deployment, and monitoring. Stop for effects
-outside that scope or unexpected destructive, credential, migration,
-privacy, security, data-loss, or production effects.
-
-Preserve unrelated work. Gauntlet has no merge queue. Land fails on ambiguous
-remotes or known stale proof, verifies the landed revision, and handles rare
-direct-merge races ad hoc. Only repository-required checks block Land; when none
-are required, CI is not required, and Gauntlet never recommends adding CI solely
-for itself. Ship only observes declared deployments already triggered by the
-merge. It never dispatches or reruns deployment or generic CI workflows. It
-requires neither generic CI nor synthetic monitoring and never creates synthetic
-monitoring. Preserve intentionally configured merge-triggered deployments. No
-declared deployment is `Not configured`; missing attributable proof is `Cannot
-verify`.
+Gauntlet intentionally has no custom CLI, library, installer, manifest, receipt,
+hook, evaluator, or workflow daemon. Do not reintroduce executable enforcement or
+generated verification contracts. Global instructions remain freely editable.
 
 ## Repository checks
 
-For skill or workflow changes run:
+For policy or skill changes, inspect the complete diff, run `git diff --check`,
+confirm every retained reference resolves, and exercise changed Git procedures in
+disposable repositories. Do not keep temporary proof harnesses in this product.
 
-```sh
-scripts/run-skill-change-checks.sh
-python3 scripts/check-gauntlet-workflow.py
-```
-
-Use temporary agent homes for install proof. Keep the router below Codex's 32 KiB
-instruction limit and preserve bytes outside its managed block. Installer changes
-must prove clean install, safe upgrade, ownership transfer, idempotency, malformed
-state rejection, and uninstall preservation.
-
-Do not retain aliases, fixtures, examples, documentation, or compatibility code
-for retired behavior. Git history is the archive.
+Preserve unrelated work and personal skills. Retired behavior belongs in Git
+history, not aliases, fixtures, or compatibility shims.

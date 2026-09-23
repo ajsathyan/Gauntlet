@@ -1,13 +1,1 @@
 .DS_Store
-/*.egg-info/
-/implementation-notes.html
-/.gauntlet-notes-server.log
-/.gauntlet-notes-server.pid
-/.gauntlet-notes-server.port
-/.gauntlet-review-brief-started.json
-/.gauntlet-review-server.log
-/.gauntlet-review-server.pid
-/.gauntlet-review-server.port
-/.gauntlet/
-/evals/generated-prompts/
-/evals/results/

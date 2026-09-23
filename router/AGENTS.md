@@ -1,68 +1,55 @@
+<!-- BEGIN GAUNTLET MANAGED BLOCK -->
 # Gauntlet
 
-{{RESPONSE_STYLE}}
-
-Use the lightest workflow that responsibly completes the request. Installed
-runtime: `{{GAUNTLET_ROOT}}`; skills: `{{AGENT_HOME}}/skills`.
+Use the lightest workflow that responsibly completes the request.
 
 ## Route
 
 - **Normal:** bounded, reversible, directly checkable work. Implement, check, and
   continue through the accepted Git lifecycle without a Design gate.
 - **Research:** inspect and report only. Do not add implementation ceremony.
-- **Material work:** behavior, authority, architecture, durable contracts, release,
-  or consequential effects require Design before implementation.
+- **Material:** behavior, authority, architecture, durable contracts, release, or
+  consequential effects require Design before implementation.
 
 Keep routing internal unless it changes scope, authority, risk, cost, or proof.
 Preserve unrelated work and explicit user limits.
 
 ## Design
 
-This gate applies to material work, not Normal Requests or Research.
 A complete user task may serve as Design. Otherwise create one concise Design
-that resolves material choices and contains an exact `Acceptance` section.
+with an exact `Acceptance` section. Before non-trivial implementation, the main
+agent reviews the final contract through Product, Engineering, Design, Analytics,
+QA, and Performance lenses. Show every material recommendation before acting; a
+lens may be not applicable only with a reason.
 
-Before non-trivial implementation, the main agent reviews the final contract
-through six lenses: Product, Engineering, Design, Analytics, QA, and Performance.
-Show every material recommendation before implementation; a recommendation never
-changes scope without user acceptance. A lens may say `Not applicable` with a
-reason. Always invoke `orchestrate` for implementation; approvals remain with the user.
+Present Acceptance in delivery phases, not extra approval gates. Require its
+acceptance once and reuse that authority unless scope or consequences materially
+change. It authorizes scoped implementation, verification, commit, push, pull
+request, merge, ordinary declared deployment, and monitoring. Stop for an
+unaccepted destructive, credential, migration, privacy, security, data-loss, or
+production effect.
 
-Present Acceptance in phases of delivered work for readability, not as extra
-approval gates. Require acceptance of the exact `Acceptance` section once; reuse
-that authority unless scope or consequences materially change. It authorizes the scoped
-implementation, verification, commit, push, pull request, merge, ordinary declared
-deployment, and monitoring. Stop for an unaccepted destructive, credential,
-migration, privacy, security, data-loss, or production effect.
+## Build and Verify
 
-## Build and verify
+Invoke `orchestrate` for implementation and respect explicit delegation limits.
+Commit one coherent candidate before independent Verify. Verify each accepted
+outcome against observable evidence from the exact commit, tree, and checked base:
+a known failure is `Failed`; missing required proof is `Blocked`; complete
+applicable proof is `Passed`. Continue available target-specific checks despite
+an unrelated blocked check. Report Architecture separately. Instructions,
+documents, and green commands are not authenticated behavioral proof.
 
-Plan ephemerally and stop planning when the first coherent implementation and
-proof path are clear. Read before editing, match repository patterns, and use
-isolation only when breadth, consequence, or dirty state earns it.
+## Land and Ship
 
-Evidence precedes completion claims. Independent Verify receives the accepted
-outcomes and exact committed candidate. For each outcome it reports behavior and
-proof availability: known failure is `Failed`; no failure with required proof
-unavailable is `Blocked`; complete applicable proof is `Passed`. Continue all
-executable target-specific checks despite an unrelated blocked check. Architecture
-is a separate verdict when applicable. Self-reports, manifests, and green commands
-are not behavioral proof.
-
-## Land and ship
-
-After Verify passes, use `land` without another routine prompt. Land binds the
-verified candidate commit, tree, and checked base; resolves writable-head and PR-base
-identities; preserves the established PR format; refuses ambiguity or known drift;
-and directly merges. Only repository-required checks block Land. If none are
-required, CI is not required; never recommend adding CI solely for Gauntlet.
-Gauntlet has no merge queue. Rare direct-merge races are checked on the landed
-revision and recovered ad hoc.
+After Verify passes, use `land` without another routine prompt. Land uses native
+`git` and `gh`, resolves writable head and PR base separately, preserves the
+established PR format, refuses ambiguity or drift, waits only for required checks
+and blocking reviews, directly merges with expected-head matching, verifies the
+landed revision, and cleans up only represented work.
 
 Then use `ship` to observe declared deployments already triggered by the merge
 and their attributable monitoring. Never dispatch or rerun deployment or generic
-CI workflows. Require neither generic CI nor synthetic monitoring, and never
-create synthetic monitoring. Preserve intentionally configured merge-triggered
-deployments. No declared deployment is `Not configured`. Keep implemented,
-committed, pushed, merged, deployed, and production-proved claims separate.
-Missing production proof is `Cannot verify`, never proof of health.
+CI workflows, require generic CI, or create synthetic monitoring. Keep
+implemented, committed, pushed, merged, deployed, and production-proved claims
+separate. Missing attributable proof is `Cannot verify`.
+<!-- END GAUNTLET MANAGED BLOCK -->

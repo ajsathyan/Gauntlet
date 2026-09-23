@@ -7,8 +7,8 @@ Every retained skill states its trigger, job, output, completion condition,
 negative case, proof layer, and authority. Keep each meaning in one authoritative
 place. Put universal policy in the router and procedures in triggered skills.
 
-Use deterministic code for mechanical facts. Text presence, populated fields,
-receipts, and self-reports are structural evidence only. Prefer the cheapest
+Use native deterministic tools for mechanical facts. Text presence, populated
+fields, and self-reports are structural evidence only. Prefer the cheapest
 observable oracle that rejects a plausible wrong implementation.
 
 Subagents are opt-in for AJS. Do not add profile selection, token audits, durable
