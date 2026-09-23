@@ -30,12 +30,14 @@ behavior.
 
 ## Land
 
-Land compares the candidate and base binding, resolves the writable head and PR
-base independently, pushes, prepares the established PR format, waits only for
-repository-required checks and blocking reviews, and directly merges. When no
-checks are required, CI is not required; do not recommend adding CI solely for
-Gauntlet. Known drift requires update and affected re-verification. The landed
-revision is checked after merge.
+Land rechecks the candidate and base binding with native `git`, resolves the
+writable head and PR base independently, uses non-force fast-forward pushes by
+default, prepares the established PR format, waits only for repository-required
+checks and blocking reviews, and directly merges with native expected-head
+matching. Divergent published work is preserved unless an explicitly authorized
+rewrite meets Land's safeguards. When no checks are required, CI is not required.
+Known drift requires affected re-verification. The landed object and tree are
+checked after merge.
 
 ## Ship
 

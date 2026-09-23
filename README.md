@@ -1,12 +1,16 @@
-# Gauntlet 3
+# Gauntlet
 
-Gauntlet is a lean implementation and release workflow for GPT-5.6 Sol in Codex. It is designed primarily for hobbyists and independent builders who want Codex to carry a change from an idea to verified code and a consistently structured pull request without accumulating unnecessary process.
+Gauntlet is a markdown-only product, proof, and release workflow for Codex. It is
+for builders who want Codex to carry a change from an idea to verified code and a
+consistent pull request without a controller or custom runtime.
 
-Version 3 removes controllers, queues, context machinery, specialist handoffs, and release simulations.
+Its entire operational surface is:
 
-The remaining workflow is intentionally small: classify the request, accept material decisions once, orchestrate implementation, verify the exact candidate, land it through a consistent pull request, and follow the repository’s declared deployment path when appropriate.
+- one short, freely editable policy block for global `AGENTS.md`; and
+- ten ordinary Codex skill packages.
 
-Gauntlet is designed to reduce repeated instructions and process overhead, unnecessary hedging after approval, speculative architecture or performance work, unsupported completion claims, and inconsistent pull requests.
+There is no Gauntlet CLI, library, daemon, hook, installer, receipt, hash
+manifest, JSON handoff, or evaluation harness.
 
 ## Workflow
 
@@ -15,34 +19,29 @@ Research
   -> inspect and report
 
 Normal request
-  -> Orchestrate
-  -> Verify
-  -> Land
-  -> Ship
+  -> Orchestrate -> Verify -> Land -> Ship
 
 Material request
-  -> Design and acceptance
-  -> Orchestrate
-  -> Verify
-  -> Land
-  -> Ship
+  -> Design and acceptance -> Orchestrate -> Verify -> Land -> Ship
 ```
 
-- **Proportional workflow:** routine and reversible work proceeds directly, research remains read-only, and only material decisions require Design and explicit acceptance.
-- **Orchestrate:** every implementation can use as many agents as the work warrants. The main Codex task retains the requirements, approvals, and final integration.
-- **Verify:** checks every accepted outcome using observable evidence from the exact candidate commit, tree, and base. A known failure fails verification, while missing required proof blocks landing.
-- **Land:** creates or updates a pull request using the same Problem, Solution, Changelog, and Testing format, waits for required checks and blocking reviews, and merges the verified candidate.
-- **Ship:** follows the repository’s declared deployment and monitoring path while keeping merged, deployed, and production-proved status separate.
+- **Design** resolves material decisions once and runs the main-agent Product,
+  Engineering, Design, Analytics, QA, and Performance review.
+- **Orchestrate** coordinates implementation when useful while preserving user
+  limits on agents and delegation.
+- **Verify** independently checks every accepted outcome against observable
+  evidence from the exact candidate commit, tree, and checked base.
+- **Land** uses native `git` and `gh` to publish, check, directly merge, prove the
+  landed revision, and clean up safely.
+- **Ship** observes declared deployments already triggered by the merge and keeps
+  merge, deployment, and production proof separate.
 
-## Who it is for
-
-Gauntlet’s default lifecycle is best suited to personal and owner-controlled repositories.
-
-**Work repositories:** Land creates the pull request, waits for required checks and reviews, and then merges it. Ship handles deployment and monitoring. If your organization requires human merge approval, make Land PR-only and disable Ship unless it matches your production controls.
+The policy and skills are instructions, not authenticated enforcement. Their
+value comes from explicit revision binding, observable proof, and honest limits.
 
 ## Included skills
 
-The core workflow uses:
+Core workflow:
 
 - `design`
 - `adversarial-reviewer`
@@ -51,61 +50,42 @@ The core workflow uses:
 - `land`
 - `ship`
 
-Gauntlet also includes focused procedures for research, debugging, broad codebase refactoring, and performance refactoring:
+Focused procedures:
 
 - `researcher`
 - `debugger`
 - `refactor-codebase`
 - `refactor-performance`
 
-Planning and implementation remain native Codex behavior. The skills add durable guidance where consistency, proof, or release authority matters.
+## Install or update
 
-The router and skills are agent instructions, not background enforcement. The
-merge helper checks explicit verification verdicts and their revision binding;
-it does not authenticate the reviewer or replace behavioral evidence. It keeps
-the PR Changelog section but does not create or edit a repository changelog file.
-Follow the repository's own release-note conventions.
+1. In `~/.codex/AGENTS.md`, replace the entire existing Gauntlet block, including
+   both marker lines, with the full contents of
+   [`router/AGENTS.md`](router/AGENTS.md) exactly once. If no markers exist,
+   append the source block once. If markers are missing, duplicated, reversed, or
+   nested, inspect and resolve them instead of guessing. Preserve every byte
+   outside the replaced block, including personal response style.
+2. For each of the ten named skills above, create its target directory when
+   needed and copy only its owned `SKILL.md` into `~/.codex/skills/<name>/`.
+   Preserve other files in those directories and every unrelated personal skill.
+3. When upgrading from an executable Gauntlet release, inspect and then remove
+   the retired `~/.codex/gauntlet` directory and any Gauntlet-owned source hook.
+   Preserve unrelated hook content or a backed-up user hook.
+4. Restart or reload Codex.
 
-## Install
+Global instructions are intentionally user-owned after copying. Editing or
+removing them is supported; there is no drift check or auto-restoration.
 
-Gauntlet installs only for Codex:
+To uninstall, remove only the complete marked Gauntlet block and the ten owned
+`SKILL.md` files. Remove a skill directory only when it is empty; preserve every
+other file, instruction, and personal skill.
 
-```sh
-./scripts/install.sh --target codex --instructions-reviewed
-```
+## Contributing
 
-The installer owns only its marked router block and receipt-listed runtime files. It preserves unrelated instructions and files, removes unchanged stale Gauntlet files during upgrades, and leaves separately installed personal skills outside Gauntlet’s ownership.
-
-Use `--response-style existing` to retain your personal response style without
-adding Gauntlet's style, and `--skip-git-hooks` to leave Git hooks untouched.
-The optional hook installer is for source checkouts with the development check
-runner available; runtime installation does not include those development tools.
-`python3 scripts/gauntlet.py install verify --target codex --agent-home ~/.codex`
-checks installed runtime files and ownership, not your editable global
-`AGENTS.md`. Changing or removing global instructions does not fail runtime
-verification. An explicit reinstall still refreshes Gauntlet's managed block.
-
-Restart or reload Codex after installation.
-
-To uninstall Gauntlet:
-
-```sh
-./scripts/install.sh --target codex --uninstall
-```
-
-Uninstall removes only files owned by the Gauntlet installation receipt.
-
-## Development
-
-Install the development dependencies and run the repository checks:
-
-```sh
-python3 -m pip install -e '.[dev]'
-scripts/run-skill-change-checks.sh
-python3 scripts/check-gauntlet-workflow.py
-```
-
-The deterministic evaluation tools are repository development infrastructure. They are not installed into the Codex runtime.
+This repository intentionally contains no product code or evaluation tooling.
+For changes, inspect the full diff, run `git diff --check`, check retained links
+and references, and exercise changed native Git procedures in disposable
+repositories. Temporary proof scripts and fixtures stay outside the product.
 
 Additional documentation:
 

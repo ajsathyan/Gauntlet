@@ -5,55 +5,42 @@ description: Verify the exact committed candidate outcome by outcome, separating
 
 # Verify
 
-Read the user request, accepted Acceptance section, exact candidate commit and
-tree, checked base revision, and applicable Architecture Contract. Do not use the
-implementer's rationale, self-verdict, plan, or PR summary as proof.
+Verify independently from implementation when the accepted workflow requires it.
+Read the user request, accepted Acceptance, exact repository path, candidate
+commit and tree, checked base revision, and any applicable Architecture Contract.
+Do not treat the implementer's rationale, self-verdict, plan, PR text, or a green
+command as behavioral proof.
+
+First confirm the binding with native Git: the commit exists, its tree matches the
+reported tree, the checked base exists, and the inspected worktree or archive is
+the stated repository. Record the commands and outputs that establish those facts.
 
 ## Outcome verification
 
-For every accepted outcome and required non-effect record:
+For every accepted outcome and required non-effect report:
 
 - **Behavior:** `Passed`, `Failed`, or `Unknown`.
 - **Proof availability:** `Available` or `Unavailable`.
-- observable oracle and evidence;
-- one plausible wrong case when it would distinguish the result;
-- remaining check when proof is unavailable.
+- the observable oracle and exact evidence;
+- one plausible wrong case when it distinguishes the result; and
+- the remaining check when proof is unavailable.
 
-Run all executable target-specific checks. A blocked broad suite does not end
-defect-finding or hide a known candidate failure.
+Run every executable target-specific check. A blocked broad suite does not end
+defect-finding or hide a known failure. Use black-box behavior where possible;
+also inspect ownership, state, compatibility, regressions, accessibility, and
+content when they are part of the accepted outcome.
 
-Use triggered modes inside this skill when applicable: black-box public behavior;
-code ownership, state, compatibility, and regression risk; and user experience,
-accessibility, responsive behavior, and content.
+Derive Build mechanically: any failed behavior is `Failed`; otherwise any
+required unknown behavior or unavailable proof is `Blocked`; otherwise it is
+`Passed`. Report Architecture separately as `Passed`, `Failed`, `Blocked`, or
+`Not applicable`. Architecture cannot override Build. Landing requires both Build
+and applicable Architecture to pass on the same commit, tree, and checked base.
 
-## Verdicts
+Return the repository path, commit, tree, checked base, commands/environment,
+per-outcome results, both aggregate verdicts, negative-control result, limits,
+and next unresolved check. A Markdown table or concise prose is sufficient; no
+JSON handoff, schema, generated artifact, or validator is required.
 
-Derive Build mechanically: any `Failed` behavior is `Failed`; otherwise any
-required `Unknown` or unavailable proof is `Blocked`; otherwise it is `Passed`.
-Report Architecture separately as `Passed`, `Failed`, `Blocked`, or
-`Not applicable`. Architecture cannot override Build. Landing requires both
-Build and applicable Architecture to pass on the same commit, tree, and base.
-
-Return exact revision evidence, per-outcome results, both aggregate verdicts,
-negative-control result, environment limits, and the next unresolved check. For
-Land, record the aggregate result in the merge handoff using this exact shape:
-
-```json
-{
-  "verification": {
-    "build": "Passed",
-    "architecture": "Passed",
-    "sourceBinding": {
-      "repository": "/absolute/path/to/repository",
-      "commit": "<exact-git-object-id>",
-      "tree": "<exact-git-object-id>",
-      "base": "<exact-git-object-id>"
-    }
-  }
-}
-```
-
-Architecture may instead be `Not applicable`. The declarative handoff lets Land
-reject missing, non-passing, or stale verdicts; it does not authenticate evidence
-or user approval. Keep the handoff outside the candidate tree when needed to
-avoid changing the revision it describes.
+These instructions are coordination, not authentication. State who performed the
+verification and any independence limit honestly. Complete only when every
+accepted outcome has a verdict and the exact revision binding is explicit.

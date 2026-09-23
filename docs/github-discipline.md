@@ -3,55 +3,40 @@
 The default path is:
 
 ```text
-accepted scope -> coherent candidate commit -> exact Verify -> PR -> direct merge
--> landed proof -> declared deployment -> attributable monitoring
+accepted scope -> coherent candidate commit -> independent exact Verify
+-> ready PR -> direct merge -> landed proof -> declared deployment observation
 ```
 
-Land resolves two identities when needed: the writable head remote for push and
-the base repository/default branch for comparison and merge. It fails on
-ambiguity and never creates an `origin` alias merely to satisfy tooling.
+Verify reports the repository, candidate commit, tree, and checked base in plain
+language or a Markdown table. Land checks those objects again with native Git.
+The report is an explicit coordination boundary, not authenticated enforcement.
 
-Verify binds candidate commit, tree, and checked base. Land fetches before merge
-and refuses changed candidate or known base drift until affected Verify passes
-again. Gauntlet has no durable queue, GitHub merge-queue requirement, or auto-merge
-requirement. Direct unprotected merge retains a small comparison-to-merge race;
-verify the landed revision and recover ad hoc if it matters.
+Land resolves two identities when needed: the writable remote for the head branch
+and the base repository/default branch for the pull request. Existing PR metadata,
+remote URLs, and `gh repo view` distinguish them in fork workflows. Ambiguity is a
+failure; creating an `origin` alias is not a fix.
 
-The merge handoff declares verification separately from its general source
-binding:
+Fetch before push and immediately before merge. Refuse candidate, head, or known
+base drift until affected outcomes are verified again. Use non-force,
+fast-forward pushes by default. A divergent published branch is preserved unless
+an already-explicit rewrite authority covers it, unrelated commits are retained,
+and an exact observed lease guards the rewrite; otherwise use a new branch. Use
+GitHub's expected-head match when merging. Gauntlet has no durable queue or
+auto-merge requirement. Direct merge on an unprotected base retains a narrow
+comparison-to-merge race, so fetch and prove the landed revision afterward.
 
-```json
-{
-  "verification": {
-    "build": "Passed",
-    "architecture": "Passed",
-    "sourceBinding": {
-      "repository": "/absolute/path/to/repository",
-      "commit": "<exact-git-object-id>",
-      "tree": "<exact-git-object-id>",
-      "base": "<exact-git-object-id>"
-    }
-  }
-}
-```
+Pull requests use the established Problem, Solution, Changelog, and Testing
+sections, plus Security / Risk when material. Testing prose points to evidence;
+it is not proof. The PR Changelog section never forces a `CHANGELOG.md` edit.
 
-Architecture may be `Not applicable`. Plan, execute, and Land reject missing,
-non-passing, or stale declarations before push or pull-request mutation. This is
-a declarative omission and drift check, not authentication of proof or approval.
-`merge prepare` may render local PR material before Verify without this block;
-handoff and body files can remain outside the candidate tree.
+Only repository-required checks and blocking reviews stop Land. No required
+checks means CI is not required. Delete a remote branch only with an
+expected-object-ID lease so an intervening update makes deletion fail. Recheck
+local status and the local ref immediately before cleanup. Remove only refs and
+worktrees whose exact tip is represented by the landed revision, and preserve
+dirty paths, unique commits, branch drift, and unrelated worktrees.
 
-Pull requests use one established format: Problem, Solution, Changelog, Testing,
-and Security / Risk only when material. Testing prose points to evidence; it is
-not proof. The Changelog section does not require a `CHANGELOG.md` file or mutate
-one automatically; follow the target repository's own release-note conventions.
-
-Clean up only state represented by the landed revision. Preserve modified files,
-unique commits, branch drift, and other worktrees. Deployment and monitoring begin
-in Ship, after Land has confirmed the merge and synchronized local state. Only
-repository-required checks block Land; absent required checks, CI is not required,
-and Gauntlet does not recommend adding it solely for its own workflow. Ship
-observes intentionally configured deployments already triggered by the merge; it
-does not dispatch or rerun them or generic CI, require generic CI, or invent
-or require synthetic monitoring. With no declared deployment, report `Not
-configured`; with missing attributable proof, report `Cannot verify`.
+Ship begins after Land confirms the merge. It observes configured deployments
+already triggered by that merge; it does not dispatch CI or deployment workflows.
+No declared deployment is `Not configured`. Missing attributable deployment or
+production evidence is `Cannot verify`, never inferred health.
