@@ -9,10 +9,10 @@ Optimize for time to an integrated result. Delegate liberally through the Codex 
 
 Route by role, preserving explicit user overrides:
 
-- **Bulk reader — `gpt-5.6-luna`, `xhigh`:** Answer a focused question across a bounded set of files, documents, or traces. Give the question, source boundaries, and selection criteria; return findings with exact references, coverage, and uncertainties.
-- **Pattern writer — `gpt-5.6-luna`, `xhigh`:** Apply settled behavior using an established pattern. Give the reference, required differences, and owned files; match conventions and flag exceptions requiring new behavioral decisions.
-- **Implementer — `gpt-5.6-sol`, `medium`:** Implement a clear outcome, make ordinary implementation choices, run checks, or handle supporting work. Give the outcome, relevant interfaces, constraints, and ownership.
-- **Complex implementer or coordinator — `gpt-5.6-sol`, `high`:** Handle difficult implementation, complex writing, debugging, ambiguity, consequential reasoning, or dependent work. Give the problem, known evidence, and decision boundaries without pre-solving it.
+- **Bulk reader — `gpt-6-luna`, `xhigh`:** Answer a focused question across a bounded set of files, documents, or traces. Give the question, source boundaries, and selection criteria; return findings with exact references, coverage, and uncertainties.
+- **Pattern writer — `gpt-6-luna`, `xhigh`:** Apply settled behavior using an established pattern. Give the reference, required differences, and owned files; match conventions and flag exceptions requiring new behavioral decisions.
+- **Implementer — `gpt-6-sol`, `medium`:** Implement a clear outcome, make ordinary implementation choices, run checks, or handle supporting work. Give the outcome, relevant interfaces, constraints, and ownership.
+- **Complex implementer or coordinator — `gpt-6-sol`, `high`:** Handle difficult implementation, complex writing, debugging, ambiguity, consequential reasoning, or dependent work. Give the problem, known evidence, and decision boundaries without pre-solving it.
 
 Split by distinct deliverables or questions. Shared reading is fine; duplicate responsibility and overlapping edits are not. Keep tightly coupled changes with one owner until shared interfaces or decisions are settled. Start independent work early and integrate completed results without waiting for unrelated work. The main agent does complementary work rather than repeating delegated exploration. Readers and pattern writers are leaf workers by default; use peer messaging to resolve dependencies and reuse informed workers for related follow-ups.
 
