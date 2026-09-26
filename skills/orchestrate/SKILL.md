@@ -20,4 +20,8 @@ Give enough relevant context to finish independently, including source paths and
 
 Use existing deterministic tools for filtering, counting, grouping, sorting, and mechanical extraction. Split oversized inputs deliberately and disclose truncation, omissions, and unreadable sources. Reasoning effort changes reasoning depth and budget, not context-window capacity.
 
+When assigning implementation or test review, pass the credible failure modes
+and require `test-design` for tests the worker plans, writes, changes, or reviews.
+The main agent checks integrated test choices against the same gate.
+
 Writers edit owned files and return a concise change summary, check results, and unresolved issues. Keep raw logs and large outputs in referenced artifacts; inspect targeted evidence during integration. Preserve independent verification of implementation work against accepted outcomes and the exact committed candidate; worker summaries alone do not prove behavior.

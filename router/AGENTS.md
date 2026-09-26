@@ -31,6 +31,11 @@ production effect.
 
 ## Build and Verify
 
+Before coding, write down credible failure modes and intended observable proof,
+or briefly state why none are material. Invoke `test-design` when tests are
+planned, written, changed, reviewed, or audited, or when the proof boundary is
+unclear. It does not require a new test for every edit.
+
 Invoke `orchestrate` for implementation and respect explicit delegation limits.
 Commit one coherent candidate before independent Verify. Verify each accepted
 outcome against observable evidence from the exact commit, tree, and checked base:
