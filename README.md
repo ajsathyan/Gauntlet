@@ -7,7 +7,7 @@ consistent pull request without a controller or custom runtime.
 Its entire operational surface is:
 
 - one short, freely editable policy block for global `AGENTS.md`; and
-- ten ordinary Codex skill packages.
+- eleven ordinary Codex skill packages.
 
 There is no Gauntlet CLI, library, daemon, hook, installer, receipt, hash
 manifest, JSON handoff, or evaluation harness.
@@ -29,6 +29,8 @@ Material request
   Engineering, Design, Analytics, QA, and Performance review.
 - **Orchestrate** coordinates implementation when useful while preserving user
   limits on agents and delegation.
+- **Test Design** chooses owner-boundary proof and gates test authoring and audits
+  after credible failure modes are recorded.
 - **Verify** independently checks every accepted outcome against observable
   evidence from the exact candidate commit, tree, and checked base.
 - **Land** uses native `git` and `gh` to publish, check, directly merge, prove the
@@ -46,6 +48,7 @@ Core workflow:
 - `design`
 - `adversarial-reviewer`
 - `orchestrate`
+- `test-design`
 - `verify`
 - `land`
 - `ship`
@@ -65,7 +68,7 @@ Focused procedures:
    append the source block once. If markers are missing, duplicated, reversed, or
    nested, inspect and resolve them instead of guessing. Preserve every byte
    outside the replaced block, including personal response style.
-2. For each of the ten named skills above, create its target directory when
+2. For each of the eleven named skills above, create its target directory when
    needed and copy only its owned `SKILL.md` into `~/.codex/skills/<name>/`.
    Preserve other files in those directories and every unrelated personal skill.
 3. When upgrading from an executable Gauntlet release, inspect and then remove
@@ -76,7 +79,7 @@ Focused procedures:
 Global instructions are intentionally user-owned after copying. Editing or
 removing them is supported; there is no drift check or auto-restoration.
 
-To uninstall, remove only the complete marked Gauntlet block and the ten owned
+To uninstall, remove only the complete marked Gauntlet block and the eleven owned
 `SKILL.md` files. Remove a skill directory only when it is empty; preserve every
 other file, instruction, and personal skill.
 

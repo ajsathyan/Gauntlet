@@ -19,6 +19,9 @@ consequences outside the accepted contract.
 Planning and implementation are ephemeral main-agent behavior. Commit one coherent
 candidate before Verify. Use isolation only when breadth, consequence, dirty state,
 or explicit request earns it.
+Record credible failure modes before coding. Use `test-design` when tests are
+planned, written, changed, reviewed, or audited, or when the proof boundary is
+unclear.
 
 ## Verify
 

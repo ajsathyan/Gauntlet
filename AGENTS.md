@@ -1,7 +1,7 @@
 # Gauntlet Contributor Guide
 
 Gauntlet is a markdown-only product, proof, and release workflow for Codex. Its
-operational surface is the short global policy in `router/AGENTS.md` plus the ten
+operational surface is the short global policy in `router/AGENTS.md` plus the eleven
 skill packages in `skills/`.
 
 ## Invariants
@@ -11,6 +11,8 @@ skill packages in `skills/`.
   Engineering, Design, Analytics, QA, and Performance review.
 - Invoke `orchestrate` for implementation while respecting explicit limits on
   agents or delegation.
+- Record credible failure modes before coding and apply `test-design` whenever
+  tests are planned, written, changed, reviewed, or audited.
 - Verify observable behavior against an exact candidate commit, tree, and checked
   base. Instructions and self-reports are not authenticated enforcement.
 - Land with native `git` and `gh`, only after independent Verify passes. Preserve

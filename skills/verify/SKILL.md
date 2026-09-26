@@ -11,6 +11,10 @@ commit and tree, checked base revision, and any applicable Architecture Contract
 Do not treat the implementer's rationale, self-verdict, plan, PR text, or a green
 command as behavioral proof.
 
+When reviewing tests as evidence, apply `test-design` independently: identify
+their actual oracle, overlap, and credible wrong case. A passing test proves
+only what that oracle observes.
+
 First confirm the binding with native Git: the commit exists, its tree matches the
 reported tree, the checked base exists, and the inspected worktree or archive is
 the stated repository. Record the commands and outputs that establish those facts.
